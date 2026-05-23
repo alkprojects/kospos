@@ -6,6 +6,86 @@ Each entry: what we decided, the context, what we considered instead, and the co
 
 ---
 
+## ADR-008 — Session handoff convention: SESSION_HANDOFF.md
+
+**Date:** 2026-05-23
+**Status:** Accepted
+
+**Context:** Each Claude session was re-deriving context from scratch. End-of-session prompts were written manually and sometimes lost.
+
+**Decision:** Maintain `docs/SESSION_HANDOFF.md` as a machine-updated file. Every session reads it on startup and overwrites it on shutdown with the next prompt, recommended model, branch state, and any blockers. Added mandatory startup/shutdown sequences to `docs/CLAUDE.md`.
+
+**Alternatives considered:** A Cron-scheduled remote agent — overkill for a single-user project where Alex manually starts each session.
+
+**Consequences:** Sessions self-configure without Alex needing to remember context. The file becomes the source of truth for "where we left off."
+
+---
+
+## ADR-007 — OBI BI Payroll importer column assumptions
+
+**Date:** 2026-05-23
+**Status:** Provisional — awaiting Alex's confirmation against a real export
+
+**Context:** The `docs/data-sources/obi.md` doc does not specify exact column names. OBI is also migrating to Snowflake.
+
+**Decision:** Implemented the importer using these assumed column names: `Department Code`, `Department Name`, `Position Number`, `Empl ID`, `Employee Name`, `Job Code`, `Account Code`, `Fund`, `Authority`, `YTD Salary`, `YTD Benefits`, `YTD Total`, `Fiscal Year`, `Report Period`. Importer is header-driven (sniffs by lowercase match), so a column rename only requires updating the fingerprint and the `col()` lookup — not a rewrite.
+
+**Consequences:** If real column names differ, Alex updates the fingerprint strings in `detect.ts` and the `col()` lookups in `obi-payroll.ts`. No structural change needed.
+
+---
+
+## ADR-006 — PS HCM P&P Data importer column assumptions
+
+**Date:** 2026-05-23
+**Status:** Provisional — awaiting Alex's confirmation against a real export
+
+**Context:** The P&P report is described as "88 columns" in the data-source doc but exact names are not listed.
+
+**Decision:** Implemented against this assumed column set (the fields KosPos actually uses): `Position Number`, `Job Code`, `Job Code Description`, `Department Code`, `Department Name`, `Position Status`, `Empl ID`, `Employee Name`, `Appointment Type`, `Salary Step`, `Salary Amount`, `Reports To Position`, `RTF Status`, `RTF Expected Fill Date`, `FTE`, `Union Code`. Remaining ~72 columns are ignored.
+
+**Consequences:** Same as ADR-007 — header-driven, column renames are isolated changes.
+
+---
+
+## ADR-005 — BFM Non-Position eturn importer column assumptions
+
+**Date:** 2026-05-23
+**Status:** Provisional — awaiting Alex's confirmation against a real export
+
+**Context:** `docs/data-sources/bfm.md` describes the non-position eturn as "all budget dollar data for all accounts including labor (as totals, no position detail)" but doesn't list columns.
+
+**Decision:** Assumed columns: `Department Code`, `Department Name`, `Account Code`, `Account Description`, `Fund`, `Authority`, `Budget Amount`, `Fiscal Year`.
+
+**Consequences:** Same as ADR-007.
+
+---
+
+## ADR-004 — BFM Position eturn importer column assumptions
+
+**Date:** 2026-05-23
+**Status:** Provisional — awaiting Alex's confirmation against a real export
+
+**Context:** `docs/data-sources/bfm.md` describes the position eturn as "Position details only (FTE, job class)" but doesn't list column names.
+
+**Decision:** Assumed columns: `Department Code`, `Department Name`, `Position Number`, `Job Code`, `Job Code Description`, `Position Status`, `FTE`, `Budgeted Salary`, `Fund`, `Authority`, `Fiscal Year`.
+
+**Consequences:** Same as ADR-007.
+
+---
+
+## ADR-002-update — xlsx CDN swap deferred to Phase 2 completion
+
+**Date:** 2026-05-23
+**Status:** Deferred
+
+**Context:** ADR-002 called for switching to the SheetJS CDN build when Phase 2 parsing began. The swap was attempted but blocked by the Claude Code auto-mode security classifier (installing from an external URL requires explicit user authorization).
+
+**Decision:** Continue using the npm `xlsx@0.18.5` package for Phase 2. Alex should run `npm install https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz` manually in `app/` when convenient, or authorize the action in the next session.
+
+**Consequences:** `npm audit` will continue to report the two known advisories (prototype pollution, ReDoS). Acceptable for a local-only tool with no user-supplied untrusted Excel files. Revisit before any public deployment.
+
+---
+
 ## ADR-003 — Data quality + change tracking are cross-cutting, not their own phase
 
 **Date:** 2026-05-22
