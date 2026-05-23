@@ -1,0 +1,213 @@
+{
+  "$comment": "Employer retirement contributions and payroll taxes. capScope: hourly = tier threshold (hourly rate); annual = OASDI-style salary cap; none = uncapped. isTierDefining marks the item used for tier selection.",
+  "snapshots": [
+    {
+      "effectiveFrom": "2025-07-01",
+      "effectiveTo": null,
+      "byCode": {
+        "C": {
+          "1": [
+            {
+              "name": "RetCityMisc Tier1",
+              "rate": 0.15839999999999999,
+              "cap": 33.77,
+              "capScope": "hourly",
+              "isTierDefining": true
+            },
+            {
+              "name": "Social Security",
+              "rate": 0.062,
+              "cap": 185407,
+              "capScope": "annual",
+              "isTierDefining": false
+            },
+            {
+              "name": "Medicare",
+              "rate": 0.014499999999999999,
+              "cap": null,
+              "capScope": "none",
+              "isTierDefining": false
+            }
+          ],
+          "2": [
+            {
+              "name": "RetCityMisc Tier2",
+              "rate": 0.1439,
+              "cap": 67.55,
+              "capScope": "hourly",
+              "isTierDefining": true
+            },
+            {
+              "name": "Social Security",
+              "rate": 0.062,
+              "cap": 185407,
+              "capScope": "annual",
+              "isTierDefining": false
+            },
+            {
+              "name": "Medicare",
+              "rate": 0.014499999999999999,
+              "cap": null,
+              "capScope": "none",
+              "isTierDefining": false
+            }
+          ],
+          "3": [
+            {
+              "name": "RetCityMisc Tier3",
+              "rate": 0.1391,
+              "cap": null,
+              "capScope": "none",
+              "isTierDefining": false
+            },
+            {
+              "name": "Social Security",
+              "rate": 0.062,
+              "cap": 185407,
+              "capScope": "annual",
+              "isTierDefining": false
+            },
+            {
+              "name": "Medicare",
+              "rate": 0.014499999999999999,
+              "cap": null,
+              "capScope": "none",
+              "isTierDefining": false
+            }
+          ]
+        },
+        "E": {
+          "0": [
+            {
+              "name": "Social Security",
+              "rate": 0.062,
+              "cap": 185407,
+              "capScope": "annual",
+              "isTierDefining": false
+            },
+            {
+              "name": "Medicare",
+              "rate": 0.014499999999999999,
+              "cap": null,
+              "capScope": "none",
+              "isTierDefining": false
+            }
+          ]
+        },
+        "F": {
+          "1": [
+            {
+              "name": "RetCityUnif Tier 1 - Fire",
+              "rate": 0.1411,
+              "cap": 67.55,
+              "capScope": "hourly",
+              "isTierDefining": true
+            },
+            {
+              "name": "Medicare",
+              "rate": 0.014499999999999999,
+              "cap": null,
+              "capScope": "none",
+              "isTierDefining": false
+            }
+          ],
+          "2": [
+            {
+              "name": "RetCityUnif Tier 2 - Fire",
+              "rate": 0.1411,
+              "cap": 9999,
+              "capScope": "hourly",
+              "isTierDefining": true
+            },
+            {
+              "name": "Medicare",
+              "rate": 0.014499999999999999,
+              "cap": null,
+              "capScope": "none",
+              "isTierDefining": false
+            }
+          ]
+        },
+        "P": {
+          "1": [
+            {
+              "name": "RetCityUnif Tier 1 - Police",
+              "rate": 0.1411,
+              "cap": 67.55,
+              "capScope": "hourly",
+              "isTierDefining": true
+            },
+            {
+              "name": "Medicare",
+              "rate": 0.014499999999999999,
+              "cap": null,
+              "capScope": "none",
+              "isTierDefining": false
+            }
+          ],
+          "2": [
+            {
+              "name": "RetCityUnif Tier 2 - Police",
+              "rate": 0.1411,
+              "cap": 9999,
+              "capScope": "hourly",
+              "isTierDefining": true
+            },
+            {
+              "name": "Medicare",
+              "rate": 0.014499999999999999,
+              "cap": null,
+              "capScope": "none",
+              "isTierDefining": false
+            }
+          ]
+        },
+        "S": {
+          "1": [
+            {
+              "name": "RetCityUnif Tier 1 - Safety",
+              "rate": 0.5843,
+              "cap": 67.55,
+              "capScope": "hourly",
+              "isTierDefining": true
+            },
+            {
+              "name": "Medicare",
+              "rate": 0.014499999999999999,
+              "cap": null,
+              "capScope": "none",
+              "isTierDefining": false
+            }
+          ],
+          "2": [
+            {
+              "name": "RetCityUnif Tier 2 - Safety",
+              "rate": 0.5843,
+              "cap": 9999,
+              "capScope": "hourly",
+              "isTierDefining": true
+            },
+            {
+              "name": "Medicare",
+              "rate": 0.014499999999999999,
+              "cap": null,
+              "capScope": "none",
+              "isTierDefining": false
+            }
+          ]
+        },
+        "X": {
+          "0": [
+            {
+              "name": "Medicare",
+              "rate": 0.014499999999999999,
+              "cap": null,
+              "capScope": "none",
+              "isTierDefining": false
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

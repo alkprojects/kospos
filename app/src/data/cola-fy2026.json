@@ -1,0 +1,23 @@
+{
+  "$comment": "FY 2025-26 COLA constants. midYear and pp1 rates are display-only — the salary tables already bake them in. oasdiWageBase holds the federal OASDI wage base per calendar year; FY2026 spans CY2025 (July–Dec) and CY2026 (Jan–Jun), which have different caps.",
+  "fiscalYear": "FY2026",
+  "midYear": {
+    "appliesAtPP": 15,
+    "rate": 0.015
+  },
+  "pp1": {
+    "defaultRate": 0.0201,
+    "byEmpOrg": {
+      "352": 0.03,
+      "353": 0.03,
+      "793": 0.03,
+      "798": 0.03,
+      "799": 0.03,
+      "911": 0.03
+    }
+  },
+  "oasdiWageBase": {
+    "pre": 176100,
+    "post": 185407
+  }
+}
