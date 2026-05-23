@@ -37,7 +37,10 @@ export function FilePicker() {
     for (const file of Array.from(files)) {
       try {
         const buf = await file.arrayBuffer();
-        const wb = read(buf, { type: 'array' });
+        const isCSV = file.name.toLowerCase().endsWith('.csv');
+        const wb = isCSV
+          ? read(new TextDecoder().decode(buf), { type: 'string' })
+          : read(buf, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const detection = detect(ws);
 
@@ -91,7 +94,7 @@ export function FilePicker() {
         <input
           ref={inputRef}
           type="file"
-          accept=".xlsx,.xlsm"
+          accept=".xlsx,.xlsm,.csv"
           multiple
           style={{ display: 'none' }}
           onChange={e => handleFiles(e.target.files)}
@@ -101,7 +104,7 @@ export function FilePicker() {
           {loading ? 'Reading…' : 'Drop files here or click to browse'}
         </div>
         <div style={{ fontSize: 13, color: 'var(--muted)' }}>
-          Accepts .xlsx and .xlsm — BFM Eturns, PS HCM P&P, OBI Payroll
+          Accepts .xlsx, .xlsm, and .csv — BFM Eturns, PS HCM P&P, OBI Payroll
         </div>
       </div>
 
