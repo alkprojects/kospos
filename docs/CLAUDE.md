@@ -2,6 +2,31 @@
 
 **Every AI session working on KosPos starts by reading this file. Keep it short and dense — long context dilutes.**
 
+## Session startup sequence (mandatory)
+
+1. Read this file (`docs/CLAUDE.md`).
+2. Read `docs/SESSION_HANDOFF.md` — it contains the recommended next prompt, suggested model, and any mid-session resume point. If the file says the work is already in progress on a branch, rebase/pull that branch before touching anything.
+3. Check `git log --oneline -5` on main to confirm Phase N-1 is merged before starting Phase N work.
+
+## Session shutdown sequence (mandatory)
+
+Before ending any session, update `docs/SESSION_HANDOFF.md` with:
+- Current status (what's done, what's not)
+- The exact prompt Alex should paste to start the next session
+- Recommended model (default: `claude-sonnet-4-6`; use `claude-opus-4-7` for heavy reasoning tasks like parser design)
+- Branch name if work is in progress
+- Any blockers Alex needs to resolve (merges, decisions, etc.)
+
+This is non-negotiable: a session that ends without updating the handoff file has wasted context that the next session must recreate.
+
+## On usage limits
+
+There is no API available to check remaining usage from inside a session. Mitigation:
+- Commit after every meaningful chunk (not just at end of session).
+- Keep `SESSION_HANDOFF.md` current throughout — if a session is cut off, the next session picks up from it.
+- Size individual sessions to one phase sub-step (1.a, 1.b, 1.c, etc.), not an entire phase.
+- If context feels long (many tool calls, large diffs), finish the current logical unit, update the handoff, and suggest Alex start a fresh session.
+
 ---
 
 ## Project in one sentence
