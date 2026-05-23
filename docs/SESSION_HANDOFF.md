@@ -6,96 +6,71 @@ Updated at the end of every session. The next session reads this before doing an
 
 ## Current status
 
-**Phase:** 2 — Report importers + data quality scaffolding  
-**Branch:** `claude/nostalgic-zhukovsky-e400e0` (pre-created worktree, based on main post Phase-1 merge)  
-**Phase 1 merge:** Complete (PR #4 merged to main 2026-05-23)  
-**Phase 2 work started:** No — this session was used to set up session handoff tooling
+**Phase:** 2 — COMPLETE ✓  
+**Branch:** `claude/nostalgic-zhukovsky-e400e0`  
+**Tests:** 33/33 passing  
+**Last commit:** `6947b78` — Phase 2: Report importers, quality scaffold, file picker, Data Issues panel
+
+### What was built
+- `app/src/lib/importers/` — four pure importers (BFM position, BFM non-position, PS HCM P&P, OBI Payroll) + `detect()` auto-detection
+- `app/src/lib/quality/` — QualityRule interface + 5 starter rules (QR-001 through QR-005)
+- `app/src/lib/changes/` — ProposedChange type + Zustand stub store
+- `app/src/lib/store.ts` — global Zustand store (loadedRows + computed issues)
+- `app/src/modules/importer/` — FilePicker + ImporterView with drag-and-drop
+- `app/src/modules/issues/` — DataIssuesPanel (collapsible, severity-badged)
+- `App.tsx` updated with two-tab nav + issue-count badge
+
+### Open items before Phase 3
+1. **Merge this branch to main** — PR needs to be created and merged
+2. **xlsx CDN swap** — still on npm `xlsx@0.18.5` with audit warnings (ADR-002-update). Run `npm install https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz` in `app/` when ready.
+3. **Column name verification** — ADR-004 through ADR-007 are marked Provisional. Alex needs to compare importer fingerprints against real BFM/HCM/OBI exports and update `detect.ts` + importer files if column names differ.
+4. **Importer module directory** — a stray file was created at `.claire/worktrees/.../app/src/lib/changes/types.ts` (typo during session). Check if it exists and delete it: `rm -rf "C:\Users\ALK\Desktop\Claude Projects\kospos\.claire"`.
 
 ## Blockers for Alex
 
-None currently. Phase 1 is merged. Phase 2 branch is ready.
+1. **Merge Phase 2 branch to main** before starting Phase 3. Create a PR for `claude/nostalgic-zhukovsky-e400e0` → `main` and merge it.
+2. Confirm or correct the column names in the four importers against real reports.
 
 ## Next session prompt
 
-Paste this verbatim to start Phase 2:
+Paste this verbatim to start Phase 3:
 
 ---
 
-We're resuming Phase 2 — Report importers + data quality scaffolding.
+We're starting Phase 3 — Chartfield model + position-to-actuals linkage.
 
 Read these files first:
   docs/CLAUDE.md
   docs/SESSION_HANDOFF.md
-  docs/ROADMAP.md (Phase 2 section)
-  docs/data-sources/bfm.md
-  docs/data-sources/ps-hcm.md
-  docs/data-sources/obi.md
+  docs/ROADMAP.md (Phase 3 section)
+  docs/domain/chartfields.md
   docs/DECISIONS.md
 
 Current state:
-- Phase 1 is merged to main (PR #4).
-- Working branch: `claude/nostalgic-zhukovsky-e400e0`. Rebase it onto main before starting.
-- app/src/lib/cost.ts, app/src/data/*.json, and app/src/modules/calculator/CalculatorView.tsx exist from Phase 1.
-- Stack: Vite + React + TypeScript. xlsx (SheetJS) is in package.json. ADR-002 says to switch to the CDN version of xlsx now that we're actually parsing — do that first.
+- Phase 2 is merged to main (verify with `git log --oneline -5` on main before branching).
+- app/src/lib/importers/, app/src/lib/quality/, app/src/lib/changes/ all exist.
+- app/src/lib/store.ts has the global Zustand store with loadedRows + issues.
+- Stack: Vite + React + TypeScript. Zustand for state. No Tailwind/MUI — pure CSS.
 
-## What to build (Phase 2)
+## What to build (Phase 3)
 
-### 1. Switch xlsx to CDN install (ADR-002)
-  npm install https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
-  Then re-run npm audit and add an ADR-002 update to docs/DECISIONS.md.
+Per ROADMAP.md Phase 3:
+- Chartfield reference tree (Fund / Dept / Project / Activity / Authority / Account).
+- Combo code and task profile lookup tables.
+- For each position: show the default chartfield string and any overrides.
+- Appropriation control logic (account / project / authority levels).
 
-### 2. File picker with auto-detection
-A file upload component that accepts .xlsx/.xlsm files and sniffs the column
-headers to identify which report type it is. Each report type has a known
-set of required column names — use those as fingerprints.
-
-### 3. Importers — one module each
-Build importers for these report types (reference the data-sources/ docs
-for column names and shapes):
-  - BFM eturns — Position rows (the main labor budget export)
-  - BFM eturns — Non-position rows
-  - PS HCM P&P Data (Position & Personnel)
-  - OBI BI Payroll
-
-Each importer = a pure function: (worksheet) → typed records[]. No DOM, no
-side effects. Add an ADR entry in docs/DECISIONS.md for each one.
-
-### 4. lib/quality/ scaffold
-  - Define the QualityRule interface: { id, description, check(records) → Issue[] }
-  - Implement 3–5 starter rules (e.g., position in budget but not in HCM,
-    salary in payroll exceeds DHR step-max, vacant position with no RTF date)
-
-### 5. lib/changes/ scaffold
-  - Define the ProposedChange interface: { field, from, to, positionNumber, source }
-  - No UI needed yet — just the type and a stub store
-
-### 6. Global Data Issues panel
-A collapsible panel accessible from the app header that lists all active
-quality issues across loaded data.
-
-## Constraints
-- No new npm packages beyond what's already in app/package.json (xlsx CDN swap is allowed per ADR-002).
-- Pure CSS / inline styles only — no Tailwind/MUI.
-- Each importer must have at least one unit test with a synthetic example row.
+Constraints:
+- No new npm packages beyond what's in app/package.json.
+- Pure CSS / inline styles only.
+- Unit tests for any lookup/derivation logic.
 - npm test must stay green.
+- Branch from main, single-purpose name.
 
-## Done when
-- The file picker loads a BFM eturns .xlsx and auto-identifies it.
-- At least one quality rule fires on synthetic data in a test.
-- npm test green.
-- No console errors in the browser.
-- Committed on this branch.
-
-Do not start Phase 3 (chartfield model).
+Do not start Phase 4 (Special Class calculations).
 
 ---
 
 ## Recommended model
 
-`claude-sonnet-4-6` — sufficient for this structured implementation work.  
-Use `claude-opus-4-7` if you hit a complex design decision (e.g., how to handle ambiguous BFM column schemas).
-
-## Notes for next session
-
-- The BFM and PS HCM data-source docs (docs/data-sources/bfm.md, ps-hcm.md) have open uncertainties about exact column names — Alex will need to confirm these against a real export. Build the importers against the best-documented column set and note any assumptions in the ADR.
-- ADR-002 requires the xlsx CDN swap on first parse usage — do this before writing any importer code.
+`claude-sonnet-4-6` — Phase 3 is structured data modeling, no heavy reasoning needed.
