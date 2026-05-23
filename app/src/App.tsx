@@ -2,13 +2,15 @@ import { useState } from 'react';
 import './App.css';
 import { CalculatorView } from './modules/calculator/CalculatorView';
 import { ImporterView } from './modules/importer/ImporterView';
+import { PositionsView } from './modules/positions/PositionsView';
 import { useAppStore } from './lib/store';
 
-type Tab = 'calculator' | 'importer';
+type Tab = 'calculator' | 'importer' | 'positions';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'calculator', label: 'Job Class Calculator' },
   { id: 'importer',   label: 'Load Reports' },
+  { id: 'positions',  label: 'Positions' },
 ];
 
 export default function App() {
@@ -69,6 +71,7 @@ export default function App() {
       <main className="main" style={{ padding: 0 }}>
         {tab === 'calculator' && <CalculatorView />}
         {tab === 'importer'   && <ImporterView />}
+        {tab === 'positions'  && <PositionsView />}
       </main>
 
       <footer className="site-footer">
