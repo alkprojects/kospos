@@ -1,44 +1,51 @@
 /**
  * Sniffs a worksheet's header row to identify which SF labor report it came from.
  *
- * Strategy: each report type has a set of "fingerprint" columns that appear
- * together only in that report. We check the first two rows (row 0 and row 1)
- * because some BFM exports have a title row above the column headers.
+ * Fingerprints are verified against real DBI exports (May 2026).
+ * See docs/DECISIONS.md ADR-004 through ADR-007.
  */
 
 import type { WorkSheet } from 'xlsx';
 import { utils } from 'xlsx';
 import type { DetectionResult, ReportType } from './types';
 
-/** Fingerprint column sets — ALL of these must be present to match. */
+/**
+ * Columns that must ALL be present to match a given report type.
+ * Chosen to be unique to each report and stable across fiscal years.
+ */
 const FINGERPRINTS: Record<Exclude<ReportType, 'unknown'>, string[]> = {
+  // 15.10.006 "By Position#" sheet / "Pos" sheet in Eturns export
   'bfm-position': [
-    'Position Number',
-    'Job Code',
-    'FTE',
-    'Budgeted Salary',
-    'Position Status',
+    'BY HCM Position#',
+    'Job Class',
+    'Status',
+    'Dept ID',
+    'Ret Indicator',
   ],
+  // 15.10.001 "Chart of Account Details" / "Nonpos" sheet in Eturns export
   'bfm-non-position': [
-    'Account Code',
-    'Account Description',
-    'Budget Amount',
-    'Department Code',
-    'Fund',
+    'GFS Type',
+    'Dept ID',
+    'Account',
+    'Account Title',
+    'Account Lvl 5 Title',
+    'Change Type',
   ],
+  // "Active Labor" CSV / "P&P Data" sheet — PS HCM Position & Personnel
   'ps-hcm-pp': [
-    'Position Number',
-    'Empl ID',
-    'Appointment Type',
-    'Reports To Position',
-    'Union Code',
+    'Snapshot Date',
+    'Position Job Code',
+    'Current Employee ID',
+    'Position Reports To',
+    'Roster Code',
   ],
+  // "Payroll Detail" CSV / "BI Payroll" sheet — OBI per-pay-period payroll
   'obi-payroll': [
-    'YTD Salary',
-    'YTD Benefits',
-    'YTD Total',
-    'Report Period',
-    'Empl ID',
+    'Balance Amount',
+    'Earning Period End Date',
+    'Person Number',
+    'Position Identifier',
+    'Pay Period FTE',
   ],
 };
 

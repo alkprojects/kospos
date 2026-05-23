@@ -41,22 +41,36 @@ export function FilePicker() {
         const wb = isCSV
           ? read(new TextDecoder().decode(buf), { type: 'string' })
           : read(buf, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const detection = detect(ws);
 
-        let rows: ImportedRow[] = [];
-        if (detection.type === 'bfm-position') {
-          rows = importBfmPosition(ws, detection.headerRow);
-        } else if (detection.type === 'bfm-non-position') {
-          rows = importBfmNonPosition(ws, detection.headerRow);
-        } else if (detection.type === 'ps-hcm-pp') {
-          rows = importPsHcmPp(ws, detection.headerRow);
-        } else if (detection.type === 'obi-payroll') {
-          rows = importObiPayroll(ws, detection.headerRow);
+        // Scan every sheet — Eturns files have both Pos and Nonpos sheets
+        let totalRows = 0;
+        let lastType = 'unknown';
+        for (const sheetName of wb.SheetNames) {
+          const ws = wb.Sheets[sheetName];
+          const detection = detect(ws);
+          if (detection.type === 'unknown') continue;
+
+          let rows: ImportedRow[] = [];
+          if (detection.type === 'bfm-position') {
+            rows = importBfmPosition(ws, detection.headerRow);
+          } else if (detection.type === 'bfm-non-position') {
+            rows = importBfmNonPosition(ws, detection.headerRow);
+          } else if (detection.type === 'ps-hcm-pp') {
+            rows = importPsHcmPp(ws, detection.headerRow);
+          } else if (detection.type === 'obi-payroll') {
+            rows = importObiPayroll(ws, detection.headerRow);
+          }
+
+          addRows(rows);
+          totalRows += rows.length;
+          lastType = detection.type;
         }
 
-        addRows(rows);
-        next.push({ name: file.name, type: detection.type, rowCount: rows.length });
+        next.push({
+          name: file.name,
+          type: totalRows > 0 ? lastType : 'unknown',
+          rowCount: totalRows,
+        });
       } catch (err) {
         next.push({
           name: file.name,

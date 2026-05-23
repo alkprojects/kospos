@@ -1,13 +1,11 @@
 /**
- * QR-003: OBI payroll YTD total is on pace to exceed the BFM budgeted salary.
+ * QR-003: Total OBI payroll expenditure for a position exceeds its BFM budgeted salary.
  *
- * "On pace" = annualised YTD × (26/pps_elapsed) > budgetedSalary × 1.05
- * We use a 5% buffer to avoid noise from rounding and mid-year step increases.
+ * Sums all Balance Amount rows in OBI for each Position Identifier, then compares
+ * against the BFM budgeted salary. Flags positions where total > budget × 1.05
+ * (5% buffer for rounding and mid-year step increases).
  *
- * Note: we can't know pps_elapsed from the data alone — we use ytdTotal /
- * budgetedSalary as a ratio proxy instead. If YTD has already consumed more
- * than 100% of budget and it's before the end of the fiscal year, flag it.
- * This is a conservative check; a fuller implementation uses the report period.
+ * OBI rows are per-period, so summing gives the full-year expenditure to date.
  */
 
 import type { QualityRule, Issue } from '../types';
@@ -15,7 +13,7 @@ import type { ImportedRow } from '../../importers/types';
 
 export const payrollExceedsBudget: QualityRule = {
   id: 'QR-003',
-  description: 'OBI payroll YTD total exceeds BFM budgeted salary',
+  description: 'OBI payroll total exceeds BFM budgeted salary',
   check(records: ImportedRow[]): Issue[] {
     const budgetByPosition = new Map<string, number>();
     for (const r of records) {
@@ -26,19 +24,27 @@ export const payrollExceedsBudget: QualityRule = {
 
     if (budgetByPosition.size === 0) return [];
 
-    const issues: Issue[] = [];
+    // Sum balance amounts per position
+    const spentByPosition = new Map<string, { total: number; rows: number[] }>();
     for (const r of records) {
       if (r._source !== 'obi-payroll') continue;
-      const budget = budgetByPosition.get(r.positionNumber);
+      const entry = spentByPosition.get(r.positionIdentifier) ?? { total: 0, rows: [] };
+      entry.total += r.balanceAmount;
+      entry.rows.push(r._row);
+      spentByPosition.set(r.positionIdentifier, entry);
+    }
+
+    const issues: Issue[] = [];
+    for (const [posId, spent] of spentByPosition) {
+      const budget = budgetByPosition.get(posId);
       if (budget == null || budget === 0) continue;
-      if (r.ytdTotal > budget * 1.05) {
+      if (spent.total > budget * 1.05) {
         issues.push({
           ruleId: 'QR-003',
           severity: 'error',
-          message: `Position ${r.positionNumber} (${r.employeeName || r.emplId}): payroll YTD $${r.ytdTotal.toLocaleString()} exceeds budget $${budget.toLocaleString()}`,
-          positionNumber: r.positionNumber,
-          emplId: r.emplId,
-          sourceRows: [r._row],
+          message: `Position ${posId}: payroll total $${spent.total.toLocaleString()} exceeds budget $${budget.toLocaleString()}`,
+          positionNumber: posId,
+          sourceRows: spent.rows,
         });
       }
     }

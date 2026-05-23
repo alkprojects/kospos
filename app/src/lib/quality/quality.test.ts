@@ -14,18 +14,24 @@ import { positionInHcmNotBfm } from './rules/position-in-hcm-not-bfm';
 function bfmPos(overrides: Partial<BfmPositionRow> = {}): BfmPositionRow {
   return {
     _source: 'bfm-position',
-    departmentCode: 'DBI',
-    departmentName: 'Dept of Building Inspection',
-    positionNumber: '00456',
-    jobCode: '6278',
-    jobCodeDescription: 'Building Inspector',
-    positionStatus: 'Filled',
-    fte: 1,
-    budgetedSalary: 110000,
-    fund: '1GAGF',
-    authority: 'AUTH1',
-    fiscalYear: 'FY2026',
-    _row: 2,
+    positionNumber:      '10001',
+    priorPositionNumber: '10001',
+    departmentCode:      'DBI',
+    departmentName:      'Dept of Building Inspection',
+    jobCode:             '6278_C',
+    jobCodeDescription:  'Building Inspector',
+    empOrg:              '21',
+    retIndicator:        '1',
+    positionStatus:      'A',
+    fund:                '1GAGF',
+    authority:           'AUTH1',
+    project:             '',
+    activity:            '',
+    fte:                 1,
+    budgetedSalary:      110000,
+    budgetPhaseColumn:   'FY 2026-27 Mayor FTE',
+    fiscalYearStart:     '2027',
+    _row:                2,
     ...overrides,
   };
 }
@@ -33,23 +39,28 @@ function bfmPos(overrides: Partial<BfmPositionRow> = {}): BfmPositionRow {
 function hcmPos(overrides: Partial<PsHcmPpRow> = {}): PsHcmPpRow {
   return {
     _source: 'ps-hcm-pp',
-    positionNumber: '00456',
-    jobCode: '6278',
-    jobCodeDescription: 'Building Inspector',
-    departmentCode: 'DBI',
-    departmentName: 'Dept of Building Inspection',
-    positionStatus: 'A',
-    emplId: 'E12345',
-    employeeName: 'Smith, Jane',
-    appointmentType: 'PCS',
-    salaryStep: '5',
-    salaryAmount: 110000,
-    reportsToPosition: '00100',
-    rtfStatus: '',
+    snapshotDate:        '2024-08-30',
+    positionNumber:      '10001',
+    jobCode:             '6278',
+    jobCodeDescription:  'Building Inspector',
+    departmentCode:      'DBI',
+    departmentName:      'Dept of Building Inspection',
+    positionStatus:      'Approved',
+    fillStatus:          'FILLED',
+    emplId:              'E12345',
+    employeeName:        'Smith, Jane',
+    appointmentType:     'PCS',
+    salaryStep:          '5',
+    hourlyRate:          63.46,
+    reportsToPosition:   '09000',
+    rosterCode:          '21',
+    rosterDescription:   'SEIU 1021',
+    rtfStatus:           '',
     rtfExpectedFillDate: '',
-    fte: 1,
-    unionCode: '21',
-    _row: 2,
+    fte:                 1,
+    comboCode:           'C1234',
+    employeeJobCode:     '6278',
+    _row:                2,
     ...overrides,
   };
 }
@@ -57,21 +68,25 @@ function hcmPos(overrides: Partial<PsHcmPpRow> = {}): PsHcmPpRow {
 function obiRow(overrides: Partial<ObiPayrollRow> = {}): ObiPayrollRow {
   return {
     _source: 'obi-payroll',
-    departmentCode: 'DBI',
-    departmentName: 'Dept of Building Inspection',
-    positionNumber: '00456',
-    emplId: 'E12345',
-    employeeName: 'Smith, Jane',
-    jobCode: '6278',
-    accountCode: '501010',
-    fund: '1GAGF',
-    authority: 'AUTH1',
-    ytdSalary: 60000,
-    ytdBenefits: 30000,
-    ytdTotal: 90000,
-    fiscalYear: 'FY2026',
-    reportPeriod: 'July 2025 – March 2026',
-    _row: 2,
+    fiscalYear:          'FY2024',
+    departmentCode:      'DBI',
+    departmentName:      'Dept of Building Inspection',
+    positionIdentifier:  '10001',
+    personNumber:        '12345',
+    personFullName:      'Smith, Jane',
+    jobCode:             'COMMN:6278',
+    jobDescription:      'Building Inspector',
+    accountCode:         '501010',
+    fund:                '1GAGF',
+    authority:           'AUTH1',
+    earningPeriodNumber: 15,
+    earningPeriodEnd:    '2024-01-26',
+    earningsCode:        'WKP',
+    earningsDescription: 'Regular Biweekly Pay',
+    balanceAmount:       4846.15,
+    payPeriodFTE:        1,
+    appointmentType:     'PCS',
+    _row:                2,
     ...overrides,
   };
 }
@@ -83,12 +98,12 @@ function obiRow(overrides: Partial<ObiPayrollRow> = {}): ObiPayrollRow {
 describe('QR-001 positionInBfmNotHcm', () => {
   it('fires when BFM position has no HCM match', () => {
     const records: ImportedRow[] = [
-      bfmPos({ positionNumber: '00456' }),
-      hcmPos({ positionNumber: '00999' }), // different position
+      bfmPos({ positionNumber: '10001' }),
+      hcmPos({ positionNumber: '10999' }),
     ];
     const issues = positionInBfmNotHcm.check(records);
     expect(issues).toHaveLength(1);
-    expect(issues[0].positionNumber).toBe('00456');
+    expect(issues[0].positionNumber).toBe('10001');
     expect(issues[0].ruleId).toBe('QR-001');
   });
 
@@ -110,7 +125,7 @@ describe('QR-001 positionInBfmNotHcm', () => {
 describe('QR-002 vacantNoRtf', () => {
   it('fires on a vacant position with no RTF info', () => {
     const records: ImportedRow[] = [
-      hcmPos({ emplId: '', rtfStatus: '', rtfExpectedFillDate: '' }),
+      hcmPos({ emplId: '', fillStatus: 'VACANT', rtfStatus: '', rtfExpectedFillDate: '' }),
     ];
     const issues = vacantNoRtf.check(records);
     expect(issues).toHaveLength(1);
@@ -119,13 +134,13 @@ describe('QR-002 vacantNoRtf', () => {
 
   it('does not fire when RTF status is present', () => {
     const records: ImportedRow[] = [
-      hcmPos({ emplId: '', rtfStatus: 'Open', rtfExpectedFillDate: '2026-09-01' }),
+      hcmPos({ emplId: '', fillStatus: 'VACANT', rtfStatus: 'Open', rtfExpectedFillDate: '2026-09-01' }),
     ];
     expect(vacantNoRtf.check(records)).toHaveLength(0);
   });
 
   it('does not fire for a filled position', () => {
-    const records: ImportedRow[] = [hcmPos()]; // has emplId
+    const records: ImportedRow[] = [hcmPos()]; // fillStatus FILLED, has emplId
     expect(vacantNoRtf.check(records)).toHaveLength(0);
   });
 });
@@ -135,26 +150,28 @@ describe('QR-002 vacantNoRtf', () => {
 // ---------------------------------------------------------------------------
 
 describe('QR-003 payrollExceedsBudget', () => {
-  it('fires when YTD total exceeds budget by more than 5%', () => {
+  it('fires when summed balance amounts exceed budget by more than 5%', () => {
     const records: ImportedRow[] = [
       bfmPos({ budgetedSalary: 100000 }),
-      obiRow({ ytdTotal: 106000 }), // 6% over
+      // Two periods totalling 106000 — 6% over
+      obiRow({ balanceAmount: 53000, earningPeriodNumber: 1 }),
+      obiRow({ balanceAmount: 53000, earningPeriodNumber: 2, _row: 3 }),
     ];
     const issues = payrollExceedsBudget.check(records);
     expect(issues).toHaveLength(1);
     expect(issues[0].ruleId).toBe('QR-003');
   });
 
-  it('does not fire when YTD is within 5% buffer', () => {
+  it('does not fire when total is within 5% buffer', () => {
     const records: ImportedRow[] = [
       bfmPos({ budgetedSalary: 100000 }),
-      obiRow({ ytdTotal: 104000 }), // 4% over — within buffer
+      obiRow({ balanceAmount: 104000 }),
     ];
     expect(payrollExceedsBudget.check(records)).toHaveLength(0);
   });
 
   it('does not fire when BFM data is not loaded', () => {
-    const records: ImportedRow[] = [obiRow({ ytdTotal: 200000 })];
+    const records: ImportedRow[] = [obiRow({ balanceAmount: 200000 })];
     expect(payrollExceedsBudget.check(records)).toHaveLength(0);
   });
 });
@@ -185,20 +202,20 @@ describe('QR-004 hcmFteBfmMismatch', () => {
 // ---------------------------------------------------------------------------
 
 describe('QR-005 positionInHcmNotBfm', () => {
-  it('fires for an active filled position missing from BFM', () => {
+  it('fires for a filled position missing from BFM', () => {
     const records: ImportedRow[] = [
-      bfmPos({ positionNumber: '00999' }),
-      hcmPos({ positionNumber: '00456', emplId: 'E12345', positionStatus: 'A' }),
+      bfmPos({ positionNumber: '10999' }),
+      hcmPos({ positionNumber: '10001', fillStatus: 'FILLED' }),
     ];
     const issues = positionInHcmNotBfm.check(records);
     expect(issues).toHaveLength(1);
-    expect(issues[0].positionNumber).toBe('00456');
+    expect(issues[0].positionNumber).toBe('10001');
   });
 
   it('does not fire for a vacant position missing from BFM', () => {
     const records: ImportedRow[] = [
-      bfmPos({ positionNumber: '00999' }),
-      hcmPos({ positionNumber: '00456', emplId: '', positionStatus: 'A' }),
+      bfmPos({ positionNumber: '10999' }),
+      hcmPos({ positionNumber: '10001', emplId: '', fillStatus: 'VACANT' }),
     ];
     expect(positionInHcmNotBfm.check(records)).toHaveLength(0);
   });
