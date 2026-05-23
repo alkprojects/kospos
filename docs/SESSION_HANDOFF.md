@@ -6,74 +6,70 @@ Updated at the end of every session. The next session reads this before doing an
 
 ## Current status
 
-**Phase:** fix/importer-column-names — COMPLETE ✓ (merged to main as PR #7)  
-**Branch:** `main` (ready for Phase 3 branch)  
-**Tests:** 37/37 passing  
-**Last merged commit:** `b9f5f12` — fix: rewrite importers with verified column names from real DBI exports (#7)
+**Phase:** 3 — COMPLETE ✓ (PR #9 open, awaiting merge)
+**Branch:** `feat/chartfield-model`
+**Tests:** 54/54 passing
+**Last commit:** `61e4727` — feat: Phase 3 — chartfield model + Positions view
 
-### What was built / fixed (sessions 2–3)
-- `app/src/lib/importers/` — four pure importers + `detect()` auto-detection
-  - `bfm-position.ts` — reads `BY HCM Position#`, `Job Class`, `Dept ID Title`, `Ret Indicator`, `Emp Org`; dynamically selects best FTE/salary column by phase priority (Board > Mayor > Committee > Department > Base, latest FY)
-  - `bfm-non-position.ts` — reads `GFS Type`, `Account`, `Account Lvl 5 Title`; same dynamic phase logic for budget amount
-  - `ps-hcm-pp.ts` — reads `Position Job Code`, `Position Fill Status`, `Roster Code`, `Employee Hourly Rate`, `Budget Position Total FTE`, `Combo Code`, `Employee Job Code`
-  - `obi-payroll.ts` — per-period rows (`Balance Amount`, `Position Identifier`, `Person Number`, `Earnings Code`, `Pay Period FTE`)
-- `FilePicker.tsx` — scans ALL sheets in an XLSX workbook (fixes Eturns files with Pos + Nonpos sheets)
-- `app/src/lib/quality/` — QualityRule interface + 5 starter rules (QR-001 through QR-005)
-  - QR-003 sums per-period balance amounts by positionIdentifier
-  - QR-005 uses `fillStatus === 'FILLED'` instead of legacy emplId check
-- `app/src/lib/changes/` — ProposedChange type + Zustand stub store
-- `app/src/lib/store.ts` — global Zustand store (loadedRows + computed issues)
-- `app/src/modules/importer/` — FilePicker + ImporterView with drag-and-drop, accepts .xlsx/.xlsm/.csv
-- `app/src/modules/issues/` — DataIssuesPanel (collapsible, severity-badged)
-- `App.tsx` — two-tab nav with issue-count badge
+### What was built
 
-### Open items (non-blocking for Phase 3)
-1. **xlsx CDN swap** — still on npm `xlsx@0.18.5` with audit warnings (ADR-002-update). Run `npm install https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz` in `app/` when ready.
-2. **ADR-004 through ADR-007** — mark as Confirmed (no longer Provisional) in `docs/DECISIONS.md`.
-3. **OBI payroll department column** — mapped from `Department` / `Department Description`. If real export uses different names, update `obi-payroll.ts` col lookups.
+- `app/src/lib/chartfields/types.ts` — `ChartfieldString`, `ComboCode`, `TaskProfile`, `AppropriationLevel`, `ResolvedChartfields`
+- `app/src/lib/chartfields/resolve.ts` — `resolvePositionChartfields()` joins BFM Position + HCM P&P + OBI rows by position number; detects combo code overrides; sums YTD actuals
+- `app/src/lib/chartfields/approp.ts` — `categorizeAccount()` maps account codes to appropriation control level (labor / account / project / authority / none)
+- `app/src/lib/chartfields/chartfields.test.ts` — 17 new unit tests (54 total)
+- `app/src/modules/positions/PositionsView.tsx` — searchable/filterable positions table with posting string, fill status badges, combo override flag, YTD actuals, and click-to-expand detail panel
+- `app/src/App.tsx` — added Positions tab (3 tabs total)
+
+### Open items / Phase 3.5 stubs
+
+1. **Combo code expansion** — The override is detected and the combo code string is surfaced, but resolving it to Fund/Dept/Authority requires a Combo Codes reference file import. Types (`ComboCode`) are defined; add an importer + pass it into `resolvePositionChartfields()`.
+2. **Appropriation control UI** — `categorizeAccount()` is tested but not yet shown in the UI. Phase 4/5 will use it for budget availability visualization.
+3. **ADR-004 through ADR-007** — still marked Provisional; Alex should confirm column names and mark Confirmed.
+4. **xlsx CDN swap** — still on npm `xlsx@0.18.5` (audit warnings). Run `npm install https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz` in `app/` when ready.
+
+## Blockers for Alex
+
+1. **Merge PR #9** (`feat/chartfield-model` → `main`) before starting Phase 4.
+2. **Preview caveat** — the `preview_start` tool serves the main project's `app/` dir, not the worktree. To see Phase 3 UI in the browser before the PR merges, run `npm run dev` directly in the worktree: `cd "C:\Users\ALK\Desktop\Claude Projects\kospos\.claude\worktrees\great-mahavira-a88068\app" && npm run dev`
 
 ## Next session prompt
 
-Paste this verbatim to start Phase 3:
+Paste this verbatim to start Phase 4:
 
 ---
 
-We're starting Phase 3 — Chartfield model + position-to-actuals linkage.
+We're starting Phase 4 — Special Class calculations.
 
 Read these files first:
   docs/CLAUDE.md
   docs/SESSION_HANDOFF.md
-  docs/ROADMAP.md (Phase 3 section)
-  docs/domain/chartfields.md
+  docs/ROADMAP.md (Phase 4 section)
+  docs/domain/special-class.md
   docs/DECISIONS.md
 
 Current state:
-- PR #7 (fix/importer-column-names) is merged to main. Verify: `git log --oneline origin/main -5` should show `b9f5f12`.
-- All four importers use real DBI column names (verified May 2026).
-- app/src/lib/importers/, app/src/lib/quality/, app/src/lib/changes/ all exist.
-- app/src/lib/store.ts has the global Zustand store with loadedRows + computed issues.
+- PR #9 (feat/chartfield-model) is merged to main. Verify: `git log --oneline origin/main -5` should show the Phase 3 commit.
+- app/src/lib/chartfields/ exists with types, resolve, and approp modules.
+- app/src/modules/positions/PositionsView.tsx exists (Positions tab).
 - Stack: Vite + React + TypeScript. Zustand v5. No Tailwind/MUI — pure inline CSS.
-- 37/37 tests passing.
+- 54/54 tests passing.
 
-## What to build (Phase 3)
-
-Per ROADMAP.md Phase 3:
-- Chartfield reference tree (Fund / Dept / Project / Activity / Authority / Account).
-- Combo code and task profile lookup tables.
-- For each position: show the default chartfield string and any overrides.
-- Appropriation control logic (account / project / authority levels).
+What to build (Phase 4) per ROADMAP.md:
+- Implement the special-class math from the Special Class tab in Alex's spreadsheet.
+- Special class codes: 9993M_C (Attrition Savings), 9994M_C (MCCP Offset), 9995M_E (Positions Not Detailed), OVERM_E (Overtime), PREMM_E (Premium Pay), RTPOM_E (Retirement Payout), STEPM_C (Step Adjustments), TEMPM_E (Temporary).
+- Done when: outputs match Alex's spreadsheet for DBI FY27-28 to the dollar.
 
 Constraints:
 - No new npm packages beyond what's in app/package.json.
 - Pure CSS / inline styles only.
-- Unit tests for any lookup/derivation logic.
+- Unit tests for any calculation logic.
 - npm test must stay green.
 - Branch from main, single-purpose name.
 
-Do not start Phase 4 (Special Class calculations).
+Do not start Phase 5 (Projections engine).
 
 ---
 
 ## Recommended model
 
-`claude-sonnet-4-6` — Phase 3 is structured data modeling, no heavy reasoning needed.
+`claude-opus-4-7` — Phase 4 involves replicating exact spreadsheet math with dollar-level precision; heavier reasoning is warranted.
