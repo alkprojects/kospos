@@ -1,10 +1,10 @@
 /**
  * OBI BI Payroll report importer.
  *
- * All paid amounts YTD. Source-agnostic — sniffs headers, not filename,
- * so this works whether the source is OBI or the future Snowflake replacement.
- * See docs/data-sources/obi.md and docs/DECISIONS.md ADR-007.
- * Column names are documented assumptions — Alex must verify against a real export.
+ * Per-pay-period rows — NOT a YTD summary.
+ * Each row = one position × one earning code × one pay period.
+ * Column names verified against real DBI exports (May 2026).
+ * See docs/DECISIONS.md ADR-007.
  */
 
 import type { WorkSheet } from 'xlsx';
@@ -21,7 +21,7 @@ function str(v: unknown): string {
 }
 
 export function importObiPayroll(ws: WorkSheet, headerRow = 0): ObiPayrollRow[] {
-  const rows = utils.sheet_to_json<Record<string, unknown>>(ws, {
+  const rows = utils.sheet_to_json<unknown[]>(ws, {
     header: 1,
     range: headerRow,
     defval: '',
@@ -33,45 +33,53 @@ export function importObiPayroll(ws: WorkSheet, headerRow = 0): ObiPayrollRow[] 
 
   const col = (name: string) => headers.indexOf(name.toLowerCase());
 
-  const iDept       = col('department code');
-  const iDeptName   = col('department name');
-  const iPos        = col('position number');
-  const iEmplId     = col('empl id');
-  const iName       = col('employee name');
-  const iJC         = col('job code');
-  const iAcct       = col('account code');
-  const iFund       = col('fund');
-  const iAuth       = col('authority');
-  const iYtdSal     = col('ytd salary');
-  const iYtdBen     = col('ytd benefits');
-  const iYtdTotal   = col('ytd total');
-  const iFY         = col('fiscal year');
-  const iPeriod     = col('report period');
+  const iFY        = col('fiscal year');
+  const iDept      = col('department');
+  const iDeptName  = col('department description');
+  const iPos       = col('position identifier');
+  const iPerson    = col('person number');
+  const iName      = col('person full name');
+  const iJC        = col('job code');
+  const iJCDesc    = col('job description');
+  const iAcct      = col('account');
+  const iFund      = col('fund code');
+  const iAuth      = col('authority code');
+  const iPeriodNum = col('earning period number');
+  const iPeriodEnd = col('earning period end date');
+  const iEarnCode  = col('earnings code');
+  const iEarnDesc  = col('earnings code description');
+  const iBalance   = col('balance amount');
+  const iFte       = col('pay period fte');
+  const iAppt      = col('hr assignment appointment type');
 
   const results: ObiPayrollRow[] = [];
 
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i] as unknown[];
-    const emplId = str(r[iEmplId]);
-    if (!emplId) continue;
+    const posId = str(r[iPos]);
+    if (!posId) continue;
 
     results.push({
       _source: 'obi-payroll',
-      departmentCode: str(r[iDept]),
-      departmentName: str(r[iDeptName]),
-      positionNumber: str(r[iPos]),
-      emplId,
-      employeeName:   str(r[iName]),
-      jobCode:        str(r[iJC]),
-      accountCode:    str(r[iAcct]),
-      fund:           str(r[iFund]),
-      authority:      str(r[iAuth]),
-      ytdSalary:      num(r[iYtdSal]),
-      ytdBenefits:    num(r[iYtdBen]),
-      ytdTotal:       num(r[iYtdTotal]),
-      fiscalYear:     str(r[iFY]),
-      reportPeriod:   str(r[iPeriod]),
-      _row:           headerRow + i + 1,
+      fiscalYear:          str(r[iFY]),
+      departmentCode:      str(r[iDept]),
+      departmentName:      str(r[iDeptName]),
+      positionIdentifier:  posId,
+      personNumber:        str(r[iPerson]),
+      personFullName:      str(r[iName]),
+      jobCode:             str(r[iJC]),
+      jobDescription:      str(r[iJCDesc]),
+      accountCode:         str(r[iAcct]),
+      fund:                str(r[iFund]),
+      authority:           str(r[iAuth]),
+      earningPeriodNumber: num(r[iPeriodNum]),
+      earningPeriodEnd:    str(r[iPeriodEnd]),
+      earningsCode:        str(r[iEarnCode]),
+      earningsDescription: str(r[iEarnDesc]),
+      balanceAmount:       num(r[iBalance]),
+      payPeriodFTE:        num(r[iFte]),
+      appointmentType:     str(r[iAppt]),
+      _row:                headerRow + i + 1,
     });
   }
 

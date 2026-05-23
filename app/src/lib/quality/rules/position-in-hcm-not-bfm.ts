@@ -4,6 +4,9 @@
  * An active, filled position with no budget entry means either the position
  * is being funded from a different account than expected, or BFM was never
  * updated when the position was created in HCM.
+ *
+ * Uses Position Fill Status = "FILLED" as the fill indicator (more reliable
+ * than Employee ID presence, which can be empty for acting arrangements).
  */
 
 import type { QualityRule, Issue } from '../types';
@@ -23,7 +26,7 @@ export const positionInHcmNotBfm: QualityRule = {
 
     return records
       .filter(r => r._source === 'ps-hcm-pp')
-      .filter(r => r.emplId && r.positionStatus === 'A') // filled & active
+      .filter(r => r.fillStatus === 'FILLED')
       .filter(r => !bfmPositions.has(r.positionNumber))
       .map(r => ({
         ruleId: 'QR-005',

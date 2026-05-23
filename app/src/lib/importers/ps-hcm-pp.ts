@@ -1,9 +1,9 @@
 /**
  * PS HCM Position & Personnel (P&P) Data importer.
  *
- * The "88-column report" — the canonical source for position and incumbency data.
- * See docs/data-sources/ps-hcm.md and docs/DECISIONS.md ADR-006.
- * Column names are documented assumptions — Alex must verify against a real export.
+ * Reads "Active Labor" CSV / "P&P Data" sheet.
+ * Column names verified against real DBI exports (May 2026).
+ * See docs/DECISIONS.md ADR-006.
  */
 
 import type { WorkSheet } from 'xlsx';
@@ -20,7 +20,7 @@ function str(v: unknown): string {
 }
 
 export function importPsHcmPp(ws: WorkSheet, headerRow = 0): PsHcmPpRow[] {
-  const rows = utils.sheet_to_json<Record<string, unknown>>(ws, {
+  const rows = utils.sheet_to_json<unknown[]>(ws, {
     header: 1,
     range: headerRow,
     defval: '',
@@ -32,22 +32,27 @@ export function importPsHcmPp(ws: WorkSheet, headerRow = 0): PsHcmPpRow[] {
 
   const col = (name: string) => headers.indexOf(name.toLowerCase());
 
+  const iSnapshot   = col('snapshot date');
   const iPos        = col('position number');
-  const iJC         = col('job code');
-  const iJCDesc     = col('job code description');
-  const iDept       = col('department code');
-  const iDeptName   = col('department name');
+  const iJC         = col('position job code');
+  const iJCDesc     = col('position description');
+  const iDept       = col('position department id');
+  const iDeptName   = col('position department description');
   const iStatus     = col('position status');
-  const iEmplId     = col('empl id');
-  const iName       = col('employee name');
-  const iAppt       = col('appointment type');
-  const iStep       = col('salary step');
-  const iSal        = col('salary amount');
-  const iRptsTo     = col('reports to position');
+  const iFillStatus = col('position fill status');
+  const iEmplId     = col('current employee id');
+  const iName       = col('person full name');
+  const iAppt       = col('employee appointment type');
+  const iStep       = col('employee step');
+  const iHourly     = col('employee hourly rate');
+  const iRptsTo     = col('position reports to');
+  const iRoster     = col('roster code');
+  const iRosterDesc = col('roster code description');
   const iRtfStatus  = col('rtf status');
   const iRtfDate    = col('rtf expected fill date');
-  const iFte        = col('fte');
-  const iUnion      = col('union code');
+  const iFte        = col('budget position total fte');
+  const iCombo      = col('combo code');
+  const iEmpJC      = col('employee job code');
 
   const results: PsHcmPpRow[] = [];
 
@@ -58,22 +63,27 @@ export function importPsHcmPp(ws: WorkSheet, headerRow = 0): PsHcmPpRow[] {
 
     results.push({
       _source: 'ps-hcm-pp',
+      snapshotDate:        str(r[iSnapshot]),
       positionNumber:      posNum,
       jobCode:             str(r[iJC]),
       jobCodeDescription:  str(r[iJCDesc]),
       departmentCode:      str(r[iDept]),
       departmentName:      str(r[iDeptName]),
       positionStatus:      str(r[iStatus]),
+      fillStatus:          str(r[iFillStatus]),
       emplId:              str(r[iEmplId]),
       employeeName:        str(r[iName]),
       appointmentType:     str(r[iAppt]),
       salaryStep:          str(r[iStep]),
-      salaryAmount:        num(r[iSal]),
+      hourlyRate:          num(r[iHourly]),
       reportsToPosition:   str(r[iRptsTo]),
+      rosterCode:          str(r[iRoster]),
+      rosterDescription:   str(r[iRosterDesc]),
       rtfStatus:           str(r[iRtfStatus]),
       rtfExpectedFillDate: str(r[iRtfDate]),
       fte:                 num(r[iFte]),
-      unionCode:           str(r[iUnion]),
+      comboCode:           str(r[iCombo]),
+      employeeJobCode:     str(r[iEmpJC]),
       _row:                headerRow + i + 1,
     });
   }
