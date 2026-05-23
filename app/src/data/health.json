@@ -1,0 +1,2334 @@
+{
+  "$comment": "Employer benefit costs by empOrg. fixed = annual dollars (divide by 26 for per-PP); pct = decimal rate on biweekly salary.",
+  "snapshots": [
+    {
+      "effectiveFrom": "2025-07-01",
+      "effectiveTo": null,
+      "byEmpOrg": {
+        "104": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3252.79
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18414.46
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1347.62
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "122": [
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "130": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3318.83
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18145.66
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1332.65
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "163": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 5211.83
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 15027.62
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1209.58
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "164": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 5211.83
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 15027.62
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1209.58
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "193": [
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "194": [
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "195": [
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "196": [
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "197": [
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "200": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3825.25
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 17436.76
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1343.73
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "216": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3252.79
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18414.46
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1347.62
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "220": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3999.61
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 17743.06
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1374.26
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "221": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3999.61
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 17743.06
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1374.26
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "236": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3252.79
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18414.46
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1347.62
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "250": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 4650.4
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 15274.61
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1243.31
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "251": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 5222.39
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 13468.83
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1156.44
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "252": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 5789.62
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 11387.8
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1053.01
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "253": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3990.49
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 16085.52
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1262.86
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "254": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 4109.86
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 14674.86
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1217.14
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "257": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3898.35
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18052.14
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1374.26
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Flexible Benefit Package",
+            "type": "fixed",
+            "value": 4792.51
+          }
+        ],
+        "261": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 5376.34
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 13169.5
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1098.48
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "302": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3898.35
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18052.14
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1374.26
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "311": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 4274.31
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 17289.51
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1296.15
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "323": [
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "351": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 4787
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 15410.06
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1280.66
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Flexible Benefit Package",
+            "type": "fixed",
+            "value": 5885.05
+          }
+        ],
+        "352": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3898.35
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18052.14
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1374.26
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Flexible Benefit Package",
+            "type": "fixed",
+            "value": 4792.51
+          }
+        ],
+        "353": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3898.35
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18052.14
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1374.26
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Flexible Benefit Package",
+            "type": "fixed",
+            "value": 4792.51
+          }
+        ],
+        "356": [
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "377": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3252.79
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18414.46
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1347.62
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "419": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3999.61
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 17743.06
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1374.26
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "498": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 4112.94
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 16828.19
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1317.05
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "499": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3277.64
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 19141.6
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1396.73
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "535": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 5982.44
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 13458.03
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1146.43
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "556": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3898.35
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18052.14
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1374.26
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Flexible Benefit Package",
+            "type": "fixed",
+            "value": 4792.51
+          }
+        ],
+        "580": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3252.79
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18414.46
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1347.62
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "651": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3879.01
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 16801.36
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1340.06
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "718": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3252.79
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18414.46
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1347.62
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "790": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 6691.52
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 11875.1
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1072.98
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "791": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 4511.6
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 16681.92
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1254.77
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "792": [
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "793": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 4427.11
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 17082.95
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1275.69
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "798": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 4427.11
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 17082.95
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1275.69
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "799": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 1433.5
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 25099.46
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1590.66
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "856": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 5540.87
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 12669.39
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1168.98
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "858": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 2374.73
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 22018.27
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1455.27
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "911": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3725.42
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18709.41
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1348.87
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "929": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3254.66
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18671.7
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1355.45
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "930": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3254.66
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18671.7
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1355.45
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "933": [
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "965": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3999.61
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 17743.06
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1374.26
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "969": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3999.61
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 17743.06
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1374.26
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "990": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3898.35
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18052.14
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1374.26
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "001": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3898.35
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18052.14
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1374.26
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "002": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 7644.85
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 8327.44
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1023.11
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Flexible Benefit Package",
+            "type": "fixed",
+            "value": 9399.79
+          }
+        ],
+        "003": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 2461.27
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 20786.92
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1450.77
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "004": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 4097.79
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 15677.02
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1273.23
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "006": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3054.29
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 19325.77
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1401.83
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "007": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3252.79
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18414.46
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1347.62
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "012": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3252.79
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18414.46
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1347.62
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "016": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3252.79
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18414.46
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1347.62
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "021": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 5332.1
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 13731.14
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1153.95
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "022": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 5598.57
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 12816.36
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1105.89
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "034": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3252.79
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18414.46
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1347.62
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "036": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3252.79
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18414.46
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1347.62
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "038": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3483.43
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 19124.42
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1336
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "039": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3604.77
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 17543.6
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1324.53
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "040": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3252.79
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 18414.46
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1347.62
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "BTM": [
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "BTN": [
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ],
+        "BZ0": [
+          {
+            "name": "Holiday Pay - Misc",
+            "type": "pct",
+            "value": -0.0038
+          },
+          {
+            "name": "Platform-Performance Incentive",
+            "type": "pct",
+            "value": -0.0038
+          },
+          {
+            "name": "Premium Pay - Misc",
+            "type": "pct",
+            "value": -0.0038
+          },
+          {
+            "name": "Incentive Pay - Misc.",
+            "type": "pct",
+            "value": -0.0038
+          },
+          {
+            "name": "Ret Payout - SP & Vac - Misc",
+            "type": "pct",
+            "value": -0.0038
+          },
+          {
+            "name": "Overtime - Scheduled Misc",
+            "type": "pct",
+            "value": -0.0038
+          },
+          {
+            "name": "Overtime - Unsched Misc",
+            "type": "pct",
+            "value": -0.0038
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "BZM": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 4190.86
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 16526.52
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1291.85
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "BZN": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3443.16
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 19350.1
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1355.02
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          },
+          {
+            "name": "Long Term Disability Insurance",
+            "type": "pct",
+            "value": 0.0040999999999999995
+          }
+        ],
+        "BZU": [
+          {
+            "name": "Health Service-City Match",
+            "type": "fixed",
+            "value": 3634.98
+          },
+          {
+            "name": "Retiree Health-Match-Prop B",
+            "type": "pct",
+            "value": 0.0073
+          },
+          {
+            "name": "RetireeHlthCare-CityMatchPropC",
+            "type": "pct",
+            "value": 0.0027
+          },
+          {
+            "name": "Dependent Coverage",
+            "type": "fixed",
+            "value": 19013.18
+          },
+          {
+            "name": "Dental Coverage",
+            "type": "fixed",
+            "value": 1373.24
+          },
+          {
+            "name": "Unemployment Insurance",
+            "type": "pct",
+            "value": 0
+          }
+        ]
+      }
+    }
+  ]
+}
