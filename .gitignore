@@ -1,0 +1,39 @@
+# Real / sensitive data — never commit
+*.xlsx
+*.xlsm
+*.xls
+*-real-*
+*Real*
+*real-data*
+
+# Reference PDFs (may contain SF-internal info)
+docs/data-sources/reference-pdfs/
+!docs/data-sources/reference-pdfs/.gitkeep
+
+# Synthetic examples — opt in by removing the "*.xlsx" exclusion above per-file,
+# or use a different extension like .sample.json for committed fixtures.
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
+.vitest/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
