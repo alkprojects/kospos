@@ -147,6 +147,62 @@ at least what was budgeted" — protects against under-projecting an overrun.
   projection" (straight-line, or itemized retiree list) would inform internal planning even
   when the formal report shows the conservative number.
 
+#### Per-employee payout math — eligibility rules
+
+To compute itemized payouts (the Phase 4 PR #5 scenario builder), we need to know which
+leave balances are cashable at separation. Researched 2026-05-23 against SF DHR, SF
+Controller's Payroll Manual, Charter, Admin Code, and the SEIU 1021 + MEA MOUs.
+
+| Category | Pays out at separation? | Notes |
+|---|---|---|
+| **Vacation** | **YES — citywide** | Pro-rata current-year accrual + accumulated balance. SEIU 1021 caps at 400 hrs; MEA cap differs. Anchored in Charter A8.440 + Admin Code §16.11. |
+| **Vested Sick / Wellness Pay** | **YES for eligible employees, MOU-specific** | A *separately accrued* balance earned by maintaining low sick-leave use; requires minimum SFERS service or disability letter. Distinct from regular sick leave. The "SP" in account 510210's name ("Ret Payout - SP & Vac - Misc") almost certainly refers to **Sick Pay** = this vested-sick balance. **TODO: confirm with Controller's Payroll Division.** |
+| **Comp time (non-Z/L)** | **MOU-dependent** | SEIU 1021 ¶431: paid in cash at termination. MEA: NOT cashed out. Confirm per MOU before computing. |
+| **Comp time (Z-designated)** | NO | "Z" employees don't accrue cashable overtime — comp time off only. |
+| **Regular sick leave** | **NO** | SEIU 1021 ¶771: "Sick leave shall automatically terminate on the effective date of an employee's retirement." Confirmed in MEA Separation doc. |
+| **Floating holidays** | NO | Not listed as payable in any MOU reviewed. Carry forward capped at one year's accrual. |
+| **Management / Executive leave** | NO | MEA Separation doc explicit: "admin./exec. leave … cannot be cashed out." 100 hrs/yr (M unit) or 5 days/yr (EM unit) use-it-or-lose-it. |
+
+**Variance pattern:** vacation and regular sick are citywide-uniform (anchored in Charter
+/ Admin Code). Variance concentrates in **comp time** and **vested sick / wellness**, both
+of which the Citywide Payroll Manual §9.3.2 punts to per-MOU rules: *"Only eligible leave
+balances based on employee's MOU will be paid out."* The per-employee calculator must
+therefore look up MOU → comp-time-payout flag and MOU → wellness-pay formula.
+
+**Open questions to resolve before PR #5 ships:**
+
+1. **Vacation cap per MOU.** SEIU 1021 = 400 hrs confirmed. Need MEA, IFPTE Local 21,
+   Local 261, Local 856, Local 798/Fire, POA caps.
+2. **Comp time pay rate.** Does SF use FLSA's "greater of current rate or 3-year average,"
+   or default to current rate? MOU language says only "paid in cash." Confirm with
+   Controller's Payroll Division.
+3. **Vested sick / wellness formula.** Eligibility documented (min SFERS service) but exact
+   accrual + payout formula is MOU-specific. Pull at least one MOU's formula to model.
+4. **Account 510210 composition.** Confirm with Budget/Controller whether **comp time**
+   payouts post to 510210 or to a separate overtime/separation account. The "SP" hypothesis
+   (Sick Pay = vested sick / wellness) needs confirmation too.
+5. **Public safety MOUs** (SFFD, POA) not researched. The citywide lump-sum form has a
+   distinct "Fire T&E" line, suggesting fire has unique terminal-pay categories.
+
+**Sources** (all sfgov / sfdhr / mySFERS / amlegal — authoritative only):
+
+- [MEA / Unrepresented Compensation & Benefits Upon Separation / Rehire (SFDHR, 10/30/2024)](https://media.api.sf.gov/documents/MEA-Unrepresented-Employee-Compensation-and-Benefits-Upon-Separation-Rehire_WiwjhNc.pdf)
+- [SEIU 1021 Miscellaneous MOU 2022–2024](https://sfdhr.org/sites/default/files/documents/MOUs/SEIU-1021-MIscellaneous-2022-2024.pdf) — articles ¶428–435, ¶437, ¶565–569, ¶771
+- [SF Controller Payroll Policies & Procedures Manual (April 2018)](https://sfcontroller.org/sites/default/files/Documents/payroll/PPPMApril2018Edition.pdf) — §3.6.3, §9.3, §9.3.1, §9.3.2
+- [SFDHR — MEA Miscellaneous Benefit Summary](https://sfdhr.org/mea-miscellaneous-benefit-summary)
+- [SFERS — Leaving City Service](https://mysfers.org/leaving-city-service/)
+- [SF Admin Code §16.11 — Calculation of Vacations](https://codelibrary.amlegal.com/codes/san_francisco/latest/sf_admin/0-0-0-10179)
+- [SF Charter §A8.440 — Annual Vacations of Employees](https://codelibrary.amlegal.com/codes/san_francisco/latest/sf_charter/0-0-0-2193)
+- [IFPTE Local 21 MOU 2024–2027](https://www.sf.gov/sites/default/files/2024-06/IFPTE-Local-21-2024-2027.pdf) (identified for follow-up; not yet extracted)
+
+**Two corrections to the original domain hypothesis:**
+
+- **Comp time is NOT universally excluded** — it's MOU-dependent. SEIU 1021 (a large unit
+  at DBI) pays it out; MEA does not.
+- **"Sick time" is more nuanced** — regular sick balance does not pay out, but **vested
+  sick / wellness pay** (a separate balance) DOES for eligible employees. This is almost
+  certainly the "SP" portion of account 510210.
+
 ---
 
 ### OVERM_E — Overtime (Misc) — pending walkthrough
