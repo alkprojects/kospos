@@ -513,3 +513,76 @@ was wired up before session-based development began.
 - Optional Agent C (PREMM extraction) — not run; ending cleanly preferred over expanding scope.
 - COLA constants update in `app/src/modules/special-class/SpecialClassView.tsx` — needs Alex's acceptance of the per-FY table before wiring.
 
+---
+
+## Session 11 — OVERM walkthrough + math + UI (2026-05-24)
+
+**Worktree:** `jolly-archimedes-f77809`
+**Model:** Opus 4.7 high
+**PRs:** [#25](https://github.com/alkprojects/kospos/pull/25), [#26](https://github.com/alkprojects/kospos/pull/26), [#27](https://github.com/alkprojects/kospos/pull/27) — all open for Alex review
+**Tests:** 146/146 (96 prior + 50 new OVERM)
+
+### Prompts
+
+- **[session start]** Continue Phase 4 — OVERM_E (Overtime). Walk through the 7 open questions, then write math + UI. One PR per logical chunk. No code without answers.
+- **Wave 1 (4 questions)**: Q1 cushion magnitude, Q3 chartfield allocation, Q5 BN8/BN6 interpretation, Q5 BN6 refresh source.
+- **Wave 2 (2 clarifications)**: Q5a — full detail on which file/tab/formula for BN8/BN6; Q5b — full detail on BN6 origin.
+- **Wave 3 (4 questions)**: Q4 OT earnings codes & funds, Gotcha #2 PP constants, Gotcha #5 other DBI funds, COLA acceptance + FY28 fallback.
+
+### Walkthrough outcomes (the 7 OVERM questions, fully resolved)
+
+| # | Resolution |
+|---|---|
+| Q1 cushion | Default = `roundUpToThousand(max(grossed-up prior, current projection))`; editable per row |
+| Q2 fringe | Hardcoded 1.0765 (OASDI 6.20% + Medicare 1.45%); resolved in Session 10 |
+| Q3 chartfield | Two UI modes: "use existing chartfields" (auto-populate from labor report) vs "manually enter" (row table with `+ Add row`) |
+| Q4 YTD source | Payroll pivot holds OT salary actuals only (no benefits). Workbook's 10190 fund filter is a DBI shortcut; KosPos sums across all funds |
+| Q5 projection | **PR #23's BN8/BN6 prose was wrong.** The ratio is a salary→total cost gross-up using the BFM-budgeted ratio, not a "scale factor." BR6 = salary YTD; BN6 = budgeted salary; BN8 = budgeted total. Both BN constants refresh once per FY from BFM (super-admin task). Future improvement: derive OT benefits from T&L (TRC) data. |
+| Q6 Fire | N/A for DBI; out of scope until KosPos extends to Fire |
+| Q7 gotchas | PP constants: 26/26.1/26.2 per FY by Calendar tab; PP1 starts 7/1, PP27 ends 6/30, weekday = 0.1 PP, weekend = 0. Hardcoded 15.4/26.1 in workbook is a shortcut |
+
+### Milestones — PRs in order
+
+| PR | Title | Action |
+|---|---|---|
+| [#25](https://github.com/alkprojects/kospos/pull/25) | docs(special-class): correct OVERM_E BN8/BN6 reading + resolve TODOs | **Open.** Doc-only fix to PR #23's misreading + resolves all 7 OVERM TODOs in the doc + expands `definitions.md` § Pay Period |
+| [#26](https://github.com/alkprojects/kospos/pull/26) | feat(special-class): OVERM_E math + 50 unit tests | **Open.** Pure functions in `overm.ts` mirroring `rtpom.ts`. Test suite reproduces workbook H37=BS15=\$555,485 from BFM inputs |
+| [#27](https://github.com/alkprojects/kospos/pull/27) | feat(special-class-view): OVERM_E section + chartfield allocation UI | **Open, stacked on #26.** SpecialClassView extended with OVERM section (FY26 read-only table + FY27/FY28 cards + chartfield allocation UI) |
+
+### Key OVERM math
+
+`overm.ts` exports:
+- `OT_MANDATORY_FRINGE_RATE = 0.0765`, `OT_FRINGE_MULTIPLIER = 1.0765`
+- `grossUpFringe(priorYearSalaryActual)` — Special Class!AU = AT × 1.0765
+- `roundUpToThousand(amount)` — cushion rounding utility
+- `suggestOvermBudget(grossedUpPrior, currentProjection)` — default cushion per Alex's Session 11 answer
+- `historicalActualsMean(actuals)` — multi-year mean for context display
+- `colaAdjustToYear` — flat 2.5%/yr placeholder; per-FY rates deferred to 15.15.014 import later
+- `applySentiment` + `OvertimeSentiment` type — same shape as RPO's FY-card pattern
+- `ytdBudgetPace` — Operating Report Summary D37
+- `salaryToTotalGrossUp(budgetedSalary, budgetedTotal)` — Overtime!BN8 / BN6
+- `projectOvermYearEnd(ytdSalaryActual, ppElapsed, ppTotal, budgetedSalary, budgetedTotal)` — annualize salary then gross up to total
+
+### UI shape
+
+`SpecialClassView.tsx` (single file, RPO + OVERM both inline; extract per-class views later if file grows past ~1k lines):
+
+- **OVERM Section 1 — FY26 Current Year** — read-only table with workbook cell citations per row. Shows the salary→total gross-up factor (1.0865×) for transparency.
+- **OVERM Section 2 — FY27-28 Budget Cycle**
+  - Reference baseline panel (FY-prior, grossed-up, FY26 projection, suggested default)
+  - `OvermFyCard` ×2 (FY27 BY + FY28 BY+1) — direct dollar-amount edit + justification textarea (NOT sentiment+pct — Alex Session 11: cushion is judgment, not formula)
+  - `ChartfieldAllocator` — year toggle (FY27/FY28), mode toggle (existing / manual), row table with editable fund/dept/project/activity/authority/account/amount columns + `+ Add row` button + live "allocated vs budget vs remainder" bar (green when balanced)
+
+### Lessons / improvements
+
+- **PR #23's prose was wrong, and PR #25 fixes it.** Hindsight: when an extracted formula's intent isn't immediately mechanical, mark the interpretation as "needs walkthrough" instead of putting a guess in prose. The guess (scale factor) shaped my initial question wording too — I had to re-ask after Alex flagged the wrong framing.
+- **Visual verification blocked.** Two older vite dev servers from other worktrees were holding ports 5173 and 5174. Editing `.claude/launch.json` to use a different port triggered the auto-mode classifier (self-modification denial). Running vite via Bash on port 5180 worked but the preview-MCP tool couldn't connect to that port. Resolution: documented the gap in PR #27 description; asked Alex to spot-check locally. Future: factor port out of launch.json or add a permission rule that allows port edits in launch.json.
+- **Stacked PRs work.** PR #27 was opened with `--base feat/overm-math` so GitHub shows only the UI diff. Merge PR #26 first; PR #27 then rebases automatically.
+
+### Out of scope (deferred or not started)
+
+- T&L (TRC-based) OT-benefit derivation — depends on a T&L importer that doesn't exist yet.
+- Per-FY COLA constants — Alex wants to source from 15.15.014 historical reports in a future session.
+- Per-row OVERM table mirroring `Special Class!AR4:BD12` — wired with a single representative row for now; full table comes with the per-row importer.
+- State persistence for OVERM sentiment/amount/chartfield inputs — same deferred decision as RPO.
+
