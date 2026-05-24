@@ -115,6 +115,56 @@ Examples:
   accounts, so temp benefits don't appear in the Controller's view of temp actuals
   (accounts 505xxx). See [`definitions.md`](definitions.md).
 
+## SF historical COLAs (Miscellaneous bargaining units)
+
+Source-of-truth: SF DHR Memoranda of Understanding PDFs (SEIU Local 1021 Miscellaneous is
+the canonical "Misc" unit; other Misc units — MEA, IFPTE Local 21, Locals 261/856 —
+generally track the same effective rates with minor offsets). Rates below are the **wage
+increases stated verbatim in the ratified MOUs**, indexed to the fiscal year in which they
+take effect.
+
+Important caveat — these are *calendar-effective* increases within an FY, not flat annual
+COLAs. An increase landing on June 30 only moves the dial for one payroll day of that FY,
+so the annualized payroll impact differs from the headline %. The "Modeling % per FY"
+column below collapses each FY's increases into a single number suitable for
+historical-actuals inflation in projection math; precision-critical work (per-position
+salary modeling) should use the per-effective-date increments instead.
+
+| FY | Effective dates within FY | Modeling % per FY | Confidence | Source |
+|---|---|---|---|---|
+| FY18 | Jul 1, 2017 (3.0%) | 3.0% | HIGH | 2014-2019 MOU §255 [1] |
+| FY19 | Jul 1, 2018 (3.0% scheduled, deficit-trigger not invoked) | 3.0% | HIGH | 2014-2019 MOU §255 [1] |
+| FY20 | Jul 1, 2019 (3.0%) + Dec 28, 2019 (1.0%) | 3.5% | HIGH | 2019-2022 MOU §254 [2] |
+| FY21 | Jul 1, 2020 (3.0%) + Dec 26, 2020 (0.5%) | 3.5% scheduled (COVID deferral delayed 3.0% to ~Jan 2021 via amendment) | HIGH/MED | 2019-2022 MOU §254 [2] |
+| FY22 | Jul 1, 2021 (3.0%) + Jan 8, 2022 (0.5%) | 3.25% | HIGH | 2019-2022 MOU §254 [2] |
+| FY23 | Jul 1, 2022 (5.25%) | 5.25% | HIGH | 2022-2024 MOU §267 [3] |
+| FY24 | Jul 1, 2023 (2.50%) + Jan 6, 2024 (2.25%) | 3.6% | HIGH (scheduled) / MED (realized) | 2022-2024 MOU §267 [3] |
+| FY25 | Jul 1, 2024 (1.5%) + Jan 4, 2025 (1.5%) + Jun 30, 2025 (1.0%) | 3.0% | HIGH | 2024-2027 MOU Wages [4] |
+| FY26 | Jul 1, 2025 (1.0%) + Jan 3, 2026 (1.5%) + Jun 30, 2026 (2.0%) | 2.5% | HIGH | 2024-2027 MOU Wages [4] |
+| FY27 | Jan 2, 2027 (2.0%) + Jun 30, 2027 (2.5%) | 2.0% | HIGH | 2024-2027 MOU Wages [4] |
+| FY28 | none ratified | **placeholder 2.5%** | UNRESOLVED | no MOU yet (current contract expires 6/30/2027) |
+
+The "Modeling % per FY" column is a recommendation, not a fact in any MOU. Rationale: for
+each FY, sum the increases that take effect early enough to materially affect the year (the
+first two increases in a three-increase FY year; the late-June increase is essentially
+prospective). Final numbers are author judgment — adjust the column when the modeling lens
+changes (e.g., a per-pay-period accrual model would prefer per-effective-date).
+
+**Until a successor MOU lands, FY28 should fall back to the 2.5% placeholder** (the
+existing default in `COLA_PCT_PER_YEAR`). When the 2027-2030 MOU is ratified, refresh this
+table and the code constant.
+
+**Sources:**
+
+1. [SEIU Local 1021 MOU 2014-2019 (Amendment 2)](https://sfdhr.org/sites/default/files/documents/MOUs/SEIU-1021-MOU-2014-2019-Amendment-2.pdf) — sfdhr.org, p. 41, §255
+2. [SEIU Local 1021 MOU 2019-2022](https://sfdhr.org/sites/default/files/documents/MOUs/SEIU-Local-1021-MOU-2019-2022.pdf) — sfdhr.org, p. 41, §254
+3. [SEIU 1021 Miscellaneous MOU 2022-2024 (Revised per Amendment #4)](https://sfdhr.org/sites/default/files/documents/MOUs/SEIU-1021-MIscellaneous-2022-2024.pdf) — sfdhr.org, p. 44, §267
+4. [SEIU 1021 Miscellaneous MOU 2024-2027](https://www.sf.gov/sites/default/files/2024-06/SEIU-1021-MIscellaneous-2024-2027.pdf) — sf.gov, p. 47, Wages Article
+5. [SF DHR — Memoranda of Understanding index](https://sfdhr.org/memoranda-understanding)
+
+**Public-safety units (POA / Fire / Sheriff) have separate MOUs and different COLA
+schedules** — do not use this table for any class that rolls up to a public-safety unit.
+
 ## Cross-references
 
 - Budget legislative phases (Base / Dept / Mayor / Committee / Technical / Board): see
