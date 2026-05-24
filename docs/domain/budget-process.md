@@ -77,7 +77,9 @@ granularity without violating appropriation rules.
 
 Other departments may have account-level or project-level control. Spreading must respect the
 actual control level — that requires the appropriation-control reference table (a Phase 5
-dependency; `categorizeAccount` returns `'none'` today for non-labor accounts because of this).
+dependency; until it's loaded, `categorizeAccount` defaults non-labor numeric accounts to
+`'account'` as the conservative fallback rather than distinguishing project- vs
+authority-level control).
 
 ## Benefits
 

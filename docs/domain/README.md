@@ -8,5 +8,7 @@ One file per SF domain concept. These grow as we learn.
 | Chartfields | [`chartfields.md`](chartfields.md) |
 | Special class | [`special-class.md`](special-class.md) |
 | Budget phases | [`budget-phases.md`](budget-phases.md) |
+| Budget process (three-function model) | [`budget-process.md`](budget-process.md) |
 | Hiring process | [`hiring-process.md`](hiring-process.md) |
 | Projections | [`projections.md`](projections.md) |
+| Definitions (context-dependent terms) | [`definitions.md`](definitions.md) |
