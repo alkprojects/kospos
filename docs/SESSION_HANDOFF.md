@@ -4,6 +4,136 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
+## Morning briefing — pending Alex review (Session 10, autonomous overnight)
+
+Wake-up TL;DR: one docs PR **merged** (PR #23, the OVERM workbook extraction + COLA
+table); this handoff update PR is **open and unmerged** awaiting your review. No code
+changed. No OVERM math written. `npm test` unchanged at 96/96.
+
+### a) What landed overnight
+
+- **PR #23 (merged)** — `docs: OVERM_E workbook extraction + SF historical COLAs (FY18-FY27)`.
+  Two files updated:
+  - `docs/domain/special-class.md` § OVERM_E — verbal stub replaced with verbatim
+    formulas + headers from the three workbooks.
+  - `docs/domain/budget-process.md` — new "SF historical COLAs" section with per-FY rates
+    cited verbatim from SEIU 1021 Misc MOU PDFs.
+- **This PR (open, do not auto-merge)** — `docs: morning briefing for OVERM walkthrough`.
+  Adds this very section to `SESSION_HANDOFF.md`. Read, edit as needed, then merge.
+
+Current `main` head should be PR #23's squash commit (`1ea50fd` at the time of writing).
+
+### b) The original 7 OVERM questions — answered / open
+
+| # | Question | Status | Notes |
+|---|---|---|---|
+| 1 | Cushion magnitude — how do you pick the per-dept number? | **Still need you** | `Special Class!AX` column (FY27 Budget) is hand-entered with no formula trail. The workbook confirms it's judgment, not a formula. Need to know: is there a rule of thumb (e.g., "prior-year actual × 1.05") or pure dept-by-dept feel? |
+| 2 | Fringe rate FY27/FY28 — lookup or hardcode? | **Answered by workbook** | Hardcode `1.0765` as a derived constant with a `// 7.65% = OASDI 6.20% + Medicare 1.45%` comment. `15.15.002 Benefit Rates` has no FY26 entry; FY27/FY28 rates are mechanically identical (only the OASDI **wage cap** moves: \$189,337 → \$199,265). The only reason to add a per-FY lookup is if Social Security or Medicare rates change in legislation, which is rare and forecastable. |
+| 3 | Chartfield-string allocation method | **Still need you** | Operating Report rolls up by fund (`Fund Code = 10190`); the `Overtime` tab slices by dept. The per-chartfield-string breakdown isn't visible in the extracted ranges. RPO used "even spread by regular-labor share" — does OVERM do the same, or does it use historical OT actuals per chartfield string? |
+| 4 | YTD source — all "Overtime - Scheduled Misc" or filtered codes? | **Partially answered** | `E37 = GETPIVOTDATA(..., Overtime!$A$3, "Fund Code", 10190)` — pulls every OT earnings code in the Overtime tab's pivot, filtered to DBI operating fund. Open question: does the Overtime tab pivot include **only** "Overtime - Scheduled Misc", or does it also pick up "Overtime - Holiday Premium", "Overtime - Standby", etc.? And do any DBI OT dollars post outside fund 10190 (other funds, capital projects, etc.)? |
+| 5 | Projection formula meaning | **Mechanically answered, interpretation pending** | `BS6 = BR6 * $BN$8 / Calendar!$I$2 * Calendar!$J$2 / $BN$6`. Decoded: `YTD_dept × (DBI_total_budget / Board_adopted_citywide_total) × annualization_factor`. `BN8 = 380,000` (DBI's FY26 OT total, matches `G37`). `BN6 = 349,749` (literal, labeled "FY25-26 Board"). **Need your interpretation of the `BN8/BN6 ≈ 1.086` scale factor:** is "FY25-26 Board" the *original* citywide Board-adopted OT total (so the ratio inflates YTD by however much DBI's working budget grew vs. citywide-original), or something else (e.g., DBI's own prior-year Board total)? Either way, the constant is **hardcoded** and stale-prone — needs annual refresh. |
+| 6 | Fire exception — different denominator? | **N/A for DBI** | `$BN$6` is the citywide Board-adopted total, so if Fire is ever in scope, the denominator is already citywide. The 80-hour-PP norm doesn't enter OVERM math directly (the projection scales by PP count, not hours). Will resurface when we extend KosPos to Fire — flag and defer. |
+| 7 | Any gotcha? | **New gotchas surfaced** | See (c) below. |
+
+### c) New questions surfaced by the workbook extraction
+
+1. **`BN6 = 349,749` is a hardcoded literal labeled "FY25-26 Board".** Where does that
+   number come from? The original Board-adopted OT salary appropriation citywide? DBI
+   only? It will rot annually if not refreshed. KosPos needs to source this from
+   somewhere stable (a "Board adopted" snapshot in the labor report? a CON publication?).
+2. **`AW = AV/15.4*26.1` uses literal PP constants instead of `Calendar!I2/J2`.** The
+   Budget Master was prepared March 3 (15.4 PPs); the Labor Report (May 21) snapshot
+   would have a different YTD PP count. Two workbooks, two sources of truth for the same
+   number. Confirm: should KosPos always use the Calendar tab values, or are the Budget
+   Master's frozen literals intentional ("budget projection as of decision date")?
+3. **The DBI `Special Class!AX` column doesn't equal `AU` (grossed-up prior actual).**
+   E.g., row 5: AT=\$1,592, AU=\$1,714 grossed-up, but AX=\$2,000 (and BA/BB=\$2,000).
+   That's a ~\$300 cushion on a \$1,700 baseline — much bigger than a "small cushion".
+   Is the per-row pattern "round up to a nice number with headroom" rather than "% cushion"?
+4. **No FY27 or FY28 OT projection in the Budget Master.** Only FY-prior, FY-current YTD,
+   and FY-current projection. Future-year **budget** is a chosen number per dept. So
+   OVERM has no native "two-year projection" — it's all decision-time pick. Want to add
+   an itemized 3-year/8-year mean (like RPO) to inform the FY27 and FY28 picks?
+5. **Operating Report `E37` filters to `Fund Code = 10190`.** Are there other DBI funds
+   with OT? (Building Permits special revenue, etc.) If yes, this formula is
+   under-reporting YTD actuals.
+
+### d) COLA agent findings — per-FY confirmation needed
+
+Agent A pulled SEIU 1021 Misc MOU rates verbatim. **HIGH-confidence** for FY18–FY27 from
+the ratified MOU PDFs. The recommendation: replace the flat 2.5%/yr placeholder in
+`COLA_PCT_PER_YEAR` with a per-FY map.
+
+| FY | Within-FY effective dates | Recommended "modeling %" | Confidence |
+|---|---|---|---|
+| FY18 | Jul 1, 2017 (3.0%) | 3.0% | HIGH |
+| FY19 | Jul 1, 2018 (3.0% scheduled) | 3.0% | HIGH |
+| FY20 | Jul 1, 2019 (3.0%) + Dec 28, 2019 (1.0%) | 3.5% | HIGH |
+| FY21 | Jul 1, 2020 (3.0%, COVID-deferred to ~Jan 2021) + Dec 26, 2020 (0.5%) | 3.5% scheduled | HIGH/MED |
+| FY22 | Jul 1, 2021 (3.0%) + Jan 8, 2022 (0.5%) | 3.25% | HIGH |
+| FY23 | Jul 1, 2022 (5.25%) | 5.25% | HIGH |
+| FY24 | Jul 1, 2023 (2.50%) + Jan 6, 2024 (2.25%) | 3.6% | HIGH |
+| FY25 | Jul 1, 2024 (1.5%) + Jan 4, 2025 (1.5%) + Jun 30, 2025 (1.0%) | 3.0% | HIGH |
+| FY26 | Jul 1, 2025 (1.0%) + Jan 3, 2026 (1.5%) + Jun 30, 2026 (2.0%) | 2.5% | HIGH |
+| FY27 | Jan 2, 2027 (2.0%) + Jun 30, 2027 (2.5%) | 2.0% | HIGH |
+| FY28 | none ratified | placeholder 2.5% | UNRESOLVED |
+
+**The "Modeling %" column is author judgment, not a published rate.** Heuristic: sum the
+increases that take effect early enough to materially affect the FY (i.e., not the
+late-June ones). For precision-critical work (per-position salary modeling) you'd want
+the per-effective-date increments instead. **Two questions for you:**
+
+(i) Are these rates acceptable as-is, or should I refresh them against the SF
+salary-ordinance amendments before we use them?
+
+(ii) For the historical-actuals inflation in RPO (the only current use site), the modeling
+column is the right shape — but FY28 has no MOU and the placeholder remains. Acceptable?
+
+Full table + verbatim MOU quotations are now in `docs/domain/budget-process.md` §
+"SF historical COLAs" (merged in PR #23).
+
+### e) Suggested next-step prompt for Alex
+
+Paste this when you're ready to write OVERM math:
+
+````
+We're continuing Phase 4 — OVERM_E (Overtime), now equipped with the workbook
+extraction and the original 7-question list from Session 10's morning briefing.
+
+Read first, in order:
+  docs/CLAUDE.md
+  docs/SESSION_HANDOFF.md (the morning-briefing section — note which questions I answered)
+  docs/domain/special-class.md § OVERM_E (the workbook-extracted version, post-PR #23)
+  docs/domain/budget-process.md § "SF historical COLAs"
+  app/src/lib/special-class/rtpom.ts (the pattern to mirror)
+  app/src/modules/special-class/SpecialClassView.tsx (the FY-card pattern to mirror)
+
+My answers to the open questions (fill in inline before pasting):
+
+  Q1 cushion magnitude:           _____
+  Q3 chartfield allocation:       _____  (RPO labor-share pattern? historical OT per CF?)
+  Q4 OT earnings codes & funds:   _____
+  Q5 BN8/BN6 interpretation:      _____
+  Q5 BN6 refresh source:          _____  (do we hardcode or pull from somewhere?)
+  Gotcha #2 PP constants:         _____  (Calendar tab or frozen Budget Master values?)
+  Gotcha #5 other DBI funds:      _____  (any OT outside fund 10190?)
+
+COLA table acceptance:
+  Use per-FY rates from PR #23 table?     _____  (yes / refresh first / keep 2.5% flat)
+  FY28 fallback:                          _____  (2.5% placeholder / 2.0% from FY27 / other)
+
+Once I have these answers, write the OVERM math in
+`app/src/lib/special-class/overm.ts` mirroring rtpom.ts: pure functions, JSDoc
+cites the workbook cell, full unit-test coverage in `overm.test.ts`. Then
+extend `SpecialClassView.tsx` with an OVERM section matching RPO's shape.
+
+One PR per logical chunk. No code without my answers above.
+
+Recommended model: claude-opus-4-7. Effort: high.
+````
+
+---
+
 ## Current status
 
 **Phase:** 4 — IN PROGRESS. RPO (RTPOM_E) complete. OVERM_E (Overtime) is next.
