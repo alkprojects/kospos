@@ -370,3 +370,56 @@ was wired up before session-based development began.
 1. **Before any session ends**, check that `docs/SESSION_LOG.md` is present on `origin/main` and the current session has been logged. Make this a literal session-shutdown step in CLAUDE.md, not just an aspirational checklist item.
 2. **Run `/ultrareview` once before Phase 4 begins** to internalize the workflow on a low-stakes PR. Even an informational run on PR #10 would build the muscle memory.
 3. **For Phase 4**, pause before writing any math to confirm spreadsheet formulas verbatim with Alex. Phase 4 must match to the dollar — guessing the formula is a blocker condition.
+
+---
+
+## Session 8 — Phase 4 Kickoff: knowledge capture + RPO walkthrough (2026-05-23)
+
+**Worktree:** `reverent-brown-36862b`
+**Model:** Opus 4.7
+**PRs:** [#12](https://github.com/alkprojects/kospos/pull/12) (Phase 4 knowledge capture, open), this doc PR for Session 8 log + handoff
+
+### Prompts
+
+**[session start]** *(full kickoff prompt)*
+> We're starting Phase 4 — Special Class calculations.
+>
+> Read these files first: docs/CLAUDE.md, docs/SESSION_HANDOFF.md, docs/SESSION_LOG.md (Session 7 audit), docs/ROADMAP.md (Phase 4), docs/domain/special-class.md, docs/DECISIONS.md
+>
+> [... constraints, 8 special-class codes, "match the spreadsheet to the dollar" requirement, "CRITICAL: pause if you can't see the formulas verbatim — guessing is a blocker" ...]
+
+**[walkthrough order Q]**
+> "walk through one at a time, do attrition last, step second to last" + dense paragraph on RPO/PREMM/OVERM/STEPM/9994/9993 methods and budgeting philosophy.
+
+**[scope clarification]**
+> Three functions per class (budget development + YTD vs actuals + year-end projection), not just budget. 6mo/9mo reports to CON/MYR. 1–5% variance target. DBI is the only reliably-maintained budget. "What is a temp" has four definitions. Pointer to `Labor Report 5.21.26.xlsx` and `DBI FY27-28 Budget Master`. Confirmed RPO methodology from screenshot.
+
+**[OVERM/TEMPM confirmations]**
+> 1.0765 = FY26 OT fringe (7.65%). Benefits live in `15.15.002` report. TEMPM 5380 filter = DBI-specific shortcut. 80-hour PP is the norm with Fire dept exception. "the new files look ok, a lot more could be added over time."
+
+**[/ultrareview auth flow]**
+> "give detailed instructions for resolving this" + screenshots showing GitHub Authorized OAuth Apps lacked any Anthropic entry. Resolved by installing Claude GitHub App via Claude Desktop Settings → Connectors → GitHub.
+
+**[/ultrareview 12]** — ran cleanly, returned 2 findings.
+
+**[wrap-up choice]**
+> "b wrap with handoff"
+
+### Milestones
+
+- **Real workbook inspection (xlsx skill)** — opened `Labor Report 5.21.26.xlsx` (29 sheets) and `DBI FY27-28 Budget Master - Department Phase - 3.3.26.xlsx` (20 sheets); extracted unique formula templates from Operating Report Summary, Retirement Payout, Step, Premium, Overtime, Calendar, Report Data, Special Class, Active Labor, Position Pivot, Balancing tabs. Used `iter_rows` streaming (random-access on read_only workbooks was the wrong pattern — first inspector hung).
+- **Three new/updated docs (PR #12)**:
+  - `docs/domain/budget-process.md` (NEW, ~95 lines) — three-function model, 6mo/9mo cycle, conservative-bias philosophy, variance target 1–5%, data-quality-by-department caveat, appropriation control primer, 15.15.002 benefits reference
+  - `docs/domain/definitions.md` (NEW, ~75 lines) — "Temp" 4 definitions with Controller-side gotcha (no temp benefit accounts), Pay Period section with 80-hour norm + Fire dept exception, stubs + pattern
+  - `docs/domain/special-class.md` (OVERHAULED, 47 → 388 lines) — canonical Operating Report Summary formula table (cell-coordinate level), full RPO walkthrough, skeleton walkthroughs for all 7 other classes with cell coordinates pre-traced
+- **`/ultrareview` GitHub auth fix** — Anthropic GitHub App not installed; the canonical path is Claude Desktop Settings → Connectors → GitHub (not OAuth Apps, not the CLI). Delegated lookup to claude-code-guide subagent for the authoritative answer.
+- **`/ultrareview` run on PR #12** — 1 of 3 free runs used. Two findings: bug_001 (normal — doc misstated `categorizeAccount` default for non-labor accounts as `'none'` when actually `'account'`; real factual error introduced from memorized post-Session-7 mental model); bug_003 (nit — new docs not added to `docs/domain/README.md` index). Both fixed in same PR (commit `a7434fd`).
+- **Tests:** 65/65 (no code touched this session).
+
+### Lessons / improvements for next session
+
+- **Re-read functions before citing their behavior in reference docs.** bug_001 was caught because I trusted memorized state of `categorizeAccount` from the Session 7 audit. The fix shipped in PR #10 changed the default — I retained the pre-fix mental model. Memorized state of post-fix code can be stale; treat it the same as memorized commits.
+- **xlsx skill pattern note** — for large workbooks, `iter_rows(values_only=True)` and `iter_rows()` streaming is required; `ws.cell(r, c).value` random access on `read_only=True` workbooks is O(n²) and hangs on wide sheets.
+- **GitHub auth path documented** — for next session, `/ultrareview` works from Claude Desktop after Settings → Connectors → GitHub install. The OAuth Apps tab does not show Claude (it's a GitHub App, not an OAuth App).
+- **Knowledge-capture-before-math pattern worked.** The CRITICAL instruction in the session-start prompt ("guessing is a blocker") prevented a from-scratch math implementation that would have needed to be redone. Replicate this pattern for STEPM and 9994 (the two highest-complexity classes still to come).
+
