@@ -68,10 +68,18 @@ These can disagree mid-year due to transfers, splits, and combo overrides.
 
 - Standard SF pay period = 2 weeks = **80 hours** for the vast majority of city staff
   (Monday–Friday, 8 hours/day).
-- Annual = typically 26 pay periods + a partial PP (e.g., 26.1 — `Calendar` tab tracks).
+- Each FY has **26, 26.1, or 26.2 pay periods** depending on the calendar. Rule:
+  - PP1 always starts **7/1**.
+  - PP27 always ends **6/30** (it's the "spillover" tail).
+  - A full PP = 10 weekdays. **Each weekday contributes 0.1 PP; weekend days contribute 0.**
+  - So an FY's PP count = 26 (the full PPs in the year) + (partial-PP weekdays × 0.1).
+- The Labor Report `Calendar` tab carries the live PP-elapsed (`I2`) and PP-in-year (`J2`)
+  values; KosPos should always pull from these — **never hardcode** (the workbook's
+  `15.4 / 26.1` constants in `Special Class!AW` are a stale shortcut and will drift).
 - Some job classes are on alternate schedules and DON'T fit the 80-hour PP model — the
   Fire Department is the canonical example. Math that assumes 80-hour PPs is wrong for
   these classes; either special-case them or pull actual scheduled hours from PS HCM.
+  KosPos defers Fire to a later phase.
 
 The `Step!BY2` per-PP step-variance formula uses `XLOOKUP(BY1, Calendar!B, Calendar!C) * 80`
 as a denominator — this is the 80-hour assumption baked in. Safe for non-Fire DBI staff;

@@ -286,9 +286,13 @@ H37: =Overtime!BS15                                                             
 I37: =G37-H37                                                                      → -175,485.23  (projected over budget)
 ```
 
-YTD actuals are sourced via `GETPIVOTDATA` against the `Overtime` tab's pivot, filtered to
-Fund Code `10190` (DBI operating fund). The pivot itself groups by every "Overtime"
-earnings code that posts to that fund — no per-code filter at the Operating Report level.
+YTD actuals are sourced via `GETPIVOTDATA` against the `Overtime` tab's pivot. The pivot
+holds **OT salary actuals only** (no benefits — there is no dedicated OT benefit account
+in BFM; OT benefit dollars get lumped into the general benefit accounts). Filtering to
+Fund Code `10190` in the workbook is a DBI shortcut — KosPos should sum across **all
+funds**, since other departments and DBI itself may eventually post OT outside the
+operating fund (Building Permits special revenue, capital projects, grants). See
+[`budget-process.md`](budget-process.md) for the annual-vs-continuing fund distinction.
 
 #### Year-end projection
 
@@ -302,12 +306,17 @@ Per-dept rows on the `Overtime` tab (BN5:BT15). Row 5 headers:
 | BR | Sum of Balance Amount (YTD actual per dept slice) |
 | BS | Projected |
 
-Two constants drive the projection formula and both are **literal values, not formulas**:
+Two constants drive the projection formula and both are **literal values, not formulas**.
+Both come from the FY26 BFM budget snapshot (sourced via a position eturn pivot in the
+workbook; BFM is the system of record):
 
 ```
-BN6: 349,749     ← "FY25-26 Board" — the Board-adopted citywide OT total for FY26
-BN8: 380,000     ← DBI's FY26 OT total (matches G37 = SUMIFS result above)
+BN6: 349,749     ← FY26 budgeted OT salary ("FY25-26 Board" label refers to the Board-adopted budget pivot)
+BN8: 380,000     ← FY26 budgeted OT total cost (salary + benefits) — matches G37 (DBI total OT budget)
 ```
+
+Both numbers refresh **once per fiscal year** when BFM publishes — administered by the
+super admin (see `budget-process.md` for the broader once-per-year data set).
 
 Per-dept projection formula:
 
@@ -315,15 +324,21 @@ Per-dept projection formula:
 BS6 = BR6 * $BN$8 / Calendar!$I$2 * Calendar!$J$2 / $BN$6
 ```
 
-Decoded into plain English: `YTD_actual_for_dept_slice * (DBI_total_OT_budget / Board_adopted_citywide_total) * (annual_PPs / YTD_PPs)`.
+Decoded into plain English: `YTD_OT_salary_actual_for_dept * (annual_PPs / YTD_PPs) * (budgeted_total / budgeted_salary)` — i.e., **annualize the YTD salary actuals, then gross
+up salary→(salary+benefits) using the budget-implied ratio**.
 
-The annualization piece (`Calendar!J2 / Calendar!I2`) is standard — it scales the YTD
-actuals up to a full-year estimate. The **scale factor** `$BN$8 / $BN$6` ≈ 1.086 is the
-non-obvious piece. Best read: it inflates the straight-line annualized YTD by the ratio of
-DBI's current FY26 OT budget to the original Board-adopted citywide total — i.e., it
-assumes each dept's OT will track upward by the same proportion that DBI's budget grew
-beyond Board-adopted. **This interpretation needs Alex's confirmation.** (See morning
-briefing.)
+Why the gross-up: `BR6` only captures OT salary (the payroll pivot has a dedicated OT
+salary account but no OT benefit account; benefits live in pooled accounts that aren't
+sliced by earnings type). To project the *true total* OT cost, the formula assumes the
+actual salary-to-benefit ratio mirrors the budgeted salary-to-benefit ratio. The factor
+`$BN$8 / $BN$6 = 380,000 / 349,749 ≈ 1.086` *is* that gross-up — not a "scale factor" in
+the inflationary sense. (PR #23 originally decoded this as a scale factor; this section
+corrects that reading.)
+
+**Future improvement (TODO):** derive OT benefits directly from Time & Labor reports
+(TRC code grouping) instead of inferring via the budgeted ratio. T&L data is not always
+clean, so today's ratio approach is the conservative choice. Re-evaluate once a T&L
+importer exists.
 
 Rollup:
 
@@ -338,22 +353,41 @@ needs them, repeat Agent B's extraction on `Overtime` rows 7-14).
 
 #### Chartfield-string allocation
 
-Not directly visible in the extracted ranges. The Operating Report rolls up by fund
-(`Fund Code = 10190`); the Overtime tab slices by dept. Whether the per-chartfield
-breakdown follows the RPO labor-share pattern or uses historical OT actuals per
-chartfield string is **still pending Alex's walkthrough**.
+Different departments budget OT very differently — some put all OT under one
+high-level chartfield (e.g., a division-level string); some break it out per
+department; many produce messy strings that don't reflect actual OT spend patterns.
+**Best practice is to allocate by department**, but the chartfield string for each
+dept's OT is rarely fully derivable from existing labor data: the department code is
+easy, but project / activity / authority may not be unique per dept, and a single
+dept may have positions budgeted across multiple funds, projects, activities, and
+authorities.
+
+KosPos's OVERM UI should therefore offer two allocation modes:
+
+1. **Use existing chartfields** — auto-populate from chartfield strings that already
+   carry OT budget in the current labor report. Works for DBI (which has a dedicated
+   OT chartfield string in the "correct" place); may be lossy for other departments
+   with messier setups.
+2. **Manually enter** — the user adds rows via a `+ Add row` control; each row
+   captures fund / dept / project / activity / authority / account + dollar amount.
+   This is the escape hatch for departments where the existing chartfield placement
+   is wrong or insufficient.
+
+In both modes the allocated amounts must sum to the dept-level OVERM budget
+(validation surfaced inline). Authoritative pattern lives in
+[`SpecialClassView.tsx`](../../app/src/modules/special-class/SpecialClassView.tsx).
 
 #### TODO resolution status (from the original 7-question list)
 
 | # | Question | Status |
 |---|---|---|
-| 1 | Cushion magnitude / per-dept variability | **Still needs Alex** — `AX` column is hand-entered with no formula trail |
+| 1 | Cushion magnitude / per-dept variability | **Resolved (Session 11)** — default = `max(grossed-up prior, current projection)` rounded up to the nearest \$1,000; user can override per row |
 | 2 | Fringe rate FY27/FY28 | **Resolved by workbook** — same 7.65% (OASDI 6.20% + Medicare 1.45%); both unchanged. Hardcode as derived constant, do not "look up" |
-| 3 | Chartfield allocation method | **Still needs Alex** — extraction didn't reach the per-string breakdown |
-| 4 | YTD source coverage | **Partially resolved** — Operating Report uses `GETPIVOTDATA` on Overtime!A3 filtered to Fund 10190; covers all OT earnings codes posting to that fund. Per-dept gotchas (other funds, other earnings codes) still need Alex |
-| 5 | Projection formula meaning | **Mechanically resolved** — BS6 decoded above. Interpretation of the `$BN$8 / $BN$6` scale factor needs Alex's confirmation |
-| 6 | Fire exception | **N/A for DBI** — `$BN$6` is "FY25-26 Board" citywide; if Fire is in scope later, this denominator needs re-examination |
-| 7 | Any gotcha | **New gotchas surfaced** — see morning briefing |
+| 3 | Chartfield allocation method | **Resolved (Session 11)** — two modes: use existing chartfields, or manually enter rows. See § Chartfield-string allocation above |
+| 4 | YTD source coverage | **Resolved (Session 11)** — pivot holds OT salary actuals only (no benefits). Workbook's 10190 fund filter is a DBI shortcut; KosPos sums across all funds |
+| 5 | Projection formula meaning | **Resolved (Session 11)** — `BN8/BN6` is a salary→total gross-up using the BFM-budgeted ratio. Annualize YTD salary, then gross up to salary+benefits |
+| 6 | Fire exception | **N/A for DBI** — Fire's non-standard schedule breaks PP assumptions; out of scope until KosPos extends to Fire |
+| 7 | Any gotcha | Hardcoded 15.4/26.1 PP constants in workbook `AW` formula are a shortcut — KosPos always pulls live PPs from the Calendar tab (each FY is 26 / 26.1 / 26.2 PPs depending on calendar). See [`definitions.md`](definitions.md) |
 
 ---
 
