@@ -54,6 +54,35 @@ export function allocateByLaborShare(
   return out;
 }
 
+/**
+ * Inflate a historical dollar amount from `fromYear` to `toYear` dollars
+ * using a flat per-year COLA percentage.
+ *
+ * Used to put historical RPO actuals on a common-year footing before
+ * averaging — a 2018 retirement payout is denominated in 2018 dollars; to
+ * compare against an FY27 budget you'd want to know "what would the same
+ * pattern cost in FY27 dollars."
+ *
+ * Caveat (relevant to RPO specifically): RPO is driven by individual
+ * retirements, so year-over-year volatility (factor of ~4 across DBI's
+ * 8-yr window) dominates the inflation adjustment (~25% over 9 years at
+ * 2.5%).  The COLA-adjusted mean is useful as a sanity check, not as a
+ * precision-critical input.
+ *
+ * `colaPctPerYear` is the per-year COLA expressed as a decimal (e.g., 0.025
+ * for 2.5%).  When `toYear <= fromYear`, returns the input unchanged.
+ */
+export function colaAdjustToYear(
+  amount: number,
+  fromYear: number,
+  toYear: number,
+  colaPctPerYear: number,
+): number {
+  if (toYear <= fromYear) return amount;
+  const years = toYear - fromYear;
+  return amount * Math.pow(1 + colaPctPerYear, years);
+}
+
 // ---------------------------------------------------------------------------
 // 2. YTD budget pace
 // ---------------------------------------------------------------------------
