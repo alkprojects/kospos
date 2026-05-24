@@ -11,11 +11,20 @@ Reporting platform layered over PS HCM and PS Financials. **Currently OBI; migra
   - **BI Payroll** — All paid amounts in the fiscal YTD.
   - Various ad-hoc queries on positions, employees, chartfields.
 
-## Snowflake (future state)
+## Snowflake (future state) — clarified 2026-05-24
 
-- No SF.gov-published timeline located as of 2026-05-22.
-- CON Systems Division page still lists OBI as current.
-- KosPos should design importers to be **source-agnostic** — sniff column headers, not file names — so the OBI→Snowflake cutover doesn't require a rewrite.
+- **Snowflake is a Department of Technology initiative**, not a Controller's Office
+  initiative. The Controller's Office is **not** named as a Snowflake adopter in
+  Snowflake's [CCSF case study](https://www.snowflake.com/en/customers/all-customers/case-study/city-and-county-of-san-francisco/).
+  Some 16 city departments have engaged with the platform via DT (SFO and Parks & Rec
+  named).
+- **No public roadmap commits the Controller to Snowflake migration of OBI or PS HCM/FSCM**
+  reporting. So treat OBI as the canonical reporting layer for KosPos's source systems
+  until evidence changes.
+- Don't conflate "city is on Snowflake" (true for some depts via DT) with "Controller has
+  migrated" (no public evidence).
+- KosPos should still design importers to be **source-agnostic** — sniff column headers,
+  not file names — so any future OBI→Snowflake cutover doesn't require a rewrite.
 
 ## What KosPos imports
 
