@@ -586,3 +586,65 @@ was wired up before session-based development began.
 - Per-row OVERM table mirroring `Special Class!AR4:BD12` — wired with a single representative row for now; full table comes with the per-row importer.
 - State persistence for OVERM sentiment/amount/chartfield inputs — same deferred decision as RPO.
 
+---
+
+## Session 12 — Autonomous SF authoritative research (2026-05-24)
+
+**Worktree:** `awesome-nash-2aafac`
+**Model:** Opus 4.7 (high effort)
+**Mode:** Autonomous (Alex away ~2.5h)
+**Time:** 22:00–22:50 UTC (~50 min wall clock — research agents ran in parallel)
+
+### Prompts
+
+**[22:00]** Autonomous research-mode prompt (see PR #29 / SESSION_HANDOFF.md). Goal: assemble a structured, primary-source-cited reference for SF position-management rules so KosPos can lean on it for the upcoming separation / hiring / org-chart phases.
+
+### Workflow
+
+1. Baselined existing docs (`CLAUDE.md`, `SESSION_HANDOFF.md`, `GLOSSARY.md`, `domain/*`, `data-sources/*`).
+2. Branched `docs/sf-authoritative-reference` from main.
+3. Launched 4 parallel general-purpose web research agents:
+   - **Agent A** — SFDHR (Civil Service Rules + MOU index + Salary Ordinance + Comp Manual + Pay Calendar)
+   - **Agent B** — Controller's Office + source systems (PeopleSoft / OBI / BFM / accounting policies)
+   - **Agent C** — Civil Service Commission (Rule volumes + recent decisions + Advisers + probation/layoff)
+   - **Agent D** — Charter + Admin Code + Mayor's Budget Office (with §10.104 enumeration as headline)
+4. While agents ran, drafted skeletons for `authorities.md` and `appointment-types.md`.
+5. Synthesized agent output into one PR: new `authorities.md` + `appointment-types.md` + extensions across `domain/` and `data-sources/`.
+
+### Milestones
+
+- **PR #30 merged** — 14 files changed, +984 / −72. Tests 146/146 pass. Pages deploy succeeded.
+- **2 new domain files:** `authorities.md` (BOS/MYR/CON/CSC/DHR/dept authority map), `appointment-types.md` (full Charter §10.104 taxonomy, 19 sub-sections, Cat 16/17/18/19, Provisional, MTA exempt, Transfer/LTT)
+- **8 existing files extended** (data-sources/* + domain/positions, hiring-process, budget-process, special-class) + GLOSSARY.md
+
+### What changed for KosPos's understanding
+
+| Theme | Before this session | After this session |
+|---|---|---|
+| §10.104 exempt categories | 16/17/18 only ("strict time limits") | All 19 sub-sections; Cat 19 (disabled→PCS conversion) added; Group I 2% cap and MTA §8A.104(i) 2.75% cap distinct |
+| "RTF" | Treated as canonical SF term | Internal SFDHR/PeopleSoft vocabulary; CS Rule 113 §113.8 calls it Personnel Requisition |
+| Probation | Implied global default | Per-MOU; Rule 117 sets no global value (Rule 217/317/417 for Police/Fire/MTA) |
+| Premium pay anchor | "Admin Code Chapter 16" | MOUs (Charter §A8.409) + ASO; Ch. 16 is vacations + retirement + workers' comp |
+| BFM vendor | Generic "vendor platform" | Sherpa Government Solutions (Aug 2020 selection) |
+| Pay calendar issuer | DHR | Controller Payroll Division |
+| Snowflake | "Migrating to" implied | DT-led initiative; Controller's reporting stack remains OBI |
+| Rules Vol IV (MTA) | URL TODO | Confirmed: sf.gov/resource--2022--rules-mta-service-critical-employees |
+| Eligible-list lifespan | Implied 1 year | Min 6 mo before HR Director cancellation; max 48 mo with one 12-mo extension (Rule 112) |
+| DBI MOU coverage | SEIU 1021, IFPTE 21, MEA, Local 261 | + Building Inspectors Association Local 856 (the signature 6248/6270 inspector MOU) |
+| Inspector General | Not modeled | New Controller's Office division (2024 Prop C) |
+| Latest AAO/ASO | FY27/FY28 May 1 proposed | FY26/FY27 final adopted 2025-07-29 (KosPos was looking at the wrong cycle) |
+
+### Conflicts flagged (NOT edited — Alex to reconcile)
+
+Each new/extended doc has a "Conflicts to reconcile" section. The headline items:
+- "RTF" terminology (correction across hiring-process.md + GLOSSARY)
+- Probation duration claim (hiring-process.md previously implied a global default)
+- Premium-pay anchor (RPO research in special-class.md attributes premium-pay framework to Admin Code Ch. 16 — should be MOUs+ASO under Charter §A8.409)
+- §10.104 enumeration completeness (Cat 19 was missing)
+
+### Out of scope (autonomous-mode rule)
+
+- PREMM math walkthrough — needs Alex's interactive answers (deferred per session prompt)
+- Any `app/src/` code change (deferred per session prompt)
+- `9993` attrition target / position-control rules from Mayor's Budget Instructions — Section IV Technical Instructions PDF text was unreadable via WebFetch; future session should re-fetch
+
