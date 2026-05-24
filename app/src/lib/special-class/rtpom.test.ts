@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   historicalActualsMean,
   allocateByLaborShare,
+  colaAdjustToYear,
   ytdBudgetPace,
   projectRpoYearEnd,
 } from './rtpom';
@@ -71,6 +72,34 @@ describe('allocateByLaborShare', () => {
     const result = allocateByLaborShare(100000, shares);
     const sum = result.A + result.B + result.C;
     expect(Math.abs(sum - 100000)).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('colaAdjustToYear', () => {
+  it('inflates one year at 2.5%', () => {
+    expect(colaAdjustToYear(100_000, 2026, 2027, 0.025)).toBeCloseTo(102_500, 2);
+  });
+
+  it('compounds across nine years (DBI 2018 → FY27 at 2.5%)', () => {
+    // 142944 * 1.025^9 = 178517.47
+    expect(colaAdjustToYear(142_944, 2018, 2027, 0.025)).toBeCloseTo(178_517.47, 1);
+  });
+
+  it('returns input unchanged when toYear equals fromYear', () => {
+    expect(colaAdjustToYear(299_051, 2025, 2025, 0.025)).toBe(299_051);
+  });
+
+  it('returns input unchanged when toYear is before fromYear (no deflation)', () => {
+    expect(colaAdjustToYear(299_051, 2025, 2024, 0.025)).toBe(299_051);
+  });
+
+  it('returns input unchanged at 0% COLA', () => {
+    expect(colaAdjustToYear(299_051, 2018, 2027, 0)).toBe(299_051);
+  });
+
+  it('handles a real-world DBI historical row (FY25 2025 → FY27 at 2.5%)', () => {
+    // 299051 * 1.025^2 = 314190.46
+    expect(colaAdjustToYear(299_051, 2025, 2027, 0.025)).toBeCloseTo(314_190.46, 1);
   });
 });
 

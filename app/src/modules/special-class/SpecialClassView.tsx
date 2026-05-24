@@ -1,5 +1,6 @@
 import {
   historicalActualsMean,
+  colaAdjustToYear,
   ytdBudgetPace,
   projectRpoYearEnd,
 } from '../../lib/special-class';
@@ -23,16 +24,32 @@ const FY26 = {
 // FY27-28 budget development cycle (next 2 years).
 // SF builds budgets in rolling 2-year cycles — see docs/domain/budget-process.md
 // §"Two-year budget cycle". Current cycle = FY27-28 (BY = FY27, BY+1 = FY28).
+//
+// Historical actuals are the inputs for budget development.  The window is
+// 9 entries: 8 settled actuals 2018-2025 plus the FY26 projection
+// (Operating Report Summary H38).  Once FY26 closes the projection is
+// replaced by the actual.
+//
+// `kind` distinguishes settled actuals from the still-open FY26 projection so
+// the UI can tag it differently and a future cycle can reconcile.
 const HISTORICAL = [
-  { year: 2018, amount: 142_944 },
-  { year: 2019, amount: 93_857  },
-  { year: 2020, amount: 341_022 },
-  { year: 2021, amount: 146_645 },
-  { year: 2022, amount: 310_700 },
-  { year: 2023, amount: 88_219  },
-  { year: 2024, amount: 181_295 },
-  { year: 2025, amount: 299_051 },
+  { year: 2018, amount: 142_944, kind: 'actual' as const },
+  { year: 2019, amount: 93_857,  kind: 'actual' as const },
+  { year: 2020, amount: 341_022, kind: 'actual' as const },
+  { year: 2021, amount: 146_645, kind: 'actual' as const },
+  { year: 2022, amount: 310_700, kind: 'actual' as const },
+  { year: 2023, amount: 88_219,  kind: 'actual' as const },
+  { year: 2024, amount: 181_295, kind: 'actual' as const },
+  { year: 2025, amount: 299_051, kind: 'actual' as const },
+  // FY26 projection feeds in — computed below from FY26 reporting block, not
+  // a duplicate constant.  Spread into the array at module load.
 ];
+
+// Per-year COLA placeholder.  Real historical COLAs live on the Controller's
+// website (per Alex); swap this constant for a per-year map once loaded.
+// Current FY budget year being developed.
+const COLA_PCT_PER_YEAR = 0.025;
+const COLA_TARGET_YEAR  = 2027;  // FY27 = BY of the current cycle
 
 // One chosen amount per year in the cycle. FY28 starts equal to FY27 — Alex
 // will set sentiment / scenario adjustments per year in PR #4. Editable inputs
@@ -65,10 +82,27 @@ const FY26_PROJECTED = projectRpoYearEnd(FY26.budget, FY26.ytdActual, FY26_PP_RE
 const FY26_BALANCE           = FY26.budget - FY26.ytdActual;
 const FY26_PROJECTED_BALANCE = FY26.budget - FY26_PROJECTED;
 
-const HISTORICAL_MEAN = historicalActualsMean(HISTORICAL.map(h => h.amount));
+// Append the FY26 projection to the historical window.  Using the projection
+// (not just YTD) matches what gets fed into "what should we budget next year"
+// thinking — the projection is the best estimate of where FY26 closes.
+const HISTORICAL_FULL = [
+  ...HISTORICAL,
+  { year: 2026, amount: FY26_PROJECTED, kind: 'projection' as const },
+];
+
+// Adjusted to FY27 dollars at the COLA placeholder.
+const HISTORICAL_ROWS = HISTORICAL_FULL.map(h => ({
+  ...h,
+  adjusted: colaAdjustToYear(h.amount, h.year, COLA_TARGET_YEAR, COLA_PCT_PER_YEAR),
+}));
+
+const HISTORICAL_MEAN_RAW = historicalActualsMean(HISTORICAL_ROWS.map(r => r.amount));
+const HISTORICAL_MEAN_ADJ = historicalActualsMean(HISTORICAL_ROWS.map(r => r.adjusted));
+
+// Cushion is measured against the COLA-adjusted mean (the FY27-$ baseline).
 const CYCLE_YEARS = CYCLE_BUDGET_DEV.years.map(y => ({
   ...y,
-  cushion: y.chosenAmount - HISTORICAL_MEAN,
+  cushion: y.chosenAmount - HISTORICAL_MEAN_ADJ,
 }));
 
 // ---------------------------------------------------------------------------
@@ -245,24 +279,51 @@ export function SpecialClassView() {
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
               Historical Actuals (Account 510210) — shared baseline
             </div>
-            <table style={{ width: '100%', maxWidth: 460, borderCollapse: 'collapse', fontSize: 13 }}>
+            <table style={{ width: '100%', maxWidth: 560, borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ padding: '5px 12px', textAlign: 'left', fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Year</th>
+                  <th style={{ padding: '5px 12px', textAlign: 'right', fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Actual ($ of year)</th>
+                  <th style={{ padding: '5px 12px', textAlign: 'right', fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>FY{COLA_TARGET_YEAR - 2000} $ (COLA-adj)</th>
+                </tr>
+              </thead>
               <tbody>
-                {HISTORICAL.map(h => (
+                {HISTORICAL_ROWS.map(h => (
                   <tr key={h.year} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '5px 12px', color: 'var(--muted)' }}>BY {h.year}</td>
+                    <td style={{ padding: '5px 12px', color: 'var(--muted)' }}>
+                      BY {h.year}
+                      {h.kind === 'projection' && (
+                        <span style={{ marginLeft: 6, fontSize: 10, padding: '1px 5px', borderRadius: 8, background: '#fff8e1', color: '#7a5a00', fontWeight: 600 }}>
+                          PROJ
+                        </span>
+                      )}
+                    </td>
                     <td style={{ padding: '5px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                       {fmt(h.amount)}
+                    </td>
+                    <td style={{ padding: '5px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: h.year === COLA_TARGET_YEAR ? 'var(--muted)' : 'inherit' }}>
+                      {fmt(Math.round(h.adjusted))}
                     </td>
                   </tr>
                 ))}
                 <tr style={{ background: 'var(--accent-soft, #eef3ff)' }}>
-                  <td style={{ padding: '7px 12px', fontWeight: 600 }}>Mean (8 yr)</td>
+                  <td style={{ padding: '7px 12px', fontWeight: 600 }}>Mean ({HISTORICAL_ROWS.length} yr)</td>
                   <td style={{ padding: '7px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
-                    {fmt(HISTORICAL_MEAN)}
+                    {fmt(HISTORICAL_MEAN_RAW)}
+                  </td>
+                  <td style={{ padding: '7px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
+                    {fmt(HISTORICAL_MEAN_ADJ)}
                   </td>
                 </tr>
               </tbody>
             </table>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+              FY26 is the in-progress projection (Operating Report Summary H38),
+              included so the baseline reflects the latest expectation, not just
+              settled actuals. COLA placeholder = {(COLA_PCT_PER_YEAR * 100).toFixed(1)}%/yr;
+              swap for actual SF COLAs from the Controller's site when available.
+              Cushion on each year-card below is measured against the COLA-adjusted mean.
+            </div>
           </div>
 
           {/* Two-year cycle: side-by-side cards */}
