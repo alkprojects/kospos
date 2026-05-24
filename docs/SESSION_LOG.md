@@ -423,3 +423,48 @@ was wired up before session-based development began.
 - **GitHub auth path documented** — for next session, `/ultrareview` works from Claude Desktop after Settings → Connectors → GitHub install. The OAuth Apps tab does not show Claude (it's a GitHub App, not an OAuth App).
 - **Knowledge-capture-before-math pattern worked.** The CRITICAL instruction in the session-start prompt ("guessing is a blocker") prevented a from-scratch math implementation that would have needed to be redone. Replicate this pattern for STEPM and 9994 (the two highest-complexity classes still to come).
 
+---
+
+## Session 9 — Phase 4 RPO math + UI + cleanup (2026-05-23 / 24)
+
+**Worktree:** `nostalgic-cori-933be9`
+**Model:** Opus 4.7
+**PRs merged:** [#14](https://github.com/alkprojects/kospos/pull/14), [#15](https://github.com/alkprojects/kospos/pull/15), [#16](https://github.com/alkprojects/kospos/pull/16), [#17](https://github.com/alkprojects/kospos/pull/17), [#18](https://github.com/alkprojects/kospos/pull/18), [#19](https://github.com/alkprojects/kospos/pull/19), [#20](https://github.com/alkprojects/kospos/pull/20) + this docs PR
+**Tests:** 65 → 96 (+31 across 4 PRs)
+
+### Prompts (compressed)
+
+- **[session start]** RTPOM_E-only kickoff: build special-class module + minimal view + 4th tab; one PR per chunk; do NOT touch other 7 classes.
+- **[after PR #14]** "let's step back ... what is the current special class page doing? pp elapsed should specify FY26 pp elapsed. fy27 is next fiscal year." + real FY26 numbers ($249,998 budget, $359,014 YTD/projected) + "what code is 17000, that doesn't appear to be any chartfield."
+- **[after PR #15]** "sf budget is for the next two years" + budget development should ask sentiment + PTO eligibility + COLA-adjustment + "does this make sense?"
+- **[research prereqs answered]** PTO file shape (employee_id, type, balance); vacation-only hypothesis (low confidence — "maybe you could spin up an agent to look online"); no projected retirement dates in any system; cost.ts has FY26 rates only; multi-dept must be supported.
+- **[after PR #17]** "assume your hunch is correct for now. merge as is. start now. ... for historical rpo amounts, add in FY26 projection and include it in the average. ... add a column that shows prior year rpo amounts in next year dollars. ... RPO is so volatile does it even make sense to get so specific?"
+- **[after PR #18]** "go" (to start sentiment ±%).
+- **[after PR #19]** "persistence move to out of scope ... per employee scenarios, move to out of scope ... let's move on from rpo to the next thing unless you have anything else"
+- **[maintenance triage]** "1. yes fix [session log] 2. i'll use this occasionally, not every session [/ultrareview] 3. can you fix this? [xlsx] 4. deal with this [worktree cleanup] then hand off for next session"
+- **[xlsx auth]** "confirmed, i ran it" (after auto-mode classifier blocked the CDN install)
+
+### Milestones — PRs in order
+
+| PR | Title | Notes |
+|---|---|---|
+| [#14](https://github.com/alkprojects/kospos/pull/14) | feat: Phase 4 RTPOM_E math + Special Class tab | First special-class code. 4 pure functions (`historicalActualsMean`, `allocateByLaborShare`, `ytdBudgetPace`, `projectRpoYearEnd`); 19 new tests. |
+| [#15](https://github.com/alkprojects/kospos/pull/15) | fix: restructure Special Class page around three-function model | Alex caught FY26/FY27 conflation + fabricated chartfield `17000`. Page split into FY26 (functions 1+2) and FY27 (function 3) with real numbers. |
+| [#16](https://github.com/alkprojects/kospos/pull/16) | feat: two-year budget cycle framing | FY27 → FY27-28 Budget Cycle with BY + BY+1 cards. Added "Two-year budget cycle" section to `budget-process.md`. |
+| [#17](https://github.com/alkprojects/kospos/pull/17) | docs: SF separation-payout eligibility research | Background general-purpose research agent. Two corrections to Alex's hypothesis: comp time is MOU-dependent (SEIU 1021 pays, MEA doesn't); a "vested sick / wellness pay" balance pays out — probably the "SP" in account 510210's name. |
+| [#18](https://github.com/alkprojects/kospos/pull/18) | feat: RPO historical baseline — FY26 projection + COLA-adjusted column | 9-row historical table with PROJ tag; COLA-adjusted column (2.5%/yr placeholder); two means side by side. New `colaAdjustToYear` + 6 tests. |
+| [#19](https://github.com/alkprojects/kospos/pull/19) | feat: RPO sentiment ±% controls | Stateful `FyCard` with Less/Same/More + % input + justification textarea. New `applySentiment` + 6 tests. FY27 default "More 25%" → $301k matches Alex's previous chosen value. |
+| [#20](https://github.com/alkprojects/kospos/pull/20) | chore: swap xlsx 0.18.5 → 0.20.3 (SheetJS CDN tarball) | Open since Session 3. `npm audit` → 0 vulnerabilities (was 1 high). |
+
+### Side work
+
+- **Worktree cleanup** — removed 9 stale sub-worktree registrations under `.claude/worktrees/` + force-deleted 18 merged local branches. "main is already used by worktree" warnings during `gh pr merge` are gone.
+- **Out-of-scope decisions** — RPO state persistence and per-employee scenario builder both deferred ("may pick up later").
+
+### Lessons / improvements for next session
+
+- **Confirm dollar-precise reference data against Alex's real workbook BEFORE writing code, not after.** PR #14 used illustrative numbers I invented (chartfield `17000` doesn't exist); PR #15 had to restructure the whole page once Alex provided real FY26 figures and the three-function framing. Better order: get cell coordinates from Alex first, even when a partial spec exists in `docs/domain/`.
+- **The deploy-then-review loop works.** Alex's preference was clear ("push it to the website and i can flag issues from there if any exist"). Each deploy surfaced a real correction. Maintain the cadence for OVERM and beyond.
+- **Auto-mode classifier blocks external CDN installs.** Even when a prior handoff specifies the exact URL, the runtime requires fresh authorization. Surface the block immediately with the literal command for the user to run; don't work around it.
+- **Knowledge-capture-before-math, again.** PR #17 (research before per-employee math) and the up-front spec reading prevented guessing on payout eligibility. Same pattern should apply to OVERM_E — get Alex's verbal walkthrough before any math lands.
+
