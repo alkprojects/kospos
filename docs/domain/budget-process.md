@@ -16,6 +16,28 @@ Functions 2 and 3 live in the **same** workbook (Labor Report). Function 1 lives
 separate workbook (Budget Master). KosPos must support all three for every special class,
 position, and chartfield string.
 
+## Two-year budget cycle
+
+SF builds budgets in **rolling two-year cycles**: each cycle covers a Budget Year (BY) and
+BY+1. In the next cycle, what was BY+1 becomes the new BY (and opens for edits), and a new
+BY+1 is added.
+
+| Cycle | BY | BY+1 | Workbook name pattern |
+|---|---|---|---|
+| Current | FY27 | FY28 | `DBI FY27-28 Budget Master` |
+| Next | FY28 | FY29 | `DBI FY28-29 Budget Master` |
+| After that | FY29 | FY30 | `DBI FY29-30 Budget Master` |
+
+Implications for KosPos:
+
+- The budget-development UI must show **both years side by side**, not just BY. A user
+  picking RPO numbers picks one for FY27 and one for FY28.
+- BY+1 amounts can carry COLA differences vs BY when the budget item is rate-driven (per-
+  employee payouts, salary lines). RPO is currently a chosen lump-sum, so COLA enters
+  only if/when we switch to itemized per-employee payouts (Phase 4 PR #5 territory).
+- When the cycle rolls, BY+1's chosen amounts and assumptions should be preserved as
+  starting values for the new BY (not reset to zero).
+
 ## Reporting cycle
 
 - **6-month report**: departments submit projected year-end to CON and MYR.

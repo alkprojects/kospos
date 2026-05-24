@@ -20,21 +20,39 @@ const FY26 = {
   ytdActual: 359_014,          // Labor Report `Retirement Payout` tab, DBI YTD rollup
 };
 
-// FY27 budget development (next year).
-const FY27_BUDGET_DEV = {
-  fy: 'FY27',
-  historical: [
-    { year: 2018, amount: 142_944 },
-    { year: 2019, amount: 93_857  },
-    { year: 2020, amount: 341_022 },
-    { year: 2021, amount: 146_645 },
-    { year: 2022, amount: 310_700 },
-    { year: 2023, amount: 88_219  },
-    { year: 2024, amount: 181_295 },
-    { year: 2025, amount: 299_051 },
+// FY27-28 budget development cycle (next 2 years).
+// SF builds budgets in rolling 2-year cycles — see docs/domain/budget-process.md
+// §"Two-year budget cycle". Current cycle = FY27-28 (BY = FY27, BY+1 = FY28).
+const HISTORICAL = [
+  { year: 2018, amount: 142_944 },
+  { year: 2019, amount: 93_857  },
+  { year: 2020, amount: 341_022 },
+  { year: 2021, amount: 146_645 },
+  { year: 2022, amount: 310_700 },
+  { year: 2023, amount: 88_219  },
+  { year: 2024, amount: 181_295 },
+  { year: 2025, amount: 299_051 },
+];
+
+// One chosen amount per year in the cycle. FY28 starts equal to FY27 — Alex
+// will set sentiment / scenario adjustments per year in PR #4. Editable inputs
+// arrive in PR #4; for now both are constants.
+const CYCLE_BUDGET_DEV = {
+  cycleLabel: 'FY27-28',
+  years: [
+    {
+      fy: 'FY27',
+      cycleRole: 'BY' as const,
+      chosenAmount: 300_000,
+      justification: 'Many retirements expected in IS',
+    },
+    {
+      fy: 'FY28',
+      cycleRole: 'BY+1' as const,
+      chosenAmount: 300_000,
+      justification: 'Starting equal to FY27 — refine each cycle as BY+1 becomes BY',
+    },
   ],
-  chosenAmount: 300_000,
-  justification: 'Many retirements expected in IS',
 };
 
 // ---------------------------------------------------------------------------
@@ -47,10 +65,11 @@ const FY26_PROJECTED = projectRpoYearEnd(FY26.budget, FY26.ytdActual, FY26_PP_RE
 const FY26_BALANCE           = FY26.budget - FY26.ytdActual;
 const FY26_PROJECTED_BALANCE = FY26.budget - FY26_PROJECTED;
 
-const FY27_HISTORICAL_MEAN = historicalActualsMean(
-  FY27_BUDGET_DEV.historical.map(h => h.amount),
-);
-const FY27_CUSHION = FY27_BUDGET_DEV.chosenAmount - FY27_HISTORICAL_MEAN;
+const HISTORICAL_MEAN = historicalActualsMean(HISTORICAL.map(h => h.amount));
+const CYCLE_YEARS = CYCLE_BUDGET_DEV.years.map(y => ({
+  ...y,
+  cushion: y.chosenAmount - HISTORICAL_MEAN,
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -114,8 +133,9 @@ export function SpecialClassView() {
         <p style={{ margin: '4px 0 0', color: 'var(--muted)', fontSize: 13 }}>
           DBI · Account 510210 (Ret Payout - SP & Vac - Misc). KosPos has three
           jobs for every labor line: report current actuals, project rest-of-year,
-          and develop next year's budget. The two sections below correspond to
-          the first two functions (FY26) and the third (FY27).
+          and develop next two years' budget (SF runs rolling 2-year cycles).
+          The two sections below correspond to the first two functions (FY26)
+          and the third (FY27-28 cycle).
           See <code>docs/domain/special-class.md</code> §RTPOM_E.
         </p>
       </div>
@@ -207,71 +227,80 @@ export function SpecialClassView() {
       </section>
 
       {/* -------------------------------------------------------------------- */}
-      {/* Section 2 — FY27 budget development                                  */}
+      {/* Section 2 — FY27-28 budget development cycle                         */}
       {/* -------------------------------------------------------------------- */}
       <section style={SECTION}>
         <div style={SECTION_HEADER}>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
-            FY27 · Next Year — Budget Development
+            {CYCLE_BUDGET_DEV.cycleLabel} · Budget Cycle — Budget Development
           </div>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
-            Choose a total → allocate across chartfield strings by regular-labor share.
+            SF builds budgets in rolling 2-year cycles (BY + BY+1). Pick a chosen
+            amount per year; allocate across chartfield strings by regular-labor share.
           </div>
         </div>
         <div style={SECTION_BODY}>
-          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-            {/* Left: historical actuals table */}
-            <div style={{ flex: '1 1 320px' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-                Historical Actuals (Account 510210)
-              </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <tbody>
-                  {FY27_BUDGET_DEV.historical.map(h => (
-                    <tr key={h.year} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '5px 12px', color: 'var(--muted)' }}>BY {h.year}</td>
-                      <td style={{ padding: '5px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                        {fmt(h.amount)}
-                      </td>
-                    </tr>
-                  ))}
-                  <tr style={{ background: 'var(--accent-soft, #eef3ff)' }}>
-                    <td style={{ padding: '7px 12px', fontWeight: 600 }}>Mean (8 yr)</td>
-                    <td style={{ padding: '7px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
-                      {fmt(FY27_HISTORICAL_MEAN)}
+          {/* Historical actuals — shared across both years in the cycle */}
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+              Historical Actuals (Account 510210) — shared baseline
+            </div>
+            <table style={{ width: '100%', maxWidth: 460, borderCollapse: 'collapse', fontSize: 13 }}>
+              <tbody>
+                {HISTORICAL.map(h => (
+                  <tr key={h.year} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '5px 12px', color: 'var(--muted)' }}>BY {h.year}</td>
+                    <td style={{ padding: '5px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      {fmt(h.amount)}
                     </td>
                   </tr>
-                </tbody>
-              </table>
-            </div>
+                ))}
+                <tr style={{ background: 'var(--accent-soft, #eef3ff)' }}>
+                  <td style={{ padding: '7px 12px', fontWeight: 600 }}>Mean (8 yr)</td>
+                  <td style={{ padding: '7px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
+                    {fmt(HISTORICAL_MEAN)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-            {/* Right: chosen amount + cushion */}
-            <div style={{ flex: '1 1 320px' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-                Chosen Amount (Budget Master F15)
-              </div>
-              <div style={{
-                padding: 14,
-                border: '1px solid var(--border)',
-                borderRadius: 6,
-                background: 'var(--surface)',
-              }}>
+          {/* Two-year cycle: side-by-side cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            {CYCLE_YEARS.map(y => (
+              <div
+                key={y.fy}
+                style={{
+                  padding: 14,
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  background: 'var(--surface)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                    {y.fy} · {y.cycleRole}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>Chosen amount</div>
+                </div>
                 <div style={{ fontSize: 28, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                  {fmt(FY27_BUDGET_DEV.chosenAmount)}
+                  {fmt(y.chosenAmount)}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-                  Cushion vs mean: <strong>{fmtSigned(FY27_CUSHION)}</strong>
+                  Cushion vs mean: <strong>{fmtSigned(y.cushion)}</strong>
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10, fontStyle: 'italic' }}>
-                  "{FY27_BUDGET_DEV.justification}"
+                  "{y.justification}"
                 </div>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10 }}>
-                Allocation by chartfield string is not yet wired — it requires
-                regular-labor totals per dept (Budget Master `I5:I23`).  Until
-                then, this section reports the total only.
-              </div>
-            </div>
+            ))}
+          </div>
+
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 14 }}>
+            Editable inputs (sentiment ±%, per-employee scenarios, COLA-aware
+            payouts) arrive in subsequent PRs. Allocation by chartfield string
+            also pending — needs regular-labor totals per dept (Budget Master
+            <code> I5:I23</code>).
           </div>
         </div>
       </section>
