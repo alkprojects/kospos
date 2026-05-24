@@ -12,14 +12,19 @@ One file per upstream system. Each file documents:
 
 | Source | File | What it owns |
 |---|---|---|
-| Controller's Office | [`controller.md`](controller.md) | Accounting policies, AAO, Nine-Month Report, fiscal-monitoring guidance |
-| DHR | [`dhr.md`](dhr.md) | Job classifications, salaries, MOUs, eligibility lists, pay calendar |
-| Civil Service Commission | [`civil-service.md`](civil-service.md) | Civil Service Rules (Vol I–IV) |
-| Mayor's Office | [`mayor.md`](mayor.md) | Budget instructions, ASO, Proposed Budget |
+| Controller's Office | [`controller.md`](controller.md) | Accounting policies, AAO, fiscal-monitoring reports, **pay calendar**, payroll, source-system infrastructure, Inspector General |
+| DHR | [`dhr.md`](dhr.md) | Job classifications, salaries, MOUs, eligibility lists |
+| Civil Service Commission | [`civil-service.md`](civil-service.md) | Civil Service Rules (Vol I–IV), Civil Service Advisers |
+| Mayor's Office | [`mayor.md`](mayor.md) | Budget Instructions, ASO drafting, Proposed Budget |
 | PS HCM | [`ps-hcm.md`](ps-hcm.md) | Employees, positions, T&L, queries |
 | PS Financials | [`ps-financials.md`](ps-financials.md) | Chartfields, appropriation control |
-| BFM | [`bfm.md`](bfm.md) | Budget formulation, eturns |
-| OBI / Snowflake | [`obi.md`](obi.md) | Current reporting platform (OBI), migrating to Snowflake |
+| BFM | [`bfm.md`](bfm.md) | Budget formulation (Sherpa platform), eturns |
+| OBI / Snowflake | [`obi.md`](obi.md) | Current Controller-owned reporting (OBI); Snowflake is a DT initiative |
+
+For the authority chain (who issues / approves / hosts), see
+[`../domain/authorities.md`](../domain/authorities.md). For the appointment-type taxonomy
+that bridges DHR / CSC / Charter / Admin Code, see
+[`../domain/appointment-types.md`](../domain/appointment-types.md).
 
 ## Local reference PDFs
 

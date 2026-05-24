@@ -12,7 +12,20 @@ Owns job classifications, salary schedules, MOUs, eligibility lists, the pay cal
 
 ## MOUs (union contracts)
 
-- [Labor Agreements / MOUs](https://www.sf.gov/labor-agreements-city-and-county-san-francisco) — full MOU PDFs for ~30+ units. 2024-2027 cycle for most; Police/Fire on different cycles. Public. Three-year negotiation cycle with annual comp provisions.
+- [Labor Agreements / MOUs](https://www.sf.gov/labor-agreements-city-and-county-san-francisco) — full MOU PDFs for ~30+ units. 2024-2027 cycle for most miscellaneous units; **public-safety units (POA, Fire 798 Units 1&2, MEA-Police, MEA-Fire) run a one-year-staggered 2023-2026 cycle**. Public. Three-year negotiation cycle with annual comp provisions.
+
+### MOUs that DBI touches
+
+| Unit | Union | Classes (examples) | Term | Public safety? |
+|---|---|---|---|---|
+| Misc citywide | SEIU Local 1021 | broad clerical/admin (1400/1700/1800 series) | 7/1/24–6/30/27 | No |
+| Professional/Technical | IFPTE Local 21 | engineers, inspectors, planners (5000/5200 series) | 7/1/24–6/30/27 | No |
+| **Building Inspectors** | **Building Inspectors Assoc, Local 856** | **6248 / 6270 inspector classes — DBI's signature unit** | 7/1/24–6/30/27 | No |
+| Laborers | LiUNA Local 261 | 7514 etc. construction/general labor | 7/1/24–6/30/27 | No |
+| Management | MEA Misc | management classes | 7/1/24–6/30/27 | No |
+
+The **Building Inspectors Association Local 856** covers DBI's core 6248/6270 inspector
+classes — previously missing from KosPos's notes.
 
 ## Hiring & eligibility
 
@@ -27,7 +40,12 @@ Owns job classifications, salary schedules, MOUs, eligibility lists, the pay cal
 
 ## Pay calendar
 
-- `CAL2026.pdf` (downloaded from `media.api.sf.gov/documents/CAL2026.pdf`) — annual calendar listing pay periods, PPEs, paydays, holidays. Issued by DHR each calendar year.
+- `CAL2026.pdf` (downloaded from `media.api.sf.gov/documents/CAL2026.pdf`) — annual
+  calendar listing pay periods, PPEs, paydays, holidays.
+- **Issuer is the Controller's Office (Payroll Division)** — not DHR. Index at
+  [sf.gov/payroll-calendar](https://www.sf.gov/payroll-calendar). KosPos's earlier note
+  attributing the calendar to DHR was incorrect; the canonical reference belongs in
+  [`controller.md`](controller.md). Leaving the URL above for ease of reference.
 
 ## What lives where (for KosPos)
 
@@ -40,5 +58,17 @@ Owns job classifications, salary schedules, MOUs, eligibility lists, the pay cal
 
 ## Open uncertainties
 
-- DHR Comp Manual FY25-26 not yet located online (latest public is FY24-25). FY25-26 data may currently live only in the Hourly Rates spreadsheets pending full manual republication.
+- DHR Comp Manual FY25-26 **standalone PDF** not yet republished (latest standalone is
+  FY24-25 dated 12/18/2024). FY25-26 rate data **is** already covered by the combined
+  [ASO FY24-25 & FY25-26 (adopted 7/31/24)](https://www.sf.gov/sites/default/files/2024-07/ASO%20FY2024-25%20&%20FY2025-26%20-%20FINAL%207.31.24.pdf)
+  and is administratively maintained per ratified MOUs. The ASO covers FY25-26; it's only
+  the Comp Manual reformatting that lags.
 - Legacy `sfdhr.org` URLs may still appear; treat as backups that redirect to `sf.gov`.
+
+## What KosPos got wrong (and was corrected 2026-05-24)
+
+- **Pay calendar is Controller-issued**, not DHR-issued. Belongs in
+  [`controller.md`](controller.md).
+- **Building Inspectors Association Local 856** was missing from DBI's MOU list. Added
+  above. It's the signature DBI MOU for the 6248/6270 inspector classes.
+- **ASO covers FY25-26 already** — only the standalone Comp Manual PDF lags.

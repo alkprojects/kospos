@@ -165,10 +165,66 @@ table and the code constant.
 **Public-safety units (POA / Fire / Sheriff) have separate MOUs and different COLA
 schedules** — do not use this table for any class that rolls up to a public-safety unit.
 
+## Authoritative sources for the budget cycle
+
+The framework KosPos models lives on top of statutory and policy authorities. Authoritative
+references:
+
+- **Charter Article IX (§9.101–§9.103)** — Mayor's submission timing (May 1 / June 1),
+  BOS adoption process, BOS cannot increase total above Mayor's Proposed.
+  [Charter Art. IX](https://codelibrary.amlegal.com/codes/san_francisco/latest/sf_charter/0-0-0-2421).
+- **Admin Code §3.3 — Budget Timetable.** Mayor's submission deadlines; departments must
+  hold public meetings for input.
+  [Admin Code §3.3](https://codelibrary.amlegal.com/codes/san_francisco/latest/sf_admin/0-0-0-1431).
+- **Admin Code §3.11 — AAO preparation and format.** Structure of the Annual Appropriation
+  Ordinance. [Admin Code §3.11](https://codelibrary.amlegal.com/codes/san_francisco/latest/sf_admin/0-0-0-1480).
+- **Admin Code §3.14 — Departments operate within budgeted amounts.** No spending beyond
+  appropriation; appointing officer must agree funding is adequate within 30 days of
+  enactment. [Admin Code §3.14](http://sf-ca.elaws.us/code/adco_ch3_sec3.14).
+- **Admin Code §3.10 — ASO administrative provisions.**
+  [Admin Code §3.10](https://codelibrary.amlegal.com/codes/san_francisco/latest/sf_admin/0-0-0-1476).
+- **Mayor's Budget Instructions** — issued December each year by the Mayor's Budget Office;
+  defines submission forms, position-control rules, attrition targets, CODB targets, the
+  $10,000 equipment unit-cost / 3-year-life threshold. See [`../data-sources/mayor.md`](../data-sources/mayor.md).
+- **AAO §10.4** — Salary & Benefits Reserve transfer authority; Controller may transfer
+  funds to adjust appropriations for employee salaries and benefits. Surfaced via the
+  [Six-Month Report FY25-26](https://media.api.sf.gov/documents/Six-Month_Report_FY25-26_FINAL.pdf).
+- **MOUs** — Bargaining-unit agreements adopted under Charter §A8.409; carry the COLA
+  schedule, premium-pay framework, comp-time / wellness-pay / vacation rules. See
+  [`../data-sources/dhr.md`](../data-sources/dhr.md) and [`authorities.md`](authorities.md) § DHR.
+- **Annual Salary Ordinance (ASO)** — Mayor proposes, BOS adopts. Authoritative count of
+  positions by class per department. Biennial cycle (FY pair); mid-cycle amendments after
+  MOU ratifications and supplemental appropriations.
+
+Note: KosPos's existing RPO research cited Admin Code "§16.7" for the premium-pay
+framework. The primary text of [Admin Code Chapter 16](https://codelibrary.amlegal.com/codes/san_francisco/latest/sf_admin/0-0-0-9960)
+is vacations + retirement + workers' comp; premium pay, overtime, comp-time, and longevity
+live in MOUs (under Charter §A8.409) and the ASO, **not** Chapter 16. Re-cite when the
+question next comes up.
+
 ## Cross-references
 
 - Budget legislative phases (Base / Dept / Mayor / Committee / Technical / Board): see
   [`budget-phases.md`](budget-phases.md)
+- Authority map (DHR / CSC / CON / MYR / BOS): see [`authorities.md`](authorities.md)
 - Per-class math: see [`special-class.md`](special-class.md)
 - Year-end projection methods: see [`projections.md`](projections.md)
 - Term definitions that vary by context: see [`definitions.md`](definitions.md)
+- Appointment-type taxonomy: see [`appointment-types.md`](appointment-types.md)
+
+## Conflicts to reconcile
+
+The following claims in KosPos's existing docs disagree with primary sources surfaced
+during 2026-05-24 research. **Do not edit the original claim** — Alex needs to reconcile
+in a subsequent session.
+
+- KosPos's RPO research (`special-class.md`) cites Admin Code §16.11 + Charter §A8.440 as
+  the authoritative anchor for vacation payout. **Confirmed.** No conflict.
+- KosPos's RPO research implies premium-pay rules live in Admin Code Chapter 16.
+  **Conflict:** Chapter 16 is vacation + retirement + workers' comp. Premium pay framework
+  lives in MOUs adopted under Charter §A8.409, plus the ASO.
+- Several special-class budget rules ("9993 attrition target percentage", etc.) are
+  treated as if they have a published authority. **Unverified** — Agent B could not
+  surface a public Controller memo or BFM technical-instructions PDF defining 9993 as a
+  percentage target. Likely lives inside the Budget Instructions Technical Instructions
+  appendix, which was not extractable in 2026-05-24 research.

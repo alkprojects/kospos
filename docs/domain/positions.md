@@ -76,6 +76,34 @@ When `Vice 1` is populated and ≠ `Current Employee`, the node should indicate 
 | `CAT_17_18 Exempt TX Expired Date` | When it expires |
 | `CAT_17_18 Exempt Months` | Months allowed |
 
+## External authoritative rules
+
+The position model in KosPos lives downstream of several SF authorities. When a question
+arises about what a field *should* contain or how it *should* be interpreted, follow the
+authority map:
+
+- **What classes can exist, and at what pay rate?** → DHR Classification Plan +
+  Compensation Manual. See [`authorities.md`](authorities.md) § DHR.
+- **What appointment types can fill a position?** → [`appointment-types.md`](appointment-types.md)
+  — full Charter §10.104 + CS Rule 114 taxonomy.
+- **Who has authority to allocate a position to a class?** → HR Director under Charter
+  §10.103. Appeal pathway: CSC Rule 109.
+- **What is the position's authorized count?** → Annual Salary Ordinance (ASO), adopted
+  by the Board of Supervisors. See [`../data-sources/controller.md`](../data-sources/controller.md).
+- **Probation duration for a position's class?** → The applicable MOU (CS Rule 117 does
+  *not* set a global default).
+- **Time-limit enforcement on Cat 16/17/18 / Provisional?** → Cat 16: 1,040 hrs/FY half-time.
+  Cat 17: 2 yrs non-renewable. Cat 18: 3 yrs non-renewable. Provisional: 3 yrs (BOS approval
+  beyond). See [`appointment-types.md`](appointment-types.md).
+- **Group I 2% workforce cap (§10.104 subs 1-12)?** → Charter §10.104. Citywide tracking;
+  MTA has a separate 2.75% cap under §8A.104(i).
+
+KosPos's `Employee Appointment Type` field should map to the codes in
+[`appointment-types.md`](appointment-types.md) Quick Reference table. The
+`EE Exempt Category Description` field corresponds to the Charter §10.104 sub-section that
+authorized the exemption (e.g., "10.104-16" for a Cat 16 appointment, "10.104-14 Inspector
+General" for the new IG position).
+
 ## Audience visibility matrix (org chart, Phase 10)
 
 | Field group | Internal Mgmt | Internal All Staff | External |

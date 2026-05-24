@@ -15,6 +15,28 @@ Source workbooks (real files, gitignored, never committed):
 - YTD + projection → `Labor Report 5.21.26.xlsx`, `Operating Report Summary` tab plus
   per-class detail tabs (`Premium`, `Overtime`, `Retirement Payout`, `Step`)
 
+## Authoritative anchors
+
+The special-class system isn't documented in a single public-facing memo. KosPos's existing
+references all came out of DBI's workbooks and conversations with Alex. The downstream
+authorities that bound this work:
+
+- **Adopted AAO** — line items + administrative §10.4 (Salary & Benefits Reserve transfer
+  authority). Source: [Final AAO FY26+FY27](https://media.api.sf.gov/documents/FY2026__FY2027_-_FINAL_AAO.pdf);
+  authority confirmation via [Six-Month Report FY25-26](https://media.api.sf.gov/documents/Six-Month_Report_FY25-26_FINAL.pdf).
+- **Adopted ASO** — authoritative count of positions / classes per department, the
+  denominator for STEPM / 9994 / 9993 calculations. Source: [Final ASO FY26+FY27](https://www.sf.gov/documents/43115/FY2026__FY2027_-_FINAL_ASO.pdf).
+- **Mayor's Budget Instructions** — operational rules per cycle. Likely host of the
+  attrition / 9993 target framework, though the public PDF was unreadable during research.
+  See [`../data-sources/mayor.md`](../data-sources/mayor.md).
+- **MOUs (adopted under Charter §A8.409)** — premium pay codes & rates (PREMM), comp-time
+  pay-out rules (RTPOM), wellness/vested-sick pay-out rules (RTPOM). Citations for the
+  RPO walkthrough already in this file. See [`../data-sources/dhr.md`](../data-sources/dhr.md).
+- **Charter §A8.440 + Admin Code §16.11–16.12** — vacation pay-out at separation (RTPOM
+  base). Already cited in this file.
+- **CSC Rule 121 — Layoff** ([July 2024](https://www.sf.gov/reports--july-2024--rule-121-layoff-civil-service-commission)) —
+  bumping/holdover rules that bear on separation projections.
+
 ## The eight special classes
 
 | Code | Name | Type | Account / source |
