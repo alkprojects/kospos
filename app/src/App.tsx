@@ -3,14 +3,16 @@ import './App.css';
 import { CalculatorView } from './modules/calculator/CalculatorView';
 import { ImporterView } from './modules/importer/ImporterView';
 import { PositionsView } from './modules/positions/PositionsView';
+import { SpecialClassView } from './modules/special-class/SpecialClassView';
 import { useAppStore } from './lib/store';
 
-type Tab = 'calculator' | 'importer' | 'positions';
+type Tab = 'calculator' | 'importer' | 'positions' | 'special-class';
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'calculator', label: 'Job Class Calculator' },
-  { id: 'importer',   label: 'Load Reports' },
-  { id: 'positions',  label: 'Positions' },
+  { id: 'calculator',    label: 'Job Class Calculator' },
+  { id: 'importer',      label: 'Load Reports' },
+  { id: 'positions',     label: 'Positions' },
+  { id: 'special-class', label: 'Special Class' },
 ];
 
 export default function App() {
@@ -69,9 +71,10 @@ export default function App() {
       </header>
 
       <main className="main" style={{ padding: 0 }}>
-        {tab === 'calculator' && <CalculatorView />}
-        {tab === 'importer'   && <ImporterView />}
-        {tab === 'positions'  && <PositionsView />}
+        {tab === 'calculator'    && <CalculatorView />}
+        {tab === 'importer'      && <ImporterView />}
+        {tab === 'positions'     && <PositionsView />}
+        {tab === 'special-class' && <SpecialClassView />}
       </main>
 
       <footer className="site-footer">
