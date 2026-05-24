@@ -1,46 +1,336 @@
 # Special Class
 
-Special-class budget categories — sub-accounts within labor that aren't tied to a specific position. The Special Class tab in Alex's Budget Master spreadsheet computes each of these.
+Special-class budget categories — sub-accounts within labor that aren't tied to a specific
+position. KosPos must reproduce these to the dollar across all **three functions** (see
+[`budget-process.md`](budget-process.md)):
 
-KosPos must reproduce these to the dollar in Phase 4.
+1. **Budget development** — what to budget next year
+2. **YTD budget vs actuals** — how the current year is tracking
+3. **Year-end projection** — where actuals will land
+
+Source workbooks (real files, gitignored, never committed):
+
+- Budget development → `DBI FY27-28 Budget Master - Department Phase - 3.3.26.xlsx`,
+  `Special Class` tab
+- YTD + projection → `Labor Report 5.21.26.xlsx`, `Operating Report Summary` tab plus
+  per-class detail tabs (`Premium`, `Overtime`, `Retirement Payout`, `Step`)
 
 ## The eight special classes
 
-| Code | Name | Type | What it represents |
+| Code | Name | Type | Account / source |
 |---|---|---|---|
-| **9993M_C** | Attrition Savings (Misc) | Credit | Savings from a position being vacant for part of the year. |
-| **9994M_C** | MCCP Offset (Misc) | Credit | Difference between MCCP employees' actual salaries and the automatic top-of-range-A budget. |
-| **9995M_E** | Positions Not Detailed (Misc) | Expense | Miscellaneous need not tied to a specific position. |
-| **OVERM_E** | Overtime (Misc) | Expense | Overtime budget, lump sum. |
-| **PREMM_E** | Premium Pay (Misc) | Expense | Premium pay per MOU clauses (acting, bilingual, hazardous, etc.). |
-| **RTPOM_E** | Retirement Payout (Misc) | Expense | Retirement payouts, lump sum, not tied to a specific job class. |
-| **STEPM_C** | Step Adjustments (Misc) | Credit | Difference between step employees' actual salaries and the automatic top-regular-step budget. |
-| **TEMPM_E** | Temporary (Misc) | Expense | Temporary staff budget, lump sum. |
+| **9993M_C** | Attrition Savings (Misc) | Credit | Computed remainder; not a single account |
+| **9994M_C** | MCCP Offset (Misc) | Credit | Per-MCCP-position diff (Range A top vs actual) |
+| **9995M_E** | Positions Not Detailed (Misc) | Expense | Lump sum, optional; some depts skip |
+| **OVERM_E** | Overtime (Misc) | Expense | OBI BI Payroll earnings code "Overtime - Scheduled Misc" |
+| **PREMM_E** | Premium Pay (Misc) | Expense | OBI BI Payroll earnings code "Premium Pay - Misc" and many specific codes (L08 Lead Worker, 289 Bilingual, etc.) |
+| **RTPOM_E** | Retirement Payout (Misc) | Expense | Account `510210` "Ret Payout - SP & Vac - Misc"; earnings codes VPO (Vacation Pay Out), SVO (Severance Pay Out) |
+| **STEPM_C** | Step Adjustments (Misc) | Credit | Per-position diff (top regular step vs actual step) |
+| **TEMPM_E** | Temporary (Misc) | Expense | See [`definitions.md`](definitions.md) — multiple definitions |
 
-## How they work in budget formulation
+## Budget formulation primer
 
-- Position budgets are auto-built at the **top regular step** for step-based classes and the **top of Range A** for MCCP positions.
-- Real employees aren't always at the top. The difference is recorded in **STEPM** (steps) or **9994** (MCCP) as a credit.
+- Position budgets are auto-built at **top regular step** for step classes and **top of
+  Range A** for MCCP positions.
+- Real employees usually aren't at the top. The difference is recorded as a credit in
+  **STEPM** (steps) or **9994** (MCCP).
 - Vacant time becomes **9993** (attrition) as a credit.
-- Overtime, premium pay, retirement payouts, temp pay, and miscellaneous expenses go into their respective M_E codes.
+- Overtime, premium, retirement payouts, temp pay, and other misc go into their respective
+  expense codes.
 
-## What KosPos models (Phase 4)
+## Operating Report Summary — DBI section reference
 
-For each special class:
+Labor Report `Operating Report Summary` tab, rows 36–42 (one row per class). The key
+formulas (with cell coordinates so future sessions can re-verify against the real workbook):
 
-1. Compute the budget figure from position data (step / MCCP / employee data) using the same logic as the Special Class tab.
-2. Compute the actual figure from BI Payroll + EE Additional Pay queries.
-3. Show budget vs. actual variance per chartfield.
+| Row | Class | YTD Operating Budget | YTD Operating Actuals | Total Budget | Projected Operating Actuals |
+|---|---|---|---|---|---|
+| 36 | PREMM | `=G36/Calendar!J2*Calendar!I2` | GETPIVOTDATA from `Premium` tab, fund 10190 | SUMIFS on `Report Data` rows 649–748 filtered by `"Premium Pay - Miscellaneous"` + `"DBI"` | `=Premium!P5+Premium!P6` |
+| 37 | OVERM | (same pacing) | GETPIVOTDATA from `Overtime` tab, fund 10190 | SUMIFS filtered by `"Overtime - Miscellaneous"` | `=Overtime!BS15` |
+| 38 | RTPOM | `=G38*Calendar!I2/Calendar!J2` | GETPIVOTDATA from `Retirement Payout` tab, Dept Group "DBI" | SUMIFS by `"Retirement Payout - Miscellaneous"` | `=IF(Calendar!$K$2=0, E38, MAX(G38, E38))` |
+| 39 | STEPM | (same pacing) | `=SUM(Step!S:S) - SUMIFS(Step!S:S, Step!A:A, "Planning")` | SUMIFS by `"Step Adjustments, Miscellaneous"` | `=SUM(Step!T:T) - SUMIFS(Step!T:T, Step!A:A, "Planning")` |
+| 40 | TEMPM | (same pacing) | `=SUMIFS('BI Payroll'!AL:AL, 'BI Payroll'!AE:AE, "COMMN:5380")` | `='BFM 15.10.006 FY26'!AZ1195+AZ1197+AZ1199+AZ1201` | (no formula — manual) |
+| 41 | **9993** | (n/a) | `=GETPIVOTDATA(...DBI total) - SUM(F36:F40)` | SUMIFS by `"Attrition Savings - Misc"` + `"Temporary - Misc"` − G40 | `=GETPIVOTDATA(...projected DBI total) - SUM(I36:I40)` |
+| 42 | (% attrition) | | | `=G41/(GETPIVOTDATA(total DBI) - G41)` | |
 
-## Open work for Alex
+Key observation: **9993 is computed as the residual.** It's the difference between total
+labor budget/actuals/projection and the sum of all per-position lines + other special
+classes. This is *not* a formula on raw GL data — it's an inferred figure that absorbs
+whatever doesn't post elsewhere.
 
-The Special Class tab in `DBI FY27-28 Budget Master.xlsx` has 300+ named columns per employee with intricate formulas. The plan-time review only sampled the structure; Phase 4 needs Alex to walk through one or two example employees so the math gets reproduced correctly the first time.
+The `Calendar` tab is the source of truth for time-pacing:
 
-**TODO for Alex (no rush):** Translate a few representative formulas into plain English. Example format:
+- `I2` = current cumulative PP% (e.g., 22.4 of 26.1)
+- `J2` = total annual PPs (typically 26.1)
+- `K2` = remaining PPs (`J2 - I2`)
 
-> **STEPM for an employee on Step 3 of a 5-step class:**
-> Budget = (Top Step Hourly Rate × Hours in FY × FTE)
-> Actual = (Step 3 Hourly Rate × Hours in FY × FTE)
-> STEPM = Budget − Actual (credit)
+## Per-class walkthroughs
 
-Drop those into this file as you find time.
+Walked through with Alex in session order. Each section follows the same template:
+**Budget development / Current-year YTD / Year-end projection / Chartfield-string allocation / Notes**.
+
+---
+
+### RTPOM_E — Retirement Payout (account 510210) ✓ Walked through 2026-05-23
+
+**Type:** Expense • **Account:** 510210 "Ret Payout - SP & Vac - Misc" •
+**Earnings codes:** VPO (Vacation Pay Out), SVO (Severance Pay Out), and any other payout
+codes that post to 510210.
+
+#### Budget development
+
+Multi-year historical lookup → average → user-chosen amount → allocate by labor share.
+
+Budget Master `Special Class` tab cell map:
+
+| Cell | Meaning |
+|---|---|
+| `F5:F12` | 8 years of historical actuals for account 510210 (Budget Periods 2018–2025) |
+| `F14` | `=AVERAGE(F5:F12)` — historical mean (in DBI's case, ~$200,467) |
+| `F15` | **"Chosen Amount"** — user-entered (Alex picked $300,000 for FY27, justified as "many retirements expected in IS") |
+| `I5:I23` | Per-dept regular-labor totals (pivot of `Sum of FY 2026-27 Department` over salary accounts) |
+| `I24` | Total regular labor across all DBI depts |
+| `K5` | `=ROUND(I5/$I$24 * $F$15, 0)` — each dept's share of chosen amount, by labor share |
+
+The 8-year window isn't a hard rule — Alex picks an "approximate average, lean a bit higher
+to be safe, adjusted for rumored retirements." Past actuals don't change once posted, so the
+historical numbers only need to be refreshed when the data window rolls forward (annually).
+
+#### Chartfield-string allocation
+
+Spread evenly across chartfield strings by **regular-labor share** of each chartfield string
+within its department. DBI's fund-level appropriation control makes this legal — see
+[`budget-process.md`](budget-process.md) on appropriation levels.
+
+The actual allocation per chartfield string isn't formula-driven in the Budget Master
+spreadsheet at the visible cells; it's done in the pivot that feeds I5:I23 and the
+chartfield-level breakdown lives further down the workbook (not yet fully traced).
+
+#### Current-year YTD vs actuals
+
+YTD actuals come from `Labor Report` → `Retirement Payout` tab, which is a pivot of
+BI Payroll filtered by RPO earnings codes per employee × pay period. The dept-group rollup
+appears at the bottom of that tab.
+
+Operating Report Summary `E38` pulls:
+```
+=GETPIVOTDATA("Balance Amount", 'Retirement Payout'!$A$3, "Department Group Code", "DBI")
+```
+
+YTD budget pace is straight-line by PP elapsed:
+```
+D38 = G38 * Calendar!I2 / Calendar!J2
+```
+
+#### Year-end projection
+
+```
+H38 = IF(Calendar!$K$2 = 0, E38, MAX(G38, E38))
+```
+
+In words: if no PPs remain, projection = YTD actual (year is over).
+Otherwise, projection = max(total budget, YTD actual).
+
+This is **conservative**: never projects under budget, even if the spend rate is below
+budget. RPO is lumpy (driven by individual retirements) so straight-line annualization would
+over-react to a quiet first half. The MAX-of-budget-vs-actual approach assumes "you'll spend
+at least what was budgeted" — protects against under-projecting an overrun.
+
+#### Notes / improvement ideas (Alex's invitation)
+
+- Surface a 3-year and 8-year trailing comparison (mean, median, min/max) so the user picks
+  the chosen amount with context, not from raw judgment.
+- If positions can be tagged `likelyToRetire = {yes, no, unknown}`, compute an itemized
+  projection: "if all 'likely' retire by year-end, expected RPO = $X." Use as a sanity
+  bound on the lump-sum estimate.
+- Projection floor at budget is fine for the report, but a separate "best-estimate
+  projection" (straight-line, or itemized retiree list) would inform internal planning even
+  when the formal report shows the conservative number.
+
+---
+
+### OVERM_E — Overtime (Misc) — pending walkthrough
+
+**Type:** Expense • **Earnings code:** "Overtime - Scheduled Misc"
+
+**Budget development (Alex's verbal description):** Analyze prior-year + current-YTD actuals,
+add a small cushion per department. Lump-sum at department level.
+
+**Budget Master cells:** `AR5:AX5` — multi-year reference (`FY25 with MFB`, `FY26 YTD`,
+`FY26 Projected`, `FY27 Budget`). `AU5 = AT5*1.0765` — FY25 grossed up by the FY26 OT fringe
+rate (7.65% of every OT salary dollar). Not all benefits apply to overtime; the applicable
+ones live in the `15.15.002` report — KosPos should source the rate from there rather than
+hardcoding 1.0765, and re-confirm against payroll actuals. `AW6 = AV6/15.4*26.1` (FY26
+projection = YTD pacing). `AZ5:BD5` — department-level change tracking.
+
+**Current-year YTD:** `Labor Report` → `Overtime` tab. Per-employee per-PP detail.
+Bottom-row totals feed Operating Report Summary.
+
+**Year-end projection:** `Overtime!BS6 = BR6 * $BN$8 / Calendar!$I$2 * Calendar!$J$2 / $BN$6`
+— straight-line annualized from YTD balance amount, with a normalization factor.
+`BS15 = SUM(BS6:BS14)` rolls up.
+
+**Walkthrough TODO:** confirm cushion magnitude and how it varies by dept; wire fringe rate
+to `15.15.002` lookup instead of hardcoding 1.0765.
+
+---
+
+### PREMM_E — Premium Pay (Misc) — pending walkthrough
+
+**Type:** Expense • **Earnings codes:** "Premium Pay - Misc" and many specific codes (e.g.,
+L08 Lead Worker $5, 289 Bilingual $60).
+
+**Budget development:** Per-(job class, earnings code) historical rate, multiplied by next-FY
+salary budget per job class.
+
+**Budget Master cells:**
+- `U5:Z5` — reference table: per (job class, earnings code) compute
+  `Y5 = X5 / SUMIFS('FY25 BI Payroll'!AL:AL, 'FY25 BI Payroll'!AE:AE, V5)` — premium $ as
+  pct of total salary for that job class.
+- `Z5 = RIGHT(V5,4) & "_C"` — class key derived from job code (?).
+- `AB5:AH5` — per-(dept, job class) "should be":
+  `AG5 = XLOOKUP(AC5, Z:Z, Y:Y, 0) * AE5` — pct × next-FY salary budget for that job class.
+- `AJ5:AN5` — dept-level change tracking.
+
+**Current-year YTD:** `Labor Report` → `Premium` tab pivot from BI Payroll. Operating Report
+`E36 = GETPIVOTDATA("Balance Amount", Premium!$A$3, "Fund Code", 10190)`.
+
+**Year-end projection:** `Premium!P5 = GETPIVOTDATA(...) * (N5/N7) / Calendar!I2 *
+Calendar!J2`. Straight-line annualized. `Premium!P6 = N6/N5 * P5` extends salary projection
+to a fringe projection. Operating Report `H36 = Premium!P5 + Premium!P6`.
+
+**Walkthrough TODO:** confirm `N5/N7` ratio, `N6/N5` ratio meaning. Confirm Alex's
+"detect-headcount-change" improvement idea is wanted.
+
+---
+
+### TEMPM_E — Temporary (Misc) — pending walkthrough
+
+See [`definitions.md`](definitions.md) for the four definitions of "temp." Budget side uses
+job class TEMPM; CON-actuals side uses accounts 505010/020/040/050/060/070 (salaries only).
+
+**Budget Master cells:** Not yet identified — likely a lump sum from BFM totals or a manual
+entry per dept.
+
+**Current-year YTD:** Operating Report `E40 = SUMIFS('BI Payroll'!AL:AL,
+'BI Payroll'!AE:AE, "COMMN:5380")` — only counts one job code (5380, the TEMPM placeholder).
+**This is a DBI shortcut, not a general rule.** At DBI the only pre-planned temp use was
+5380 summer student interns; all other DBI temps were funded by vacant permanent budgeted
+positions (so their pay shows up under the position's regular labor, not in TEMPM). Other
+departments hire temps in different patterns — temporary provisionals while waiting for a
+PCS eligibility list, etc. — and the COMMN:5380 filter would under-count their TEMPM
+actuals.
+
+**Total budget:** `G40 = 'BFM 15.10.006 FY26'!AZ1195 + AZ1197 + AZ1199 + AZ1201` — four
+hardcoded BFM rows. Brittle.
+
+**Open design question (cross-department):** how to report and project temp actuals
+generally. Options to consider:
+
+- **Definition A** — sum of payroll for any employee with appointment type ∈ {16, 17, c2}
+  (catches them wherever they sit, including on permanent positions).
+- **Definition B** — sum of payroll posting to accounts 505010/020/040/050/060/070
+  (matches Controller's view; misses benefits).
+- **Definition C** — sum of payroll for positions whose Budget Job Code = TEMPM (current
+  DBI shortcut; misses temps on permanent positions).
+
+Probably show all three side by side, default to A (most inclusive), and let the user pick
+the report-facing definition per audience (Controller wants B; internal management wants A).
+Benefits applicable to temp are partial — wire to `15.15.002` lookup, same pattern as OVERM.
+
+**Walkthrough TODO:** decide cross-dept definition, confirm projection method, confirm 5380
+specifically vs broader TEMPM.
+
+---
+
+### 9995M_E — Positions Not Detailed — pending walkthrough
+
+Lump sum, optional per department. Some depts use it as a parking spot for budget that
+doesn't tie to any position; some leave it at zero.
+
+**Walkthrough TODO:** formula source, projection method, allocation.
+
+---
+
+### 9994M_C — MCCP Offset (Misc) — pending walkthrough
+
+Same structural shape as STEPM but for MCCP positions. Budget is built at top of Range A;
+actual employees are usually mid-range; the difference is the MCCP offset credit.
+
+Alex flagged this as the area in STEPM math that needs improvement — currently STEPM tries
+to handle MCCP but doesn't fully; should be split out into a clean 9994 calculation.
+
+**Walkthrough TODO:** identify which positions are MCCP (Range A/B/C vs step), compute the
+diff, allocate by chartfield string.
+
+---
+
+### STEPM_C — Step Adjustments (Misc) — pending walkthrough
+
+**Per-position calculation.** Budget built at top regular step; employee actual at current
+step + planned merit; STEPM = budget − projected actual (credit).
+
+**Budget Master cells (the heart of step math, `BH5:BV5`):**
+
+| Cell | Computes |
+|---|---|
+| `BH5` | BY HCM Position # |
+| `BJ5` | Employee Job Class (lookup into `Active Labor`) |
+| `BK5` | Class Max Regular Step (lookup into `DHR - Steps`) |
+| `BL5` | Employee current step (blank if at top regular) |
+| `BM5` | Employee Merit Increase Date |
+| `BN5` | BY Starting Step — accounts for merit date relative to FY start |
+| `BO5` | BY % of year at original step (handles merit during the year) |
+| `BP5` | BY+1 Start Step |
+| `BR5` | BY Position Salary Budget at top step (lookup into `Cost per FTE`) |
+| `BS5` | BY Difference — the step savings for this position |
+| `BT5`/`BU5` | Same for BY+1 |
+
+Aggregation: `CB:CC:CD` — per-dept sum of BY/BY+1 differences. `CF5:CJ5` change tracking.
+
+**Current-year YTD/projection (`Labor Report` → `Step` tab):**
+- `S` = YTD STEP actual per position = `SUM(BY:CY)` of per-PP step variance
+- `T` = projected STEP actual per position
+- Per-PP step variance (`BY2`) = `IF(U2=0, 0, U2 − (expected_PP_share_of_top_step_budget))
+  × should-include-flag / scaling_factor`
+
+Operating Report `E39 = SUM(Step!S:S) - SUMIFS(Step!S:S, Step!A:A, "Planning")` — excludes
+"Planning" rows. `H39` does the same for column T.
+
+**Alex's flags (per his walkthrough):**
+- Non-MCCP step math is correct as-is.
+- MCCP handling needs improvement — move to 9994 calc.
+- For budget dev, only estimates step savings for **existing** staff (not new hires) —
+  under-estimates savings, which is preferable to over-estimating (under-budgeting).
+- Benefits delta from dependents etc. is ignored as small noise.
+
+**Walkthrough TODO:** confirm merit-date math edge cases (employees at top step, employees
+in extended step ranges that don't auto-advance).
+
+---
+
+### 9993M_C — Attrition Savings — pending walkthrough
+
+**Computed as the residual** at report time: total budget vs sum of (per-position lines +
+other special classes + other accounts).
+
+**Budget development (Alex's verbal description):** Use prior-year amount, adjust based on
+year-end labor report budget-vs-actual variance. Complicated by intentional vacancies (some
+positions are held vacant for known reasons, which skews any "natural" attrition rate).
+
+**Budget Master cells:**
+- `CN5:CZ5` — attrition pivot section
+- `CQ5 = CO5/$CO$24` — each dept's share of total regular labor
+- `CW5 = ROUND(XLOOKUP(CT5, CN:CN, CQ:CQ) * $CU$23, 0)` — dept's even-spread attrition
+- `CW24 = -CW23/(GETPIVOTDATA(...total) - CW23)` — attrition as % of non-attrition labor
+  (the headline figure)
+
+**Allocation:** Even spread across chartfield strings by regular-labor share. Same mechanism
+as RPO (because both are best-guess at budget time).
+
+**Current-year YTD/projection:** Residual — see Operating Report row 41 formulas above.
+`F41 = GETPIVOTDATA(DBI total balance) - SUM(F36:F40)`.
+
+**Walkthrough TODO (when we get there):** how to incorporate intentional-vacancy mask
+(positions deliberately held vacant) into the trailing-year base. Hooks into Phase 7
+separations data, so this should be the last class.
