@@ -10,14 +10,22 @@
 
 ## Session shutdown sequence (mandatory)
 
-Before ending any session, update `docs/SESSION_HANDOFF.md` with:
-- Current status (what's done, what's not)
-- The exact prompt Alex should paste to start the next session
-- Recommended model (default: `claude-sonnet-4-6`; use `claude-opus-4-7` for heavy reasoning tasks like parser design)
-- Branch name if work is in progress
-- Any blockers Alex needs to resolve (merges, decisions, etc.)
+Before ending any session:
 
-This is non-negotiable: a session that ends without updating the handoff file has wasted context that the next session must recreate.
+1. **Push every commit. Merge every open PR you own.** Alex reviews on the live site, not locally. Anything left unmerged is invisible to him until the next session. If a PR has a real blocker (failing CI, conflict, ambiguous code review needed), surface it in the handoff — don't silently leave it open.
+2. **Verify the live site is in sync.** After the last merge to `main`:
+   - Confirm the GitHub Pages deploy workflow completed successfully (`gh run list --branch main --limit 3`).
+   - Confirm the main worktree (or whichever worktree tracks main) is at `origin/main` head (`git -C <main-worktree> log --oneline -1 origin/main` matches local).
+   - The live site at https://alkprojects.github.io/kospos/ now reflects every change made this session.
+3. **Update `docs/SESSION_HANDOFF.md`** with:
+   - Current status (what's done, what's not).
+   - The exact prompt Alex should paste to start the next session.
+   - Recommended model (default: `claude-sonnet-4-6`; use `claude-opus-4-7` for heavy reasoning tasks like parser design).
+   - Branch name if work is in progress (should be `none` post-merge).
+   - Any blockers Alex needs to resolve.
+4. **Hand off with a review-this-on-the-live-site checklist.** Final message includes: what to look at on https://alkprojects.github.io/kospos/, what's new in `docs/`, and the copyable next-session prompt.
+
+Non-negotiable: a session that ends with unmerged code, stale local-vs-origin state, or a missing handoff has wasted context that the next session must recreate.
 
 ## On usage limits
 
