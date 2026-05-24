@@ -205,29 +205,155 @@ therefore look up MOU → comp-time-payout flag and MOU → wellness-pay formula
 
 ---
 
-### OVERM_E — Overtime (Misc) — pending walkthrough
+### OVERM_E — Overtime (Misc) — workbook extracted 2026-05-24 (autonomous overnight)
 
-**Type:** Expense • **Earnings code:** "Overtime - Scheduled Misc"
+**Type:** Expense • **Earnings code:** "Overtime - Scheduled Misc" •
+**Source workbooks:** `DBI FY27-28 Budget Master` `Special Class` tab cols AR:BD;
+`Labor Report 5.21.26` `Overtime` tab cols BN:BT and `Operating Report Summary` row 37.
 
-**Budget development (Alex's verbal description):** Analyze prior-year + current-YTD actuals,
-add a small cushion per department. Lump-sum at department level.
+#### Budget development
 
-**Budget Master cells:** `AR5:AX5` — multi-year reference (`FY25 with MFB`, `FY26 YTD`,
-`FY26 Projected`, `FY27 Budget`). `AU5 = AT5*1.0765` — FY25 grossed up by the FY26 OT fringe
-rate (7.65% of every OT salary dollar). Not all benefits apply to overtime; the applicable
-ones live in the `15.15.002` report — KosPos should source the rate from there rather than
-hardcoding 1.0765, and re-confirm against payroll actuals. `AW6 = AV6/15.4*26.1` (FY26
-projection = YTD pacing). `AZ5:BD5` — department-level change tracking.
+Per-department reference table at `Special Class!AR4:BD12`. Headers live in **row 4** only
+(row 3 is blank).
 
-**Current-year YTD:** `Labor Report` → `Overtime` tab. Per-employee per-PP detail.
-Bottom-row totals feed Operating Report Summary.
+| Col | Header (row 4) |
+|---|---|
+| AR | Account Description |
+| AS | Department Description |
+| AT | Sum of Balance Amount (prior-year actuals) |
+| AU | FY25 with MFB (= AT × 1.0765) |
+| AV | FY26 YTD |
+| AW | FY26 Projected (= AV ÷ 15.4 × 26.1) |
+| AX | FY27 Budget |
+| AZ | Dept ID Title |
+| BA | Sum of FY 2026-27 Department |
+| BB | Sum of FY 2027-28 Department |
+| BC | FY27 Change (= ROUND(XLOOKUP(AZ, AS, AX) − BA, 0)) |
+| BD | FY28 Change (= ROUND(XLOOKUP(AZ, AS, AX) − BB, 0)) |
 
-**Year-end projection:** `Overtime!BS6 = BR6 * $BN$8 / Calendar!$I$2 * Calendar!$J$2 / $BN$6`
-— straight-line annualized from YTD balance amount, with a normalization factor.
-`BS15 = SUM(BS6:BS14)` rolls up.
+Per-row formulas (rows 5–12, one per dept × account combo):
 
-**Walkthrough TODO:** confirm cushion magnitude and how it varies by dept; wire fringe rate
-to `15.15.002` lookup instead of hardcoding 1.0765.
+```excel
+AU = AT*1.0765                     # FY-prior salary actuals grossed up by 7.65% mandatory fringe (Social Security 6.20% + Medicare 1.45%)
+AW = AV/15.4*26.1                  # FY26 projection: annualize YTD using the snapshot's elapsed-PP count
+BC = ROUND(XLOOKUP(AZ, AS:AS, AX:AX) - BA, 0)
+BD = ROUND(XLOOKUP(AZ, AS:AS, AX:AX) - BB, 0)
+```
+
+**Verbatim example values (row 5, `DBI ADM Records Management`):**
+
+```
+AR5: 'Overtime - Scheduled Misc'   (literal label)
+AT5: 1592.62                       (FY-prior actual, literal)
+AU5: =AT5*1.0765                   → 1714.46
+AV5: (empty)                       ← no FY26 YTD activity for this row
+AW5: (empty)                       ← therefore no projection
+AX5: 2000                          (FY27 Budget — literal, hand-picked)
+BA5: 2000  BB5: 2000               (FY26-27 / FY27-28 dept choices — literal)
+BC5: 0     BD5: 0                  (no delta vs the AX reference)
+```
+
+**Critical observations from the extraction:**
+
+1. **`AX` "FY27 Budget" is hand-entered, not formula-driven.** No formula links `AX` back to
+   `AU` (grossed-up prior-year) or any other reference. This confirms Alex's verbal
+   description: the cushion is a judgment call per row, not a percentage applied to history.
+2. **The 7.65% fringe is hardcoded** in every `AU` formula. The `15.15.002 Benefit Rates`
+   workbook does **not** carry an FY26 rate — only FY27 and FY28 (and even there, the 6.20%
+   OASDI + 1.45% Medicare components must be summed manually; there is no consolidated "OT
+   fringe" cell). The 7.65% derivation is mechanical (Social Security wage tax + Medicare
+   tax — both unchanged in FY27/FY28; only the OASDI wage cap shifts from \$189,337 to
+   \$199,265). For KosPos, treat 1.0765 as a derived constant in code with a comment
+   citing OASDI+Medicare, not a lookup.
+3. **Calendar pay-period constants leak into formulas.** `AW` uses literal `15.4` and
+   `26.1` (PPs elapsed / PPs in year at the Budget Master's March 3 timestamp). These will
+   drift workbook-to-workbook. KosPos should compute these from the Calendar tab (the same
+   `I2 / J2` cells used everywhere else), not hardcode.
+
+#### Current-year YTD (Operating Report Summary row 37)
+
+Row label `Overtime` lives in **column C** (not A/B as RPO did).
+
+```excel
+C37: 'Overtime'
+D37: =G37/Calendar!J2*Calendar!I2                                                  → 326,130.27   (YTD budget pace)
+E37: =GETPIVOTDATA("Sum of Balance Amount", Overtime!$A$3, "Fund Code", 10190)    → 438,786.15   (YTD actual, fund 10190)
+F37: =D37-E37                                                                      → -112,655.88  (YTD over budget)
+G37: =SUMIFS('Report Data'!$S$649:$S$748,
+            'Report Data'!$H$649:$H$748, "Overtime - Miscellaneous",
+            'Report Data'!$K$649:$K$748, "DBI")                                    → 380,000      (FY26 total budget)
+H37: =Overtime!BS15                                                                → 555,485.23   (FY26 projected)
+I37: =G37-H37                                                                      → -175,485.23  (projected over budget)
+```
+
+YTD actuals are sourced via `GETPIVOTDATA` against the `Overtime` tab's pivot, filtered to
+Fund Code `10190` (DBI operating fund). The pivot itself groups by every "Overtime"
+earnings code that posts to that fund — no per-code filter at the Operating Report level.
+
+#### Year-end projection
+
+Per-dept rows on the `Overtime` tab (BN5:BT15). Row 5 headers:
+
+| Col | Header |
+|---|---|
+| BN | Sum of FY 2025-26 Board |
+| BP | Fund Code |
+| BQ | Department Description |
+| BR | Sum of Balance Amount (YTD actual per dept slice) |
+| BS | Projected |
+
+Two constants drive the projection formula and both are **literal values, not formulas**:
+
+```
+BN6: 349,749     ← "FY25-26 Board" — the Board-adopted citywide OT total for FY26
+BN8: 380,000     ← DBI's FY26 OT total (matches G37 = SUMIFS result above)
+```
+
+Per-dept projection formula:
+
+```excel
+BS6 = BR6 * $BN$8 / Calendar!$I$2 * Calendar!$J$2 / $BN$6
+```
+
+Decoded into plain English: `YTD_actual_for_dept_slice * (DBI_total_OT_budget / Board_adopted_citywide_total) * (annual_PPs / YTD_PPs)`.
+
+The annualization piece (`Calendar!J2 / Calendar!I2`) is standard — it scales the YTD
+actuals up to a full-year estimate. The **scale factor** `$BN$8 / $BN$6` ≈ 1.086 is the
+non-obvious piece. Best read: it inflates the straight-line annualized YTD by the ratio of
+DBI's current FY26 OT budget to the original Board-adopted citywide total — i.e., it
+assumes each dept's OT will track upward by the same proportion that DBI's budget grew
+beyond Board-adopted. **This interpretation needs Alex's confirmation.** (See morning
+briefing.)
+
+Rollup:
+
+```excel
+BS15 = SUM(BS6:BS14)         → 555,485.23   (referenced by Operating Report H37)
+```
+
+Note: in the actual `Overtime` tab the dept slices are coarse — at the workbook snapshot,
+row 6 = `DBI ADM Finance` with only **\$40.24 YTD**, projecting to \$50.94. The bulk of
+the projected \$555k comes from rows 7-14 (not extracted in detail; if a future session
+needs them, repeat Agent B's extraction on `Overtime` rows 7-14).
+
+#### Chartfield-string allocation
+
+Not directly visible in the extracted ranges. The Operating Report rolls up by fund
+(`Fund Code = 10190`); the Overtime tab slices by dept. Whether the per-chartfield
+breakdown follows the RPO labor-share pattern or uses historical OT actuals per
+chartfield string is **still pending Alex's walkthrough**.
+
+#### TODO resolution status (from the original 7-question list)
+
+| # | Question | Status |
+|---|---|---|
+| 1 | Cushion magnitude / per-dept variability | **Still needs Alex** — `AX` column is hand-entered with no formula trail |
+| 2 | Fringe rate FY27/FY28 | **Resolved by workbook** — same 7.65% (OASDI 6.20% + Medicare 1.45%); both unchanged. Hardcode as derived constant, do not "look up" |
+| 3 | Chartfield allocation method | **Still needs Alex** — extraction didn't reach the per-string breakdown |
+| 4 | YTD source coverage | **Partially resolved** — Operating Report uses `GETPIVOTDATA` on Overtime!A3 filtered to Fund 10190; covers all OT earnings codes posting to that fund. Per-dept gotchas (other funds, other earnings codes) still need Alex |
+| 5 | Projection formula meaning | **Mechanically resolved** — BS6 decoded above. Interpretation of the `$BN$8 / $BN$6` scale factor needs Alex's confirmation |
+| 6 | Fire exception | **N/A for DBI** — `$BN$6` is "FY25-26 Board" citywide; if Fire is in scope later, this denominator needs re-examination |
+| 7 | Any gotcha | **New gotchas surfaced** — see morning briefing |
 
 ---
 
