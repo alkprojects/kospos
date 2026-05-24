@@ -83,6 +83,38 @@ export function colaAdjustToYear(
   return amount * Math.pow(1 + colaPctPerYear, years);
 }
 
+/**
+ * The user's expectation about next-year retirements relative to history.
+ *
+ * The sentiment + a magnitude % is layered on top of a historical baseline
+ * (typically the COLA-adjusted mean) to produce the chosen amount:
+ *
+ *   chosen = baseline * (1 + sign(sentiment) * pct/100)
+ *
+ *   'same' → sign 0  → chosen = baseline   (pct ignored)
+ *   'more' → sign +1 → chosen > baseline
+ *   'less' → sign -1 → chosen < baseline
+ */
+export type RetirementSentiment = 'same' | 'more' | 'less';
+
+/**
+ * Adjust a historical baseline by a sentiment + magnitude.
+ *
+ * Returns whole-dollar rounded.  Negative pct values are clamped to 0
+ * (you don't pick "more by negative %" — use 'less' instead).
+ *
+ * A 'less' adjustment that would push chosen below 0 is clamped to 0.
+ */
+export function applySentiment(
+  baseline: number,
+  sentiment: RetirementSentiment,
+  adjustmentPct: number,
+): number {
+  const pct = Math.max(0, adjustmentPct);
+  const sign = sentiment === 'more' ? 1 : sentiment === 'less' ? -1 : 0;
+  return Math.max(0, Math.round(baseline * (1 + (sign * pct) / 100)));
+}
+
 // ---------------------------------------------------------------------------
 // 2. YTD budget pace
 // ---------------------------------------------------------------------------

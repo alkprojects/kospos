@@ -3,6 +3,7 @@ import {
   historicalActualsMean,
   allocateByLaborShare,
   colaAdjustToYear,
+  applySentiment,
   ytdBudgetPace,
   projectRpoYearEnd,
 } from './rtpom';
@@ -100,6 +101,36 @@ describe('colaAdjustToYear', () => {
   it('handles a real-world DBI historical row (FY25 2025 → FY27 at 2.5%)', () => {
     // 299051 * 1.025^2 = 314190.46
     expect(colaAdjustToYear(299_051, 2025, 2027, 0.025)).toBeCloseTo(314_190.46, 1);
+  });
+});
+
+describe('applySentiment', () => {
+  it("'same' returns baseline regardless of pct", () => {
+    expect(applySentiment(240_800, 'same', 0)).toBe(240_800);
+    expect(applySentiment(240_800, 'same', 25)).toBe(240_800);
+    expect(applySentiment(240_800, 'same', 100)).toBe(240_800);
+  });
+
+  it("'more' inflates by pct (matches Alex's $300k IS-retirements scenario at 25%)", () => {
+    // 240,800 * 1.25 = 301,000
+    expect(applySentiment(240_800, 'more', 25)).toBe(301_000);
+  });
+
+  it("'less' deflates by pct", () => {
+    expect(applySentiment(240_800, 'less', 20)).toBe(192_640);
+  });
+
+  it("clamps 'less' adjustment when it would push below 0", () => {
+    expect(applySentiment(100_000, 'less', 200)).toBe(0);
+  });
+
+  it("clamps negative pct input to 0 (no 'more by -25%' weirdness)", () => {
+    expect(applySentiment(240_800, 'more', -50)).toBe(240_800);
+    expect(applySentiment(240_800, 'less', -50)).toBe(240_800);
+  });
+
+  it('rounds to whole dollars', () => {
+    expect(applySentiment(100, 'more', 33.333)).toBe(133);
   });
 });
 

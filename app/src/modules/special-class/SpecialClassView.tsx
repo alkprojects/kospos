@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import {
   historicalActualsMean,
   colaAdjustToYear,
+  applySentiment,
   ytdBudgetPace,
   projectRpoYearEnd,
 } from '../../lib/special-class';
+import type { RetirementSentiment } from '../../lib/special-class';
 
 // ---------------------------------------------------------------------------
 // Reference data — DBI RTPOM_E.
@@ -51,25 +54,33 @@ const HISTORICAL = [
 const COLA_PCT_PER_YEAR = 0.025;
 const COLA_TARGET_YEAR  = 2027;  // FY27 = BY of the current cycle
 
-// One chosen amount per year in the cycle. FY28 starts equal to FY27 — Alex
-// will set sentiment / scenario adjustments per year in PR #4. Editable inputs
-// arrive in PR #4; for now both are constants.
-const CYCLE_BUDGET_DEV = {
-  cycleLabel: 'FY27-28',
-  years: [
-    {
-      fy: 'FY27',
-      cycleRole: 'BY' as const,
-      chosenAmount: 300_000,
-      justification: 'Many retirements expected in IS',
-    },
-    {
-      fy: 'FY28',
-      cycleRole: 'BY+1' as const,
-      chosenAmount: 300_000,
-      justification: 'Starting equal to FY27 — refine each cycle as BY+1 becomes BY',
-    },
-  ],
+// Static metadata about each year in the cycle.  Sentiment + magnitude live
+// in component state so the user can adjust them.
+const CYCLE_LABEL = 'FY27-28';
+const CYCLE_FYS = [
+  { fy: 'FY27', cycleRole: 'BY' as const },
+  { fy: 'FY28', cycleRole: 'BY+1' as const },
+];
+
+// Initial sentiment per FY.  FY27 starts at "more, 25%" with Alex's
+// IS-retirements justification — this lands at ~$301k (matches his
+// previously-confirmed FY27 chosen amount of $300k).  FY28 starts at "same,
+// 0%" — refine each cycle as BY+1 becomes the new BY.
+interface FySentimentState {
+  sentiment: RetirementSentiment;
+  adjustmentPct: number;
+  justification: string;
+}
+
+const INITIAL_FY27: FySentimentState = {
+  sentiment: 'more',
+  adjustmentPct: 25,
+  justification: 'Many retirements expected in IS',
+};
+const INITIAL_FY28: FySentimentState = {
+  sentiment: 'same',
+  adjustmentPct: 0,
+  justification: '',
 };
 
 // ---------------------------------------------------------------------------
@@ -99,11 +110,8 @@ const HISTORICAL_ROWS = HISTORICAL_FULL.map(h => ({
 const HISTORICAL_MEAN_RAW = historicalActualsMean(HISTORICAL_ROWS.map(r => r.amount));
 const HISTORICAL_MEAN_ADJ = historicalActualsMean(HISTORICAL_ROWS.map(r => r.adjusted));
 
-// Cushion is measured against the COLA-adjusted mean (the FY27-$ baseline).
-const CYCLE_YEARS = CYCLE_BUDGET_DEV.years.map(y => ({
-  ...y,
-  cushion: y.chosenAmount - HISTORICAL_MEAN_ADJ,
-}));
+// The baseline for sentiment adjustment is the COLA-adjusted mean (FY27 $).
+const BASELINE = HISTORICAL_MEAN_ADJ;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -156,10 +164,143 @@ const VALUE_TD: React.CSSProperties = {
 const OVER_BUDGET: React.CSSProperties = { color: '#c0392b' };
 
 // ---------------------------------------------------------------------------
+// Sentiment card — per-FY inputs + computed chosen amount
+// ---------------------------------------------------------------------------
+
+const SENTIMENT_BUTTONS: { value: RetirementSentiment; label: string }[] = [
+  { value: 'less', label: 'Less' },
+  { value: 'same', label: 'Same' },
+  { value: 'more', label: 'More' },
+];
+
+interface FyCardProps {
+  fy: string;
+  cycleRole: string;
+  baseline: number;
+  state: FySentimentState;
+  onChange: (next: FySentimentState) => void;
+}
+
+function FyCard({ fy, cycleRole, baseline, state, onChange }: FyCardProps) {
+  const chosen = applySentiment(baseline, state.sentiment, state.adjustmentPct);
+  const cushion = chosen - baseline;
+  const pctDisabled = state.sentiment === 'same';
+
+  return (
+    <div
+      style={{
+        padding: 14,
+        border: '1px solid var(--border)',
+        borderRadius: 6,
+        background: 'var(--surface)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
+          {fy} · {cycleRole}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>
+          Baseline {fmt(baseline)}
+        </div>
+      </div>
+
+      {/* Sentiment + pct row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 12, color: 'var(--muted)' }}>Expect</span>
+        <div style={{ display: 'inline-flex', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
+          {SENTIMENT_BUTTONS.map(b => {
+            const active = state.sentiment === b.value;
+            return (
+              <button
+                key={b.value}
+                onClick={() => onChange({ ...state, sentiment: b.value })}
+                style={{
+                  padding: '4px 10px',
+                  border: 'none',
+                  background: active ? 'var(--accent-soft, #eef3ff)' : 'transparent',
+                  color: active ? 'var(--accent, #2563eb)' : 'var(--text)',
+                  fontWeight: active ? 600 : 400,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {b.label}
+              </button>
+            );
+          })}
+        </div>
+        <span style={{ fontSize: 12, color: pctDisabled ? 'var(--muted)' : 'var(--text)' }}>retirements by</span>
+        <input
+          type="number"
+          min={0}
+          step={1}
+          value={state.adjustmentPct}
+          disabled={pctDisabled}
+          onChange={e => onChange({ ...state, adjustmentPct: Number(e.target.value) || 0 })}
+          style={{
+            width: 64,
+            padding: '4px 6px',
+            border: '1px solid var(--border)',
+            borderRadius: 4,
+            fontSize: 13,
+            fontFamily: 'inherit',
+            textAlign: 'right',
+            opacity: pctDisabled ? 0.5 : 1,
+          }}
+        />
+        <span style={{ fontSize: 12, color: pctDisabled ? 'var(--muted)' : 'var(--text)' }}>%</span>
+      </div>
+
+      {/* Computed chosen amount */}
+      <div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 2 }}>Chosen amount</div>
+        <div style={{ fontSize: 28, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+          {fmt(chosen)}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+          Cushion vs baseline: <strong style={{ color: cushion < 0 ? '#c0392b' : 'inherit' }}>{fmtSigned(cushion)}</strong>
+        </div>
+      </div>
+
+      {/* Justification */}
+      <div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Justification</div>
+        <textarea
+          value={state.justification}
+          onChange={e => onChange({ ...state, justification: e.target.value })}
+          rows={2}
+          placeholder="Why did you pick this amount?"
+          style={{
+            width: '100%',
+            padding: 6,
+            border: '1px solid var(--border)',
+            borderRadius: 4,
+            fontSize: 12,
+            fontFamily: 'inherit',
+            resize: 'vertical',
+            boxSizing: 'border-box',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // View
 // ---------------------------------------------------------------------------
 
 export function SpecialClassView() {
+  const [fy27, setFy27] = useState<FySentimentState>(INITIAL_FY27);
+  const [fy28, setFy28] = useState<FySentimentState>(INITIAL_FY28);
+  const fyStateByName: Record<string, [FySentimentState, (s: FySentimentState) => void]> = {
+    FY27: [fy27, setFy27],
+    FY28: [fy28, setFy28],
+  };
   return (
     <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ marginBottom: 16 }}>
@@ -266,11 +407,12 @@ export function SpecialClassView() {
       <section style={SECTION}>
         <div style={SECTION_HEADER}>
           <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
-            {CYCLE_BUDGET_DEV.cycleLabel} · Budget Cycle — Budget Development
+            {CYCLE_LABEL} · Budget Cycle — Budget Development
           </div>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>
-            SF builds budgets in rolling 2-year cycles (BY + BY+1). Pick a chosen
-            amount per year; allocate across chartfield strings by regular-labor share.
+            SF builds budgets in rolling 2-year cycles (BY + BY+1). For each year,
+            pick a sentiment (same / more / less) and a magnitude — the chosen
+            amount is computed from the COLA-adjusted historical baseline.
           </div>
         </div>
         <div style={SECTION_BODY}>
@@ -326,42 +468,29 @@ export function SpecialClassView() {
             </div>
           </div>
 
-          {/* Two-year cycle: side-by-side cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-            {CYCLE_YEARS.map(y => (
-              <div
-                key={y.fy}
-                style={{
-                  padding: 14,
-                  border: '1px solid var(--border)',
-                  borderRadius: 6,
-                  background: 'var(--surface)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
-                    {y.fy} · {y.cycleRole}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>Chosen amount</div>
-                </div>
-                <div style={{ fontSize: 28, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                  {fmt(y.chosenAmount)}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-                  Cushion vs mean: <strong>{fmtSigned(y.cushion)}</strong>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10, fontStyle: 'italic' }}>
-                  "{y.justification}"
-                </div>
-              </div>
-            ))}
+          {/* Two-year cycle: side-by-side stateful cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+            {CYCLE_FYS.map(({ fy, cycleRole }) => {
+              const [state, setState] = fyStateByName[fy];
+              return (
+                <FyCard
+                  key={fy}
+                  fy={fy}
+                  cycleRole={cycleRole}
+                  baseline={BASELINE}
+                  state={state}
+                  onChange={setState}
+                />
+              );
+            })}
           </div>
 
           <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 14 }}>
-            Editable inputs (sentiment ±%, per-employee scenarios, COLA-aware
-            payouts) arrive in subsequent PRs. Allocation by chartfield string
-            also pending — needs regular-labor totals per dept (Budget Master
-            <code> I5:I23</code>).
+            Per-employee payout scenarios (PR #6) will let you add specific
+            retirement candidates to refine the chosen amount. Allocation by
+            chartfield string also pending — needs regular-labor totals per
+            dept (Budget Master <code>I5:I23</code>). Multi-dept controls
+            arrive when other depts are loaded; today everything shown is DBI.
           </div>
         </div>
       </section>
