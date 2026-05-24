@@ -110,10 +110,10 @@ function PositionDetail({ pos, onClose }: { pos: ResolvedChartfields; onClose: (
             <tbody>
               {[
                 ['Job Code',   pos.jobCode],
-                ['FTE',        String(pos.fte)],
+                ['FTE',        pos.fte.toFixed(2)],
                 ['Status',     pos.positionStatus],
                 ['Fill',       pos.fillStatus || '—'],
-                ['YTD Actuals', pos.ytdActuals > 0 ? fmt(pos.ytdActuals) : '—'],
+                ['YTD Actuals', pos.ytdActuals !== 0 ? fmt(pos.ytdActuals) : '—'],
               ].map(([label, value]) => (
                 <tr key={label} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '5px 0', color: 'var(--muted)', width: 100 }}>{label}</td>
@@ -201,7 +201,7 @@ export function PositionsView() {
         <Stat label="Positions" value={String(resolved.length)} />
         <Stat label="Shown" value={String(filtered.length)} />
         <Stat label="Combo overrides" value={String(resolved.filter(r => r.hasComboOverride).length)} />
-        <Stat label="YTD actuals (shown)" value={ytdTotal > 0 ? fmt(ytdTotal) : '—'} />
+        <Stat label="YTD actuals (shown)" value={ytdTotal !== 0 ? fmt(ytdTotal) : '—'} />
       </div>
 
       {/* Filters */}
@@ -291,7 +291,7 @@ export function PositionsView() {
                   {!r.fillStatus              && <span style={{ color: 'var(--muted)' }}>—</span>}
                 </td>
                 <td style={{ padding: '7px 12px', textAlign: 'right', fontFamily: 'monospace' }}>
-                  {r.ytdActuals > 0 ? fmt(r.ytdActuals) : <span style={{ color: 'var(--muted)' }}>—</span>}
+                  {r.ytdActuals !== 0 ? fmt(r.ytdActuals) : <span style={{ color: 'var(--muted)' }}>—</span>}
                 </td>
                 <td style={{ padding: '7px 12px' }}>
                   {r.hasComboOverride && badge('Combo', '#6b21a8', '#f3e8ff')}

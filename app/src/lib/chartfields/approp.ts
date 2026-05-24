@@ -14,6 +14,13 @@ import type { AppropriationLevel } from './types';
  *   8xxx — Capital / debt service                     → account tree
  *   9xxx — Other / special class                      → account tree
  *   Work orders and reserves are controlled separately → 'none'
+ *
+ * NOTE: Distinguishing account vs project vs authority control requires the
+ * appropriation-control reference table from PS Financials — the account code
+ * alone does not determine the tree (the same account can be controlled at
+ * different levels in different departments). Until that reference data is
+ * imported (Phase 3.5 / Phase 5), all non-labor / non-WO / non-reserve
+ * accounts fall through to 'account' as the conservative default.
  */
 export function categorizeAccount(accountCode: string): AppropriationLevel {
   const code = accountCode.trim();
@@ -28,13 +35,8 @@ export function categorizeAccount(accountCode: string): AppropriationLevel {
   // Reserve accounts
   if (/^(res|rsv)/i.test(code)) return 'none';
 
-  // Project-controlled accounts (example convention: starts with 'P')
-  if (/^p\d/i.test(code)) return 'project';
-
-  // Authority-controlled accounts (example convention: authority ledger)
-  if (prefix === '4') return 'authority';
-
-  // Default non-labor accounts → account tree
+  // Default non-labor numeric accounts → account tree
+  // (project/authority categorization requires the reference table — see note above)
   if (/^\d/.test(code)) return 'account';
 
   return 'none';
