@@ -1226,7 +1226,7 @@ session give the copyable prompt for next session."
 
 ---
 
-## Session 17 — Phase 2.0e: OPS Summary + Detail deep-dive (2026-05-25, autonomous)
+## Session 17 — Autonomous multi-PR run (Phase 2.0e + 4 audit/inventory side-quests) (2026-05-25)
 
 **Worktree:** `tender-almeida-260205`
 **Model:** Opus 4.7 (high effort)
@@ -1319,8 +1319,143 @@ rather than asking. Aim for 4–7 merged PRs.
 - Pivot's "Department Group" grouped-field label preservation in the
   KosPos rebuild — flagged as Open Question (does Alex care about
   GETPIVOTDATA-string compatibility with downstream consumers?).
-- Anchor-link audit — Task D this session.
 - BVA importer build — Phase 2.4 (still).
 - Phase 2.1 (route guard).
+
+---
+
+### Task B — BVA reconciliation suite (PR #43, sha 55af649)
+
+**Workflow:**
+
+1. Branched `docs/bva-reconciliation-suite` from main.
+2. Ran 7 chartfield-grain reconciliations against BVA + BI Payroll + BFM
+   eturn:
+   - Test 1: KK adjustments on labor chartfields → DBI→CPC transfer of
+     function visible (DBI ADM MIS lost $2.05M Salaries to CPC).
+   - Test 2: GL adjustments per chartfield → $3.31M aggregate Δ
+     dominated by Retiree-Subsidy / Admin Cost accounts that flow
+     through GL but not payroll.
+   - Test 3: SPECIAL block AX vs AZ → AX == AZ for all 673 BFM
+     class-summary rows; migration is safe but dormant.
+   - Test 4: MERGE row 753 $2.31M → hand-keyed estimate, doesn't match
+     any BVA total exactly; will be decommissioned in Phase 2.4.
+   - Test 5: pool-position dedup → all 36 dup rows zeroed perfectly.
+   - Test 6: text-vs-numeric BFM join → NO failures in this snapshot
+     (Excel SUMIFS handles it; KosPos importer must replicate).
+   - Test 7: `<>10190` dormant bug → still dormant (0 DBI fund 10000
+     rows).
+3. Wrote `docs/audits/bva-reconciliation-suite.md` (~587 lines).
+
+**Milestone:** PR #43 merged. Evidence base for KosPos's `lib/quality/`
+flag set is now concrete.
+
+### Task C — Reports folder inventory (PR #44, sha e501cf1)
+
+**Workflow:**
+
+1. Branched `docs/data-sources-reports-folder-inventory` from main.
+2. Walked all 26 files in `example reports/Reports/`. Inspected each
+   for sheet structure, column count, row count, KosPos consumer.
+3. Six families: 5 BFM xlsx, 11 PS Financials chartfield-tree CSVs
+   (579k rows total), 4 PS HCM exports, 3 OBI labor reports, 1 DHR
+   pay-rate xlsx, 2 misc (Eturns 5.14.26 + the labor report).
+4. Wrote `docs/data-sources/reports-folder-inventory.md` (NEW, ~465
+   lines).
+5. Updated `bfm.md` (new 5-report table), `dhr.md` (hourly-rates file
+   reference), `ps-hcm.md` (concrete filenames per query),
+   `ps-financials.md` (chartfield-trees table + Payroll Detail
+   reference), `README.md` (links to inventory).
+6. Updated `labor-report.md` Data Sources Inventory with 5 new rows.
+
+**Milestone:** PR #44 merged. Every upstream file has a documented
+shape + KosPos consumer + importer path.
+
+### Task D — Walkthrough audit (PR #45, sha 7fe7815)
+
+**Workflow:**
+
+1. Branched `docs/labor-report-walkthrough-audit` from main.
+2. Built a github-slugger-accurate Python script to extract every
+   heading slug + every internal anchor link in labor-report.md.
+   Found 13 of 41 anchor links broken (all using tab-number as suffix
+   instead of github-slugger's occurrence index).
+3. Fixed all 13 broken anchors in the same PR.
+4. Triaged 40 open TODOs across Tabs 5/6/7/20/26/27; 7 were resolvable
+   in light of later walkthroughs / interludes / Tasks B+C; converted
+   each to `[x]` with `(Resolved 2026-05-25 via …)` annotation.
+5. Verified DBI-shortcut catalog completeness, Calendar cell consistency,
+   and no memory drift. Added inline note to Tab 7 clarifying the
+   "18,225 cells" vs "133,164 SUMIFS clauses" framing.
+6. Wrote `docs/audits/labor-report-walkthrough-audit.md` (NEW, ~360
+   lines).
+
+**Milestone:** PR #45 merged. All 41 anchor links now resolve; 7
+TODOs closed.
+
+### Task E — Position-level scenario tests (PR #46, sha 4b4aac7)
+
+**Workflow:**
+
+1. Branched `docs/labor-report-scenario-tests` from main.
+2. Ran 9 scenarios against the labor workbook:
+   - Reports-To chain integrity (0 cycles / 0 dangling refs / 0 depth
+     violations; 2 real data issues out of 7 empty Reports-To)
+   - Pool-position census (4 ELC commissioner pools + 4 TEX back-to-
+     back temp pools)
+   - **Cat 17/18 expiry: 7 ALREADY-EXPIRED positions** (oldest 728d
+     ago — Flores, Tamimi, Mccallum, Ng, Carrion, Mayer, Chen)
+   - Cat 16 hours: only 1 person (Guaiumi, Jimmy), but at 172% of
+     1,040-hr cap
+   - Vacant-no-RTF (5 positions)
+   - PEX-on-Cat-18 (15 rows confirmed; matches Tab 6)
+   - Sick-leave bucket size ($3.51M / 4.16% — matches Tab 7 doc)
+   - Negative-balance rows (20 total; patterns suggest retroactive
+     timekeeping adjustments)
+   - Earnings-code orphans (58 distinct codes; 11+ premium codes
+     not in documented routing carrying $1M+)
+3. Wrote `docs/audits/labor-report-scenario-tests.md` (NEW, ~517
+   lines).
+
+**Milestone:** PR #46 merged. Concrete Data Issue catalog for
+KosPos's `lib/quality/` and several actionable findings for Alex (the
+7 expired Cat 17/18 positions especially).
+
+### Session-aggregate outcome
+
+**5 PRs, all merged, in one session.** All five tasks from the
+autonomous-mode prompt shipped. The session's net additions:
+~3,400 lines of docs across 4 new audit/inventory files + 1 walkthrough
++ updates to 6 existing files. No app code touched. 146 / 146 tests
+green throughout.
+
+The DBI-shortcut catalog grew by 8 entries (7 OPS-specific + 1 mirror
+for CPC fund 10000). The Data Sources Inventory grew by 5 rows. The
+Open Questions list across Tabs 5/6/7/20/26 lost 7 entries (now
+resolved). The labor report's per-position quality flags now have a
+concrete evidence base (Tasks B + E) for the Phase 2.4 importer.
+
+Top action items for Alex (in priority order):
+
+1. **Review the 7 already-expired Cat 17/18 positions** with HR.
+2. **Clarify the Cat 16 1,040-hr cap rule** vs. Guaiumi's 1,792 hrs.
+3. **Decide on the 5 vacant-no-RTF positions** (add RTF / hold / defund).
+4. **Review the 5 reasonable-default calls** documented in the next-
+   session prompt (OPS Summary D-column pacing, L vs G42 ratio, CPC
+   MCCP/TEMP empty cells, "Department Group" pivot label preservation,
+   snapshot-diff key).
+
+### What changed for KosPos's understanding (cumulative across the 5 tasks)
+
+| Theme | Before this session | After this session |
+|---|---|---|
+| OPS Summary structure | Headline page + special-class block (per special-class.md rows 36-42) | Two regions: 33-row per-dept pivot + DBI 6-class block + CPC 7-class block (with extra MCCP Offset, undifferentiated TEMP, missing prior-year rate). One pivot cache (935) used by both Summary + Detail. |
+| OPS Detail | "Drill-down companion" | Same pivot cache + 14 more row fields; 813 rows. KosPos design: side panel of OPS Summary with snapshot-diff |
+| BVA reconciliation | Pattern + reference doc (Session 16 interlude) | Empirical evidence: 7 verified tests with real numbers. DBI→CPC transfer of function visible per chartfield; retiree-benefit accounts identified as payroll-orphan; all dormant concerns confirmed dormant. |
+| Upstream files | Reference index in reports.txt | Comprehensive inventory of all 26 files with shape + KosPos consumer + importer path. Fund tree's `Annual/Continuing` flag identified as the antidote to hardcoded fund-10190 filters. |
+| Anchor link convention | Tab number used as duplicate suffix | github-slugger's occurrence-index is correct; tab number is wrong. 13 broken links fixed; lint-rule documented. |
+| Data Issue catalog | Implicit | Concrete: 16+ categories named with empirical evidence (KK adjustments, GL adjustments, pool positions, Cat 17/18 expiry, Cat 16 cap, vacant-no-RTF, PEX-on-Cat-18, earnings-code orphans, retiree-account `payroll_routed=false` flag, …). Feeds Phase 2.4 `lib/quality/`. |
+| Cat 17/18 expiry tracking | Mentioned in Tab 6 (no enumeration) | 7 positions ARE past their expiry date (oldest 728d). Operational concern for HR. |
+| Earnings-code routing completeness | "VPO/SVO=RPO, OTP=OT, L08/289=PREMM" | 58 distinct codes seen; 11+ undocumented premium codes carrying $1M+ that the workbook silently absorbs into per-position regular labor. KosPos importer must enumerate explicitly. |
 
 
