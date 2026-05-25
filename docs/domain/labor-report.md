@@ -199,12 +199,189 @@ questions:** _(walkthrough)_
 
 ### Tab 5 — Calendar
 
-**Status:** walkthrough — in progress (this session)
+**Status:** walkthrough — done 2026-05-24
 
-_To be filled in this session after Alex's clarifications — see chat. Anchors already
-established in [`definitions.md`](definitions.md) § "Pay Period (PP)"; that section
-covers the 80-hour PP, the 26/26.1/26.2-PP-per-FY rule, and the PP1=7/1 / PP27=6/30
-anchors. This section covers the workbook tab itself and its DBI-specific shortcuts._
+**Purpose:** The pay-calendar lookup tab. Provides three things:
+
+1. **Per-PP rows** (rows 2–28, one per PP from 1 through 27) with the canonical PPE
+   date for the FY.
+2. **Two parallel running totals** — a pure-PP elapsed count (col D) and a
+   COLA-weighted elapsed count (col F).
+3. **Single-row summary block** (cols H–O, row 2) that derives "today's PP" from the
+   BI Payroll data, then computes elapsed / total / remaining in both tracks.
+
+Almost every downstream tab references this tab's summary cells. The columns split
+along usage lines (verified by counting `Calendar!` refs across all formulas in the
+workbook):
+
+| Track | Cells | Used by (column refs) | Purpose |
+|---|---|---|---|
+| Pure-PP | `I2 / J2 / K2` | Operating Report Summary (28), Overtime (22), Premium (4), Retirement Payout (4), Staffing Plan (4), Budget Summary (1) | Straight-line time-pacing of budget and special-class projections |
+| COLA-weighted | `M2 / N2 / O2` | Report Data (~1,400), Step (16,335), Budget Summary (1) | Per-position salary projection and step-savings projection — needs to honor the mid-year COLA |
+| Date lookup | col `B` | Step (49,032 — per-PP iteration), Report Data (27) | `XLOOKUP(some_date, Calendar!B, Calendar!C)` returns the PP% for an arbitrary date |
+| Per-PP COLA delta | col `E` | Step (16,335) | Step formulas walk each PP and apply the COLA in effect at that PP |
+
+Background pay-period anchors (80-hour PP, 26/26.1/26.2 PPs per FY, PP1 starts 7/1,
+PP27 ends 6/30) live in [`definitions.md`](definitions.md) § "Pay Period (PP)" — not
+repeated here.
+
+**Data sources:**
+
+- **Source:** Controller's Office Payroll Division annual pay calendar (PPE dates).
+  See [`../data-sources/controller.md`](../data-sources/controller.md).
+- **Plus:** the Misc-unit MOU COLA schedule (SEIU 1021 Misc 2024–2027), for the in-year
+  COLA effective dates and percentages. See [`budget-process.md`](budget-process.md)
+  § "SF historical COLAs."
+- **v1 mechanism:** Alex re-develops the tab manually each FY — ~30 minutes of work
+  pulling PPE dates from the Controller's calendar and dropping in the MOU's mid-year
+  COLA % at the correct PP row.
+- **v2 plan:** KosPos generates Calendar from (a) the Controller's published pay
+  calendar (a JSON or scraped PDF) and (b) the per-bargaining-unit COLA schedule from
+  DHR MOUs. Citywide artifact; no per-department version.
+
+**Structure — per-PP rows (A2:F28):**
+
+| Col | Header | Content | Notes |
+|---|---|---|---|
+| A | PP | PP number (1–27) | Integer |
+| B | PPE | Pay Period End date | Literal date (FY26: B2=2025-07-04 … B28=2026-06-30) |
+| C | PP% | This PP's contribution to the FY | 1.0 for full PPs; PP1=0.4 (formula); PP27=0.7 (formula) |
+| D | Total | Cumulative PP elapsed at end of this PP | `=D{n-1}+C{n}`; `MAX(D:D) = J2` = 26.1 for FY26 |
+| E | COLA | The COLA % effective during this PP | Blank for PP1:PP14; **`0.015` for PP15:PP27** (the SEIU 1021 Misc Jan 3, 2026 +1.5%) |
+| F | Total COLA | Cumulative C+E | `=F{n-1}+(C{n}+E{n})`; `MAX(F:F) = N2` = 26.295 ≈ "26.3" |
+
+**Structure — summary block (H1:O2):**
+
+| Cell | Formula | Meaning |
+|---|---|---|
+| H2 | `=MAX('BI Payroll'!X:X)` | "Today's PPE" — latest pay period end date in the BI Payroll export. Drives all elapsed computations |
+| I2 | `=XLOOKUP(H2, B:B, D:D)` | PP elapsed, pure (22.4 at this snapshot) |
+| J2 | `=MAX(D:D)` | Total PPs in FY, pure (26.1) |
+| K2 | `=J2 - I2` | PPs remaining, pure (3.7) |
+| L2 | `=B16` | Date the mid-year COLA first takes full effect (= end of PP15 = 2026-01-16) |
+| M2 | `=XLOOKUP(H2, B:B, F:F)` | PP elapsed, COLA-weighted (22.535) |
+| N2 | `=MAX(F:F)` | Total PPs in FY, COLA-weighted (26.295) |
+| O2 | `=N2 - M2` | PPs remaining, COLA-weighted (3.76) |
+
+**Formulas — derived:**
+
+- `C2 = NETWORKDAYS(DATE(YEAR(B2),7,1), B2) / 10` — PP1 partial. Counts weekdays from
+  7/1 to PPE, divides by 10. FY26: 7/1=Tue through 7/4=Fri → 4 weekdays → 0.4.
+- `C28 = NETWORKDAYS(B27+1, DATE(YEAR(B28),6,30)) / 10` — PP27 spillover. Weekdays
+  from the day after PP26 ends to 6/30. FY26: 6/20 through 6/30 → 7 weekdays → 0.7.
+- `D{n} = D{n-1} + C{n}` — cumulative pure PPs.
+- `F{n} = F{n-1} + (C{n} + E{n})` — cumulative COLA-adjusted PPs. The COLA delta
+  (`E{n}`, e.g., 0.015) is **added** as if it were a PP fraction, not multiplied. Math
+  works out: each post-COLA PP contributes 1.015 instead of 1.0 to the running total.
+
+**The "26.3 trick" — what's actually happening:**
+
+`J2 = 26.1` (the real FY26 PP count). `N2 = 26.295` (≈ 26.3) is **not** the real PP
+count; it's a synthetic "COLA-equivalent" PP count. Downstream projections that use
+`actual * N2 / M2` instead of `actual * J2 / I2` inflate the projection slightly to
+account for the fact that the post-COLA remaining PPs cost ~1.5% more per PP than the
+COLA-mix of YTD PPs.
+
+Worked numbers at this snapshot (`H2 = 2026-05-08`):
+
+| Ratio | Value | Multiplier |
+|---|---|---|
+| Pure: `J2 / I2` | 26.1 / 22.4 | 1.1652 |
+| COLA-weighted: `N2 / M2` | 26.295 / 22.535 | 1.1668 |
+| Delta | | 0.14% |
+
+The delta is small at this point in the year (most of the COLA bump is already in YTD).
+Earlier in the year, the spread would be larger.
+
+**What's manual / fragile:**
+
+- **Whole tab is rebuilt every FY.** PPE dates change; PP1/PP27 partial fractions
+  change; the COLA effective PP changes; the COLA % changes.
+- **Single COLA % column E is a DBI shortcut.** Column E carries one rate (0.015 for
+  FY26). This works only because every DBI job class happens to sit under the SEIU
+  1021 Misc MOU with the same Jan 3, 2026 +1.5% bump. Departments mixing bargaining
+  units (Misc + IFPTE 21 + 798/Fire + POA) cannot share a single column — each BU has
+  its own COLA effective dates and percentages.
+- **Only the largest mid-year COLA is modeled.** Per the FY26 MOU schedule
+  (`budget-process.md` table), FY26 actually has three rate changes:
+  - Jul 1, 2025 (+1.0%) — baked into starting salary rates by PP1; not in Calendar.
+  - Jan 3, 2026 (+1.5%) — **modeled** as E16:E28 = 0.015.
+  - Jun 30, 2026 (+2.0%) — one day before FY27 starts; ignored as immaterial.
+  
+  Future FYs with two material mid-year bumps will need two non-zero ranges in E.
+- **`N2 / M2` is treated as a single workbook-wide ratio.** Anywhere it's used, the
+  assumption is "this ratio applies to all dollars." Bargaining-unit-specific
+  application isn't expressed.
+- **`H2 = MAX('BI Payroll'!X:X)` couples the "as-of date" to the payroll import.**
+  If BI Payroll is imported through a different PPE than the rest of the data (Report
+  Data may be from an earlier P&P snapshot), the elapsed-PP math will be off. Currently
+  managed by Alex importing all sources at the same as-of date.
+
+**KosPos improvements:**
+
+1. **Separate pay-calendar arithmetic from COLA application.** Two independent layers:
+   - `lib/calendar/` — pure PP arithmetic. Citywide. Functions: `dateToPP(date) →
+     PPnumber`, `ppToFraction(pp) → number`, `ppsElapsed(asOfDate)`, `ppsInFY(fy)`,
+     `ppsRemaining(asOfDate, fy)`. No COLA. One JSON per FY generated from the
+     Controller's pay calendar.
+   - `lib/cola/` (or extend `lib/dhr/`) — per-bargaining-unit COLA schedule. Lookup
+     `bargainingUnit → [{effectiveDate, percent}]`. Sourced from DHR MOUs.
+2. **Annualization function takes both.** `project(actuals, asOfDate, fy, bargainingUnit)`
+   walks the remaining PPs and applies the rate effective in each. For a DBI-style
+   single-MOU population this collapses to a single multiplier (matching today's
+   workbook); for a mixed-BU population it produces a correct per-BU projection.
+3. **Show both projections, expose the delta.** Always render the straight-line
+   ("no-COLA-awareness") and the COLA-aware projection side by side. Makes the COLA
+   impact visible and surfaces missing-bargaining-unit data: any class not tagged with
+   a BU shows up as a discrepancy.
+4. **Don't model the late-June bump.** Confirm with policy; for FY26 the Jun 30, 2026
+   +2.0% landing one day before FY27 produces negligible impact. KosPos should
+   formalize the rule: "COLA effective dates within the last PP of the FY are
+   immaterial and excluded from in-year projection." Alternatively, include them but
+   document that contribution is ~one weekday.
+5. **Couple "as-of date" to user choice, not to the BI Payroll import.** A drop-down
+   at the top of every projection page: "Projecting as of PP22 (5/8/2026)." Default to
+   `MAX(PPE)` across all imported sources but allow override.
+6. **PP27 user-facing presentation.** Internally: 26.1. User-facing: "PP1–26 plus a
+   7-day spillover into PP27 before FY27 starts" — clearer for non-budget audiences.
+
+**KosPos UI sketch:**
+
+Internal-only — not a user-facing tab. Surfaces as:
+
+- A **reference-data admin panel** (Settings → Reference Data → Pay Calendar) showing
+  the current FY's per-PP table with date, PP%, and (per BU) COLA rate. Editable by
+  admin role for the rare late-announced Controller schedule shift.
+- A **live "as of" indicator** at the top of every projection page: `Projecting as of
+  PP22 of 26 (PPE 2026-05-08)`. Hover: `22.4 PPs elapsed, 3.7 remaining` (pure) and
+  `22.5 / 3.8` (COLA-weighted).
+- A **PP-arithmetic tooltip** on any projection cell: hover shows
+  `YTD × (26.1 / 22.4) = $X (pure)` and `× (26.295 / 22.535) = $Y (COLA-aware)`.
+
+**Excel export notes:**
+
+Include a `Calendar` sheet for downstream compatibility, but built KosPos-style:
+
+- One row per PP with all per-PP fields (A:E or A:F equivalent).
+- A header block of **named-range constants** (`PP_Elapsed`, `PPs_In_FY`,
+  `PPs_Remaining`, `As_Of_Date`) — replaces the I2/J2/K2 + M2/N2/O2 magic cells with
+  documented names.
+- **Per-BU COLA columns** added next to the single-COLA column when the dept has
+  multiple bargaining units.
+- A **"Reference notes"** block in the sheet citing the Controller's pay calendar
+  source and the per-BU MOU citations for the COLA schedule.
+
+**Open questions / TODO:**
+
+- [ ] Confirm with Alex: Jun 30, 2026 +2.0% is intentionally ignored (~one weekday
+      impact).
+- [ ] Confirm `'BI Payroll'!X` is the canonical PPE column in the OBI BI Payroll
+      export (will resolve during BI Payroll walkthrough; if it's a different column,
+      `H2` formula needs adjusting per FY).
+- [ ] Decide where the `job class → bargaining unit` lookup lives — `domain/dhr.md`
+      or a separate `domain/bargaining-units.md`?
+- [ ] Settle the per-projection-page UI for the pure-vs-COLA-aware delta: always show
+      both, or show only when the delta exceeds a threshold (e.g., >0.5%)?
 
 ---
 
@@ -579,7 +756,8 @@ available).
 
 | Source | Used by tab(s) | v1 mechanism | v2 plan | KosPos importer path |
 |---|---|---|---|---|
-| _(filled during walkthrough)_ | | | | |
+| Controller's pay calendar (PPE dates) | Calendar | Manual rebuild of Calendar tab annually (~30 min) | Generated from published Controller calendar (JSON / scraped PDF) | `lib/calendar/` — one JSON per FY |
+| Per-BU MOU COLA schedule | Calendar (col E), implicitly Step, Report Data | Hardcoded single % in Calendar!E (DBI shortcut) | Per-bargaining-unit lookup sourced from DHR MOUs | `lib/cola/` (or part of `lib/dhr/`); also referenced by [`budget-process.md`](budget-process.md) |
 
 ## Phase 2.2 sub-phases (dependency order)
 
