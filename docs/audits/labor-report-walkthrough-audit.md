@@ -1,6 +1,19 @@
 # Labor-report walkthrough audit (Tabs 5 / 6 / 7 / 20 / 26 / 27 + cross-cutting)
 
 **Audit run:** 2026-05-25 (autonomous session 17, Task D)
+
+> **Post-audit note (Phase 2.0f, 2026-05-25):** Walkthroughs for Tabs 16, 17,
+> 18, 19 added 4 new occurrences of each duplicate `#### ...` heading
+> (`Data sources`, `What's manual / fragile`, `KosPos improvements`,
+> `KosPos UI sketch`, `Excel export notes`, `Open questions / TODO`),
+> inserted in workbook order between Tab 7 and Tab 20. This shifted the
+> occurrence-index slugs for Tab 20 / 26 / 27 by +4 (e.g., Tab 20's
+> `#kospos-improvements-2` became `#kospos-improvements-6`; Tab 26's `-3`
+> became `-7`; Tab 27's `-4` became `-8`). The "Correct slug" tables below
+> are historical (correct as of Task D); references in current docs were
+> migrated to the new indices in the Phase 2.0f PR. The convention
+> (occurrence-index, NOT tab-number) is unchanged.
+
 **Source files inspected:**
 
 - [`../domain/labor-report.md`](../domain/labor-report.md) — the deep-dive doc (4,199 lines after Tasks A + B + C).
@@ -101,7 +114,7 @@ Data) uses `N2 / M2` (COLA-weighted) for the per-position projection.
 Tab 26 (OPS Summary) uses `J2 / I2` (pure-PP) for the special-class D
 column. **All consistent** with Tab 5's framing. The only friction is
 **Tab 26's pure-PP shortcut for the special-class block** — flagged as
-[Tab 26 Open Question #1](../domain/labor-report.md#open-questions--todo-3) and
+[Tab 26 Open Question #1](../domain/labor-report.md#open-questions--todo-7) and
 the cross-cutting concerns table's "pure-PP vs COLA-weighted" row;
 expected to converge to COLA-weighted in KosPos per memory
 [`feedback_projections_always_cola_aware.md`].

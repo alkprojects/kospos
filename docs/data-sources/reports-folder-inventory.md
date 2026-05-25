@@ -264,7 +264,7 @@ of `BI Payroll v_current`.
 
 **Implication for KosPos:** importer must handle both 38-col and
 39-col variants. Header-driven fingerprint (per [Tab 7 KosPos
-improvement #2](../domain/labor-report.md#kospos-improvements-7))
+improvement #2](../domain/labor-report.md#kospos-improvements-1))
 already accounts for this — the importer matches columns by canonical
 substring, so adding/removing a column doesn't silently break.
 

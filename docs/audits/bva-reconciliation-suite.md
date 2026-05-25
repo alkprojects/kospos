@@ -11,7 +11,7 @@ workbook, stdlib `csv.DictReader` for BVA. Read-only; no workbook edits.
 
 **Purpose:** Empirical evidence base for KosPos's `lib/quality/` flag set
 and for the BVA-driven reconciliation views designed in
-[Tab 20 § KosPos improvements #1–#2](../domain/labor-report.md#kospos-improvements-20)
+[Tab 20 § KosPos improvements #1–#2](../domain/labor-report.md#kospos-improvements-6)
 and [`../data-sources/bva.md`](../data-sources/bva.md).
 
 ## Methodology
@@ -228,7 +228,7 @@ chartfield.
 
 ## Test 3 — SPECIAL block hand-paste verification (AX vs AZ)
 
-**Hypothesis (per [Tab 20 § Manual/fragile](../domain/labor-report.md#whats-manual--fragile-20)):**
+**Hypothesis (per [Tab 20 § Manual/fragile](../domain/labor-report.md#whats-manual--fragile-6)):**
 the 100 SPECIAL block rows in Report Data S649:S748 were pasted from
 BFM 15.10.006's `FY 2025-26 Technical Adjustment (AX)` column, but
 should have been pasted from `FY 2025-26 Board (AZ)`. If AX ≠ AZ for
