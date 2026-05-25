@@ -336,7 +336,7 @@ Plus cross-checks:
 
 ## Scenario 5 — Vacant-but-no-RTF
 
-**Hypothesis** ([Tab 6 § Improvement #10](../domain/labor-report.md#kospos-improvements)):
+**Hypothesis** ([Tab 6 § Improvement #10](../domain/labor-report.md#kospos-improvements-4)):
 every position with `Fill Status = VACANT` and `Latest RTF ID` blank
 (and not a pool position) is a Request-To-Fill gap.
 
@@ -448,7 +448,7 @@ every BI Payroll snapshot.
 
 ## Scenario 8 — Negative or zero Balance Amount rows
 
-**Hypothesis** ([Tab 7 § Improvement #8](../domain/labor-report.md#kospos-improvements-1)):
+**Hypothesis** ([Tab 7 § Improvement #8](../domain/labor-report.md#kospos-improvements-5)):
 top 20 most-negative Balance Amount rows in BI Payroll surface
 retroactive payroll adjustments worth flagging.
 
@@ -504,7 +504,7 @@ to fix — just transparency about what's happened.
 
 ## Scenario 9 — Earnings-code orphans
 
-**Hypothesis** ([Tab 7 § Improvement #8](../domain/labor-report.md#kospos-improvements-1)):
+**Hypothesis** ([Tab 7 § Improvement #8](../domain/labor-report.md#kospos-improvements-5)):
 earnings codes appearing in BI Payroll that don't map to any documented
 routing rule are silently un-aggregated.
 

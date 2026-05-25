@@ -11,7 +11,7 @@ workbook, stdlib `csv.DictReader` for BVA. Read-only; no workbook edits.
 
 **Purpose:** Empirical evidence base for KosPos's `lib/quality/` flag set
 and for the BVA-driven reconciliation views designed in
-[Tab 20 § KosPos improvements #1–#2](../domain/labor-report.md#kospos-improvements-6)
+[Tab 20 § KosPos improvements #1–#2](../domain/labor-report.md#kospos-improvements-18)
 and [`../data-sources/bva.md`](../data-sources/bva.md).
 
 ## Methodology
