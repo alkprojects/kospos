@@ -7,9 +7,45 @@ Updated at the end of every session. The next session reads this before doing an
 ## Current status (end of Session 18 — interactive, 2026-05-25)
 
 **Phase:** Phase 2.0 — Labor Report deep-dive walkthrough. **In progress.**
-**Last main commit:** `f2b82cb` (PR #48 — Phase 2.0f per-special-class tabs)
+**Last main commit:** `e8f5eb2` (PR #49 — session handoff) → `<this PR>` (Session 18 follow-up: Alex responses + memory)
 **Tests:** passing on CI (no app-code changes this session)
-**Branches in flight:** `docs/session18-handoff-phase-2-0g` (this handoff PR)
+**Branches in flight:** none after this PR merges
+
+### Alex's end-of-session responses (2026-05-25, after Phase 2.0f shipped)
+
+Alex came back to his computer late in the session and answered the 4
+action items I'd re-asked. Key new context (saved to memory; will inform
+Phase 2.0g and beyond):
+
+**Cat 16 / 17 / 18 rules** (memory: `cat_16_17_18_rules.md`):
+- **Cat 16:** 1,040 hrs/FY, **per position** (not per employee), resets each FY. DHR forces separation if exceeded. **The Guaiumi (187518) flag may be a labor-report data bug** — the workbook's check likely pulled hours from a *different* position the employee was previously on. KosPos's per-position cap check needs to filter by Position Number, not Employee ID.
+- **Cat 17:** temp backfills for employees on leave; expires when original employee returns, not on calendar date. PS HCM Expiration Date field often = Appointment Date (meaningless). 2-year limit possibly — research TODO.
+- **Cat 18:** 3-year max set by dept. Used as semi-permanent in practice. PS HCM Expiration Date sometimes wrong (< 3 years from Appointment). **KosPos should flag Cat 18s where Expiration Date ≠ Appointment Date + 3 years** for user verification.
+- General: **KosPos position entity needs a free-text user-notes field** (memory: `feedback_user_notes_per_position.md`).
+
+**Vacant-no-RTF / Staffing Plan Types** (memory: `staffing_plan_types.md`):
+- Tab 24 Staffing Plan `Type` column: **Active** / **Separations** / **Pending** / **Temp** / **Unfunded**. Notes column carries the per-row context.
+- **RTF fields are unreliable:** Latest RTF date can be stale; RTF Submitted is also there. "No RTF" may be a data integrity issue, not a real never-filed status. Cross-check: did the position have a previous employee ("vice")? If yes, RTF must have been filed historically.
+- **Vacancy planning is a major KosPos function** — involves policy decisions, not just display. KosPos shows current status + facilitates hiring planning.
+- The 5 vacant-no-RTF positions need a Tab 24 walkthrough first (Phase 2.0g) before lib/quality can classify them.
+
+**COLA-everywhere principle reconfirmed** (memory: `feedback_projections_always_cola_aware.md` updated):
+- Alex's worked example: 26 PPs, $1/PP, 100% COLA at PP13 → $39 projected (= 13 PPs × $1 + 13 PPs × $2). All projections, every tab, COLA-aware.
+- **S18 #1 (PREMM pure-PP) needs correction:** percentage-of-base premiums (269 Struct Eng 10.27%, 600 Architect 5%) DO COLA-inflate because their base inflates. Tab 16 walkthrough should switch PREMM projection to COLA-aware. Fix-up PR scheduled for Phase 2.0g.
+
+**MCCP split into 9994 confirmed:**
+- Data model splits; UI shows MCCP adjacent to STEPM. My Tab 18 walkthrough already proposed adjacent tabs in the UI — consistent.
+
+### Items still open for Alex's review
+
+Alex asked me to restate 4 questions in plain English. They're below in the **Phase 2.0g session prompt** for him to answer at the next session start:
+
+- **S17 #2** (G42/H42 vs L23/L32 attrition rate definitions)
+- **S17 #4** ("Department Group" pivot label preservation)
+- **S17 #5** (Snapshot-diff granularity key choice)
+- **S18 #4** (Step-event awareness — implement now or later)
+
+Restated in plain English in the next-session prompt.
 
 ### What landed this session — Phase 2.0f in one PR
 
@@ -145,6 +181,8 @@ Vacancies and TEMP (Tab 23), Staffing Plan (Tab 24), Budget Summary (Tab 25).
 Read first, in order:
   docs/CLAUDE.md
   docs/SESSION_HANDOFF.md (this file — full context)
+  memory/MEMORY.md + the three new entries from Session 18:
+    cat_16_17_18_rules.md, staffing_plan_types.md, feedback_user_notes_per_position.md
   docs/SESSION_LOG.md (Sessions 13–18 — gives walkthrough pattern + prior
     decisions; Session 18 in particular covers the four per-special-class
     tabs and the MCCP split decision)
@@ -212,6 +250,74 @@ Plan reads Vacancies and TEMP; Budget Summary reads Staffing Plan.
   7. Update Data Sources Inventory + tab-list status (pending → done).
   8. Update SESSION_HANDOFF.md to point at Phase 2.0h (the remaining
      14 unwalked tabs) as next.
+
+  ALSO IN THIS SESSION: 3 small fix-ups carried forward from Session 18:
+
+  (A) **Tab 16 PREMM projection: switch from pure-PP to COLA-aware.** Alex
+      reconfirmed the COLA-everywhere principle. Percentage-of-base premiums
+      (269 Struct Eng 10.27%, 600 Architect 5%) DO COLA-inflate. Update the
+      Tab 16 Premium walkthrough's `P5/P8` projection narrative to show
+      COLA-aware as the primary projection (function returns same number
+      when COLA doesn't apply to specific $-amount premiums like L08 Lead
+      Worker Pay $5).
+
+  (B) **Cat 16/17/18 follow-up.** Research Cat 17 and Cat 18 limits in
+      CSC Rules + DHR site + admin code (websites — use WebFetch). Update
+      the scenario-tests doc:
+        - Scenario 4 (Cat 16 cap): re-classify Guaiumi case as
+          "labor-report data bug suspected — workbook may be pulling hours
+          from a previous position" instead of "172% of cap CSC violation."
+          KosPos's lib/quality cap check must filter by Position Number, not
+          Employee ID.
+        - Scenario 3 (Cat 17/18 expiry): add the Cat 18-specific check
+          "Expiration Date ≠ Appointment Date + 3 years" as a flag for user
+          review. Add Cat 17 caveats about PS HCM Expiration Date being
+          unreliable.
+      Add the user-notes-per-position requirement to the lib/quality TODO
+      list and Phase 2.2 sub-phase enumeration.
+
+  (C) **4 restated questions for Alex** (from Sessions 17 + 18 deferred
+      defaults — Alex asked these to be restated in plain English):
+
+      - **Restate #1 (was S17 #2):** "On the Operating Report Summary, three
+        different things look like they're called 'attrition rate' at the
+        DBI / CPC dept-group level: G42/H42 = (9993 ÷ non-9993 labor),
+        L23/L32 = (projected balance ÷ total budget), and H43 = a hand-keyed
+        prior-year number with a 'Calculated, Questionable' note. They display
+        as percentages on the same page, look similar, but mean different
+        things. Which one is 'the attrition rate' that goes in the report you
+        send to CON/MYR? My current default: G42/H42 is canonical (9993 ÷
+        non-9993); L23/L32 gets renamed to 'leftover %' in KosPos. Confirm or
+        correct?"
+
+      - **Restate #2 (was S17 #4):** "The Operating Report Summary's
+        GETPIVOTDATA calls reference a pivot label called 'Department Group'
+        — but Report Data doesn't have a column with that exact name. It's
+        a workbook-internal pivot grouping. When KosPos emits the
+        labor-report-shaped .xlsx for downstream consumers, do we need to
+        preserve that 'Department Group' label so other people's GETPIVOTDATA
+        formulas still work? My current default: yes, preserve it. (Slightly
+        more cosmetic, but breaks downstream Excel formulas if we rename.)"
+
+      - **Restate #3 (was S17 #5):** "The OPS Detail snapshot-diff feature
+        (the 'what changed since the last report' panel) needs a key to
+        identify each row across snapshots. Options:
+          (a) Position Number alone (simplest, but doesn't differentiate
+              vacant-then-filled — same position number, different occupant)
+          (b) (Eff Dept, Position Number, Fill Status, Budget Job Code)
+              (current default — captures dept moves + reclassifications)
+          (c) Position Number + a separate tracker for 'who occupied it when'
+        My current default: option (b). Confirm or correct?"
+
+      - **Restate #4 (was S18 #4):** "The Step (Tab 18) walkthrough's
+        improvement #3 proposes making per-PP step variance 'merit-event
+        aware' — instead of uniform per-PP proration, the formula would
+        understand 'this employee advanced a step on PP15, so pre-PP15 PPs
+        used Step 4 budget and post-PP15 PPs use Step 5 budget.' Adds
+        modeling complexity (per-employee step history) but makes per-PP
+        variance numbers meaningful (currently they drift pre/post-merit
+        even though the FY total is correct). Implement now in Phase 2.4
+        importer, or defer to a Phase 2.2 sub-phase? Default: defer."
 
 ==============================================================================
 Hard constraints
