@@ -19,17 +19,30 @@ Sources: [Sherpa selection announcement (BusinessWire 8/11/2020)](https://www.bu
 
 The main BFM report format. Two flavors:
 
-- **Position eturn** — Position details only (FTE, job class). No dollar columns beyond what the position implies.
-- **Non-position eturn** — All budget dollar data for all accounts including labor (as totals, no position detail).
+- **Position eturn** (`15.10.006 Position and Calc'd Benefits Detail`) — Position details + per-position benefit detail. By Position# sheet (1,931 rows × 64 cols in the 5.14.26 sample) is the canonical labor-budget source. By Job Class sheet (3,923 rows × 60 cols) is the same data rolled to class × chartfield.
+- **Non-position eturn** (`15.10.001 Chart of Account Query`) — All budget dollar data for all accounts (1,016 rows × 49 cols), including labor totals **without position attribution**, plus non-personnel-services (materials, contracts, etc.).
 
 KosPos imports both flavors and joins them. See Phase 2 (importers).
+The 5.14.26 sample of both eturns lives in
+[`example reports/Reports/Eturns 5.14.26.xlsx`](reports-folder-inventory.md#eturns-51426xlsx);
+a slightly older 5.7-ish version is embedded in the labor-report
+workbook as the `BFM 15.10.006 FY26` tab.
 
 ## Reference data BFM publishes
 
-- **Benefit rates** for all job classes (past, current, future years).
-- **COLA assumptions** for all job classes (past, current, future years).
+Five distinct reports under the `15.*` prefix. Per Alex's own `reports.txt`
+annotations:
 
-These typically come embedded in budget instructions or as a downloadable spreadsheet. Add the canonical URL when you confirm it.
+| Report ID | Filename pattern | Sheets / rows | Role |
+|---|---|---|---|
+| **15.10.001** | `Chart of Account Query`.xlsx | 1 sheet × 1,016 rows × 49 cols | **Non-position eturn** (above) |
+| **15.10.006** | `Position and Calc'd Benefits Detail`.xlsx | 2 sheets (By Position#, By Job Class) | **Position eturn** (above) — primary BFM input |
+| **15.15.002** | `Benefit Rates`.xlsx | 2 sheets (Retirement 54 rows × 10; Health Dental 1,621 rows × 9) | Per-(class, account, benefit code) benefit rates **for FY26-27 and FY27-28** (not the current FY — that comes from live BI Payroll). Alex's caveat: "not 100% confident these rates are 100% accurate and complete." |
+| **15.15.014** | `Job Class Rates and COLA`.xlsx | 3 sheets (Cross Tab 1,314 × 13; Emp Org COLA; Job Class Override 5 × 13) | Per-job-class hourly rate + COLA. Override sheet for class-specific MOU exceptions. **Currently empty (no overrides remaining late in the 3-year cycle).** |
+| **15.15.016** | `FTE Cost Report - 9900 Form`.xlsx | 1 sheet × 1,174 rows × 13 cols | Per-job-class FTE cost calculator. **Being retired in BY28 / BY29 per Alex.** KosPos's Phase 4 RPO calculator (in `app/src/`) is the modern replacement. |
+
+Concrete file shapes (incl. headers) live in
+[`reports-folder-inventory.md` § BFM reports](reports-folder-inventory.md#bfm-reports-5-files).
 
 ## BVA report
 
