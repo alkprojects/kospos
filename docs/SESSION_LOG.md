@@ -1224,3 +1224,103 @@ session give the copyable prompt for next session."
 
 - Same as Session 16 — no app code, no importer build, no OPS walkthrough yet.
 
+---
+
+## Session 17 — Phase 2.0e: OPS Summary + Detail deep-dive (2026-05-25, autonomous)
+
+**Worktree:** `tender-almeida-260205`
+**Model:** Opus 4.7 (high effort)
+**Mode:** **Autonomous — Alex asleep.** Multi-task session: Phase 2.0e
+walkthrough + 4 audit/reconciliation/inventory side-quests (Tasks A–E)
+shipped as separate PRs.
+
+### Prompts
+
+**[~ start]** Autonomous-session kickoff prompt (per SESSION_HANDOFF.md):
+Phase 2.0e (OPS Summary + Detail) PLUS Tasks B (BVA reconciliation suite),
+C (Reports folder inventory), D (Walkthrough audit), E (Edge-case scenario
+tests). Make reasonable calls without stopping; flag in Open questions
+rather than asking. Aim for 4–7 merged PRs.
+
+### Workflow (Task A only — see PRs for the rest)
+
+1. Read briefing docs (CLAUDE.md, SESSION_HANDOFF.md, SESSION_LOG.md
+   Sessions 13–16 + BVA interlude, labor-report.md per-tab template +
+   cross-cutting concerns, special-class.md OPS rows 36–42 reference,
+   bva.md 68-col schema).
+2. Branched `docs/labor-report-ops-summary-detail` from main.
+3. Opened the real workbook via openpyxl (read_only=True). Inventoried
+   OPS Summary (53 rows × 12 cols) cell-by-cell with formulas + resolved
+   values. Inventoried OPS Detail (813 rows × 26 cols) for row archetypes
+   + col headers.
+4. Decoded the pivot infrastructure via unzipped `xl/pivotTables/` +
+   `xl/pivotCache/`. OPS Summary's `PivotTable21` + OPS Detail's
+   `PivotTable22` both use `cacheId=935 → pivotCacheDefinition2.xml`
+   sourcing from Report Data (81 cache fields). Confirmed:
+   - OPS Summary has 3 row fields (Eff Div2 → Eff Div → Eff Dept) +
+     8 data fields (Sum of YTD Op Budget/Actuals/Balance + Total Budget +
+     Proj Op Actuals/Balance + YTD/Proj Continuing Actuals).
+   - OPS Detail extends OPS Summary with 14 more row fields (Position
+     Fill Status, Position Number, Employee Job Code, Appointment Type,
+     Budget Job Code, First Name, Last Name, Vice 1, Manager First/Last,
+     Roster Code/Desc, Budgeted Dept, Charge Override Dept, Exclude) at
+     the same 8 data fields.
+   - "Effective Employee Division2" (cache field [80]) is a
+     pivot-grouped field that rolls Eff Division values into DBI / CPC
+     parent labels — **not a Report Data column**. Used as the
+     top-level row axis.
+5. Decoded the special-class block (DBI rows 36–42, CPC rows 45–52):
+   per-class SUMIFS into Report Data SPECIAL S649:S748, GETPIVOTDATA into
+   Premium/Overtime/RPO tabs filtered by fund (DBI 10190 / CPC 10000),
+   SUM(Step!S/T) for STEPM, hardcoded BFM AZ1195/1197/1199/1201 for
+   TEMPM G40. Documented the three DBI/CPC asymmetries (extra MCCP row
+   for CPC, undifferentiated TEMP at CPC row 50, missing CPC prior-year
+   attrition rate at row 53). Documented the L23/L32/L33 ratio
+   (projected balance / total budget) vs G42/H42/G52/H52 attrition
+   rate (9993 / non-9993) — two different "%" metrics on the same
+   page.
+6. Wrote both tab sections using the per-tab template (~970 lines added).
+7. Updated tab-list table status for Tabs 26 + 27: pending → done
+   2026-05-25.
+8. Added 7 new DBI-shortcut catalog rows: block-shape asymmetry,
+   hardcoded H43 prior-year rate, BFM!AZ1195/1197/1199/1201 hardcoded
+   row addresses for TEMPM G40, H40 hardcoded `0` literal, CPC
+   E/H49/50 absent (MCCP + TEMP absorbed into residual), pure-PP
+   pacing in special-class D vs COLA-weighted in pivot D, L vs G42/H42
+   ratio confusion. Renamed the existing "Fund 10190 filter" row to
+   call out both the DBI 10190 and CPC 10000 shortcuts as a mirror
+   pair (touches OPS Summary E36/E37/E45/E46 plus the existing Step /
+   Report Data references).
+
+### Milestones
+
+- **PR #_TBD_ merged** — `docs(labor-report): Operating Report Summary + Detail walkthroughs (Tabs 26 + 27)`. ~950 lines added; tests green; deploy via gh-pages.
+
+### What changed for KosPos's understanding
+
+| Theme | Before this session | After this session |
+|---|---|---|
+| OPS Summary structure | "Headline projection page with rows 36–42 documented in special-class.md" | Two regions: 33-row per-dept pivot (live cache off Report Data) + DBI 6-class block (36–42) + CPC 7-class block (45–52) + ratio column L + hardcoded prior-year attrition rate H43 |
+| OPS Summary sources | Report Data S649:S748 for G column; pivots elsewhere | **One primary source (Report Data via pivot cache 935) + 4 secondary tab-pivot references (Premium / Overtime / RPO / Step) + BFM eturn TEMPM hardcoded rows.** Tab is a derived view, not a data source — no separate importer in KosPos |
+| OPS Summary fund filter | "DBI uses 10190 (known shortcut)" | **Mirror shortcut:** DBI E36/37 use fund 10190; CPC E45/46 use fund 10000. Both belong in the DBI-shortcut catalog with the same "dept-group → operating-fund-set lookup" generalization. |
+| OPS Summary CPC differences | Unknown / not modeled | **Three asymmetries vs DBI:** (a) extra MCCP Offset row (CPC has MCCP positions, DBI doesn't); (b) TEMP row 50 undifferentiated — no YTD/projection formula, absorbed into 9993 residual; (c) prior-year attrition rate H53 entirely missing. Drives the "every named class gets full math" KosPos design + automatic-prior-year-from-snapshot design |
+| Attrition rate definition | Implicit (per special-class.md) | **Three concurrent "% rates" on the same page:** G42/H42 = 9993/(total−9993) (canonical); L23/L32 = projected_balance/total_budget (different math); H43 hand-keyed literal. KosPos unifies on the 9993/non-9993 definition with prior-year derived from saved snapshots |
+| OPS Detail structure | "Drill-down view of Summary; likely per-position breakdown" | Same pivot cache as Summary (935), extended with 14 row fields to position grain (Fill Status, Position #, Job Code, …, Exclude). 813 rows. Surfaces per-position fill-status diff, charge-override drift, pool-position duplicates |
+| Snapshot-diff workflow | Hinted at | Concrete UX design: Δ-since-prior-snapshot chips on every row (NEW / REMOVED / STATUS_Δ / $_Δ), summary callout above the table, default-pinned reference snapshots at 6-month / 9-month / year-end milestones |
+| TEMPM G40 cell address | Known to reference 4 hardcoded BFM cells | Cross-linked to BVA reconciliation Task B: `BFM!AZ1195+AZ1197+AZ1199+AZ1201` = DBI TEMPM Interns total budget; Task B verifies the chartfield-level KK movement of this $180k |
+| Prior-year baseline | Hand-keyed H43 literal (`-15.44%`) only for DBI | **Workbook gap:** CPC H53 is empty. KosPos's "saved end-of-FY snapshot" pattern eliminates the hand-key AND fills the CPC asymmetry automatically |
+
+### Out of scope (deferred to follow-on sessions)
+
+- All other walkthroughs (Phase 2.0f = per-special-class tabs Premium /
+  Overtime / Step / Retirement Payout, then 2.0g = Staffing Plan +
+  Vacancies and TEMP + Budget Summary, then 2.0h = reference + tracking
+  tabs, then 2.0i = final + Phase 2.2 sub-phase enumeration).
+- Pivot's "Department Group" grouped-field label preservation in the
+  KosPos rebuild — flagged as Open Question (does Alex care about
+  GETPIVOTDATA-string compatibility with downstream consumers?).
+- Anchor-link audit — Task D this session.
+- BVA importer build — Phase 2.4 (still).
+- Phase 2.1 (route guard).
+
+
