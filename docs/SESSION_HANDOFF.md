@@ -4,145 +4,145 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
-## Current status (end of Session 12, 2026-05-24, autonomous research)
+## Current status (end of Session 12 + roadmap pivot, 2026-05-24)
 
-**Phase:** 4 — IN PROGRESS. RPO + OVERM math+UI shipped (Sessions 9–11). PREMM next (needs Alex's interactive walkthrough). This session was a docs-only research pass between math arcs.
-**Last main commit:** `ed94165` (PR #30 — SF authoritative reference)
-**Tests:** 146/146 passing (no app/src/ changes this session)
-**Branches in flight:** none — PR #30 merged; PR #31 (this briefing) will be merged before shutdown.
+**Phase:** Pivoting into **Phase 2 — Current-Year Workspace (the Labor Report rebuild).**
+**Last main commit:** _(to be filled after merge of the pivot PR — see below)_
+**Tests:** 146/146 passing
+**Branches in flight:** `docs/phase-2-pivot` (this PR — auto-merge after CI green)
 
-**PR merged this session:**
-- [PR #30](https://github.com/alkprojects/kospos/pull/30) — `docs: SF authoritative reference (authorities + appointment-type taxonomy)`
+### Recently landed
 
-## Briefing — pending Alex review (Session 12)
+- **[PR #30](https://github.com/alkprojects/kospos/pull/30)** — `docs: SF authoritative reference (authorities + appointment-type taxonomy)`. Two new domain files (`authorities.md`, `appointment-types.md`) + extensions across `domain/` and `data-sources/`. See the Session 12 entry in `SESSION_LOG.md` for the full briefing.
+- **[PR #31](https://github.com/alkprojects/kospos/pull/31)** — `docs(session-12): briefing + log entry`.
+- **THIS PR (pivot)** — `docs: roadmap pivot to current-year workspace (Phase 2)`. New ROADMAP.md, new ADR-009, new `docs/domain/labor-report.md` skeleton.
 
-### a) What landed
+## The pivot, in one paragraph
 
-**One PR merged: [#30](https://github.com/alkprojects/kospos/pull/30).** 14 files changed, +984 / −72. Tests 146/146 green. GitHub Pages deploy confirmed successful. Live site reflects the new docs at https://alkprojects.github.io/kospos/.
+The original roadmap (Phases 0 → 10 with the org chart last) was too vague to execute and required too many parallel decisions. **New strategy: build one self-contained workspace at a time, starting with the current-year workspace** — a recreated-and-improved version of `Labor Report 5.21.26.xlsx`. UI in KosPos + improved Excel export so users keep the workbook habit while moving analysis into the app. RPO + OVERM work from Sessions 9–11 stays in the codebase but is route-guarded out of the app shell (re-exposed in Phase 6 Budget Development). See [ADR-009](DECISIONS.md) and [`docs/ROADMAP.md`](ROADMAP.md).
 
-**Two new domain files:**
-- [`docs/domain/authorities.md`](domain/authorities.md) — Authority map (BOS, MYR, CON, CSC, DHR, dept). Reading order for KosPos contributors.
-- [`docs/domain/appointment-types.md`](domain/appointment-types.md) — **Headline deliverable.** Full Charter §10.104 enumeration (19 sub-sections), Cat 16/17/18/19, Provisional, MTA Exempt (§8A.104(i)), Transfer/LTT. Plus the "exempt-class vs exempt-appointment" distinction and the Group I 2% cap.
+## Data-source strategy (confirmed by Alex)
 
-**Existing files extended:**
-- `domain/positions.md` — "External authoritative rules" section pointing at the new files
-- `domain/hiring-process.md` — full appointment-type table; CS Rule 113 §113.8 calls our "RTF" a Personnel Requisition; Cat 16/17/18 hard limits; per-MOU probation duration
-- `domain/budget-process.md` — Charter Art. IX + Admin Code Ch. 3 citations; ASO/AAO/MOU authority anchors
-- `domain/special-class.md` — "Authoritative anchors" section
-- `data-sources/{controller,dhr,civil-service,bfm,mayor,obi}.md` — corrections and additions
-- `GLOSSARY.md` — full appointment-type vocabulary; Personnel Requisition; Group I cap; BOS/IG entries
+SF is migrating to Snowflake but the timeline is long ("a ways off"). For v1, **every update is a user upload** of source files. Some enhancements (e.g., DHR class-spec lookups) may need website scraping. The data-source inventory per labor-report tab is the headline output of the next session's walkthrough — Alex will go through each source and where it comes from.
 
-### b) Top 5 findings that change KosPos's understanding
+## Phase 2 sub-phases
 
-1. **Charter §10.104 has 19 sub-sections, not just 16/17/18.** Cat 19 (severely-disabled entry → PCS after 1 year satisfactory service per CS Rule 115) is the most operationally important one we missed: the class code doesn't change but the appointment-type field flips PEX(19) → PCS at the 1-year mark. Position tracking must support this in-place conversion. CSC groups all 19 into Groups I–IV with distinct caps; MTA managers under §8A.104(i) are entirely separate (2.75% MTA cap vs. citywide 2% Group I cap).
-
-2. **"RTF" is not a Civil Service Rules term.** CS Rule 113 §113.8 calls these **Personnel Requisitions** (time-stamped in receipt order). RTF is internal SFDHR/PeopleSoft workflow vocabulary. KosPos's RTF model needs to be reframed as the operational workflow that *maps to* the Rule 113 process — when KosPos extends beyond DBI, other departments may use different internal names for the same Rule 113 workflow.
-
-3. **Rule 117 sets no universal probation duration.** Probation length is per-MOU/per-class (typically 6 or 12 months). Hardcoding a default in the hiring-template model will be wrong for many classes. Police/Fire/MTA use parallel rules (217/317/417).
-
-4. **Premium-pay framework lives in MOUs + ASO under Charter §A8.409, not Admin Code Chapter 16.** Our RPO walkthrough sourced premium-pay rules to "§16.7-ish" — Chapter 16 is actually vacations + retirement + workers' comp. The premium-pay codes (L08 Lead Worker, 289 Bilingual, etc.) come from per-MOU language. This will matter for PREMM math.
-
-5. **BFM vendor identity confirmed: Sherpa Government Solutions** (selected Aug 2020, owned by GI Partners since Apr 2022). Internally branded "SF Budget" under the Controller's Systems Division. Useful for any future BFM importer technical decisions.
-
-### c) Conflicts between primary sources and existing docs
-
-Per session rule, the original claims were NOT edited — each affected doc has a "Conflicts to reconcile" section. Items needing Alex's call:
-
-| Where | Conflict | Suggested resolution |
+| # | Sub-phase | Output |
 |---|---|---|
-| GLOSSARY.md (Cat 16/17/18 entry) | "strict time limits. Cat 18 is the longest" — true but loses the structural distinction | Rewrite to enumerate the three distinct use cases + add Cat 19 |
-| GLOSSARY.md (RTF entry) | Treats RTF as canonical | Already updated to note Personnel Requisition equivalence; review wording |
-| hiring-process.md | Uses RTF and CSC Rules synonymously | Already updated; review the new "RTF terminology" callout |
-| hiring-process.md | Implied global default probation | Added a "duration is per-MOU" caveat; review |
-| special-class.md (RPO section) | Cites Admin Code Ch. 16 ambiguously for premium-pay-adjacent claims | Re-source via MOU when PREMM walkthrough lands |
-| data-sources/dhr.md | Pay calendar attributed to DHR | Already corrected; canonical reference moved to controller.md |
-| data-sources/dhr.md | DBI MOU list missing Building Inspectors Local 856 | Already added |
-| data-sources/controller.md | ASO described as Controller-owned | Already corrected (MYR proposes, BOS adopts, CON hosts) |
-| data-sources/obi.md | Implied OBI→Snowflake migration committed | Already corrected (Snowflake is DT-led, no Controller commitment) |
+| 2.0 | **Deep-dive walkthrough** — every tab of the Labor Report | `docs/domain/labor-report.md` filled in tab-by-tab; backlog of importers and UI sub-phases |
+| 2.1 | Hide budget-dev UI | Route-guarded `SpecialClassView`; `?budget=1` escape hatch for dev access |
+| 2.2 | Per-tab UI sub-phases | One per labor-report tab in dependency order; parity tests per tab |
+| 2.3 | Excel export | KosPos-emitted improved `.xlsx` |
+| 2.4 | Importer wiring | Importers built as each tab needs them |
 
-### d) Decisions Alex needs to make
+## Blockers for Alex
 
-1. **Cat 19 (disabled→PCS conversion) — do we model it?**
-   - Option A: Add a `pending_conversion` flag on positions with EE Appointment Type PEX-19 and date-stamp 1 year out. Surface as a hiring-pipeline event.
-   - Option B: Defer until KosPos has a department with active Cat 19 appointees. DBI's labor data may not contain any.
-   - Recommendation: **Option A**, low-cost, important for citywide rollout. Decide before extending hiring-process model further.
+None landing-related. Live site: https://alkprojects.github.io/kospos/ — please spot-check the new docs from PR #30 + #31 + this pivot PR when convenient:
 
-2. **RTF rename / aliasing.**
-   - Option A: Keep "RTF" as the UI label (Alex/DBI familiarity), document the Personnel Requisition equivalence.
-   - Option B: Switch UI to "Personnel Requisition" (Rule 113 alignment).
-   - Recommendation: **Option A** — the docs now make the mapping explicit; user-facing language stays in DBI vernacular.
+- [docs/ROADMAP.md](ROADMAP.md) — the pivot
+- [docs/DECISIONS.md](DECISIONS.md) — ADR-009 for the reasoning
+- [docs/domain/labor-report.md](domain/labor-report.md) — the deep-dive skeleton to fill next session
+- [docs/domain/authorities.md](domain/authorities.md) — from PR #30
+- [docs/domain/appointment-types.md](domain/appointment-types.md) — from PR #30
 
-3. **Probation modeling per-MOU.**
-   - Option A: Build a `probation_months_by_mou` lookup table now (one row per MOU) and seed it during MOU import.
-   - Option B: Hardcode a most-common default (6 mo) and override per class.
-   - Recommendation: **Option A** — costs little, avoids the wrong-default bug.
+## Next session prompt — Phase 2.0 (labor-report deep-dive walkthrough)
 
-4. **Group I 2% cap and MTA 2.75% cap surfacing.**
-   - Option A: Add a per-department dashboard widget showing Group I count + % of citywide workforce.
-   - Option B: Defer until citywide rollout phase.
-   - Recommendation: **Option B** — meaningful only at citywide scope; DBI alone doesn't see the denominator.
+This is an **interactive walkthrough**, not autonomous. The goal is to fill in `docs/domain/labor-report.md` tab by tab with Alex's prose. No app code in this session. Output is the structured deep-dive doc plus a backlog of importer sub-phases.
 
-5. **9993 attrition target framework.**
-   - The Mayor's Budget Instructions Section IV (Technical Instructions) is the likely host but the PDF was unreadable in this research. A future session should re-fetch (via a different fetcher or local download) and reconcile against KosPos's residual-9993 model.
-   - Recommendation: Add to a near-term research backlog; not blocking PREMM.
-
-### e) Suggested follow-on prompt for the next interactive session
-
-Most-likely-valuable next thing: the **PREMM walkthrough → math → UI arc** (same three-PR rhythm as RPO and OVERM). PREMM has the per-(job class, earnings code) lookup pattern, which is the most complex special-class math. The walkthrough is necessary first.
+Paste this verbatim to start the next session:
 
 ````
-We're starting the PREMM_E (Premium Pay) arc — same three-PR rhythm as RPO
-(Session 9) and OVERM (Session 11): walkthrough → math + tests → UI section.
+We're starting Phase 2 — the Current-Year Workspace.
+
+Session goal: walk through every tab of `Labor Report 5.21.26.xlsx` and
+fill in docs/domain/labor-report.md with what each tab does, where its
+data comes from, how the formulas work, what's manual/fragile, and how
+KosPos should rebuild and improve it. NO app code this session — just
+the structured deep-dive doc plus a backlog of importer sub-phases.
 
 Read first, in order:
   docs/CLAUDE.md
-  docs/SESSION_HANDOFF.md (this file — Session 12 briefing)
-  docs/SESSION_LOG.md — Sessions 9, 11 entries for the pattern
-  docs/domain/special-class.md § PREMM_E (pending walkthrough)
-  docs/domain/appointment-types.md (NEW — needed because premium pay
-    rules are MOU-anchored, and the MOU map is in §A8.409)
-  docs/domain/authorities.md § DHR + § Mayor (NEW)
-  app/src/lib/special-class/overm.ts — reference for the file shape
-  app/src/lib/special-class/rtpom.ts — reference for the file shape
+  docs/SESSION_HANDOFF.md (this file — pivot context)
+  docs/DECISIONS.md — ADR-009 (roadmap pivot reasoning)
+  docs/ROADMAP.md — new phase order
+  docs/domain/labor-report.md — the skeleton you'll fill in
+  docs/domain/special-class.md — math already documented for RTPOM, OVERM
+    (and pending for PREMM, STEPM, etc.) — cross-reference, don't re-derive
+  docs/domain/budget-process.md — three-function framework + COLA history
+  docs/domain/definitions.md — Pay Period rules + Temp definitions
+  docs/data-sources/*.md — source-system docs
 
 Confirm state on main:
   git log --oneline origin/main -5
-should show PR #30 + #31 (session-12 briefing) at top.
 
-Then: walk Alex through the PREMM Budget Master cells (U5:Z5 reference table,
-AB5:AH5 should-be per-(dept,job class)) plus the Labor Report `Premium` tab
-formulas (P5, P6, N5/N7, N6/N5 ratios). Open a single discussion PR with the
-prose walkthrough resolutions BEFORE writing any math. Then math+tests PR.
-Then UI PR. Merge each in order per the shutdown rule.
+Workflow:
 
-Hard reminders:
-- Premium-pay codes come from per-MOU language (Charter §A8.409 →
-  individual MOUs), NOT Admin Code Ch. 16. See appointment-types.md.
-- Per-MOU lookups will be needed: DBI touches SEIU 1021, IFPTE 21, MEA,
-  LiUNA 261, Building Inspectors Local 856 (the inspector-class signature MOU).
-- Same constants as OVERM: pull PP/Calendar data live, never hardcode 15.4/26.1.
+  1. Read the labor-report.md skeleton — note the per-tab template.
+  2. Alex enumerates every tab in the workbook (in whatever order he prefers).
+     For each tab, walk through the template:
+       - Purpose
+       - Data sources (where does the data come from — manual upload format,
+         scrape source, Snowflake-future plan)
+       - Formulas (decode each, plain-English what it does)
+       - What's manual / fragile (hardcoded constants, copy-pasted values,
+         DBI-specific shortcuts that won't generalize)
+       - KosPos improvements (what we'd do differently in the rebuild)
+       - KosPos UI sketch (how this becomes a page in the app)
+       - Excel export notes (what the corresponding sheet in the
+         KosPos-emitted .xlsx should look like)
+       - Open questions / TODO
+  3. As tabs are walked, build up the "Data sources inventory" table at the
+     bottom of labor-report.md. For each upstream source: which tab(s) use
+     it, v1 upload mechanism, v2 Snowflake plan, KosPos importer path.
+  4. At the end: enumerate Phase 2.2 sub-phases in dependency order
+     (Calendar must be wired before anything that uses PP%; Report Data
+     before Operating Report Summary; BI Payroll before Premium/Overtime/
+     Retirement Payout/Step pivots; etc.).
+  5. Ship as ONE docs PR: `docs/labor-report-deep-dive`. Merge per the
+     CLAUDE.md shutdown rule. Update SESSION_HANDOFF.md with Phase 2.1
+     prompt (hide budget-dev UI) for the next session.
 
-Model: claude-opus-4-7. Effort: high.
+Rules:
+  - This is a walkthrough — wait for Alex's prose for each tab. Don't
+    generate placeholder text unless Alex explicitly defers a section.
+  - Cite back to existing docs when a tab's math is already documented
+    (RTPOM and OVERM are in special-class.md; don't duplicate, link).
+  - Where a tab depends on a source that doesn't have a data-source doc
+    yet, flag it for follow-up — don't make up the doc.
+  - Budget-development tabs (Special Class tab in Budget Master) are NOT
+    part of this walkthrough — Phase 6, not now.
+  - Copyright respect on any verbatim quotes from the workbook: a single
+    cell label is fine; don't reproduce long passages.
+
+Hard constraints (unchanged):
+  - Branch from main, single-purpose name.
+  - No new npm packages.
+  - npm test stays green (no app changes this session anyway).
+  - One PR per logical chunk; MERGE before ending session.
+
+Recommended model: claude-opus-4-7. Effort: high (synthesis-heavy).
 ````
 
 ## Recommended model
 
-`claude-opus-4-7` — PREMM has the most lookup complexity of any special class.
+`claude-opus-4-7` — synthesis of Alex's prose into structured docs benefits from Opus's reasoning.
 
 ## Recommended effort
 
-`high` — per-(job class, earnings code) lookup pattern needs careful workbook tracing.
-
-## Blockers for Alex
-
-None landing-related. Live page: https://alkprojects.github.io/kospos/ — please spot-check the new docs when convenient:
-- [docs/domain/authorities.md](https://alkprojects.github.io/kospos/docs/domain/authorities/) (or wherever Pages renders the .md)
-- [docs/domain/appointment-types.md](https://alkprojects.github.io/kospos/docs/domain/appointment-types/)
+`high` — deep-dive walkthroughs are dense and benefit from careful interpretation.
 
 ## Notes for the next-session model
 
-- Same three-PR rhythm rule applies to PREMM. Don't skip the walkthrough.
-- Mirror the OVERM/RTPOM file shape until a third class lands; refactor into `common.ts` after.
-- Use the new `appointment-types.md` and `authorities.md` as the authority map for any PREMM rule that touches MOU language.
-- Per-MOU lookup table for premium-pay codes is a likely deliverable; design it before coding the math.
-- Persistence + multi-dept remain out of scope unless Alex re-opens them.
+- **Wait for Alex's prose.** This is interactive, not generative. If Alex skips a tab, leave the section marked `_(walkthrough — deferred)_` rather than inventing.
+- **Link, don't duplicate.** RTPOM, OVERM, and partial PREMM/STEPM math already lives in `special-class.md`. The labor-report.md sections for those tabs should *link* to the existing prose, not restate it. Add only what's new (the labor-report-tab-specific framing).
+- **Build the data-source inventory as you go.** It's the single most useful artifact for Phase 2.2 planning.
+- **Don't write code this session.** The temptation will be there. Resist. The deep dive is the foundation that prevents wasted Phase 2.2 work.
+- **Capture improvement ideas Alex mentions.** "I wish this would..." sentences are the entire point of the rebuild. Log them in the "KosPos improvements" bullet of each tab.
+- **Multi-dept extensions are Phase 3.** If Alex mentions another dept doing X differently, capture it but don't let it expand the scope of Phase 2.
+
+## What we are explicitly NOT doing next session
+
+- No `app/src/` code changes.
+- No PREMM math (deferred to Phase 6 Budget Development).
+- No budget-development UI changes (the route-guard is sub-phase 2.1, after the deep dive).
+- No new web research (Session 12 covered the authoritative-rules baseline).
