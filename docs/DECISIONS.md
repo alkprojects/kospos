@@ -6,6 +6,35 @@ Each entry: what we decided, the context, what we considered instead, and the co
 
 ---
 
+## ADR-009 — Roadmap pivot: current-year workspace first
+
+**Date:** 2026-05-24
+**Status:** Accepted
+
+**Context:** The original roadmap (Phases 0 → 10, org chart last, "the whole thing comes together at the end") was hard to execute. Deciding which piece to work on and in what order was difficult; the edges of each phase were vague because of cross-phase data and knowledge dependencies. Sessions 9–11 shipped solid RPO + OVERM math + UI for budget development, but the value wasn't visible to the real users (department admins) because the surrounding pieces weren't there.
+
+**Decision:** Reframe the project as a sequence of self-contained workspaces, starting with the **current-year workspace** — a recreated-and-improved version of `Labor Report 5.21.26.xlsx`. Every tab of that workbook becomes a corresponding KosPos page; KosPos also produces an improved Excel export so users keep the workbook-as-deliverable habit while moving the analysis into the app.
+
+The RPO + OVERM work from Sessions 9–11 is **kept in code (`app/src/lib/special-class/` + `app/src/modules/special-class/`) but route-guarded out of the app shell** until the budget-development phase (now Phase 6). A `?budget=1` query escape hatch preserves developer access.
+
+**Alternatives considered:**
+
+1. **Continue the original phase order** (PREMM next, then STEPM, then 9993, etc.) — would have produced a complete budget-development module before any current-year value shipped. Rejected: too long before real users see something useful.
+2. **Pause everything; do a single end-to-end vertical slice** (one position from import → org chart → report) — too thin to be useful; would still defer the labor-report workbook replacement.
+3. **Drop the budget-development work entirely** — wastes Sessions 9–11. Hiding the UI but keeping the code is cheaper and preserves the option to re-expose.
+
+**Consequences:**
+
+- Each sub-phase under Phase 2 (Current-Year Workspace) is small and shippable.
+- Department admins start seeing value within a few sessions instead of waiting for "the whole thing."
+- The importer work becomes demand-driven (each labor-report tab pulls the importers it needs) instead of speculative.
+- The budget-development UI being hidden for now means Alex's existing workbook stays the source for budget-dev tasks; KosPos's budget-dev value re-emerges in Phase 6.
+- Data-source strategy is now explicit: until SF's Snowflake migration lands (timeline unclear, treated as "a ways off"), every update is a user-uploaded source file; some enhancements may require website scraping.
+
+**See also:** [`docs/ROADMAP.md`](ROADMAP.md) for the revised phase order; [`docs/domain/labor-report.md`](domain/labor-report.md) is the deep-dive deliverable that opens Phase 2.
+
+---
+
 ## ADR-008 — Session handoff convention: SESSION_HANDOFF.md
 
 **Date:** 2026-05-23
