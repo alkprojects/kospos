@@ -14,18 +14,23 @@ System of record for employees, positions, and Time & Labor.
 
 ## Reports & queries KosPos consumes
 
-These are the named queries Alex pulls from PS HCM today. Add IDs/names as you confirm them.
+These are the named queries Alex pulls from PS HCM today. Filenames
+captured from the [`example reports/Reports/` inventory](reports-folder-inventory.md#ps-hcm-exports-4-csvs).
 
-| Query / report | Purpose | Module that consumes it |
-|---|---|---|
-| **P&P Data** | Position + person data (the 88-column report). Canonical input. | Phase 2 importer, Phase 10 org chart |
-| **Combo Codes** | List of combo codes per department | Phase 3 chartfields |
-| **Task Profiles** | List of task profiles per department | Phase 3 chartfields |
-| **Roster Approvers** | Who approves which roster | Phase 6 hiring + cross-reference |
-| **EE Additional Pay** | Active pay items (supervisory, acting, etc.) | Phase 4 special class (PREMM), data quality |
-| **T&L Reports** | Time entry detail | Phase 5 projections + reconciliation |
+| Query / report | Filename in folder | Cols × rows (sample) | Module that consumes it |
+|---|---|---|---|
+| **P&P Data** | `Active Labor - Version 8.30.24 (73).csv` (older snapshot; current is embedded in the labor-report workbook as the `P&P Data` tab) | 88 × 604 | Phase 2 importer, Phase 10 org chart. The OBI export name appears to be `Active Labor` (PS HCS source). |
+| **Combo Codes** | `MRG_COMBO_CD_DEPT (5).csv` | 14 × 3,697 | Phase 3 chartfields. Workbook Tab 3. |
+| **Task Profiles** | `MRG_TL_TASK_PROFILE_BY_TASKGRP.csv` | 20 × 1 (empty sample) | Phase 3 chartfields. Not in current labor report. |
+| **Roster Approvers** | `MTL0170_4531347.csv` | 9 × 866 | Phase 6 hiring + cross-reference. Workbook Tab 8. PS HCM query name = `MTL0170`. |
+| **EE Additional Pay** | `MRG_HR_EE_ADDL_PAY (65).csv` | 18 × 10 (tiny sample; expect ~thousands in prod) | Phase 4 special class (PREMM), data quality. Workbook Tab 9. |
+| **T&L Reports** | _(not in this folder)_ | _(varies)_ | Phase 5 projections + reconciliation. Future import target. |
 
-**TODO:** capture each query's PS HCM Query Name as Alex confirms them.
+Concrete file shapes (including headers) live in
+[`reports-folder-inventory.md` § PS HCM exports](reports-folder-inventory.md#ps-hcm-exports-4-csvs).
+
+**TODO:** capture each query's full PS HCM Query Manager name (the `MRG_*`
+and `MTL0170` prefixes suggest Standard / Tree / Public Query categories).
 
 ## Notes from the High Level Plan
 

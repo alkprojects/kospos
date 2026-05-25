@@ -38,6 +38,24 @@ classes — previously missing from KosPos's notes.
 - [DHR Reports](https://www.sf.gov/dhr-reports) — workforce / EEO / operational reports. Public; annual.
 - [Data for Labor](https://www.sf.gov/resource/2023/data-labor) — datasets supporting labor negotiations.
 
+### Hourly Rates of Pay by Classification and Step
+
+`Hourly-Rates-of-Pay-by-Classification-and-Step-FY{NN}-{NN+1}.xlsx` —
+the **canonical DHR pay-rate source** Alex downloads from the DHR
+website. Two sheets:
+
+- **Steps** (17,116 rows × 29 cols in the FY25-26 file) — per-(class, step) hourly rate detail.
+- **Ranges** (124 rows × 20 cols) — MCCP range table for management positions.
+
+Per Alex (`reports.txt`): _"source of truth at time of creation, may not
+be updated with rare changes mid-year."_ KosPos's
+`app/src/data/dhr-steps.json` and `dhr-ranges.json` derive from this
+file, versioned by effective date. Refresh annually after MOU
+ratification or fiscal cutover.
+
+Concrete file detail in
+[`reports-folder-inventory.md` § DHR pay rates](reports-folder-inventory.md#dhr-pay-rates-1-file).
+
 ## Pay calendar
 
 - `CAL2026.pdf` (downloaded from `media.api.sf.gov/documents/CAL2026.pdf`) — annual

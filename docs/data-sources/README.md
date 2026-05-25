@@ -17,9 +17,17 @@ One file per upstream system. Each file documents:
 | Civil Service Commission | [`civil-service.md`](civil-service.md) | Civil Service Rules (Vol I–IV), Civil Service Advisers |
 | Mayor's Office | [`mayor.md`](mayor.md) | Budget Instructions, ASO drafting, Proposed Budget |
 | PS HCM | [`ps-hcm.md`](ps-hcm.md) | Employees, positions, T&L, queries |
-| PS Financials | [`ps-financials.md`](ps-financials.md) | Chartfields, appropriation control |
+| PS Financials | [`ps-financials.md`](ps-financials.md) | Chartfields, appropriation control, BVA |
 | BFM | [`bfm.md`](bfm.md) | Budget formulation (Sherpa platform), eturns |
 | OBI / Snowflake | [`obi.md`](obi.md) | Current Controller-owned reporting (OBI); Snowflake is a DT initiative |
+| BVA report | [`bva.md`](bva.md) | Budget vs Actuals (from PS Financials, via OBI) — chartfield-grain reconciliation source |
+
+## Concrete file inventory
+
+The full set of upstream files Alex uses today, with shapes and roles,
+is catalogued in [`reports-folder-inventory.md`](reports-folder-inventory.md).
+The per-source docs above link into that inventory where relevant. Use
+the inventory as the cross-reference when designing Phase 2.4 importers.
 
 For the authority chain (who issues / approves / hosts), see
 [`../domain/authorities.md`](../domain/authorities.md). For the appointment-type taxonomy
