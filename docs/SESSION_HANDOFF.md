@@ -159,9 +159,269 @@ when convenient:
 4. **Session 17 + 18 reasonable-default calls** (9 total: 5 from Session 17 + 4 from Session 18 above) — review the calls; correct if any are wrong.
 5. **Confirm CPO posting account** — Tab 19 found CPO (Comp Time Pay Out) posting to 510210 alongside VPO/SVO. Confirm with Controller that CPO always posts to 510210 (not a separate comp-time account).
 
-## Next session prompt — Phase 2.0g (Staffing Plan + Vacancies + Budget Summary)
+## Next session prompt — Internal Claude setup audit (Session 19, BEFORE Phase 2.0g)
+
+Per Alex's end-of-Session-18 ask: the periodic-audit habit (set up in
+Session 5 memory `session_logging.md`) hasn't fired since Session 7 / end
+of Phase 3 — 11 sessions ago. Audit drift is exactly what this catches.
+Before any more Phase 2 content work, do a deep audit of the Claude setup.
+
+**The Phase 2.0g prompt (the original "Next session prompt") moves to
+the section below**, to be used in Session 20 after the audit ships.
 
 Paste this verbatim to start the next session:
+
+````
+This is an **internal Claude setup audit** session for the kospos project.
+No Phase 2 content work this session — Phase 2.0g (Staffing Plan + Vacancies
++ Budget Summary) is scheduled for the session AFTER this one. The goal is
+to make sure everything in the Claude collaboration setup is working,
+non-bloated, and aligned with Alex's preferences before we resume content
+work.
+
+Read first, in order:
+  docs/CLAUDE.md
+  docs/SESSION_HANDOFF.md (this file — full context + the Phase 2.0g
+    prompt that comes after)
+  docs/SESSION_LOG.md (Sessions 1-18 + all interlude entries — the
+    audit cadence + what's been logged vs missed lives here)
+  docs/WORKFLOW.md (the collaboration rules)
+  docs/DECISIONS.md (every ADR + see if any non-ADR decisions slipped in)
+  docs/ROADMAP.md + docs/VISION.md (still accurate?)
+  C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/MEMORY.md
+    + every file it indexes (audit them in detail)
+  C:/Users/ALK/Desktop/Claude Projects/kospos/.claude/settings.json
+    (the Stop hook config landed in PR #51)
+  C:/Users/ALK/Desktop/Claude Projects/kospos/.claude/hooks/check-session-end-prompt.py
+    (the hook script)
+
+Confirm state on main:
+  git log --oneline origin/main -5
+
+==============================================================================
+TASK — Session 19: Internal Claude setup audit
+==============================================================================
+Branch: docs/internal-claude-setup-audit
+Scope: pure audit + applied fixes. No content work on labor-report tabs.
+Deliverable: a new `docs/audits/internal-claude-setup-audit.md` documenting
+findings + a log of fixes applied this session + a list of suggestions for
+Alex to consider (not yet applied).
+
+Work through these areas systematically. For EACH finding, state:
+  - What's the current state
+  - Why it's a problem (or not)
+  - Recommended fix
+  - Whether you applied the fix this session or it needs Alex's input
+
+=== Area A: Memory hygiene ===
+
+The memory directory:
+  C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/
+
+Audit each entry for:
+  1. **Index ↔ files consistency.** MEMORY.md links to filenames; do they
+     all exist? (Session 18 noticed `feedback_session_end.md` was indexed
+     but actual filename is `feedback_end_of_session_prompt.md` — that's a
+     stale index reference. Find others like it.)
+  2. **Still relevant?** Has any entry been superseded by code/docs?
+     Memory should NOT duplicate things that are derivable from current
+     project state. Per MEMORY.md instructions: code patterns, file
+     paths, project structure, git history — none of these belong in
+     memory.
+  3. **Still accurate?** Verify each `[[link]]` resolves to a real
+     memory entry. Verify any cited file paths exist. Verify any cited
+     commit hashes / PR numbers are still valid.
+  4. **Appropriately scoped?** Some entries may be too narrow ("X happened
+     once in session N") or too broad ("always do Y"). Tighten where
+     useful.
+  5. **Duplicates / overlaps?** Two entries saying the same thing in
+     different words should merge.
+  6. **Coverage gaps?** Anything Alex has corrected me on multiple times
+     that isn't yet in memory? (Re-read recent SESSION_LOG entries for
+     correction patterns.)
+  7. **Bloat?** Is MEMORY.md becoming a long list that dilutes? Per the
+     index rules: lines after 200 truncate. Currently well under, but
+     watch the trajectory.
+
+Apply trivial fixes immediately (rename stale indexes, fix broken
+[[links]], merge obvious duplicates). Surface non-trivial proposals
+(e.g., "this memory entry should be promoted to a CLAUDE.md non-negotiable
+rule because it keeps being violated") for Alex's decision.
+
+=== Area B: Rules / canonical docs ===
+
+  1. **CLAUDE.md** — does every "non-negotiable working agreement" still
+     hold? Have any been silently dropped? Are any being violated this
+     phase? Check the Session 6 + Session 7 audit notes for past
+     drift patterns.
+  2. **WORKFLOW.md** — is it still followed? Is anything in it stale
+     (e.g., refers to phases that have shipped)?
+  3. **DECISIONS.md** — every architectural decision since the last
+     ADR. Are there decisions that SHOULD have been ADRs but weren't?
+     (E.g., the MCCP split into 9994 — Session 18 — is that ADR-worthy?
+     The COLA-everywhere principle? The user-notes-per-position
+     requirement? The Stop hook?)
+  4. **ROADMAP.md / VISION.md** — still accurate vs the Phase 2 reality?
+     Phase scope didn't shift in a way the roadmap doesn't reflect?
+
+=== Area C: SESSION_LOG.md + audit cadence ===
+
+  1. **Coverage.** Are Sessions 13-18 logged consistently with Sessions
+     1-12? Format, prompt-by-prompt detail, milestones?
+  2. **Audit cadence.** Session 5 memory `session_logging.md` says
+     audits should run "periodically and especially at the end" — last
+     audit was Session 7 (end of Phase 3). Decide: should audits be
+     time-based (every N sessions), event-based (every phase close), or
+     both? Document the decision. If event-based, when should the next
+     content-phase-audit fire? (Phase 2.0 hasn't closed yet — it'll
+     close at Phase 2.0i.)
+  3. **Could a hook enforce this?** The Stop hook now enforces the
+     copyable-next-session-prompt rule. Could a similar Stop or
+     SessionStart hook nudge for audits every N sessions? Consider but
+     don't necessarily implement; the audit was triggered manually this
+     time, which worked fine.
+  4. **Format.** Is SESSION_LOG.md becoming bloated? It's the kind of
+     file that grows monotonically. Worth a "trim to top 5 most-recent
+     sessions in detail, summarize older ones" rule?
+
+=== Area D: Hooks / settings ===
+
+  1. **Stop hook** (PR #51) — is it working? It's installed but didn't
+     fire in this exact session (the watcher only picks up hooks
+     present at session start). Confirm a fresh session sees it.
+  2. **Are there other places where hooks could replace memory-only
+     enforcement?** Pattern from this session: rules in memory keep
+     getting violated → hook them. Candidates:
+       - "PR description must have ## Summary + ## Test plan" — could be
+         a PreToolUse hook on `Bash` matching `gh pr create`?
+       - "Use Co-Authored-By line in commits" — PreToolUse on Bash
+         matching `git commit`?
+       - Don't go hook-crazy — only add hooks for rules that have
+         actually drifted, not preemptively.
+  3. **settings.json sanity** — any config you'd recommend?
+     spinnerVerbs? statusLine? availableModels? Or leave alone?
+  4. **`.claude/launch.json`** — tracked but I've never inspected it.
+     What's in it? Is it being used?
+
+=== Area E: File / repo organization ===
+
+  1. **labor-report.md size.** It's ~5,600 lines after Phase 2.0f.
+     Worth splitting per-tab? Trade-off: split = more navigable but
+     more files to keep in sync. Recommend, don't necessarily apply
+     this session.
+  2. **docs/audits/ proliferation.** There are now 5 audit docs
+     (bva-reconciliation-suite, labor-report-scenario-tests,
+     labor-report-walkthrough-audit, reports-folder-inventory…). Is
+     that the right grouping? Should there be an audits/README.md
+     index?
+  3. **Overlapping content.** Is anything documented in 2+ places
+     (e.g., overm formulas in both labor-report.md Tab 17 AND
+     special-class.md OVERM_E)? When that happens, decide which is
+     canonical and either remove the duplicate or convert it to a
+     pointer.
+  4. **Anchor link convention compliance.** Audit any new cross-refs
+     since the Task D audit landed. Per Phase 2.0f migration:
+     occurrence-index, NOT tab-number. Re-run the verifier script
+     style I used in PR #48 over the full docs/ tree.
+
+=== Area F: Workflow patterns ===
+
+  1. **PR-per-change followed?** Recent commit history — any commits
+     that bundled multiple unrelated changes?
+  2. **Worktree usage smooth?** This worktree
+     (nice-archimedes-288f0b) has accumulated `.scratch/`,
+     `extract_*.py` files, etc. Should worktrees be ephemerally
+     destroyed between sessions, or do they persist?
+  3. **Memory updates happening when they should?** Re-read recent
+     sessions for "Alex corrected X" or "Alex confirmed unusual
+     approach Y" — were those captured as memory?
+
+=== Area G: Carry-forward debt from Session 18 ===
+
+These items don't get DONE in this audit session — they're scheduled for
+Phase 2.0g (Session 20). But the audit should confirm they're tracked:
+
+  - PREMM projection switch to COLA-aware (Tab 16 fix-up)
+  - Cat 16/17/18 research from CSC + DHR + admin code; scenario-tests
+    Scenario 3 + 4 updates; user-notes-per-position lib/quality TODO
+  - 4 restated questions for Alex (Sessions 17 + 18 deferred defaults)
+  - 4 action items still open (Cat 17/18 expired positions, Guaiumi
+    Cat 16, 5 vacant-no-RTF, 9 reasonable-default calls)
+
+If any of these are MISSING from the Phase 2.0g prompt section below,
+add them. If they're there but unclear, sharpen the wording.
+
+=== Deliverable structure ===
+
+Single new doc: `docs/audits/internal-claude-setup-audit.md`.
+
+Sections:
+  - `## Methodology` (1-2 paragraphs)
+  - `## Area A: Memory hygiene` ... through `## Area G: Carry-forward debt`
+    — each with `### Findings` + `### Fixes applied this session` +
+    `### Surfaced for Alex's review` subsections
+  - `## Summary table` — every finding × {applied / surfaced /
+    no-action} disposition × link to where it lives in the audit doc
+  - `## Recommendations not actioned` — Alex-decision items
+
+==============================================================================
+Hard constraints
+==============================================================================
+
+  - Branch from main, single-purpose name (`docs/internal-claude-setup-audit`).
+  - **No app code.** No labor-report walkthrough work.
+  - **No new npm packages.**
+  - **`npm test` stays green.**
+  - One PR; merge after CI passes; fast-forward main:
+    `git -C "C:\Users\ALK\Desktop\Claude Projects\kospos" pull --ff-only origin main`
+  - Commit message ends with the Co-Authored-By line per CLAUDE.md.
+  - Hooks/settings changes ARE in scope this session (audit may recommend
+    new hooks). If you add or modify a hook, follow the install pattern from
+    PR #51: I'll be asked to do the actual write since the auto-mode
+    classifier blocks me from .claude/ writes. Make the write self-contained
+    (script + one-liner Copy-Item PowerShell command).
+
+==============================================================================
+What we are NOT doing
+==============================================================================
+
+  - No app/src/ code changes.
+  - No labor-report walkthrough content work (no Tab 23/24/25; no PREMM
+    fix-up; no Cat research). Those are Phase 2.0g (Session 20).
+  - No ADR-006 / ADR-007 amendments.
+  - No new external research that isn't directly part of the audit.
+
+==============================================================================
+Session-end checklist
+==============================================================================
+
+Before ending, update SESSION_HANDOFF.md with:
+  - Audit doc landed (link + summary findings).
+  - Fixes applied this session (with PR link).
+  - Items surfaced for Alex's review.
+  - Updated next-session prompt for Phase 2.0g (Session 20). If the audit
+    surfaced anything that affects how Phase 2.0g should be approached
+    (e.g., new memory entries to read, a rule that changes the
+    walkthrough pattern), bake that into the Phase 2.0g prompt.
+
+Re-ask the action items still open (the 4 + 9 carry-forwards).
+
+Recommended model: claude-opus-4-7. Effort: high.
+````
+
+## Recommended model
+
+`claude-opus-4-7` — audit is reasoning-heavy.
+
+## Recommended effort
+
+`high` — multi-area audit + applied fixes + careful reading across many files.
+
+---
+
+## Session-after-next prompt — Phase 2.0g (Staffing Plan + Vacancies + Budget Summary)
+
+For Session 20, AFTER the audit ships. Use this prompt verbatim:
 
 ````
 This session continues Phase 2 of the labor-report deep-dive. Phase 2.0g
@@ -365,14 +625,16 @@ Also re-ask the 4 action items still open from Session 17 + 18:
 Recommended model: claude-opus-4-7. Effort: high.
 ````
 
-## Recommended model
+### Recommended model (Phase 2.0g)
 
 `claude-opus-4-7` — Staffing Plan is synthesis-heavy.
 
-## Recommended effort
+### Recommended effort (Phase 2.0g)
 
 `high` — multi-tab walkthrough; Staffing Plan is the most complex per-cell
 math in the planning-surface cluster.
+
+---
 
 ## Notes for the next-session model
 
