@@ -16,6 +16,7 @@ See Oracle PeopleBooks library linked from [`ps-hcm.md`](ps-hcm.md). FSCM 9.2 do
 - **Chartfield reference data** — Fund / Dept / Project / Activity / Authority / Account hierarchies. See [`docs/domain/chartfields.md`](../domain/chartfields.md).
 - **Appropriation control trees** — Account / Project / Authority controls per `docs/domain/chartfields.md`.
 - **Labor actuals** — what actually posted, by chartfield, by employee, by PP.
+- **BVA report (Budget vs Actuals)** — chartfield-level budget + actuals + KK transfers + GL actuals. Delivered via OBI today; the **source of truth** when reconciling position-aware payroll against chartfield-level GL. Full schema in [`bva.md`](bva.md).
 
 ## Notes
 

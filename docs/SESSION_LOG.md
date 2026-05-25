@@ -1155,3 +1155,72 @@ Detail, Tab 26 + 27), merge.
   needs BVA upload to perform.
 - Phase 2.1 (route guard).
 
+## Interlude — BVA data-source documentation (2026-05-25)
+
+**Worktree:** `stupefied-herschel-a0bb3d` (same as Session 16)
+**Model:** Opus 4.7 (high effort)
+**Mode:** Interactive, post-Session-16 (Alex provided the BVA sample file
+that the Tab 20 walkthrough flagged as needed)
+
+### Prompts
+
+**[~ start]** "before starting the next session, i added the bva file i
+mentioned here: 'BvA - All Fields - Version 10.20.25 (42).csv'…look at the
+file, verify my comments, compare to payroll and eturn. some things to note,
+timing is important. payroll reports can be run before payroll actually posts
+to gl. OBI report data is 1 day behind live. payroll posts every other tuesday.
+therefore bva has to be run wednesday or later to be up to date."
+
+**[after verification]** "fyi the bva filename references the report version
+date, not the run date. yes, do your suggestions, then when ready for next
+session give the copyable prompt for next session."
+
+### Workflow
+
+1. Inspected the BVA CSV (68 cols × 2,710 rows for DBI+CPC FY26). Confirmed
+   the chartfield-only / no-position-attribution structure flagged in
+   Session 16.
+2. Reconciled three key chartfield totals against the labor workbook to verify
+   the comparison works in practice:
+   - DBI Fund 10190 OT 511010: BVA `GL Actuals` = $438,678 vs OPS!E37 = $438,786 ($108 delta, within OBI 1-day lag tolerance)
+   - DBI Perm Salaries 501010 all-funds: BVA `Transfer & Other Budget` = -$2,040,294 (the DBI→CPC transfer of function visible)
+   - CPC Perm Salaries 501010 mirror: BVA `Transfer & Other Budget` = +$1,983,530
+3. Surfaced two new findings to Alex:
+   - **Refresh-order timing rule** (his prose): payroll reports run before
+     payroll posts to GL; OBI is 1 day behind; payroll posts every other
+     Tuesday; **BVA must be Wednesday-or-later** to reflect the full PP.
+   - **Filename caveat**: `10.20.25` in the filename is the report-definition
+     version date, NOT the data snapshot date. Snapshot date has to come
+     from file mtime or future header field.
+4. Created `docs/data-sources/bva.md` — full 68-col schema, refresh-order
+   timing rule, reconciliation pattern with verified examples, KosPos
+   importer design, open questions.
+5. Trimmed the BVA TODO section in `data-sources/bfm.md` to a brief pointer
+   (BVA is PS Financials, not BFM).
+6. Added BVA to the "what KosPos uses" list in `data-sources/ps-financials.md`.
+7. Added "Refresh-order timing" subsection to `labor-report.md` § Cross-cutting
+   concerns.
+8. Updated Tab 20's KosPos improvement #2 + Data Sources Inventory row with
+   the verified shape + timing rule + filename-caveat detail.
+9. Updated SESSION_HANDOFF.md to mark the BVA action item complete and add
+   the new bva.md to the "spot-check on the live site" list.
+
+### Milestones
+
+- **BVA data source documented.** New canonical reference at
+  `docs/data-sources/bva.md`; cross-linked from labor-report.md Tab 20 +
+  cross-cutting concerns + Data Sources Inventory; cross-linked from
+  bfm.md (KK reconciliation formula) and ps-financials.md (BVA listed
+  as a PS Financials output KosPos consumes).
+- **Refresh-order timing rule** added to cross-cutting concerns. Applies
+  to BVA, BI Payroll, P&P Data, and the Inactive cross-check — anywhere
+  KosPos compares two snapshots that depend on payroll posting having
+  caught up to OBI.
+- **Reconciliation pattern verified end-to-end** with the 10.20.25 sample:
+  BVA `Revised - eturn Board = KK adjustments`; BVA `GL Actuals - BI Payroll
+  YTD (excl. inactives) = GL adjustments`.
+
+### Out of scope
+
+- Same as Session 16 — no app code, no importer build, no OPS walkthrough yet.
+

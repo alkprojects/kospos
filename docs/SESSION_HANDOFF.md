@@ -4,12 +4,39 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
-## Current status (end of Session 16, 2026-05-25)
+## Current status (end of Session 16 + BVA interlude, 2026-05-25)
 
 **Phase:** Phase 2.0 — Labor Report deep-dive walkthrough. **In progress.**
-**Last main commit:** _(will be the Report Data PR merge — see below)_
-**Tests:** passing on CI (no app-code changes this session)
+**Last main commit:** _(will be the BVA interlude PR merge — see below)_
+**Tests:** passing on CI (no app-code changes)
 **Branches in flight:** none after the handoff PR merges
+
+### What landed in the BVA interlude (post Session 16)
+
+After the Tab 20 walkthrough merged, Alex dropped an example BVA export
+(`BvA - All Fields - Version 10.20.25 (42).csv`) into
+`example reports/Reports/`. The interlude:
+
+- **Verified BVA shape** end-to-end against the labor workbook. DBI Fund 10190
+  OT BVA `GL Actuals` = $438,678 vs OPS!E37 (BI Payroll YTD via Overtime
+  pivot) = $438,786 → $108 delta (rounding + OBI 1-day lag). KK transfer of
+  function visible: DBI Perm Salaries 501010 shows -$2.04M `Transfer & Other
+  Budget`; CPC Perm Salaries shows +$1.98M.
+- **Created [docs/data-sources/bva.md](data-sources/bva.md)** — full 68-col
+  schema + refresh-order timing rule + verified reconciliation examples +
+  KosPos importer design + open questions.
+- **Captured the refresh-order timing rule** as a new cross-cutting concern
+  in `labor-report.md`: payroll OBI runs before payroll posts to GL; OBI is
+  1 business day behind live; payroll posts every other Tuesday; **BVA must
+  be run Wednesday-or-later** after a payday Tuesday.
+- **Filename caveat captured:** BVA filename carries the report-definition
+  version date (`10.20.25`), **NOT the data snapshot date**. KosPos importer
+  must source the snapshot date from file mtime (or a future header field).
+- Trimmed the BVA section in `data-sources/bfm.md` to a brief pointer
+  (BVA is PS Financials, not BFM). Added BVA to the "what KosPos uses" list
+  in `data-sources/ps-financials.md`.
+- Cross-cutting concerns table + Tab 20 KosPos improvements #2 updated with
+  the verified reconciliation pattern and timing rule.
 
 ### What landed this session
 
@@ -101,21 +128,30 @@ Updated at the end of every session. The next session reads this before doing an
 ## Blockers for Alex
 
 None landing-related. Live site: <https://alkprojects.github.io/kospos/>. Please
-spot-check the new Report Data walkthrough when convenient:
+spot-check the new Report Data walkthrough + the BVA data-source doc when
+convenient:
 
 - [docs/domain/labor-report.md § Tab 20 (Report Data)](domain/labor-report.md) —
   the main walkthrough.
+- [docs/domain/labor-report.md § Cross-cutting concerns — Refresh-order
+  timing](domain/labor-report.md) — new section capturing the BVA
+  Wednesday-or-later rule.
 - [docs/domain/labor-report.md § Data sources inventory](domain/labor-report.md) —
-  five new rows (BFM eturn, BVA planned, Inactive internal, Staffing Plan
-  internal).
-- [docs/data-sources/bfm.md](data-sources/bfm.md) — BVA TODO section + BFM
-  eturn AX-vs-AZ guidance.
+  five new rows (BFM eturn, BVA, Inactive internal, Staffing Plan internal).
+- [docs/data-sources/bva.md](data-sources/bva.md) — **NEW.** Full BVA
+  schema (68 cols), refresh-order timing, reconciliation pattern with
+  verified examples against the 10.20.25 sample, KosPos importer design,
+  open questions.
+- [docs/data-sources/bfm.md](data-sources/bfm.md) — BFM eturn AX-vs-AZ
+  guidance + brief BVA pointer.
+- [docs/data-sources/ps-financials.md](data-sources/ps-financials.md) — BVA
+  added to the "what KosPos uses" list.
 
-**ACTION ITEM for next session.** Alex agreed to provide an **example BVA
-export** so its column shape can be documented in `data-sources/bfm.md` (or a
-new `bva.md`) before the Phase 2.4 importer is built. Please drop the BVA
-example into `C:\Users\ALK\Desktop\Claude Projects\Position Management\` (or
-the `example reports` subfolder) before the next session.
+**BVA action item completed.** Alex provided an example BVA export
+(`BvA - All Fields - Version 10.20.25 (42).csv` in `example reports/Reports/`);
+its shape is verified against the labor workbook (DBI Fund 10190 OT
+matches OPS!E37 within $108 of rounding + OBI 1-day lag) and documented
+in `data-sources/bva.md`.
 
 ## Next session prompt — Phase 2.0e (Operating Report Summary + Detail deep-dive)
 
@@ -162,6 +198,10 @@ Read first, in order:
     total, percent-attrition) + OPS Detail.
   docs/domain/budget-process.md — three-function framework; OPS covers
     functions 2 and 3 (current-year YTD and projection).
+  docs/data-sources/bva.md — new this interlude; full BVA schema +
+    refresh-order timing rule + reconciliation pattern. Not the immediate
+    focus this session but read so OPS-tab improvements that mention
+    BVA reconciliation cross-link correctly.
 
 Confirm state on main:
   git log --oneline origin/main -5
