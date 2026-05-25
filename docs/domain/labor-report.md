@@ -381,7 +381,12 @@ isolated.
 Data. The choice is implicit and not documented anywhere obvious — a new analyst won't
 know why Overtime uses one and Step uses the other.
 
-**KosPos design.** A single `project()` function:
+**KosPos design.** All projections are **COLA-aware by default** — that's the
+correct math. Straight-line is provided only as an **optional simplified view** for
+quick reads and parity-checks against the existing workbook; it is never the
+authoritative number a KosPos report emits.
+
+A single `project()` function:
 
 ```ts
 project({
@@ -389,59 +394,63 @@ project({
   asOfDate: Date,
   fy: number,
   bargainingUnit: string,
-  method: 'straight-line' | 'cola-aware',  // default per-context
+  method: 'cola-aware' | 'straight-line',  // default: 'cola-aware'
 }) → { projectedAnnual: number, breakdown: ... }
 ```
 
-For `cola-aware`, the function walks the remaining PPs and applies the rate in
-effect at each. For a single-MOU population (DBI today), this collapses to a single
-multiplier — output matches the workbook's `N2/M2` math exactly. For a mixed-BU
-population (e.g., a future dept with SEIU 1021 + IFPTE 21 staff), the function
-produces the correct per-BU projection rather than a flat one-size-fits-all multiplier.
+`cola-aware` walks the remaining PPs and applies the rate in effect at each.
+For a single-MOU population (DBI today), this collapses to a single multiplier —
+output matches the workbook's `N2/M2` math exactly. For a mixed-BU population (e.g.,
+a future dept with SEIU 1021 + IFPTE 21 staff), the function produces the correct
+per-BU projection rather than a flat one-size-fits-all multiplier.
 
-**Per-tab defaults match the current workbook:**
-
-| Surface | Default `method` | Rationale |
-|---|---|---|
-| Overtime YTD + projection | `straight-line` | OT is volatile (lumpy events); COLA delta is small noise. Matches workbook. |
-| Premium pay | `straight-line` | Same as OT — volatility dominates. Matches workbook. |
-| Retirement Payout | `straight-line` | Lumpy individual-retirement-driven; already conservative via `MAX(budget, YTD)` floor. |
-| Step | `cola-aware` | The point of Step is precise per-PP COLA accounting. Matches workbook. |
-| Report Data (per-position salary) | `cola-aware` | Forward PPs all post-COLA; precision matters. Matches workbook. |
-| Operating Report Summary | uses the per-class number above — no own choice | |
-
-A per-tab toggle lets the user opt the other way and see the impact.
+**Per-labor-type projection methods are a separate discussion per labor type, not
+shared defaults.** Each labor type (regular labor, overtime, premium, retirement
+payout, step, temp, etc.) has its own projection nuances — straight-line annualize,
+seasonality-aware, hire-plan-aware, lump-sum, residual. Those choices are decided
+when that labor type's tab is walked, not here. **Universal invariant:** whatever
+method a tab uses, KosPos always feeds the per-BU COLA schedule through it so the
+final number reflects scheduled raises through the projection horizon. Alex's
+workbook sometimes uses `J2/I2` (pure straight-line) for OT / Premium / Retirement
+Payout — that's a workbook shortcut for simplicity. KosPos does not inherit that
+shortcut as its default; the correct answer is always COLA-aware.
 
 **Worked example.** OT YTD $438k at PP 22.4 / 26.1, BU = SEIU 1021 Misc:
-- `straight-line`: $438k × 26.1 / 22.4 = **$510k**
-- `cola-aware`: $438k × 26.295 / 22.535 = **$511k**
-- The $1k spread is what would show in the side-by-side display (improvement #3).
+- `cola-aware` (KosPos default): $438k × 26.295 / 22.535 = **$511k** ← the answer KosPos emits
+- `straight-line` (optional shortcut view): $438k × 26.1 / 22.4 = **$510k**
+- Workbook today emits $510k for OT; KosPos emits $511k. Both are surfaced in
+  parity-check views during the rebuild.
 
-#### 3. Show both projections, expose the delta
+#### 3. Show the correct projection prominently; surface straight-line as a check
 
-**Problem in the workbook.** Only one number lands in the cell. The user can't see
-how much of the projection comes from "real activity continuing forward" vs. "COLA
-inflation of forward dollars." For exec-facing reports this matters: when the
-projection rises run-to-run, leadership wants to know whether it's because of
-overspend or because of a known scheduled bump.
+**Problem in the workbook.** Only one number lands in the cell, and the math behind
+it isn't obvious — for some tabs the cell is straight-line, for others COLA-aware.
+The user can't see how much of the projection comes from "real activity continuing
+forward" vs. "scheduled raises hitting the back half of the year." For exec-facing
+reports this matters: when the projection rises run-to-run, leadership wants to know
+whether it's because of overspend or because of a known scheduled raise.
 
-**KosPos design.** Every projection number renders with three values visible:
+**KosPos design.** The COLA-aware number is the headline (it's the correct math).
+The straight-line number is rendered next to it as a labeled "simplified view" —
+useful for quick sanity checks and for matching the workbook during parity testing,
+but never the number that goes in a KosPos report.
 
 ```
 Overtime projection
-  Straight-line:   $510,000
-  COLA-aware:      $511,000   (+0.2%)
-  Variance vs G37 budget:  -$131,000 (recommended display)
+  $511,000  (year-end, COLA-aware) ← headline
+  Simplified (no COLA): $510,000   ← side-note, lower visual weight
+  Variance vs G37 budget: -$131,000
 ```
 
-Optionally collapse to one when the spread is below a threshold (e.g., 0.1%) to
-reduce visual noise. Always show the spread in tooltips.
+When the spread is below a threshold (e.g., 0.1% — late in the year) the simplified
+view collapses into a tooltip on the headline number. Always queryable, never
+overshadowing the correct figure.
 
 **Secondary benefit — data-quality flag.** If a class has no bargaining unit
-assigned, the COLA-aware projection won't include any mid-year bumps for that class
-and the per-class spread will be **zero**. In a department where the dominant
-spread should be ~1.5%, a class with zero spread is a missing-BU flag. The Data
-Issues panel (per ADR-003) picks this up automatically.
+assigned, the COLA-aware projection has no raises to apply for that class and
+becomes numerically identical to the straight-line view. In a department where the
+dominant spread should be ~1.5%, a class with zero spread is a missing-BU flag. The
+Data Issues panel (per ADR-003) picks this up automatically.
 
 **Tertiary benefit — cross-dept comparison.** Two departments with similar
 profiles should have similar spreads. If they don't, that's diagnostic: one has BU
