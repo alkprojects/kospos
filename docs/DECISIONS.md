@@ -6,6 +6,212 @@ Each entry: what we decided, the context, what we considered instead, and the co
 
 ---
 
+## ADR-015 — BVA is a distinct PS Financials data source, separate from BFM
+
+**Date:** 2026-05-25
+**Status:** Accepted (decided Session 16 + post-Session-16 interlude; ratified at Session 19 audit)
+
+**Context:** The Session 16 Report Data walkthrough surfaced that DBI's mid-year DBI→CPC transfer-of-function uses KK budget journals and GL actuals journals to move budget and actuals between departments. **These journals carry only chartfield-string detail — no Position Number attribution.** The position-aware Report Data has no way to capture them; the MERGE row 753 + GL placeholder 762 in the workbook are stop-gaps.
+
+Alex provided the BVA (Budget vs Actuals) sample export in the post-S16 interlude (`BvA - All Fields - Version 10.20.25 (42).csv`). The BVA is sourced from PS Financials via OBI — it carries every budget+actuals line at chartfield grain. It is **not** part of BFM (which is the budget-system feed for the eturns). BVA captures KK + GL journal movements that BFM and BI Payroll miss.
+
+Original ADR-007 (OBI BI Payroll importer) treats OBI as a single labor data source. ADR-005 (BFM Non-Position eturn) treats BFM as the budget source. Neither captures the BVA pattern.
+
+**Decision:** `docs/data-sources/bva.md` is the canonical reference for the BVA report. It is treated as a distinct data source — separate importer, separate refresh cadence (Wednesday-or-later after payroll posts to GL), distinct from both BFM and the existing OBI BI Payroll importer.
+
+The KosPos reconciliation pattern (per Session 17 Task B):
+
+- **BVA `Revised - eturn Board`** = KK budget adjustments
+- **BVA `GL Actuals - BI Payroll YTD (excl. inactives)`** = GL adjustments
+
+Reconciliations run at chartfield grain, not position grain. Position-aware Report Data + chartfield-aware BVA reconciliation together cover the full picture.
+
+**Alternatives considered:**
+
+1. **Treat BVA as a sub-section of BFM** — they share some lineage (both ultimately reach PS Financials' budget tables) but differ in granularity, refresh cadence, and what they capture. Rejected as confusing.
+2. **Extend the existing OBI BI Payroll importer to also handle BVA** — BVA is a separate OBI report. Closer to its own data source than an extension of an existing one. Rejected.
+3. **Defer the question to Phase 2.4 importer wiring** — Alex provided the file mid-Session-16; documenting now (Session 16 interlude) gives Phase 2.4 a head start. Rejected the deferral.
+
+**Consequences:**
+
+- New data-source doc `docs/data-sources/bva.md` (landed in PR #40, post-Session-16 interlude).
+- Phase 2.4 BVA importer scoped explicitly.
+- ADR-007 amendment (BI Payroll importer) may follow during Phase 2.4 to clarify it does NOT cover BVA.
+- Reconciliation suite at [audits/bva-reconciliation-suite.md](audits/bva-reconciliation-suite.md) verifies the BVA reconciliation patterns against real DBI+CPC data.
+- Future tabs that need chartfield-grain budget actuals (vs position-grain) pull from BVA, not BFM.
+
+**See also:** [PR #40](https://github.com/alkprojects/kospos/pull/40); [audits/bva-reconciliation-suite.md](audits/bva-reconciliation-suite.md); [labor-report.md Tab 20](domain/labor-report.md#tab-20--report-data).
+
+---
+
+## ADR-014 — Anchor-link convention uses github-slugger occurrence-index for duplicate headings
+
+**Date:** 2026-05-25
+**Status:** Accepted (decided Session 17 Task D / PR #45; ratified at Session 19 audit)
+
+**Context:** GitHub renders Markdown headings as anchors via github-slugger. When a heading appears multiple times in the same file (e.g., the per-tab template's nine `#### KosPos improvements` headings in `labor-report.md`), github-slugger appends a 0-indexed occurrence count suffix:
+
+- 1st occurrence: `kospos-improvements` (no suffix)
+- 2nd occurrence: `kospos-improvements-1`
+- 3rd occurrence: `kospos-improvements-2`
+- ...
+
+Prior to PR #45 (Session 17 Task D), intra-file anchor links used an *ad-hoc* "tab number" suffix (e.g., `#kospos-improvements-7` was meant to point to Tab 7's improvements heading). This was always broken — github-slugger doesn't number by tab; it numbers by occurrence order in the file. The audit script in PR #45 found 13 broken anchors.
+
+**Decision:** All anchor links across `docs/` use the **github-slugger occurrence-index** convention. When a duplicate heading appears, the link suffix matches the heading's 0-indexed occurrence count, not a tab number, section number, or other ad-hoc index.
+
+When a new tab walkthrough is added that introduces another instance of a duplicate heading, ALL subsequent occurrence-indices shift by +1, and existing intra-file references to those headings must be migrated. Example: Phase 2.0g adds Tabs 23/24/25 — three new `#### KosPos improvements` headings — shifting Tab 26's slug from `-7` to `-10` and Tab 27's from `-8` to `-11`. The migration list is baked into each session's prompt (see SESSION_HANDOFF.md Phase 2.0g prompt for the carry-forward).
+
+**Alternatives considered:**
+
+1. **Use unique headings per tab** (e.g., `#### KosPos improvements (Tab 7)` instead of just `#### KosPos improvements`) — would eliminate the slug-shift problem at the cost of cluttered headings throughout the doc. Rejected as cosmetic.
+2. **Use HTML anchor tags** (`<a id="custom-anchor">`) — bypasses github-slugger entirely. Rejected because GitHub's Markdown rendering quirks make HTML-in-Markdown brittle.
+3. **Don't use intra-file anchors; reference tabs by full file path + heading text** — verbose. Rejected.
+
+**Consequences:**
+
+- Every PR that adds a tab walkthrough must audit & migrate downstream anchor references to duplicate headings.
+- The verifier script style from PR #45 (extract every heading → compute github-slugger slug → check every intra-file `](#...)` link resolves) should be re-run after each new walkthrough. Convention documented in [labor-report-walkthrough-audit.md](audits/labor-report-walkthrough-audit.md).
+- Session 19 audit confirmed compliance across `docs/` post-Phase-2.0f.
+- Future tab walkthroughs (Phase 2.0g, 2.0h) carry the migration step explicitly in their session prompts.
+
+**See also:** [PR #45](https://github.com/alkprojects/kospos/pull/45); [labor-report-walkthrough-audit.md](audits/labor-report-walkthrough-audit.md); [Session 19 audit § Area E](audits/internal-claude-setup-audit.md#area-e--file--repo-organization).
+
+---
+
+## ADR-013 — Stop hook enforces copyable next-session prompt
+
+**Date:** 2026-05-25
+**Status:** Accepted (landed Session 18 / PR #51)
+
+**Context:** The end-of-session protocol requires Claude to paste the next-session prompt as a copyable triple-backtick fenced block at the end of the final response (so Alex can copy it without opening a file). This was set up as a memory rule in Session 4 + S6 + S7. The rule was missed three times before the memory rule shipped, and at least twice more after. Memory-only enforcement is fragile.
+
+**Decision:** Install a Claude Code Stop hook (`.claude/hooks/check-session-end-prompt.py`) that:
+
+1. Triggers ONLY when this session modified `docs/SESSION_HANDOFF.md` (the canonical signal that the session is wrapping).
+2. Scans the session transcript for an `Edit`/`Write`/`MultiEdit`/`NotebookEdit` targeting `docs/SESSION_HANDOFF.md`.
+3. Inspects the most recent assistant final reply (text after the last real user turn, excluding tool results).
+4. If the touched-handoff condition is true AND the final reply has no triple-backtick fenced block → returns `decision=block` with a reminder telling Claude to paste the prompt.
+
+The hook is registered in `.claude/settings.json` (committed; shared across worktrees) with a 10-second timeout. Personal state (`settings.local.json`, `projects/`) added to `.gitignore` in the same PR.
+
+**Alternatives considered:**
+
+1. **Keep memory-only enforcement, accept the misses** — current state pre-PR-#51. Rejected: memory rules drifted twice; the cost of one Python script is small.
+2. **PostToolUse hook on Edit/Write of `SESSION_HANDOFF.md`** — fires too early (the handoff edit happens mid-session, not at the end). Stop hook fires at session end, which is the right moment.
+3. **Block on every Stop, not just when handoff was touched** — too noisy; many sessions end without touching the handoff and shouldn't require a prompt.
+
+**Consequences:**
+
+- Reliable enforcement; the rule cannot be silently dropped.
+- Minor false-positive risk: a session that touched `SESSION_HANDOFF.md` mid-stream for a typo fix but isn't ending will block on its final reply (observed in Session 19 — required a re-paste). Mitigation candidates for a future revision: scope to the *first* post-handoff-edit final reply only, or require an explicit "session ending" marker in the handoff edit's diff.
+- The hook is self-contained (stdlib only, cross-platform); no extra dependencies.
+- Future audits (per [Session 19 audit § Area D](audits/internal-claude-setup-audit.md#area-d--hooks--settings)) may add similar hooks for other repeatedly-violated rules — but only when a rule has actually drifted, not preemptively.
+
+**See also:** [PR #51](https://github.com/alkprojects/kospos/pull/51); memory `feedback_session_end.md`.
+
+---
+
+## ADR-012 — Position entity carries a free-text `userNotes` field
+
+**Date:** 2026-05-25
+**Status:** Accepted (decided Session 18 Cat 17/18 walkthrough)
+
+**Context:** The labor-report data captures structured fields about each position (Position Number, Job Code, Exempt Category, Expiration Date, etc.) but cannot represent context like:
+
+- "Cat 18 set up for 5-year IS project despite 3-year max per DHR override letter"
+- "Cat 17 covering [name] who is expected back PP20"
+- "Position on hold pending grant funding decision"
+- "Reports-To is intentionally outside the dept because [reason]"
+
+Without a place to capture this, the context dies in someone's email, sticky note, or institutional memory.
+
+**Decision:** The KosPos Position entity carries a free-text `userNotes: string` field.
+
+- Editable inline from the Position Detail view.
+- Versioned across snapshots so historical context survives.
+- Admin-role-only for view (notes may carry HR-sensitive info).
+- Notes always pair with the data-derived quality flags (the flag stays as the trigger; the note explains the human context).
+
+**Alternatives considered:**
+
+1. **Structured note categories** (separate fields for "HR override reason", "expected return date", "funding status", etc.) — premature; the categories aren't known yet. Free-text first; promote to structured if a pattern emerges. Rejected for now.
+2. **External notes system** (SharePoint, OneNote, etc.) — fragments context away from the position record. Defeats the point. Rejected.
+3. **No field; rely on data flags only** — current state; loses the human-context layer the data can't capture. Rejected.
+
+**Consequences:**
+
+- Every persisted Position record schema includes `userNotes`.
+- Position Detail view exposes the field with inline edit; saves on blur or explicit save.
+- Snapshot-diff feature (per [Tab 27 walkthrough](domain/labor-report.md#tab-27--operating-report-detail)) shows when notes change between snapshots.
+- Schema versioning bump when the field lands (per `docs/CLAUDE.md` Schema version pattern).
+- Captured in memory at `feedback_user_notes_per_position.md`.
+
+**See also:** memory `cat_16_17_18_rules.md` — the trigger that surfaced this requirement.
+
+---
+
+## ADR-011 — MCCP positions split from STEPM_C into 9994M_C
+
+**Date:** 2026-05-25
+**Status:** Accepted (decided Session 18 Tab 18 walkthrough)
+
+**Context:** Alex's labor-report workbook lumps MCCP (Management Classification and Compensation Plan — range-based, not step-based) positions into the STEPM_C special-class category alongside step-based positions. This is conceptually wrong because MCCP and Step differ in three load-bearing ways:
+
+- **Reference data:** DHR MCCP-range tables vs DHR Steps tables.
+- **Account:** 9994 MCCP Offset vs STEPM_C.
+- **Projection logic:** step events triggered by anniversary date and step-eligibility rules vs range-based merit increases that may or may not happen.
+
+The Session 18 Tab 18 (Step) walkthrough surfaced this when decoding the workbook's Step tab — MCCP rows appear in the Step pivot but the column logic only fits step-based positions.
+
+**Decision:** KosPos's data model splits MCCP into a dedicated `9994M_C` special-class category. STEPM_C importer filters `is_mccp=false` so MCCP positions don't double-count. A new "9994 MCCP Offset" tab parallel to the Step tab will surface in Phase 2.0h.
+
+**Alternatives considered:**
+
+1. **Keep MCCP+Step lumped in STEPM_C, match workbook** — simplest data-model but propagates the workbook's conceptual error. Rejected.
+2. **Display MCCP-and-Step on the same tab, split internally** — possible UI, but the per-position math is genuinely different and conflating them in one view hides the distinction. Rejected for clarity.
+
+**Consequences:**
+
+- Special-class enumeration grows to 8 codes + 9994M_C = 9 active categories (see [special-class.md § The eight special classes](domain/special-class.md)).
+- Phase 2.0h walkthrough adds a 9994 MCCP Offset tab walkthrough.
+- ADR-006 (PS HCM P&P Data importer column assumptions) may need an `is_mccp` derivation rule when Phase 2.4 importer lands.
+- Captured in [Tab 18 walkthrough](domain/labor-report.md#tab-18--step) (improvement #4) and the [STEPM_C walkthrough](domain/special-class.md).
+
+---
+
+## ADR-010 — All KosPos projections are COLA-aware by default
+
+**Date:** 2026-05-25
+**Status:** Accepted (originally established Session 13 2026-05-24; reconfirmed Session 18 2026-05-25)
+
+**Context:** Alex's `Labor Report 5.21.26.xlsx` projects different special-class accounts with different math: Overtime / Premium / Retirement Payout use straight-line annualization (`Calendar!J2/I2` — current PP count / total PP count); Step and Report Data use COLA-weighted annualization (`Calendar!N2/M2` — synthetic PP count accounting for the COLA effective date). Initial Calendar walkthrough proposed matching each tab to the workbook's existing pattern as the per-tab default. Alex corrected this in Session 13: the straight-line uses are *shortcuts he takes for simplicity*, not the right math.
+
+**Decision:** Every projection KosPos computes defaults to **COLA-aware**. The COLA-aware number is the authoritative figure for any KosPos report or export. Straight-line projections may be exposed as an optional "simplified view" for parity checks against the existing workbook, but they are never the default and never what KosPos emits as its own answer.
+
+Concretely:
+
+- Every `project()`-style function defaults to applying the COLA schedule across the projection horizon.
+- Per-labor-type projection methodology (straight-line vs seasonality vs hire-plan vs lump-sum vs residual) is decided per-tab during walkthrough — but whatever method is chosen, the COLA schedule is applied.
+- Per-tab UI may offer a "straight-line view" toggle alongside the primary COLA-aware view.
+
+Alex's worked example (Session 18 reconfirmation): "Year with 26 PPs. Employee salary starts at $1/PP. 100% COLA at PP13. Projected annual salary = $39: 13 PPs × $1 + 13 PPs × $2."
+
+**Alternatives considered:**
+
+1. **Per-tab default = whatever the workbook does for that tab** — would match the source workbook's behavior exactly. Rejected per Alex's S13 correction: the workbook's straight-line uses are shortcuts, not the right answer.
+2. **COLA-aware behind a feature flag** — adds complexity without value; the COLA-aware computation collapses to straight-line when COLA doesn't apply, so there's no cost to making it default. Rejected.
+
+**Consequences:**
+
+- The Phase 2.0f Tab 16 (Premium) walkthrough's pure-PP annualization for PREMM needs a fix-up to COLA-aware (carry-forward to Phase 2.0g). Percentage-of-base premiums (e.g., 269 Struct Eng 10.27%, 600 Architect 5%) DO COLA-inflate because their base inflates; the function still returns straight-line numerically when applied to $-amount premiums (e.g., L08 Lead Worker Pay $5).
+- All per-tab walkthroughs going forward inherit this default.
+- Captured in memory at `feedback_projections_always_cola_aware.md`.
+
+**See also:** [labor-report.md § Calendar tab](domain/labor-report.md#tab-5--calendar) (improvements #2 and #3).
+
+---
+
 ## ADR-009 — Roadmap pivot: current-year workspace first
 
 **Date:** 2026-05-24
