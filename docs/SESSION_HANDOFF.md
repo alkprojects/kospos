@@ -4,70 +4,81 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
-## Current status (end of Session 15, 2026-05-25)
+## Current status (end of Session 16, 2026-05-25)
 
 **Phase:** Phase 2.0 — Labor Report deep-dive walkthrough. **In progress.**
-**Last main commit:** _(will be the P&P Data PR merge — see below)_
+**Last main commit:** _(will be the Report Data PR merge — see below)_
 **Tests:** passing on CI (no app-code changes this session)
 **Branches in flight:** none after the handoff PR merges
 
 ### What landed this session
 
-- **Tab 6 (P&P Data) walked end-to-end** against the real workbook — full
-  138-column inventory (88 OBI + 50 derived), six-group breakdown of derived
-  columns (cross-tab lookups / formatted IDs / 11-level hierarchy climb / array
-  display formula / per-level naming / supervisory-pay differential), 10-pivot
-  downstream-consumer reference (Step, Report Data, Pos by Dept, Vacancies and
-  TEMP, TEMP Limits ×3, Reporting Tree, EE Additional Pay ×2), 10 detailed KosPos
-  improvements, UI sketch (internal staging + Position Detail page), Excel
-  export notes, 9 open questions.
-- **Three-department model captured** as new domain content (budgeted vs
-  effective vs combo) with the combo-code maintenance workflow that bridges
-  mid-year moves between the annually-locked budgeted dept and the always-mutable
-  effective dept.
-- **TEMP-category 16/17/c2 vs 16/17/18 reconciled.** Both prior descriptions
-  correct, measuring different things — AG covers 12 exempt categories citywide
-  (incl. Cat 16 + C2); AW covers only the two date-bounded non-renewable cats
-  (17, 18). Cat 16 is hours-tracked via BI Payroll; AW is date-tracked.
-- **Six downstream tab stubs cross-linked** (EE Additional Pay, TEMP Limits,
-  Inactive, Report Data, Reporting Tree, Staffing Plan) with the pivot or
-  XLOOKUP shape decoded this session, so future walkthroughs lean on this
-  section rather than re-deriving.
-- **Reports-To error-vs-noise framework sketch** captured (hard errors vs
-  likely-errors vs expected-noise; the Operational Approver model distinct from
-  formal reports-to). Full ruleset deferred to its own session after Reporting
-  Tree walkthrough.
-- **DBI-shortcut catalog grew by 2 rows** — DBI-only manual lookup table in OBI
-  for Effective Employee Division; 11-level hierarchy materialized in 44 columns.
-- **Data Sources Inventory** grew by 3 rows — P&P Data, citywide dept tree CSV,
-  placeholder for other chartfield trees in same OBI folder.
-- **UX convention added:** every chartfield rendered in the app shows **code AND
-  description** in the same control. Per Alex.
+- **Tab 20 (Report Data) walked end-to-end** against the real workbook — full
+  80-column inventory (A:CB), 798-row structure decomposed into **8 row
+  archetypes** (604 per-position + 18 OVERTIME + 18 PAYOUT + 100 SPECIAL +
+  2 NEWP + 1 MERGE + 6 INACTIVATED + 1 GL + 24 HIRING + 4 SEPARATING). Dual
+  per-PP grid decoded (Y:AY operating funds `{10190, 10000}`; BB:CB
+  continuing). COLA-aware two-mode projection formula decoded. 100-row SPECIAL
+  budget reference block (rows 649–748) hand-paste source + downstream OPS
+  consumption confirmed. 12 detailed KosPos improvements, 9 open questions.
+- **New data source identified: BVA report** (Budget vs Actuals, PS Financials
+  via OBI). KK budget journals + GL actuals journals carry only chartfield
+  detail (no position attribution), so the position-aware Report Data misses
+  them. KosPos workflow per Alex: upload BVA each PP; reconcile against
+  BFM eturn (KK adjustments) and against BI Payroll (GL adjustments); exclude
+  inactives. New row in Data Sources Inventory + TODO in `data-sources/bfm.md`.
+  **Alex to provide an example BVA export.**
+- **BFM AX vs AZ confirmed stale.** Report Data!S uses BFM column AX
+  (Technical Adjustment); should use AZ (Board-adopted). Same hand-key error
+  visible on NEWP rows. KosPos defaults to AZ. AX preserved as a variance
+  layer.
+- **DBI-only OVERTIME + PAYOUT catcher blocks confirmed-oversight.** 18 DBI
+  dept rows + 0 CPC dept rows in each block. The current Report Data
+  under-counts citywide OT and RPO. KosPos derives catcher rows per
+  dept-group in scope.
+- **Pool-position duplication explained.** 604 per-position rows / 568 distinct
+  positions = 36 duplicate rows. Position 1094089 (a commissioner pool position)
+  has 14 rows alone. Operationally reasonable for high-churn cohorts; KosPos
+  surfaces as a Data Issue with a one-position-per-person recommendation but
+  lets the user decide.
+- **Dormant continuing-grid double-count bug** (`F<>10190` is the wrong
+  complement of `F IN {10190, 10000}`) — activates as soon as CPC roll-in
+  starts posting fund-10000 operating actuals; KosPos must derive the
+  continuing filter as the complement of the operating-fund set.
+- **Cross-cutting concerns table** grew by 6 new DBI-shortcut catalog rows
+  (operating-fund `{10190, 10000}` filter, wrong continuing complement,
+  AX-vs-AZ, DBI-only catcher blocks, 100 hand-pasted SPECIAL cells,
+  hand-pasted INACTIVATED Us, MERGE/GL placeholders, pool-position
+  duplicates).
+- **Data Sources Inventory** grew by 5 rows (BFM eturn, BVA-planned, Inactive
+  internal pivot, Staffing Plan internal).
+- **`data-sources/bfm.md`** updated with the BVA TODO + BFM eturn shape + the
+  AX vs AZ rule.
 
 ### Key findings worth carrying forward
 
-1. **P&P Data is the position spine.** 10 pivot tables across 8 sheets are
-   sourced from two pivot caches (cache 1: 137 fields; cache 4: 138 fields with
-   `EH Rep To Pay Above`). Plus XLOOKUPs from Inactive (2,556), Staffing Plan
-   (1,844), and Report Data (248). Renaming any P&P column upstream breaks
-   everything silently — same blast radius as BI Payroll.
-2. **Three departments must be modeled explicitly.** Budgeted (annual-locked) /
-   Effective (PS HCM mutable) / Combo (chartfield mapping). Mid-year moves
-   require a combo code to redirect payroll; KosPos surfaces the "no combo code
-   added after move" failure mode as a Data Issue.
-3. **The `Update Formula` placeholder** affects every CPC row (267 / 44%) —
-   evidence the merger-driven CPC inclusion is still in progress. Citywide dept
-   tree CSV (14k rows, 64 dept groups) fixes it; available in same OBI folder
-   as the labor report.
-4. **Reports-To validation is fuzzy at the top of the org.** Commissioners and
-   dept heads report formally outside the dept; the timesheet approver
-   ("Operational Approver") is a different relationship from formal reports-to.
-   KosPos's correction-list feature is a major surface area.
-5. **The 88-col OBI export framing was incomplete.** Real shape is 88 OBI cols
-   + 50 derived cols = 138 total; derived cols are not all "formulas past CJ"
-   but include cross-tab lookups into Report Data and Staffing Plan, plus a
-   massive 44-col 11-level hierarchy climb. KosPos eliminates all 50 in favor
-   of derived queries over the Position store.
+1. **Report Data is 8 archetypes**, not one shape. Per-position is the spine
+   (604 rows), but the dept-level OT + RPO catchers, the per-(dept × class)
+   SPECIAL budget block, the hand-keyed NEWP / MERGE / INACTIVATED / GL rows,
+   and the Staffing Plan-driven HIRING / SEPARATING rows each have their own
+   identity-column and per-PP-cell shapes. KosPos must model each surface
+   separately and stitch them at view time.
+2. **Every Report Data projection is COLA-aware** with a two-mode switch at
+   `Calendar!L2 = PP15's PPE` (the COLA effective threshold). Reinforces memory
+   `feedback_projections_always_cola_aware.md`. The mode switch is one library
+   function in KosPos; no per-row formula.
+3. **KK / GL journals don't carry position detail — only chartfields.** This is
+   the fundamental data-shape mismatch the workbook can't model. KosPos's
+   answer: BVA upload + chartfield-level reconciliation, surfaced as
+   adjustments at the dept rollup with a "cannot attribute to position" note.
+4. **BFM!AX is stale; the right column is AZ.** A workbook-spanning correction
+   that touches Report Data S (auto-SUMIFS) and the NEWP S values (hand-key).
+   Same lesson Alex applied to TEMPM E40 in OPS but didn't propagate back to
+   the per-position rows.
+5. **The DBI-only catcher blocks + the dormant `<>10190` filter bug** are the
+   two CPC-roll-in surfaces that will break silently as Alex extends the
+   workbook. KosPos's "all dept-groups in scope" + "complement-of-operating
+   filter" approaches eliminate both.
 
 ## Phase 2 sub-phases (revised)
 
@@ -75,9 +86,9 @@ Updated at the end of every session. The next session reads this before doing an
 |---|---|---|
 | 2.0a | Deep-dive: scaffold + Calendar | ✓ Session 13 (PR #33) |
 | 2.0b | Deep-dive: BI Payroll | ✓ Session 14 (PR #37) |
-| 2.0c | Deep-dive: P&P Data | **✓ this session** |
-| 2.0d | Deep-dive: Report Data (the spine) | **NEXT** |
-| 2.0e | Deep-dive: Operating Report Summary + Detail | pending |
+| 2.0c | Deep-dive: P&P Data | ✓ Session 15 (PR #38) |
+| 2.0d | Deep-dive: Report Data (the spine) | **✓ this session** |
+| 2.0e | Deep-dive: Operating Report Summary + Detail | **NEXT** |
 | 2.0f | Deep-dive: per-special-class tabs (Premium, Overtime, Step, Retirement Payout) | pending |
 | 2.0g | Deep-dive: Staffing Plan + Vacancies and TEMP + Budget Summary | pending |
 | 2.0h | Deep-dive: reference + tracking tabs (Departments, Combo, BFM-FY26, Roster Approvers, EE Additional Pay, Probation, Eligibility Lists, TEMP Limits, Inactive, Separations, Succession, Pos by Dept, Reporting Tree, Data) | pending |
@@ -85,62 +96,72 @@ Updated at the end of every session. The next session reads this before doing an
 | 2.1 | Hide budget-dev UI (route guard) | pending |
 | 2.2 | Per-tab UI sub-phases | pending |
 | 2.3 | Excel export | pending |
-| 2.4 | Importer wiring (includes ADR-006/007 amendments) | pending |
+| 2.4 | Importer wiring (includes ADR-006/007 amendments + BVA importer) | pending |
 
 ## Blockers for Alex
 
 None landing-related. Live site: <https://alkprojects.github.io/kospos/>. Please
-spot-check the new P&P Data walkthrough when convenient:
+spot-check the new Report Data walkthrough when convenient:
 
-- [docs/domain/labor-report.md § Tab 6 (P&P Data)](domain/labor-report.md) — the
-  main walkthrough.
-- [docs/domain/labor-report.md § Companion reference dataset — citywide department
-  tree](domain/labor-report.md) — the new reference-data section.
-- [docs/domain/labor-report.md § Department-code semantics](domain/labor-report.md) —
-  the three-department-concept distinction.
+- [docs/domain/labor-report.md § Tab 20 (Report Data)](domain/labor-report.md) —
+  the main walkthrough.
 - [docs/domain/labor-report.md § Data sources inventory](domain/labor-report.md) —
-  three new rows.
+  five new rows (BFM eturn, BVA planned, Inactive internal, Staffing Plan
+  internal).
+- [docs/data-sources/bfm.md](data-sources/bfm.md) — BVA TODO section + BFM
+  eturn AX-vs-AZ guidance.
 
-## Next session prompt — Phase 2.0d (Report Data deep-dive)
+**ACTION ITEM for next session.** Alex agreed to provide an **example BVA
+export** so its column shape can be documented in `data-sources/bfm.md` (or a
+new `bva.md`) before the Phase 2.4 importer is built. Please drop the BVA
+example into `C:\Users\ALK\Desktop\Claude Projects\Position Management\` (or
+the `example reports` subfolder) before the next session.
 
-This is an **interactive walkthrough** like Sessions 13–15. The goal is to fill in
-the **Report Data** tab section of `docs/domain/labor-report.md`. No app code in
-this session. Output: the Report Data tab walkthrough + Data Sources Inventory
-updates + any cross-cutting concerns that emerge.
+## Next session prompt — Phase 2.0e (Operating Report Summary + Detail deep-dive)
 
-**Bid-an-honest-scope note:** Report Data is the **single most important tab in
-the workbook** (per `labor-report.md` Tab 20 stub) — the per-position dataset that
-joins P&P Data + BI Payroll + Inactive + Staffing Plan + BFM. It powers the
-projection rows in Operating Report Summary / Detail and is the spine the
-special-class math hangs off (see `special-class.md` `'Report Data'!$S$649:$S$748`
-references). Plan on the full session being Report Data alone — do not pile on
-Operating Report Summary / Detail.
+This is an **interactive walkthrough** like Sessions 13–16. Goal: fill in the
+**Operating Report Summary** (Tab 26) **and Operating Report Detail** (Tab 27)
+sections of `docs/domain/labor-report.md`. No app code this session. Output: both
+tabs' walkthroughs + Data Sources Inventory updates + any cross-cutting concerns
+that emerge.
+
+**Bid-an-honest-scope note.** OPS Summary is **the headline labor projection
+page** — the number that feeds the 6-month and 9-month reports to CON / MYR. OPS
+Detail is the drill-down used to investigate "what changed between two report
+runs," which is the snapshot-diff feature KosPos plans to build. The two tabs
+are tightly coupled; walking them in one session makes sense. **Both together
+should fit in one session — they're rollup pages, not new datasets.** The
+special-class block of OPS is already documented in
+[`special-class.md`](domain/special-class.md) § "Operating Report Summary —
+DBI section reference" (rows 36–42); the walkthrough should fill in the
+non-special-class rows + the OPS Detail tab.
 
 Paste this verbatim to start the next session:
 
 ````
-We're continuing Phase 2 — labor-report deep-dive. Tab 20 (Report Data) is next.
+We're continuing Phase 2 — labor-report deep-dive. Tabs 26 + 27 (Operating
+Report Summary + Operating Report Detail) are next.
 
-Session goal: walk through the Report Data tab of `Labor Report 5.21.26.xlsx` and
-fill in its section in docs/domain/labor-report.md using the per-tab template.
-NO app code this session.
+Session goal: walk through both tabs of `Labor Report 5.21.26.xlsx` and fill in
+their sections in docs/domain/labor-report.md using the per-tab template.
+NO app code this session. Both tabs in one session — they're rollup pages, not
+new datasets.
 
 Read first, in order:
   docs/CLAUDE.md
   docs/SESSION_HANDOFF.md (this file)
-  docs/domain/labor-report.md — note the Calendar (Tab 5), BI Payroll (Tab 7),
-    and P&P Data (Tab 6) walkthroughs as pattern references. Report Data is
-    the spine that joins those two. The Tab 6 § "How each downstream tab
-    consumes P&P Data" table already lists Report Data's 248 XLOOKUPs +
-    pivot 17; Tab 7 § "Report Data — per-position per-PP SUMIFS, multi-fund"
-    already decodes the per-PP SUMIFS shape. Use those as starting points;
-    do not re-derive.
-  docs/domain/special-class.md — Report Data's `S` column is referenced from
-    here (`'Report Data'!$S$649:$S$748`). Understand which special-class
-    accounts read from Report Data vs. which read from BI Payroll directly.
-  docs/domain/positions.md — Position entity model (now informed by P&P Data
-    walkthrough)
-  docs/data-sources/obi.md — query layer
+  docs/domain/labor-report.md — note the Calendar (Tab 5), P&P Data (Tab 6),
+    BI Payroll (Tab 7), and Report Data (Tab 20) walkthroughs as pattern
+    references. The OPS rollup pulls from Report Data; the Report Data
+    walkthrough already decoded the per-dept catcher blocks (OVERTIME,
+    PAYOUT) and the 100-row SPECIAL budget reference block (rows 649–748)
+    that OPS reads. Use those as starting points; do not re-derive.
+  docs/domain/special-class.md — § "Operating Report Summary — DBI section
+    reference" rows 36–42 already document the special-class block. Fill in
+    the non-special-class rows (regular labor, RPO/Premium/etc. headers,
+    total, percent-attrition) + OPS Detail.
+  docs/domain/budget-process.md — three-function framework; OPS covers
+    functions 2 and 3 (current-year YTD and projection).
 
 Confirm state on main:
   git log --oneline origin/main -5
@@ -148,37 +169,39 @@ Confirm state on main:
 Workflow:
 
   1. Open the workbook directly (Python + openpyxl, read-only). Inventory
-     Report Data's columns; sample several rows. Identify which columns
-     come from P&P Data (via XLOOKUP), which come from BI Payroll (via
-     per-PP SUMIFS already decoded in Tab 7), and which are *new* (manual
-     additions, hand-keyed adjustments, BFM joins, Inactive cross-references,
-     Staffing Plan joins).
-  2. Decode the projection columns (the per-position annual projection logic
-     that feeds Operating Report Summary). The Calendar `N2 / M2` ratio (or
-     `J2 / I2` if a row is pure straight-line) is the multiplier; identify
-     which positions use COLA-aware vs pure.
-  3. Walk the tab through the per-tab template (same structure as Tabs 5, 6, 7).
-  4. Build up the Data Sources Inventory table with Report Data's *upstream*
-     joins (P&P Data row + BI Payroll row + BFM row + Inactive row + Staffing
-     Plan row); add a Report Data row if it's also itself an input to another
-     tab (Operating Report Summary, Operating Report Detail).
-  5. Resolve open questions captured in Tab 6 / Tab 7 walkthroughs to the
-     extent Report Data can answer them (e.g., what the `Split Funded` row
-     duplication looks like in practice; how Inactive merges back in).
-  6. Ship as ONE docs PR: `docs/labor-report-report-data`. Merge per the
-     CLAUDE.md shutdown rule. Update SESSION_HANDOFF.md with the next tab's
-     prompt (likely Operating Report Summary — Tab 26).
+     OPS Summary's row labels (A or B column) and each per-row formula
+     across columns C / D / E / F / G / H / I (YTD Budget / YTD Actuals /
+     YTD Balance / Total Budget / Projected Actuals / Projected Balance).
+     Identify the non-special-class rows (regular labor, total labor,
+     fringe, etc.).
+  2. Decode the OPS Detail tab — it's a drill-down view. Likely a similar
+     row structure but joined to dept-level or position-level slices.
+     Capture what makes it different from Summary (column count, filter
+     context, etc.).
+  3. Walk both tabs through the per-tab template (Status / Purpose / Data
+     sources / Formulas / Manual-fragile / KosPos improvements / UI
+     sketch / Excel export / Open questions).
+  4. Update the Data Sources Inventory with OPS-specific reads if any
+     (Report Data, special-class.md cross-refs).
+  5. Capture the snapshot-diff workflow for OPS Detail: how does Alex
+     investigate "what changed since the last run" today, and what
+     does KosPos need to surface for the equivalent feature?
+  6. Ship as ONE docs PR: `docs/labor-report-ops-summary-detail`. Merge per
+     the CLAUDE.md shutdown rule. Update SESSION_HANDOFF.md with the
+     next tab's prompt (likely Phase 2.0f — per-special-class tabs).
 
 Rules:
   - Interactive walkthrough — wait for Alex's prose where the workbook can't
-    answer (e.g., business rules; how the manual additions get authored; how
-    "what changed since last run" gets investigated today).
-  - Cross-reference existing math docs (special-class.md) rather than restating.
+    answer (e.g., how the snapshot diff is investigated today; how OPS
+    Summary is presented to CON / MYR; what's manual vs auto-computed).
+  - Cross-reference existing math docs (special-class.md, budget-process.md)
+    rather than restating.
   - All KosPos projections are COLA-aware by default — see memory entry
     `feedback_projections_always_cola_aware.md`.
   - BU = bargaining unit (defined in labor-report.md § cross-cutting).
-  - Treat OBI exports (BI Payroll, P&P Data) as transactional / full-snapshot;
-    Report Data itself is workbook-internal (not directly imported).
+  - Treat Report Data as the spine OPS Summary pulls from (per Tab 20
+    walkthrough); OPS Detail likely drill-downs into Report Data per-position
+    rows.
 
 Hard constraints:
   - Branch from main, single-purpose name.
@@ -191,36 +214,43 @@ Recommended model: claude-opus-4-7. Effort: high.
 
 ## Recommended model
 
-`claude-opus-4-7` — same synthesis-heavy work as Sessions 13–15.
+`claude-opus-4-7` — same synthesis-heavy work as Sessions 13–16.
 
 ## Recommended effort
 
-`high` — Report Data is the spine; careful interpretation pays off.
+`high` — OPS is the headline page; precision matters.
 
 ## Notes for the next-session model
 
 - **Open the workbook directly.** Workbook path:
   `C:\Users\ALK\Desktop\Claude Projects\Position Management\Labor Report 5.21.26.xlsx`
   (`.xlsx` files are gitignored — never commit them). Use openpyxl read-only mode.
-- **Reading pivot definitions:** when openpyxl can't load the workbook read-write
-  to introspect pivots, **unzip the `.xlsx`** and read
-  `xl/pivotTables/pivotTable*.xml` + `xl/pivotCache/pivotCacheDefinition*.xml`
-  directly. Pattern used in Sessions 14 and 15 worked well.
-- **Lean on the existing walkthroughs.** Tab 6 (P&P Data) and Tab 7 (BI Payroll)
-  already decoded a lot of Report Data's behavior — the XLOOKUP shapes and per-PP
-  SUMIFS formula are documented there. Don't redo that work; reference it.
-- **Wait for Alex's prose** on business rules (which manual adjustments get
-  authored, how the spine gets sanity-checked against Operating Report Summary,
-  how new positions added mid-FY get inserted).
-- **Bid an honest scope.** Report Data is the spine — do not pile on Operating
-  Report Summary / Detail this session.
+- **Lean on the existing walkthroughs.** Tab 20 (Report Data) already decoded
+  the SPECIAL block (rows 649–748) and the per-dept catcher blocks that OPS
+  reads. Tab 7 (BI Payroll) already decoded the Premium / Overtime / RPO
+  pivots that OPS GETPIVOTDATA cells pull from. Don't redo any of that;
+  reference it.
+- **`special-class.md` already documents OPS rows 36–42** (PREMM, OVERM,
+  RTPOM, STEPM, TEMPM, 9993, 9994) in detail. The new walkthrough fills in
+  the non-special-class rows + the OPS Detail tab.
+- **Wait for Alex's prose** on snapshot-diff workflow ("what changed since
+  the last report") — this is the KosPos snapshot-diff feature's design
+  source.
+- **BVA-import question from Session 16 stays open** — Alex agreed to
+  provide an example BVA export; if it's available, briefly look at its
+  shape and add the column-list to `data-sources/bfm.md` (or `bva.md`) as
+  a side-task before drafting OPS.
+- **Bid an honest scope.** Both OPS tabs together should fit one session.
+  They're rollup pages, not new datasets.
 
 ## What we are explicitly NOT doing next session
 
 - No `app/src/` code changes.
-- No PREMM / STEPM / TEMPM / 9994 / 9995 / 9993 math (deferred to Phase 6 Budget
-  Development).
+- No PREMM / STEPM / TEMPM / 9994 / 9995 / 9993 math rewrite (deferred to
+  Phase 6 Budget Development).
 - No budget-development UI changes (route-guard is sub-phase 2.1).
 - No new web research.
-- No other tabs beyond Report Data this session.
+- No tabs beyond OPS Summary + OPS Detail this session.
+- No BVA importer build (deferred to Phase 2.4); read the BVA example only,
+  don't write code.
 - No ADR-006 / ADR-007 amendments (deferred to Phase 2.4 importer build).

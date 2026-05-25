@@ -993,3 +993,165 @@ folder; document them when their consumer surfaces.
   table — captured as open question for next session.
 - Phase 2.1 (route guard) and Phase 2.4 (importer wiring + ADR-006/007 amendments).
 
+## Session 16 — Phase 2.0d: Report Data deep-dive (2026-05-25)
+
+**Worktree:** `stupefied-herschel-a0bb3d`
+**Model:** Opus 4.7 (high effort)
+**Mode:** Interactive walkthrough
+
+### Prompts
+
+**[~ start]** Phase 2.0d kickoff prompt (per SESSION_HANDOFF.md). Goal: walk
+through Tab 20 (Report Data) — the spine that joins P&P Data + BI Payroll +
+Inactive + Staffing Plan + BFM — and fill in its section of
+`docs/domain/labor-report.md` using the per-tab template. NO app code this
+session.
+
+**[mid-session]** Six AskUserQuestion clarifications across two batches:
+
+- **Duplicate rows** (604 rows / 568 distinct positions; position 1094089 alone
+  has 14 rows): pool / shared positions where multiple incumbents share one
+  Position Number — most prominently commissioners. Best practice is
+  one-position-per-person but the operational overhead of creating /
+  inactivating positions per individual makes pool positions reasonable for
+  commissioners / temps / exempts. **KosPos should flag and recommend, not
+  enforce.**
+- **OVERTIME + PAYOUT catcher blocks DBI-only** (18 dept rows each, zero CPC):
+  **Oversight from the in-progress CPC roll-in.** The current Report Data
+  under-counts citywide OT and RPO; KosPos must extend catcher rows to every
+  dept-group in scope.
+- **BFM AX vs AZ for the S Total Budget anchor**: **stale.** Formula was built
+  when Technical Adjustment (AX) was the live column; should now reference
+  Board-adopted (AZ). NEWP rows 750–751 show the same hand-key error against
+  BFM!AZ1273–1274 — evidence the AX/AZ confusion has spread beyond the
+  auto-SUMIFS.
+- **INACTIVATED workflow**: copy from Inactive tab's E `Sum of Balance Amount`
+  pivot and paste as values into Report Data!U each refresh. Six cells of
+  hand-paste per pay-day Tuesday; pivot can refresh and Report Data go silently
+  stale.
+- **SPECIAL block source**: hand-pasted from BFM 15.10.006 (per-special-class
+  summary rows at the bottom of the eturn). **New finding (workflow gap):** this
+  FY had a mid-year DBI→CPC transfer-of-function with KK budget journals + GL
+  actuals journals moving budget and actuals between the two departments.
+  **KK and GL journals carry only chartfield-string detail — no position
+  attribution.** The current MERGE row 753 + GL placeholder 762 are stop-gaps;
+  a dedicated `KK transfers` section was supposed to exist but doesn't yet.
+- **NEWP row split**: salary + fringe (the $83k = annual salary; the $34k =
+  fringe). BFM assigns `NEWPxxxxx` placeholder IDs to positions that don't yet
+  have a PS HCM number; when the budget is approved and BFM interfaces with PS
+  HCM, the actual position number is assigned. Rows 750–751 carry BOTH (D =
+  issued PS HCM number, E = original NEWP ID) for traceability back to the
+  eturn.
+- **KK transfer modeling**: one row per chartfield string (not per journal
+  entry — journals would need a separate report). Phase 2 path: upload BVA
+  report each PP; compare against eturn (budget side) → KK adjustments;
+  compare against BI Payroll (actuals side) → GL adjustments; **exclude
+  inactive positions from the comparison set.**
+
+**[late session]** Ship the Tab 20 walkthrough as one docs PR, update
+SESSION_HANDOFF.md with the next-session prompt (Operating Report Summary +
+Detail, Tab 26 + 27), merge.
+
+### Workflow
+
+1. Read briefing docs (CLAUDE.md, SESSION_HANDOFF.md, labor-report.md Tab 5/6/7
+   patterns + Tab 20 stub, special-class.md Report Data references,
+   positions.md, obi.md).
+2. Branched `docs/labor-report-report-data` from main.
+3. Opened the real workbook via openpyxl (read_only=True). Inventoried Report
+   Data's 80 columns (A:CB) × 798 rows. Identified the dual per-PP grid (Y:AY
+   operating, BB:CB continuing). Sampled rows from every section.
+4. Mapped the 8 row archetypes (per-position 604 / OVERTIME 18 / PAYOUT 18 /
+   SPECIAL 100 / NEWP 2 / MERGE 1 / INACTIVATED 6 / GL 1 / HIRING 24 /
+   SEPARATING 4 = 778 + 20 blank-separator rows).
+5. Counted XLOOKUPs (124 total, all into P&P Data — matches Tab 6 doc), SUMIFS
+   into BI Payroll (133,164 total — ~4 per per-PP cell × 27 PPs × 2 grids ×
+   ~600 rows), SUMIFS into BFM (603 — column S Total Budget), direct Staffing
+   Plan refs (~280 — on HIRING + SEPARATING rows).
+6. Decoded all 7 per-position-block formulas (R Exclude / S BFM SUMIFS / T
+   COLA-pacing / U PP sum / V variance / W COLA-aware two-mode projection / X
+   projected balance). The W projection mode switches based on whether today's
+   PPE is past `Calendar!L2 = B16 = PP15's PPE` (the SEIU 1021 Misc Jan 3, 2026
+   +1.5% COLA threshold).
+7. Asked Alex six AskUserQuestion clarifications across two batches. Key
+   findings: pool positions explained (commissioners), DBI-only catcher blocks
+   are oversights, AX→AZ migration needed, INACTIVATED workflow is hand-paste,
+   SPECIAL block source confirmed, and the new BVA-report-as-source-of-truth
+   pattern + KK/GL journals lacking position detail.
+8. Wrote the Tab 20 section using the per-tab template, ~700+ lines:
+   - Status / Purpose / Snapshot scope (8 archetypes table)
+   - Data sources (5 upstream sources + the planned BVA)
+   - Cross-cutting dual per-PP grid (operating vs continuing) + the `<>10190`
+     dormant double-count bug
+   - Formulas decoded per archetype with full code blocks
+   - Downstream consumers table (Inactive 639 / P&P Data 604 / OPS 12 / Budget
+     Summary 1)
+   - Manual / fragile (15+ items)
+   - 12 KosPos improvements
+   - UI sketch (spine page + dept rollup + reconciliation panel + Data Issues)
+   - Excel export notes
+   - 9 open questions
+9. Updated cross-cutting concerns table with 6 new DBI-shortcut catalog rows
+   (Y:AY operating-fund filter; BB:CB wrong-complement bug; BFM AX-vs-AZ;
+   DBI-only OT/PAYOUT catcher blocks; 100 SPECIAL hand-pastes; INACTIVATED
+   hand-pastes; MERGE/GL ad-hoc placeholders; pool-position duplicates).
+10. Updated Data Sources Inventory with 5 new rows (BFM 15.10.006 FY26 eturn;
+    BVA report planned; Inactive tab pivot internal-only; Staffing Plan
+    internal-only).
+11. Updated `data-sources/bfm.md` with the BVA TODO + the BFM eturn shape and
+    AX-vs-AZ rule.
+12. Updated tab-list table status for Tab 20: pending → done 2026-05-25.
+
+### Milestones
+
+- **Tab 20 (Report Data) walkthrough done.** The spine of the workbook decoded:
+  8 row archetypes, dual operating/continuing per-PP grid, COLA-aware two-mode
+  projection formula, 100-row SPECIAL budget reference block, NEWP→position-number
+  link, MERGE/GL placeholders for the still-missing KK/GL journal section.
+- **New data source identified:** BVA report (PS Financials via OBI) as the
+  source-of-truth for budget AND actuals. KK budget journals and GL actuals
+  journals carry only chartfield detail (no position attribution), so the
+  position-aware Report Data misses them. KosPos's reconciliation needs to be
+  chartfield-keyed, not position-keyed.
+- **Stale-formula concern confirmed:** Report Data!S uses BFM!AX (Technical
+  Adjustment) when it should use AZ (Board-adopted). Same drift visible on the
+  hand-keyed NEWP rows. KosPos defaults to Board.
+- **DBI-only catcher blocks confirmed-oversight:** OT + RPO per-dept catchers
+  cover 18 DBI depts and zero CPC. Missing CPC OT/RPO from the current
+  Report Data rollup. KosPos derives catcher rows per dept-group in scope.
+- **Pool-position duplication explained:** commissioners (and similar
+  high-churn cohorts) share one position number; Report Data carries the
+  duplicates and zeroes them via COUNTIF. KosPos surfaces as a Data Issue with
+  a one-position-per-person recommendation but lets the user decide.
+- **Dormant continuing-grid double-count bug** (`F<>10190` is the wrong
+  complement of `F IN {10190, 10000}`) — surfaces as soon as CPC roll-in
+  posts fund-10000 operating actuals; KosPos must derive the continuing
+  filter as the complement of the operating-fund set.
+
+### What changed for KosPos's understanding
+
+| Theme | Before this session | After this session |
+|---|---|---|
+| Report Data row shape | "One row per position, ~604 rows" | 798 rows × 80 cols, **8 archetypes**: 604 per-position + 18 OVERTIME + 18 PAYOUT + 100 SPECIAL + 2 NEWP + 1 MERGE + 6 INACTIVATED + 1 GL + 24 HIRING + 4 SEPARATING (+ 20 blank separators). Each archetype has its own column-shape and source. |
+| Per-PP grid | "Per-position per-PP regular labor multi-fund" | **Two parallel grids**: Y:AY (operating funds {10190, 10000}) + BB:CB (continuing = all others, computed as "all funds minus operating"). Plus AZ + BA continuing rollup cells. |
+| Projection math | COLA-aware (per memory) | Confirmed COLA-aware with a **two-mode switch** at `Calendar!L2 = B16 = PP15's PPE` (the COLA effective threshold). Before threshold: COLA-weighted remaining PPs. After threshold: pure remaining PPs. Same formula across every archetype. |
+| Special-class budget source | "OPS reads `'Report Data'!$S$649:$S$748`" | The 100-row SPECIAL block is **hand-pasted from BFM 15.10.006 special-class summary rows** each refresh. 7 special-class labels × ~16 depts. CPC has 14 rows; DBI has 86. |
+| Budget anchor | BFM eturn (column TBD) | **AX vs AZ confirmed-stale**: formula uses Technical Adjustment (`AX`); should use Board-adopted (`AZ`). NEWP rows show the same hand-key error. KosPos defaults to AZ. |
+| KK / GL journals | Not modeled | KK budget journals + GL actuals journals **carry only chartfield-string detail, no position attribution**. The position-aware Report Data has no way to capture them. The MERGE row 753 + GL placeholder 762 are stop-gaps. KosPos: **upload BVA each PP and reconcile per chartfield, excluding inactives.** |
+| Data sources | 5 known (BFM, BI Payroll, P&P Data, Staffing Plan, Inactive) | **+1: BVA report** (Budget vs Actuals, PS Financials via OBI). Planned Phase 2.4 importer. New row in Data Sources Inventory + TODO in `data-sources/bfm.md`. |
+| Pool positions | Unknown — Tab 6 didn't explain Split Funded duplication | **Pool / shared positions** (commissioners primarily; some temps/exempts). 568 distinct positions across 604 rows. Position 1094089 alone has 14 rows. COUNTIF guard zeroes the duplicates. KosPos flags + recommends one-position-per-person; user decides. |
+| OT + RPO at dept level | Tab 7 noted "per-position rows exclude OT/RPO; dept-level rollup happens via catchers" | **Confirmed**: per-position Y:AY excludes 3 accounts (OT, RPO, Temp LSP); per-dept OVERTIME + PAYOUT catcher blocks re-add OT and RPO+TempLSP. But the catcher blocks are **DBI-only (oversight)** — citywide rollup under-counts CPC OT/RPO. |
+| HIRING/SEPARATING flow | Unclear | Budget-neutral (S is empty); contribute only projected actuals (W from Staffing Plan!Wn) against the existing dept budget. Hire cost absorbed by 9993 attrition credit at the dept level. |
+| Continuing-grid filter | Assumed correct | **Dormant double-count bug**: `<>10190` is the wrong complement of `{10190, 10000}` — would activate as soon as CPC posts operating actuals to fund 10000. |
+
+### Out of scope (deferred to follow-on sessions)
+
+- All other walkthroughs (Operating Report Summary + Detail next; then per-special-class
+  tabs / Staffing Plan / Vacancies and TEMP / Budget Summary / reference + tracking tabs).
+- BVA importer build — Phase 2.4. Need an example BVA export from Alex first.
+- ADR-006 / ADR-007 amendments — Phase 2.4.
+- AX→AZ migration in any app code (no app code this session).
+- DBI→CPC transfer-of-function reconciliation against actual KK journals —
+  needs BVA upload to perform.
+- Phase 2.1 (route guard).
+
