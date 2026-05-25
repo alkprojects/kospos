@@ -28,7 +28,10 @@ When AI says "I'll fix the connector bug *and* the save dialog at the same time,
 ### Ending the session
 
 10. Push the branch.
-11. If verified and the test suite is green, merge into `main` (solo for now; later a PR review step).
+11. Open a PR (`gh pr create`). Let CI run. Once green, squash-merge to `main`
+    (`gh pr merge --squash`, or `gh api -X PUT repos/<owner>/<repo>/pulls/N/merge -f merge_method=squash`
+    when merging from inside a worktree where main is checked out elsewhere).
+    Fast-forward the main worktree afterwards: `git -C <main-worktree> pull --ff-only origin main`.
 12. Update relevant docs:
     - Meaningful technical decision → append an ADR to `docs/DECISIONS.md`.
     - Discovered something about a data source → update `docs/data-sources/`.
@@ -78,6 +81,18 @@ Claude can't see remaining session budget from inside a conversation. To keep wo
 1. **Estimate up front.** At the start of any non-trivial task, ask Claude to describe roughly how big the work is ("~5–8 file edits and a build verification — about a small session's worth") so you can decide whether to start now or in a fresh session.
 2. **Break at natural save points.** Each phase in `ROADMAP.md` is sized to fit 1–2 sessions.
 3. **If usage feels tight, stop early.** Better to land Phase N cleanly and start Phase N+1 fresh than to run out of context mid-edit.
+
+### Audit cadence
+
+Periodic audits keep the Claude collaboration setup (memory, canonical docs, hooks, session log, repo organization) from drifting. The rule:
+
+- **Event-based — every phase close.** When a phase ships (e.g., Phase 2.0i, Phase 2.1, Phase 6), the next session opens with an audit before any new work. Audit doc lives at `docs/audits/internal-claude-setup-audit.md` (or a dated successor) — sectioned per area, with applied fixes vs surfaced-for-Alex.
+- **Backstop — every 10 sessions.** If 10 sessions elapse without a phase close, audit anyway. Practical safeguard against long flat phases where drift can compound silently.
+- **Triggered by drift.** Out-of-band: any time a rule is being repeatedly violated, file an audit-style PR for that area even if the cadence hasn't fired.
+
+The audit doc template (per the [Session 19 audit](audits/internal-claude-setup-audit.md)): Methodology → per-area Findings / Fixes applied / Surfaced for review → Summary table → Recommendations not actioned. Bias toward applying trivial fixes in-session and surfacing non-trivial ones for the user.
+
+Origin: Session 5 memory `session_logging.md` ("audits should run periodically and especially at the end"); concretized at Session 19 after a 11-session drift (last audit was Session 7 at Phase 3 close).
 
 ## Branch naming convention
 
