@@ -80,6 +80,23 @@ Access with Entra ID SAML/OIDC** once SF IT signs off on a tenant. Until then,
 Cloudflare Access with email PIN to a hand-maintained allow-list is the safest
 intermediate. Track in [DECISIONS.md](../DECISIONS.md) when the call is made.
 
+### Bargaining unit (BU) — used throughout this file
+
+A **bargaining unit (BU)** is a group of city employees who share one union contract
+(MOU). Each MOU sets that BU's wage table and COLA schedule. Examples: SEIU 1021
+Miscellaneous (the largest "Misc" unit), IFPTE Local 21 (professional / technical),
+MEA (some managers), POA (police), Local 798 (fire), and ~30 others citywide. Each
+job class maps to exactly one BU at a time.
+
+**Why this matters for the labor report rebuild:** different BUs have different COLA
+effective dates and percentages. DBI's entire job-class population happens to sit
+under a single Misc schedule, which is why Calendar can use one COLA column. A
+department mixing BUs (clerical + licensed engineers, say) needs per-BU COLA
+treatment. We use the abbreviation **BU** throughout the rest of this file.
+
+A separate `domain/bargaining-units.md` (and/or `data-sources/dhr.md` extension) is a
+**TODO for Phase 2.2** — see the Open Questions list.
+
 ### Multi-dept generalization caveats (DBI shortcuts to undo)
 
 Catalog of DBI-only assumptions that need to be parameterized for citywide use:
