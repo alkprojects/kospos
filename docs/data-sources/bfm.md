@@ -31,6 +31,51 @@ KosPos imports both flavors and joins them. See Phase 2 (importers).
 
 These typically come embedded in budget instructions or as a downloadable spreadsheet. Add the canonical URL when you confirm it.
 
+## BVA report (Budget vs Actuals) — TODO
+
+Identified during the Tab 20 (Report Data) walkthrough as the **source of truth
+for budget AND actuals**, sourced from PS Financials and delivered via OBI.
+Not yet imported by KosPos; planned for Phase 2.4.
+
+Critical because:
+
+- **KK budget journals** (mid-year transfers, e.g., FY26's DBI→CPC transfer of
+  function) and **GL actuals journals** (post-PP adjustments that don't run
+  through PS HCM timesheets) **carry only chartfield-string detail — no
+  position attribution**.
+- The position-aware labor report (BI Payroll → Report Data) misses these
+  entirely.
+- BVA captures both, at chartfield level.
+
+KosPos workflow (per [`../domain/labor-report.md`](../domain/labor-report.md)
+Tab 20 § KosPos improvements):
+
+- Upload BVA each PP, alongside BI Payroll.
+- Compare BVA against the BFM eturn (budget side) → surfaces KK adjustments.
+- Compare BVA against BI Payroll (actuals side) → surfaces GL adjustments.
+- Both comparisons exclude inactive positions.
+
+**TODO:** Alex to provide an example BVA export so its column shape can be
+documented here (or in a dedicated `bva.md`) before the importer is built.
+
+## BFM eturn — Report Data dependency notes
+
+The `BFM 15.10.006 FY26` eturn carries **per-position rows + per-special-class
+summary rows** in the same file. Both shapes are consumed by the labor report:
+
+- **Per-position rows** drive Report Data's `S Total Budget` via SUMIFS on
+  `D BY HCM Position#`. The current workbook formula uses **column `AX FY
+  2025-26 Technical Adjustment`** — confirmed-stale per Alex; should be **`AZ
+  FY 2025-26 Board`** (the Board-adopted layer). KosPos defaults to `AZ`.
+- **Per-special-class summary rows** at the bottom of the eturn drive
+  Operating Report Summary's TEMPM E40 (`AZ1195 + AZ1197 + AZ1199 + AZ1201`)
+  and the SPECIAL block in Report Data (100 hand-pasted cells per refresh).
+  Same `AZ` vs `AX` consideration applies.
+
+KosPos importer should preserve **all budget-layer columns** (Original, Base,
+Department, Mayor, Committee, Technical Adjustment, Board) so variance views
+can compare layers, and default queries should use Board-adopted.
+
 ## Open uncertainties
 
 - Whether BFM offers any read-only API or scheduled export. The standard path is
