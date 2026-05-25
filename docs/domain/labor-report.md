@@ -319,31 +319,223 @@ Earlier in the year, the spread would be larger.
 
 **KosPos improvements:**
 
-1. **Separate pay-calendar arithmetic from COLA application.** Two independent layers:
-   - `lib/calendar/` — pure PP arithmetic. Citywide. Functions: `dateToPP(date) →
-     PPnumber`, `ppToFraction(pp) → number`, `ppsElapsed(asOfDate)`, `ppsInFY(fy)`,
-     `ppsRemaining(asOfDate, fy)`. No COLA. One JSON per FY generated from the
-     Controller's pay calendar.
-   - `lib/cola/` (or extend `lib/dhr/`) — per-bargaining-unit COLA schedule. Lookup
-     `bargainingUnit → [{effectiveDate, percent}]`. Sourced from DHR MOUs.
-2. **Annualization function takes both.** `project(actuals, asOfDate, fy, bargainingUnit)`
-   walks the remaining PPs and applies the rate effective in each. For a DBI-style
-   single-MOU population this collapses to a single multiplier (matching today's
-   workbook); for a mixed-BU population it produces a correct per-BU projection.
-3. **Show both projections, expose the delta.** Always render the straight-line
-   ("no-COLA-awareness") and the COLA-aware projection side by side. Makes the COLA
-   impact visible and surfaces missing-bargaining-unit data: any class not tagged with
-   a BU shows up as a discrepancy.
-4. **Don't model the late-June bump.** Confirm with policy; for FY26 the Jun 30, 2026
-   +2.0% landing one day before FY27 produces negligible impact. KosPos should
-   formalize the rule: "COLA effective dates within the last PP of the FY are
-   immaterial and excluded from in-year projection." Alternatively, include them but
-   document that contribution is ~one weekday.
-5. **Couple "as-of date" to user choice, not to the BI Payroll import.** A drop-down
-   at the top of every projection page: "Projecting as of PP22 (5/8/2026)." Default to
-   `MAX(PPE)` across all imported sources but allow override.
-6. **PP27 user-facing presentation.** Internally: 26.1. User-facing: "PP1–26 plus a
-   7-day spillover into PP27 before FY27 starts" — clearer for non-budget audiences.
+#### 1. Separate pay-calendar arithmetic from COLA application
+
+**Problem in the workbook.** Calendar column F (`Total COLA`) is derived in the same
+tab as the pay-period dates and percentages. Column F = column D + column E, where E
+is a single MOU's schedule. The tab fuses two unrelated facts:
+
+- **Pay calendar** = a citywide, controller-published artifact. Every department uses
+  the same dates. Changes once per FY.
+- **COLA schedule** = a per-bargaining-unit policy. Different MOUs land at different
+  times with different rates. Updates whenever an MOU is ratified or amended.
+
+Fusing them works for DBI because DBI is single-BU; it does not scale to a citywide
+app, where adding a second BU means adding a second column to the shared calendar,
+adding a third BU means a third column, and so on.
+
+**KosPos design.** Two independent modules:
+
+- **`lib/calendar/`** — pure pay-period arithmetic. Citywide; not dept- or BU-aware.
+  - Inputs: one JSON per FY (PP number → PPE date, partial-PP fraction).
+  - Functions:
+    - `dateToPP(date, fy) → { pp, fraction, ppe }`
+    - `ppToDates(pp, fy) → { start, end }`
+    - `ppsElapsed(asOfDate, fy) → number`
+    - `ppsInFY(fy) → number` (26.0 / 26.1 / 26.2)
+    - `ppsRemaining(asOfDate, fy) → number`
+  - Generated annually from the Controller's published calendar; checked into source
+    control so historical years remain queryable.
+- **`lib/cola/`** (or as part of `lib/dhr/`) — per-bargaining-unit COLA schedule.
+  - Lookup: `bargainingUnit → [{ effectiveDate, percent, mouCitation }]`.
+  - Sourced from the DHR MOU PDFs (each MOU's Wages article is the authority).
+  - Versioned by effective date so historical projections re-derive correctly.
+
+**Why the split matters.** When the FY27-30 MOU is ratified in mid-2027 with a
+surprise mid-FY27 COLA, KosPos updates **only** `lib/cola/` — pay-calendar code
+doesn't move. Conversely, when the Controller shifts a holiday and bumps a PPE date by
+one day, only `lib/calendar/` moves. The blast radius of each change is small and
+isolated.
+
+#### 2. Annualization function takes both
+
+**Problem in the workbook.** The user has to pick the correct ratio per tab:
+`J2/I2` (pure) for OVERM/PREMM/RTPOM, `N2/M2` (COLA-weighted) for Step and Report
+Data. The choice is implicit and not documented anywhere obvious — a new analyst won't
+know why Overtime uses one and Step uses the other.
+
+**KosPos design.** A single `project()` function:
+
+```ts
+project({
+  actualsYTD: number,
+  asOfDate: Date,
+  fy: number,
+  bargainingUnit: string,
+  method: 'straight-line' | 'cola-aware',  // default per-context
+}) → { projectedAnnual: number, breakdown: ... }
+```
+
+For `cola-aware`, the function walks the remaining PPs and applies the rate in
+effect at each. For a single-MOU population (DBI today), this collapses to a single
+multiplier — output matches the workbook's `N2/M2` math exactly. For a mixed-BU
+population (e.g., a future dept with SEIU 1021 + IFPTE 21 staff), the function
+produces the correct per-BU projection rather than a flat one-size-fits-all multiplier.
+
+**Per-tab defaults match the current workbook:**
+
+| Surface | Default `method` | Rationale |
+|---|---|---|
+| Overtime YTD + projection | `straight-line` | OT is volatile (lumpy events); COLA delta is small noise. Matches workbook. |
+| Premium pay | `straight-line` | Same as OT — volatility dominates. Matches workbook. |
+| Retirement Payout | `straight-line` | Lumpy individual-retirement-driven; already conservative via `MAX(budget, YTD)` floor. |
+| Step | `cola-aware` | The point of Step is precise per-PP COLA accounting. Matches workbook. |
+| Report Data (per-position salary) | `cola-aware` | Forward PPs all post-COLA; precision matters. Matches workbook. |
+| Operating Report Summary | uses the per-class number above — no own choice | |
+
+A per-tab toggle lets the user opt the other way and see the impact.
+
+**Worked example.** OT YTD $438k at PP 22.4 / 26.1, BU = SEIU 1021 Misc:
+- `straight-line`: $438k × 26.1 / 22.4 = **$510k**
+- `cola-aware`: $438k × 26.295 / 22.535 = **$511k**
+- The $1k spread is what would show in the side-by-side display (improvement #3).
+
+#### 3. Show both projections, expose the delta
+
+**Problem in the workbook.** Only one number lands in the cell. The user can't see
+how much of the projection comes from "real activity continuing forward" vs. "COLA
+inflation of forward dollars." For exec-facing reports this matters: when the
+projection rises run-to-run, leadership wants to know whether it's because of
+overspend or because of a known scheduled bump.
+
+**KosPos design.** Every projection number renders with three values visible:
+
+```
+Overtime projection
+  Straight-line:   $510,000
+  COLA-aware:      $511,000   (+0.2%)
+  Variance vs G37 budget:  -$131,000 (recommended display)
+```
+
+Optionally collapse to one when the spread is below a threshold (e.g., 0.1%) to
+reduce visual noise. Always show the spread in tooltips.
+
+**Secondary benefit — data-quality flag.** If a class has no bargaining unit
+assigned, the COLA-aware projection won't include any mid-year bumps for that class
+and the per-class spread will be **zero**. In a department where the dominant
+spread should be ~1.5%, a class with zero spread is a missing-BU flag. The Data
+Issues panel (per ADR-003) picks this up automatically.
+
+**Tertiary benefit — cross-dept comparison.** Two departments with similar
+profiles should have similar spreads. If they don't, that's diagnostic: one has BU
+mappings the other lacks, or one is heavy in a class on a different MOU.
+
+#### 4. Treat the late-fiscal-year COLA bump as a policy rule, not an oversight
+
+**Problem in the workbook.** Column E intentionally omits the Jun 30, 2026 +2.0%
+bump because it lands on the FY's last weekday (one day of impact ≈ zero dollars).
+This works, but it's an undocumented call — a future analyst reading the workbook
+won't know whether the omission is "wrong" or "deliberate."
+
+**KosPos design.** A documented inclusion rule in `lib/cola/`:
+
+> A COLA effective date is included in the FY's projection if it lands on or before
+> a PPE whose `ppToFraction(pp) = 1.0` (i.e., a full PP). Effective dates within the
+> spillover days of PP27 are recorded but produce zero in-year impact (the formula
+> still applies them; the math just multiplies by ~0.7 / 26.1 of a tiny rate change).
+
+This generalizes the workbook's special-case to a rule. Edge cases the rule handles
+correctly without extra logic:
+
+- **A Jul 1 bump for the upcoming FY** — outside the current FY, doesn't apply at all.
+- **A late-FY bump in a year with a longer PP27** — automatically downweighted by the
+  fraction.
+- **A retroactive MOU bump** — applied to the PPs it covers, regardless of when it
+  was ratified.
+
+**Rule-vs-cosmetic distinction.** Don't *exclude* late-FY bumps from the data; let
+the math downweight them naturally. Excluding by threshold is a cosmetic shortcut
+that breaks the moment someone adjusts the threshold. The math is correct as long as
+the per-PP COLA delta `E{n}` is the rate-change contribution **for that PP only**.
+
+#### 5. Decouple "as-of date" from the BI Payroll import
+
+**Problem in the workbook.** `H2 = MAX('BI Payroll'!X:X)` ties the "today" cell to
+one specific source. If a user wants to ask "what would the projection look like if
+we'd run this report at PP 15?" — or if Report Data is pulled from an earlier P&P
+snapshot than BI Payroll — the answer is "rebuild the workbook with a hacked H2
+cell." Painful.
+
+**KosPos design.** A first-class `asOfDate` state value on every projection page:
+
+- Default = `MAX(PPE)` across all imported sources (matches workbook behavior).
+- Visible as a control at the top of every projection page: `Projecting as of PP22
+  (5/8/2026) ▼`.
+- Override via dropdown / date picker. Common presets: latest, 6-month report, 9-month
+  report, end of last quarter, end of PP15, FY end.
+- Validation: cannot exceed the latest PPE present in any source the projection
+  depends on. Surfaces a warning if the as-of date pre-dates a source's earliest data.
+
+**Use cases this unlocks:**
+
+- **Retrospective verification.** "What did the 6-month projection say at the time?"
+  Pick `asOfDate = 12/12/2025`. Compare to the saved 6-month report.
+- **Cross-source consistency.** If P&P is from 5/1 and BI Payroll is from 5/8,
+  setting `asOfDate = 5/1` projects from the earlier date for both — avoids
+  apples-to-oranges. Conversely, leaving as `5/8` and getting a warning highlights
+  that P&P needs a fresher pull.
+- **What-if planning.** "If we don't hire anyone else this year, what does year-end
+  look like as of today?" Doesn't require a calendar change; only the hiring-plan
+  inputs.
+- **Parity testing.** When verifying KosPos's math against a snapshot of the
+  workbook, set `asOfDate` to match the workbook's `H2` exactly — projections become
+  directly comparable.
+
+#### 6. PP27 + percentage progress in user-facing displays
+
+**Problem in the workbook.** `J2 = 26.1` is correct for math but opaque for an exec
+audience. "We're at PP 22.4 of 26.1" requires explaining the fractional PP. Reports
+sent to CON/MYR/the Board need a different framing.
+
+**KosPos design.** Three parallel forms, picked per audience:
+
+| Form | Used in | Example |
+|---|---|---|
+| **Fractional PP** | Internal math, formulas, tooltips | `22.4 / 26.1` |
+| **Whole PP + spillover** | Operations dashboards | "PP 22 of 26 (plus 7-day spillover to FY27)" |
+| **Percent of FY elapsed** | Exec-facing reports, 6-/9-month report titles | "86% through FY26" |
+
+Each displays the same underlying state in a different presentation. No duplicated
+calculation — all derive from `ppsElapsed / ppsInFY`. A "format" prop on display
+components picks the right rendering.
+
+**Why the third form matters.** When a Board member sees "projected year-end actuals
+$580k vs budget $380k," the immediately useful follow-up is "at 86% through the
+year, are we overspent by 53% or pacing 53%?" The workbook hides this; KosPos surfaces
+it.
+
+#### 7. Version the calendar by FY and persist historical calendars
+
+**New (not in the current workbook).** The workbook only carries the current FY's
+calendar; prior FYs' calendars live in prior workbook files. KosPos persists every
+imported FY's calendar JSON in `lib/calendar/data/`. When the user opens a Past Year
+workspace (Phase 5), the right calendar loads automatically. Re-deriving an FY18
+projection won't accidentally use FY26's PPE dates or COLA schedule.
+
+#### 8. Validate the calendar against the published source
+
+**New.** When the user uploads a new FY's calendar JSON (or KosPos generates one
+from the Controller's PDF), run a sanity-check pass:
+
+- Exactly 26 or 27 rows.
+- PP1 starts on the first weekday on/after 7/1.
+- PP27 (if present) ends on the last weekday on/before 6/30.
+- Sum of `PP%` = 26.0 / 26.1 / 26.2 (matches the published FY total).
+- Per-BU COLA effective dates fall on or between FY start and FY end.
+
+Failures surface in the Data Issues panel rather than producing silently-wrong math.
+The workbook has no equivalent check — a typo in column B silently breaks every
+downstream projection.
 
 **KosPos UI sketch:**
 
