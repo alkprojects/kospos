@@ -708,3 +708,49 @@ Each new/extended doc has a "Conflicts to reconcile" section. The headline items
 - Phase 2.1 (hide budget-dev UI route guard) — comes after the deep-dive is complete
 - Phase 2.2 sub-phase enumeration in dependency order — done once the walkthrough is complete
 
+---
+
+## Interlude — CI hygiene: Node 24 action bumps (2026-05-25)
+
+**Worktree:** `great-swanson-7c4960`
+**Model:** Opus 4.7
+**Mode:** Off-roadmap, single-task fix
+**Time:** ~04:55–05:00 UTC
+
+### Prompts
+
+**[~04:55]**
+> The kospos repo's GitHub Actions workflows (.github/workflows/deploy.yml and .github/workflows/test.yml) use actions pinned to Node 20 versions that GitHub is deprecating: [list]. Deprecation schedule (surfaced in run annotations during Session 13's deploys, 2026-05-25): 2026-06-02 forced default to Node 24, 2026-09-16 Node 20 removed from runners entirely. Task: audit both workflow files, identify the latest available versions of each action that support Node 24 natively, and bump them. Either set FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true as a temporary opt-in, or move to newer action versions if released. Verify CI still passes after the bump.
+
+**[~04:57]** "yes go ahead" (open PR)
+
+**[~04:58]** "what's next?"
+
+**[~04:58]** "yes, go ahead" (merge PR)
+
+**[~04:59]** "yes" (log this in SESSION_LOG.md)
+
+### Workflow
+
+1. Read both workflow files + `app/package.json` (noted `@types/node: ^24.12.3` already present — node-version 20 was stale).
+2. Fetched latest major versions from each action's GitHub releases page in parallel.
+3. Bumped: `checkout` v4→v6, `setup-node` v4→v6 (+ `node-version: 20`→`24`), `configure-pages` v5→v6, `upload-pages-artifact` v3→v5, `deploy-pages` v4→v5.
+4. Chose version bumps over the `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` env-var workaround — the env var is a stopgap that disappears after the Sept removal; version bumps are the durable fix.
+5. Local verification under Node 24.14.0: `npm ci`, `npm run build` clean, `npm test` 146/146 pass.
+6. PR #35 opened, CI green (17s), merged to main, deploy succeeded.
+
+### Milestones
+
+- **PR #35 merged** — `ci: bump workflow actions to Node 24-native versions`. 2 files changed, +9 / −9.
+- Both workflows now on Node 24-native action runtimes (deprecation annotations gone).
+- `node-version` field aligned with `@types/node` — project Node version is now consistent end-to-end.
+
+### Why this happened mid-Phase-2
+
+The deprecation annotations first appeared on Session 13's PR #33 + PR #34 deploys (2026-05-25). Repo is docs-only right now, so blast radius was minimal — better to fix while the diff is two lines per file than scramble in September.
+
+### Out of scope
+
+- No app/source code touched.
+- Phase 2 walkthrough (next tabs: BI Payroll, P&P Data, Report Data, etc.) resumes in a fresh session.
+
