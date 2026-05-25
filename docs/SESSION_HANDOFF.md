@@ -4,53 +4,62 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
-## Current status (end of Session 13, 2026-05-25)
+## Current status (end of Session 14, 2026-05-25)
 
 **Phase:** Phase 2.0 — Labor Report deep-dive walkthrough. **In progress.**
-**Last main commit:** `7d0d62f` — `docs(labor-report): Calendar tab deep-dive + walkthrough scaffolding (#33)`
+**Last main commit:** _(will be the BI Payroll PR merge — see below)_
 **Tests:** passing on CI (no app-code changes this session)
 **Branches in flight:** none after the handoff PR merges
 
 ### What landed this session
 
-- **[PR #33](https://github.com/alkprojects/kospos/pull/33)** — Phase 2.0a:
-  - Scaffolded all 26 walkthrough tabs in `docs/domain/labor-report.md` matching the
-    real workbook order; 2 ignored tabs (DBI/CPC merger planning) called out.
-  - **Tab 5 (Calendar) walked end-to-end** against the real workbook — per-cell decode,
-    cross-tab usage map (pure-PP cols I/J/K used by OT/Premium/RPO/Staffing Plan/Op
-    Report Summary; COLA-weighted M/N/O used by Report Data and Step).
-  - The "26.3 trick" decoded: `N2 = 26.295` is a synthetic COLA-equivalent PP count,
-    distinct from the real `J2 = 26.1`.
-  - **BU (bargaining unit) glossary** added to cross-cutting concerns.
-  - **Access-control plan** captured (Cloudflare Access + Entra ID eventual; v1
-    options for password gate).
-  - **DBI-shortcut catalog** (Multi-dept generalization caveats table) seeded.
-  - **Dynamic-tables pain point** documented as cross-cutting (KosPos's live-data
-    model eliminates the workbook's pivot-vs-formula misalignment issues).
-  - **Calendar improvements section expanded** — 8 detailed improvements with
-    problem-statements, concrete designs, edge cases, and worked examples.
+- **Tab 7 (BI Payroll) walked end-to-end** against the real workbook —
+  full 39-column inventory, earnings-code dictionary observed in this snapshot,
+  per-downstream-tab consumption patterns (Calendar, Premium, Overtime, RPO,
+  Step, Report Data, TEMP Limits, Inactive, Budget Summary), 8 detailed KosPos
+  improvements, UI sketch, Excel export notes, 5 open questions.
+- **Six downstream tab stubs cross-linked** (Premium, Overtime, Step, RPO,
+  Inactive, TEMP Limits) with the pivot or SUMIFS shape decoded this session,
+  so future per-tab walkthroughs lean on the BI Payroll section instead of
+  re-deriving.
+- **New cross-cutting concern** captured: Controller-side data masking of
+  sick-leave TRCs (`XXX` = `***Unspecified***`, $3.51M / 4.2% of FYTD payroll).
+  KosPos preserves the masking by default; admin-only unmask is a future
+  permissioned upload.
+- **DBI-shortcut catalog grew by 5 rows** — account-description literals,
+  fund-10190 filter on Step, `COMMN:` job-code prefix, masked sick leave,
+  central chart-of-accounts map.
+- **Data Sources Inventory** now includes BI Payroll with full v1 mechanism
+  + v2 Snowflake plan + KosPos importer path.
+- **ADR-007 confirmed wrong about pre-aggregation** — open question to
+  amend during Phase 2.4 importer build (real BI Payroll is transactional,
+  not pre-aggregated `YTD Salary/Benefits/Total`).
 
-### Key principle anchored this session
+### Key findings worth carrying forward
 
-**All KosPos projections are COLA-aware by default.** The workbook's straight-line
-uses (`Calendar!J2/I2` for OT / Premium / Retirement Payout) are shortcuts Alex
-takes for simplicity, not the right answer. KosPos's `project()` function defaults
-to `cola-aware`; straight-line is offered only as a labeled "simplified view" for
-quick reads and parity-checking against the existing workbook — never the emitted
-figure. Per-labor-type projection method discussions (straight-line annualize vs
-seasonality vs hire-plan-aware vs lump-sum vs residual) happen when each labor
-type's tab is walked.
-
-This principle is saved to Claude memory (`feedback_projections_always_cola_aware.md`)
-so future sessions don't re-derive it incorrectly.
+1. **BI Payroll is the spine of every actuals number in the workbook.**
+   Six pivot caches sit on it; Step (32,670 cells) + Report Data (18,225 cells)
+   reference it cell-by-cell. Renaming any column upstream breaks everything
+   silently.
+2. **Full FYTD re-pull every payday** is the right import model — incremental-append
+   would miss retroactive prior-PP adjustments. KosPos preserves snapshot history
+   so the "what changed since last run" view in Operating Report Detail has real
+   diffs to show.
+3. **CPC inclusion is in-progress merger prep.** Premium/Overtime/Step
+   downstream consumers don't consistently distinguish DBI from CPC; KosPos
+   importer should treat Department Group Code as a first-class dimension on
+   every aggregation.
+4. **Sick-leave masking is a privacy posture, not a data-quality issue.**
+   Document explicitly; do not back-fill from unmasked sources without admin
+   permission.
 
 ## Phase 2 sub-phases (revised)
 
 | # | Sub-phase | Status |
 |---|---|---|
-| 2.0a | Deep-dive: scaffold + Calendar | ✓ this session (PR #33) |
-| 2.0b | Deep-dive: BI Payroll | **NEXT** |
-| 2.0c | Deep-dive: P&P Data | pending |
+| 2.0a | Deep-dive: scaffold + Calendar | ✓ Session 13 (PR #33) |
+| 2.0b | Deep-dive: BI Payroll | **✓ this session** |
+| 2.0c | Deep-dive: P&P Data | **NEXT** |
 | 2.0d | Deep-dive: Report Data (the spine) | pending |
 | 2.0e | Deep-dive: Operating Report Summary + Detail | pending |
 | 2.0f | Deep-dive: per-special-class tabs (Premium, Overtime, Step, Retirement Payout) | pending |
@@ -60,81 +69,113 @@ so future sessions don't re-derive it incorrectly.
 | 2.1 | Hide budget-dev UI (route guard) | pending |
 | 2.2 | Per-tab UI sub-phases | pending |
 | 2.3 | Excel export | pending |
-| 2.4 | Importer wiring | pending |
-
-The deep-dive is sized to one or two tabs per session — sustainable pace, fresh
-context per tab.
+| 2.4 | Importer wiring (includes ADR-007 amendment) | pending |
 
 ## Blockers for Alex
 
 None landing-related. Live site: <https://alkprojects.github.io/kospos/>. Please
-spot-check the new Calendar walkthrough when convenient:
+spot-check the new BI Payroll walkthrough when convenient:
 
-- [docs/domain/labor-report.md](domain/labor-report.md) — Tab 5 (Calendar)
-- [docs/domain/labor-report.md § Cross-cutting concerns](domain/labor-report.md) —
-  BU glossary, access control, DBI-shortcut catalog
+- [docs/domain/labor-report.md § Tab 7 (BI Payroll)](domain/labor-report.md) — the
+  main walkthrough.
+- [docs/domain/labor-report.md § Cross-cutting / Controller-side data masking](domain/labor-report.md) —
+  the new sick-leave privacy posture section.
+- [docs/domain/labor-report.md § Data sources inventory](domain/labor-report.md) —
+  BI Payroll row added.
 
-## Next session prompt — Phase 2.0b (BI Payroll deep-dive)
+## Next session prompt — Phase 2.0c (P&P Data deep-dive)
 
-This is an **interactive walkthrough** like Session 13. The goal is to fill in the
-**BI Payroll** tab section of `docs/domain/labor-report.md`. No app code in this
-session. Output is the BI Payroll tab walkthrough + any new rows for the Data
-Sources Inventory + any cross-cutting concerns that emerge.
+This is an **interactive walkthrough** like Sessions 13–14. The goal is to fill in
+the **P&P Data** tab section of `docs/domain/labor-report.md`. No app code in this
+session. Output is the P&P Data tab walkthrough + any new rows for the Data Sources
+Inventory + any cross-cutting concerns that emerge.
+
+**Bid-an-honest-scope note:** P&P Data is the 88+ column position-and-personnel
+report from OBI / PS HCM. It's the source of P&P-driven joins everywhere in the
+workbook (Report Data uses it as its position spine; Inactive cross-references it
+against BI Payroll; EE Additional Pay joins to it; etc.). Plan on the full session
+being P&P Data alone — do not pile on Report Data (Session 14d).
 
 Paste this verbatim to start the next session:
 
 ````
-We're continuing Phase 2 — labor-report deep-dive. Tab 7 (BI Payroll) is next.
+We're continuing Phase 2 — labor-report deep-dive. Tab 6 (P&P Data) is next.
 
-Session goal: walk through the BI Payroll tab of `Labor Report 5.21.26.xlsx` and
+Session goal: walk through the P&P Data tab of `Labor Report 5.21.26.xlsx` and
 fill in its section in docs/domain/labor-report.md using the per-tab template.
 NO app code this session.
 
 Read first, in order:
   docs/CLAUDE.md
   docs/SESSION_HANDOFF.md (this file)
-  docs/domain/labor-report.md — note the Calendar tab walkthrough (Tab 5) as a
-    pattern reference; same template applies to BI Payroll
-  docs/domain/special-class.md — RTPOM, OVERM, and PREMM math reference BI Payroll
-    pivots; cross-reference when writing BI Payroll's role in those tabs
-  docs/data-sources/obi.md — BI Payroll's source system
+  docs/domain/labor-report.md — note the Calendar tab (Tab 5) and BI Payroll
+    tab (Tab 7) walkthroughs as pattern references; same template applies to
+    P&P Data. P&P Data is the position-spine that Report Data (Tab 20)
+    pivots off of, similar to how BI Payroll is the actuals-spine.
+  docs/domain/positions.md — domain model for Position vs Employee
+  docs/domain/appointment-types.md — appointment-type taxonomy (PCS / PEX /
+    TEX / ELC / TPV; the temp categories 16 / 17 / c2 vs 18 inconsistency
+    noted in Tab 12 TEMP Limits)
+  docs/data-sources/ps-hcm.md — primary system; P&P Data is an OBI report
+    over PS HCM
+  docs/data-sources/obi.md — query layer
 
 Confirm state on main:
   git log --oneline origin/main -5
 
 Workflow:
 
-  1. Open the workbook directly (Python + openpyxl, read-only) to read BI Payroll's
-     columns, identify earnings codes, and trace how downstream tabs (Premium,
-     Overtime, Retirement Payout, Step) pivot off it. Don't ask Alex for what the
-     workbook can tell you.
-  2. Walk the BI Payroll tab through the per-tab template:
+  1. Open the workbook directly (Python + openpyxl, read-only) to inventory
+     P&P Data's columns (described as 88+ — A:CJ from OBI plus formula columns
+     past CJ). Sample several rows. Read the column headers; identify which
+     columns drive downstream joins (Position Identifier, Job Code, Reports-To,
+     RTF Status, etc.). Trace formula columns past CJ — are they per-row
+     derived (XLOOKUPs into Steps / Combo / BFM) or per-position rollups?
+     Don't ask Alex for what the workbook can tell you.
+  2. Find every reference to 'P&P Data' across all sheet formulas to map
+     downstream consumers (Report Data primarily; Inactive's F2 / G2 lookups;
+     EE Additional Pay; Reporting Tree; Pos by Dept; Vacancies and TEMP;
+     Staffing Plan; TEMP Limits).
+  3. Walk the P&P Data tab through the per-tab template:
        - Purpose
-       - Data sources (OBI BI Payroll query — see obi.md and ADR-007 for column
-         assumptions; confirm against the real export)
-       - Formulas / structure (column inventory, what each is for, any derived
-         columns that aren't from OBI directly)
-       - What's manual / fragile (column-name dependencies, fund filters, hardcoded
-         earnings codes)
-       - KosPos improvements (importer design, per-earnings-code categorization,
-         multi-fund handling, real-time vs snapshot)
-       - KosPos UI sketch (likely internal staging + a payroll-detail drill-down)
+       - Data sources (OBI/PS HCM query — confirm against the real export;
+         note the ADR-006 column assumptions and amend later if needed)
+       - Formulas / structure (column inventory; group OBI columns vs derived
+         formula columns; note any derived columns that should move into
+         KosPos's per-position model rather than a flat sheet)
+       - What's manual / fragile (column-name dependencies, hardcoded ranges,
+         appointment-type inconsistencies, RTF status conventions)
+       - KosPos improvements (importer design — snapshot vs delta? — position
+         model, Reports-To validation, RTF tracking, vacancy projection
+         interplay)
+       - KosPos UI sketch (likely subsumed by the Position Detail page +
+         internal staging, parallel to BI Payroll's drill-down)
        - Excel export notes
        - Open questions / TODO
-  3. Build up the Data Sources Inventory table with BI Payroll entries.
-  4. Cross-reference Premium / Overtime / Retirement Payout / Step tabs — list what
-     each one needs from BI Payroll (earnings codes, columns) so future per-tab
-     walkthroughs can lean on this section.
-  5. Ship as ONE docs PR: `docs/labor-report-bi-payroll`. Merge per the CLAUDE.md
-     shutdown rule. Update SESSION_HANDOFF.md with the next tab's prompt.
+  4. Build up the Data Sources Inventory table with P&P Data entries.
+  5. Cross-reference Report Data, Inactive, EE Additional Pay, Reporting Tree,
+     Pos by Dept, Vacancies and TEMP, Staffing Plan, TEMP Limits — list what
+     each one needs from P&P Data so future per-tab walkthroughs can lean on
+     this section.
+  6. Resolve the TEMP-category inconsistency surfaced during Calendar walkthrough
+     (definitions.md says 16 / 17 / c2; Tab 12 description says 16 / 17 / 18).
+     P&P Data is where the appointment-type column lives — confirm what values
+     appear in the real data and reconcile.
+  7. Ship as ONE docs PR: `docs/labor-report-pnp-data`. Merge per the
+     CLAUDE.md shutdown rule. Update SESSION_HANDOFF.md with the next tab's
+     prompt (likely Report Data — Tab 20, the spine).
 
 Rules:
   - Interactive walkthrough — wait for Alex's prose where the workbook can't
-    answer (e.g., business rules, why certain earnings codes are filtered).
+    answer (e.g., business rules, why certain columns are present, how RTF
+    Status values map to KosPos's vacancy projection logic).
   - Cross-reference existing math docs (special-class.md) rather than restating.
   - All KosPos projections are COLA-aware by default — see memory entry
     `feedback_projections_always_cola_aware.md`.
   - BU = bargaining unit (defined in labor-report.md § cross-cutting).
+  - Treat OBI export as transactional / full-snapshot per the BI Payroll
+    discovery — likely the same import model applies here (full-replace per
+    snapshot, header-driven fingerprint).
 
 Hard constraints:
   - Branch from main, single-purpose name.
@@ -147,7 +188,7 @@ Recommended model: claude-opus-4-7. Effort: high.
 
 ## Recommended model
 
-`claude-opus-4-7` — same synthesis-heavy work as Session 13.
+`claude-opus-4-7` — same synthesis-heavy work as Sessions 13–14.
 
 ## Recommended effort
 
@@ -155,21 +196,26 @@ Recommended model: claude-opus-4-7. Effort: high.
 
 ## Notes for the next-session model
 
-- **Open the workbook directly.** Session 13 discovered this changed the walkthrough
-  pace dramatically — many "ask Alex" questions can be resolved by inspecting the
-  workbook in 30 seconds. Use Python + openpyxl read-only mode (data_only=False
-  for formulas, data_only=True for computed values, both with read_only=True
-  because the workbook has pivot caches that choke the non-read-only loader).
-- **Workbook path:** `C:\Users\ALK\Desktop\Claude Projects\Position Management\Labor Report 5.21.26.xlsx`
-  (`.xlsx` files are gitignored — never commit them).
-- **BI Payroll unblocks several downstream tabs.** Premium, Overtime, Retirement
-  Payout, and Step all pivot off BI Payroll. Even if those tabs aren't walked
-  this session, capturing their needs in the BI Payroll section saves time later.
-- **Wait for Alex's prose** on business-rule questions. Inventory the column
-  structure from the workbook; ask only the "why" questions.
-- **Bid an honest scope.** Session 13 was Calendar + scaffolding in one session.
-  BI Payroll alone is fine for one session — don't pile in P&P Data too. P&P
-  Data is 88+ columns and warrants its own session (Session 14b).
+- **Open the workbook directly.** Workbook path:
+  `C:\Users\ALK\Desktop\Claude Projects\Position Management\Labor Report 5.21.26.xlsx`
+  (`.xlsx` files are gitignored — never commit them). Use Python + openpyxl
+  read-only mode (`data_only=False` for formulas, `data_only=True` for computed
+  values, both with `read_only=True` because the workbook has pivot caches that
+  choke the non-read-only loader).
+- **Reading pivot definitions:** when openpyxl can't load the workbook
+  read-write to introspect pivots, **unzip the `.xlsx`** and read
+  `xl/pivotTables/pivotTable*.xml` + `xl/pivotCache/pivotCacheDefinition*.xml`
+  directly (XML). Pattern used in Session 14 worked well.
+- **P&P Data unblocks several downstream tabs.** Report Data (the spine) pivots
+  off P&P Data; Inactive cross-references it; EE Additional Pay, Reporting Tree,
+  Pos by Dept, Vacancies and TEMP, Staffing Plan, TEMP Limits all need it.
+  Capturing their needs in the P&P Data section saves time later.
+- **Wait for Alex's prose** on business-rule questions (RTF Status semantics,
+  Reports-To-position-not-position-name convention, vacancy-fill-date input
+  process). Inventory the column structure from the workbook; ask only the
+  "why" questions.
+- **Bid an honest scope.** P&P Data is large (88+ columns); do not pile on
+  Report Data this session. P&P Data alone is fine for one session.
 
 ## What we are explicitly NOT doing next session
 
@@ -180,4 +226,6 @@ Recommended model: claude-opus-4-7. Effort: high.
 - No budget-development UI changes (the route-guard is sub-phase 2.1, after the
   deep dive).
 - No new web research.
-- No other tabs beyond BI Payroll this session.
+- No other tabs beyond P&P Data this session.
+- No ADR-006 / ADR-007 amendments (deferred to Phase 2.4 importer build —
+  capture corrections in the walkthrough docs for now).
