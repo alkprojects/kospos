@@ -4,145 +4,180 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
-## Current status (end of Session 12 + roadmap pivot, 2026-05-24)
+## Current status (end of Session 13, 2026-05-25)
 
-**Phase:** Pivoting into **Phase 2 — Current-Year Workspace (the Labor Report rebuild).**
-**Last main commit:** _(to be filled after merge of the pivot PR — see below)_
-**Tests:** 146/146 passing
-**Branches in flight:** `docs/phase-2-pivot` (this PR — auto-merge after CI green)
+**Phase:** Phase 2.0 — Labor Report deep-dive walkthrough. **In progress.**
+**Last main commit:** `7d0d62f` — `docs(labor-report): Calendar tab deep-dive + walkthrough scaffolding (#33)`
+**Tests:** passing on CI (no app-code changes this session)
+**Branches in flight:** none after the handoff PR merges
 
-### Recently landed
+### What landed this session
 
-- **[PR #30](https://github.com/alkprojects/kospos/pull/30)** — `docs: SF authoritative reference (authorities + appointment-type taxonomy)`. Two new domain files (`authorities.md`, `appointment-types.md`) + extensions across `domain/` and `data-sources/`. See the Session 12 entry in `SESSION_LOG.md` for the full briefing.
-- **[PR #31](https://github.com/alkprojects/kospos/pull/31)** — `docs(session-12): briefing + log entry`.
-- **THIS PR (pivot)** — `docs: roadmap pivot to current-year workspace (Phase 2)`. New ROADMAP.md, new ADR-009, new `docs/domain/labor-report.md` skeleton.
+- **[PR #33](https://github.com/alkprojects/kospos/pull/33)** — Phase 2.0a:
+  - Scaffolded all 26 walkthrough tabs in `docs/domain/labor-report.md` matching the
+    real workbook order; 2 ignored tabs (DBI/CPC merger planning) called out.
+  - **Tab 5 (Calendar) walked end-to-end** against the real workbook — per-cell decode,
+    cross-tab usage map (pure-PP cols I/J/K used by OT/Premium/RPO/Staffing Plan/Op
+    Report Summary; COLA-weighted M/N/O used by Report Data and Step).
+  - The "26.3 trick" decoded: `N2 = 26.295` is a synthetic COLA-equivalent PP count,
+    distinct from the real `J2 = 26.1`.
+  - **BU (bargaining unit) glossary** added to cross-cutting concerns.
+  - **Access-control plan** captured (Cloudflare Access + Entra ID eventual; v1
+    options for password gate).
+  - **DBI-shortcut catalog** (Multi-dept generalization caveats table) seeded.
+  - **Dynamic-tables pain point** documented as cross-cutting (KosPos's live-data
+    model eliminates the workbook's pivot-vs-formula misalignment issues).
+  - **Calendar improvements section expanded** — 8 detailed improvements with
+    problem-statements, concrete designs, edge cases, and worked examples.
 
-## The pivot, in one paragraph
+### Key principle anchored this session
 
-The original roadmap (Phases 0 → 10 with the org chart last) was too vague to execute and required too many parallel decisions. **New strategy: build one self-contained workspace at a time, starting with the current-year workspace** — a recreated-and-improved version of `Labor Report 5.21.26.xlsx`. UI in KosPos + improved Excel export so users keep the workbook habit while moving analysis into the app. RPO + OVERM work from Sessions 9–11 stays in the codebase but is route-guarded out of the app shell (re-exposed in Phase 6 Budget Development). See [ADR-009](DECISIONS.md) and [`docs/ROADMAP.md`](ROADMAP.md).
+**All KosPos projections are COLA-aware by default.** The workbook's straight-line
+uses (`Calendar!J2/I2` for OT / Premium / Retirement Payout) are shortcuts Alex
+takes for simplicity, not the right answer. KosPos's `project()` function defaults
+to `cola-aware`; straight-line is offered only as a labeled "simplified view" for
+quick reads and parity-checking against the existing workbook — never the emitted
+figure. Per-labor-type projection method discussions (straight-line annualize vs
+seasonality vs hire-plan-aware vs lump-sum vs residual) happen when each labor
+type's tab is walked.
 
-## Data-source strategy (confirmed by Alex)
+This principle is saved to Claude memory (`feedback_projections_always_cola_aware.md`)
+so future sessions don't re-derive it incorrectly.
 
-SF is migrating to Snowflake but the timeline is long ("a ways off"). For v1, **every update is a user upload** of source files. Some enhancements (e.g., DHR class-spec lookups) may need website scraping. The data-source inventory per labor-report tab is the headline output of the next session's walkthrough — Alex will go through each source and where it comes from.
+## Phase 2 sub-phases (revised)
 
-## Phase 2 sub-phases
-
-| # | Sub-phase | Output |
+| # | Sub-phase | Status |
 |---|---|---|
-| 2.0 | **Deep-dive walkthrough** — every tab of the Labor Report | `docs/domain/labor-report.md` filled in tab-by-tab; backlog of importers and UI sub-phases |
-| 2.1 | Hide budget-dev UI | Route-guarded `SpecialClassView`; `?budget=1` escape hatch for dev access |
-| 2.2 | Per-tab UI sub-phases | One per labor-report tab in dependency order; parity tests per tab |
-| 2.3 | Excel export | KosPos-emitted improved `.xlsx` |
-| 2.4 | Importer wiring | Importers built as each tab needs them |
+| 2.0a | Deep-dive: scaffold + Calendar | ✓ this session (PR #33) |
+| 2.0b | Deep-dive: BI Payroll | **NEXT** |
+| 2.0c | Deep-dive: P&P Data | pending |
+| 2.0d | Deep-dive: Report Data (the spine) | pending |
+| 2.0e | Deep-dive: Operating Report Summary + Detail | pending |
+| 2.0f | Deep-dive: per-special-class tabs (Premium, Overtime, Step, Retirement Payout) | pending |
+| 2.0g | Deep-dive: Staffing Plan + Vacancies and TEMP + Budget Summary | pending |
+| 2.0h | Deep-dive: reference + tracking tabs (Departments, Combo, BFM-FY26, Roster Approvers, EE Additional Pay, Probation, Eligibility Lists, TEMP Limits, Inactive, Separations, Succession, Pos by Dept, Reporting Tree, Data) | pending |
+| 2.0i | Final: Data Sources Inventory complete + Phase 2.2 sub-phase enumeration in dependency order | pending |
+| 2.1 | Hide budget-dev UI (route guard) | pending |
+| 2.2 | Per-tab UI sub-phases | pending |
+| 2.3 | Excel export | pending |
+| 2.4 | Importer wiring | pending |
+
+The deep-dive is sized to one or two tabs per session — sustainable pace, fresh
+context per tab.
 
 ## Blockers for Alex
 
-None landing-related. Live site: https://alkprojects.github.io/kospos/ — please spot-check the new docs from PR #30 + #31 + this pivot PR when convenient:
+None landing-related. Live site: <https://alkprojects.github.io/kospos/>. Please
+spot-check the new Calendar walkthrough when convenient:
 
-- [docs/ROADMAP.md](ROADMAP.md) — the pivot
-- [docs/DECISIONS.md](DECISIONS.md) — ADR-009 for the reasoning
-- [docs/domain/labor-report.md](domain/labor-report.md) — the deep-dive skeleton to fill next session
-- [docs/domain/authorities.md](domain/authorities.md) — from PR #30
-- [docs/domain/appointment-types.md](domain/appointment-types.md) — from PR #30
+- [docs/domain/labor-report.md](domain/labor-report.md) — Tab 5 (Calendar)
+- [docs/domain/labor-report.md § Cross-cutting concerns](domain/labor-report.md) —
+  BU glossary, access control, DBI-shortcut catalog
 
-## Next session prompt — Phase 2.0 (labor-report deep-dive walkthrough)
+## Next session prompt — Phase 2.0b (BI Payroll deep-dive)
 
-This is an **interactive walkthrough**, not autonomous. The goal is to fill in `docs/domain/labor-report.md` tab by tab with Alex's prose. No app code in this session. Output is the structured deep-dive doc plus a backlog of importer sub-phases.
+This is an **interactive walkthrough** like Session 13. The goal is to fill in the
+**BI Payroll** tab section of `docs/domain/labor-report.md`. No app code in this
+session. Output is the BI Payroll tab walkthrough + any new rows for the Data
+Sources Inventory + any cross-cutting concerns that emerge.
 
 Paste this verbatim to start the next session:
 
 ````
-We're starting Phase 2 — the Current-Year Workspace.
+We're continuing Phase 2 — labor-report deep-dive. Tab 7 (BI Payroll) is next.
 
-Session goal: walk through every tab of `Labor Report 5.21.26.xlsx` and
-fill in docs/domain/labor-report.md with what each tab does, where its
-data comes from, how the formulas work, what's manual/fragile, and how
-KosPos should rebuild and improve it. NO app code this session — just
-the structured deep-dive doc plus a backlog of importer sub-phases.
+Session goal: walk through the BI Payroll tab of `Labor Report 5.21.26.xlsx` and
+fill in its section in docs/domain/labor-report.md using the per-tab template.
+NO app code this session.
 
 Read first, in order:
   docs/CLAUDE.md
-  docs/SESSION_HANDOFF.md (this file — pivot context)
-  docs/DECISIONS.md — ADR-009 (roadmap pivot reasoning)
-  docs/ROADMAP.md — new phase order
-  docs/domain/labor-report.md — the skeleton you'll fill in
-  docs/domain/special-class.md — math already documented for RTPOM, OVERM
-    (and pending for PREMM, STEPM, etc.) — cross-reference, don't re-derive
-  docs/domain/budget-process.md — three-function framework + COLA history
-  docs/domain/definitions.md — Pay Period rules + Temp definitions
-  docs/data-sources/*.md — source-system docs
+  docs/SESSION_HANDOFF.md (this file)
+  docs/domain/labor-report.md — note the Calendar tab walkthrough (Tab 5) as a
+    pattern reference; same template applies to BI Payroll
+  docs/domain/special-class.md — RTPOM, OVERM, and PREMM math reference BI Payroll
+    pivots; cross-reference when writing BI Payroll's role in those tabs
+  docs/data-sources/obi.md — BI Payroll's source system
 
 Confirm state on main:
   git log --oneline origin/main -5
 
 Workflow:
 
-  1. Read the labor-report.md skeleton — note the per-tab template.
-  2. Alex enumerates every tab in the workbook (in whatever order he prefers).
-     For each tab, walk through the template:
+  1. Open the workbook directly (Python + openpyxl, read-only) to read BI Payroll's
+     columns, identify earnings codes, and trace how downstream tabs (Premium,
+     Overtime, Retirement Payout, Step) pivot off it. Don't ask Alex for what the
+     workbook can tell you.
+  2. Walk the BI Payroll tab through the per-tab template:
        - Purpose
-       - Data sources (where does the data come from — manual upload format,
-         scrape source, Snowflake-future plan)
-       - Formulas (decode each, plain-English what it does)
-       - What's manual / fragile (hardcoded constants, copy-pasted values,
-         DBI-specific shortcuts that won't generalize)
-       - KosPos improvements (what we'd do differently in the rebuild)
-       - KosPos UI sketch (how this becomes a page in the app)
-       - Excel export notes (what the corresponding sheet in the
-         KosPos-emitted .xlsx should look like)
+       - Data sources (OBI BI Payroll query — see obi.md and ADR-007 for column
+         assumptions; confirm against the real export)
+       - Formulas / structure (column inventory, what each is for, any derived
+         columns that aren't from OBI directly)
+       - What's manual / fragile (column-name dependencies, fund filters, hardcoded
+         earnings codes)
+       - KosPos improvements (importer design, per-earnings-code categorization,
+         multi-fund handling, real-time vs snapshot)
+       - KosPos UI sketch (likely internal staging + a payroll-detail drill-down)
+       - Excel export notes
        - Open questions / TODO
-  3. As tabs are walked, build up the "Data sources inventory" table at the
-     bottom of labor-report.md. For each upstream source: which tab(s) use
-     it, v1 upload mechanism, v2 Snowflake plan, KosPos importer path.
-  4. At the end: enumerate Phase 2.2 sub-phases in dependency order
-     (Calendar must be wired before anything that uses PP%; Report Data
-     before Operating Report Summary; BI Payroll before Premium/Overtime/
-     Retirement Payout/Step pivots; etc.).
-  5. Ship as ONE docs PR: `docs/labor-report-deep-dive`. Merge per the
-     CLAUDE.md shutdown rule. Update SESSION_HANDOFF.md with Phase 2.1
-     prompt (hide budget-dev UI) for the next session.
+  3. Build up the Data Sources Inventory table with BI Payroll entries.
+  4. Cross-reference Premium / Overtime / Retirement Payout / Step tabs — list what
+     each one needs from BI Payroll (earnings codes, columns) so future per-tab
+     walkthroughs can lean on this section.
+  5. Ship as ONE docs PR: `docs/labor-report-bi-payroll`. Merge per the CLAUDE.md
+     shutdown rule. Update SESSION_HANDOFF.md with the next tab's prompt.
 
 Rules:
-  - This is a walkthrough — wait for Alex's prose for each tab. Don't
-    generate placeholder text unless Alex explicitly defers a section.
-  - Cite back to existing docs when a tab's math is already documented
-    (RTPOM and OVERM are in special-class.md; don't duplicate, link).
-  - Where a tab depends on a source that doesn't have a data-source doc
-    yet, flag it for follow-up — don't make up the doc.
-  - Budget-development tabs (Special Class tab in Budget Master) are NOT
-    part of this walkthrough — Phase 6, not now.
-  - Copyright respect on any verbatim quotes from the workbook: a single
-    cell label is fine; don't reproduce long passages.
+  - Interactive walkthrough — wait for Alex's prose where the workbook can't
+    answer (e.g., business rules, why certain earnings codes are filtered).
+  - Cross-reference existing math docs (special-class.md) rather than restating.
+  - All KosPos projections are COLA-aware by default — see memory entry
+    `feedback_projections_always_cola_aware.md`.
+  - BU = bargaining unit (defined in labor-report.md § cross-cutting).
 
-Hard constraints (unchanged):
+Hard constraints:
   - Branch from main, single-purpose name.
   - No new npm packages.
-  - npm test stays green (no app changes this session anyway).
+  - npm test stays green (no app changes this session).
   - One PR per logical chunk; MERGE before ending session.
 
-Recommended model: claude-opus-4-7. Effort: high (synthesis-heavy).
+Recommended model: claude-opus-4-7. Effort: high.
 ````
 
 ## Recommended model
 
-`claude-opus-4-7` — synthesis of Alex's prose into structured docs benefits from Opus's reasoning.
+`claude-opus-4-7` — same synthesis-heavy work as Session 13.
 
 ## Recommended effort
 
-`high` — deep-dive walkthroughs are dense and benefit from careful interpretation.
+`high` — deep-dive walkthroughs benefit from careful interpretation.
 
 ## Notes for the next-session model
 
-- **Wait for Alex's prose.** This is interactive, not generative. If Alex skips a tab, leave the section marked `_(walkthrough — deferred)_` rather than inventing.
-- **Link, don't duplicate.** RTPOM, OVERM, and partial PREMM/STEPM math already lives in `special-class.md`. The labor-report.md sections for those tabs should *link* to the existing prose, not restate it. Add only what's new (the labor-report-tab-specific framing).
-- **Build the data-source inventory as you go.** It's the single most useful artifact for Phase 2.2 planning.
-- **Don't write code this session.** The temptation will be there. Resist. The deep dive is the foundation that prevents wasted Phase 2.2 work.
-- **Capture improvement ideas Alex mentions.** "I wish this would..." sentences are the entire point of the rebuild. Log them in the "KosPos improvements" bullet of each tab.
-- **Multi-dept extensions are Phase 3.** If Alex mentions another dept doing X differently, capture it but don't let it expand the scope of Phase 2.
+- **Open the workbook directly.** Session 13 discovered this changed the walkthrough
+  pace dramatically — many "ask Alex" questions can be resolved by inspecting the
+  workbook in 30 seconds. Use Python + openpyxl read-only mode (data_only=False
+  for formulas, data_only=True for computed values, both with read_only=True
+  because the workbook has pivot caches that choke the non-read-only loader).
+- **Workbook path:** `C:\Users\ALK\Desktop\Claude Projects\Position Management\Labor Report 5.21.26.xlsx`
+  (`.xlsx` files are gitignored — never commit them).
+- **BI Payroll unblocks several downstream tabs.** Premium, Overtime, Retirement
+  Payout, and Step all pivot off BI Payroll. Even if those tabs aren't walked
+  this session, capturing their needs in the BI Payroll section saves time later.
+- **Wait for Alex's prose** on business-rule questions. Inventory the column
+  structure from the workbook; ask only the "why" questions.
+- **Bid an honest scope.** Session 13 was Calendar + scaffolding in one session.
+  BI Payroll alone is fine for one session — don't pile in P&P Data too. P&P
+  Data is 88+ columns and warrants its own session (Session 14b).
 
 ## What we are explicitly NOT doing next session
 
 - No `app/src/` code changes.
-- No PREMM math (deferred to Phase 6 Budget Development).
-- No budget-development UI changes (the route-guard is sub-phase 2.1, after the deep dive).
-- No new web research (Session 12 covered the authoritative-rules baseline).
+- No PREMM / STEPM / TEMPM / 9994 / 9995 / 9993 math (deferred to Phase 6 Budget
+  Development). The labor-report tabs for Premium / Overtime / Step / Retirement
+  Payout are the YTD + projection view, not budget development.
+- No budget-development UI changes (the route-guard is sub-phase 2.1, after the
+  deep dive).
+- No new web research.
+- No other tabs beyond BI Payroll this session.

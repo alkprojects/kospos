@@ -648,3 +648,63 @@ Each new/extended doc has a "Conflicts to reconcile" section. The headline items
 - Any `app/src/` code change (deferred per session prompt)
 - `9993` attrition target / position-control rules from Mayor's Budget Instructions — Section IV Technical Instructions PDF text was unreadable via WebFetch; future session should re-fetch
 
+---
+
+## Session 13 — Phase 2.0a: Calendar deep-dive + walkthrough scaffolding (2026-05-24/25)
+
+**Worktree:** `wonderful-payne-81b8b9`
+**Model:** Opus 4.7 (high effort)
+**Mode:** Interactive walkthrough
+**Time:** ~03:30–04:50 UTC
+
+### Prompts
+
+**[~03:30]** Phase 2 kickoff prompt (per SESSION_HANDOFF.md pasted by Alex). Goal: fill in `docs/domain/labor-report.md` tab by tab, no app code. Output: structured deep-dive doc + backlog of importer sub-phases.
+
+**[~03:40]** "you do not need to recreate the exact format of the labor report. feel free to suggest ui that would combine/improve things." Plus access-control direction (MS AD eventual, password v1), dynamic-tables pain point, and 26-tab list with one-line description per tab. Calendar requested as first walkthrough.
+
+**[~03:50]** "before answering, have you reviewed the file? if not can you do a deep exploration first to possibly answer some of the questions?" → Pivot to read the real workbook directly.
+
+**[~04:05]** "give more detailed explanations for all of your proposed improvements"
+
+**[~04:20]** "i don't fully understand #2, use plain language. don't understand #3, what's BU? explain #4-6."
+
+**[~04:35]** "projections should always be cola aware. i may use projection methods that don't account for colas for simplicity as a shortcut. you should set it up to always calculate correctly. projections for all types of labor should be discussed individually, special class and regular. rest look ok."
+
+**[~04:45]** "lets do bi payroll, this session or a new one?" → Decision: ship Calendar PR, defer BI Payroll to fresh session.
+
+### Workflow
+
+1. Read briefing docs (CLAUDE.md, SESSION_HANDOFF.md, DECISIONS.md ADR-009, ROADMAP.md, special-class.md, budget-process.md, definitions.md, data-sources index).
+2. Branched `docs/labor-report-deep-dive` from main.
+3. Scaffolded all 26 walkthrough tabs in workbook order + 2 explicitly-ignored tabs; captured cross-cutting concerns (BU glossary, access control, live-data vs stale-pivots, DBI shortcut catalog).
+4. Opened the real `Labor Report 5.21.26.xlsx` via openpyxl (read-only) to inspect Calendar end-to-end and scan every formula in every other tab for `Calendar!` references — produced the per-tab usage map (pure-PP vs COLA-weighted).
+5. Wrote Calendar tab walkthrough with full per-cell decode, the "26.3 trick" decoded as N2 = COLA-weighted synthetic PP count, eight detailed KosPos improvements.
+6. Mid-session correction from Alex: **COLA-aware is always the default projection method.** Workbook's straight-line uses (OT/Premium/RPO) are shortcuts, not the right answer. Updated improvements #2 and #3; saved a memory entry so future sessions don't re-derive the wrong default.
+
+### Milestones
+
+- **PR #33 merged** — `docs(labor-report): Calendar tab deep-dive + walkthrough scaffolding`. 1 file changed, +717 / −123. Tests passing on CI.
+- All 26 walkthrough tabs scaffolded with status + initial Purpose stubs.
+- Calendar tab fully documented (Tab 5).
+- New principle anchored: **all KosPos projections are COLA-aware by default**; straight-line is an optional simplified view, never the default or the emitted figure.
+- BU (bargaining unit) glossary added to cross-cutting concerns; flagged `domain/bargaining-units.md` as a Phase 2.2 TODO.
+
+### What changed for KosPos's understanding
+
+| Theme | Before this session | After this session |
+|---|---|---|
+| Calendar tab structure | I2/J2/K2 known; cols B/C referenced by Step | Full per-cell decode of A:F (per-PP) and H:O (summary); two parallel running totals (pure-PP D vs COLA-weighted F) |
+| The "26.3" PP count | Unknown origin | `N2 = MAX(F:F) = 26.295` — synthetic COLA-equivalent count, distinct from real `J2 = 26.1` |
+| Calendar's hardcoded COLA | Mentioned by Alex as "a major shortcut" | Lives in column E (PP15:PP27 = 0.015); is the SEIU 1021 Misc Jan 3, 2026 +1.5% bump; works because all DBI classes are on Misc MOUs |
+| Per-tab Calendar usage | Implicit | Counted from every formula in the workbook: Operating Report Summary + OT + Premium + RPO + Staffing Plan use pure-PP; Report Data + Step use COLA-weighted (Step references col E 16,335 times) |
+| Projection default | Implicit "match the workbook" | **Always COLA-aware** (Alex's correction); workbook's straight-line uses are shortcuts |
+
+### Out of scope (deferred to follow-on sessions)
+
+- BI Payroll, P&P Data, Report Data, all special-class tab walkthroughs (Premium, Overtime, Step, Retirement Payout)
+- Operating Report Summary + Operating Report Detail walkthroughs
+- Roster Approvers, EE Additional Pay, Probation, Eligibility Lists, TEMP Limits, Inactive, Separations, Succession, Staffing Plan, Budget Summary, Vacancies and TEMP, Pos by Dept, Reporting Tree, Departments, Combo, BFM 15.10.006 FY26, Data
+- Phase 2.1 (hide budget-dev UI route guard) — comes after the deep-dive is complete
+- Phase 2.2 sub-phase enumeration in dependency order — done once the walkthrough is complete
+
