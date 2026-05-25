@@ -754,3 +754,107 @@ The deprecation annotations first appeared on Session 13's PR #33 + PR #34 deplo
 - No app/source code touched.
 - Phase 2 walkthrough (next tabs: BI Payroll, P&P Data, Report Data, etc.) resumes in a fresh session.
 
+---
+
+## Session 14 — Phase 2.0b: BI Payroll deep-dive (2026-05-25)
+
+**Worktree:** `epic-williamson-e4ffb5`
+**Model:** Opus 4.7 (high effort)
+**Mode:** Interactive walkthrough
+**Time:** ~04:00–05:30 UTC
+
+### Prompts
+
+**[~04:00]** Phase 2.0b kickoff prompt (per SESSION_HANDOFF.md). Goal: walk
+through Tab 7 (BI Payroll) and fill in its section of `docs/domain/labor-report.md`
+using the per-tab template. NO app code this session. Output: BI Payroll walkthrough
++ cross-tab references for Premium / Overtime / RPO / Step / Inactive / TEMP Limits
++ Data Sources Inventory update + any new cross-cutting concerns.
+
+**[~04:45]** Mid-session clarifications (in response to AskUserQuestion):
+- CPC's 43k rows in the export are merger-driven: report was originally DBI-only,
+  Alex is extending it to CPC as merger prep; Snowflake direct connection is the
+  long-term plan.
+- Refresh model: full FYTD re-pull every payday Tuesday (every two weeks), because
+  prior-PP retroactive adjustments would be missed by a pure incremental-append
+  model. PS posts payroll + the PS Financials journal entries the day before payday.
+- `'XXX' = "***Unspecified***"` ($3.51M / 4.2% of FYTD payroll) is the Controller
+  hiding sick-leave TRCs. Alex has access to unmask, doesn't use it.
+
+### Workflow
+
+1. Read briefing docs (CLAUDE.md, SESSION_HANDOFF.md, labor-report.md, special-class.md,
+   obi.md, DECISIONS.md ADR-006/007).
+2. Branched `docs/labor-report-bi-payroll` from main.
+3. Opened the real workbook via openpyxl (read_only=True). Inventoried all 39 BI
+   Payroll columns + sampled the first 3 rows in full + streamed full sheet for
+   distinct-value counters + per-Earnings-Code-Description / per-Account-Code /
+   per-Fund Balance-Amount totals (110,027 rows; $84.25M total YTD).
+4. Searched every cell of every sheet for formulas referencing `'BI Payroll'!` —
+   ranked by sheet: Step (32,670 cells), Report Data (18,225 cells), Calendar (1),
+   TEMP Limits (1), Budget Summary (1), Operating Report Summary (1). Decoded the
+   per-PP-per-position SUMIFS shape used by Step + Report Data.
+5. Couldn't load pivot definitions via openpyxl's non-read-only loader (chokes on
+   pivot caches, as Session 13 noted). Instead, unzipped the `.xlsx` and parsed
+   `xl/pivotTables/pivotTable*.xml` + `xl/pivotCache/pivotCacheDefinition*.xml`
+   directly. Mapped pivot caches to sheets: `pivotCacheDefinition6.xml` (source =
+   BI Payroll, 39 fields) powers Premium / Overtime / RPO pivots; `pivotCacheDefinition5.xml`
+   (source = BFM 15.10.006 FY26) powers the budget-reference panels on those same
+   tabs.
+6. Inspected Inactive + Step tab cell structure to confirm BI Payroll consumption
+   patterns and pick up the `RIGHT(jobcode, 4)` prefix-strip convention.
+7. Asked Alex 3 clarifying questions where the workbook couldn't answer (CPC
+   presence, refresh model, XXX bucket origin); answers materially shaped the
+   walkthrough.
+8. Wrote the Tab 7 section using the per-tab template; cross-linked Tabs 12
+   (TEMP Limits), 13 (Inactive), 16 (Premium), 17 (Overtime), 18 (Step),
+   19 (Retirement Payout) with the pivot / formula details decoded here.
+9. Added new cross-cutting concern (Controller-side data masking); appended 5 rows
+   to the DBI-shortcut catalog; updated Data Sources Inventory with BI Payroll row.
+
+### Milestones
+
+- **Tab 7 (BI Payroll) walkthrough done.** Full column inventory (39 cols),
+  earnings-code dictionary observed in snapshot, per-downstream-tab consumption
+  patterns (Calendar, Premium, Overtime, RPO, Step, Report Data, TEMP Limits,
+  Inactive, Budget Summary), manual-fragile catalog (column-name dependency,
+  fund-10190 filter, account-description literals, COMMN: prefix, masked sick
+  leave), 8 detailed KosPos improvements (full-replace import w/ snapshot history,
+  header-driven fingerprint, rollup cube precompute, sick-leave masking preservation,
+  COMMN-prefix strip, dept-group dimension, account-rename guard, per-snapshot
+  data-quality flags), UI sketch (internal staging + per-position drill-down),
+  Excel-export notes, 5 open questions including ADR-007 correction needed.
+- **6 downstream tab stubs cross-linked** (Premium, Overtime, Step, RPO, Inactive,
+  TEMP Limits) with the pivot or SUMIFS shape decoded during this session so
+  future walkthroughs don't re-derive.
+- **Cross-cutting concerns expanded:** new Controller-side data masking section
+  (privacy posture for sick leave); DBI-shortcut catalog grew by 5 rows.
+- **Data Sources Inventory** now includes BI Payroll with v1 mechanism + Snowflake
+  v2 path + importer path.
+
+### What changed for KosPos's understanding
+
+| Theme | Before this session | After this session |
+|---|---|---|
+| BI Payroll shape | Assumed pre-aggregated YTD totals per ADR-007 | Transactional: 39 cols × 110k rows for DBI+CPC FYTD, one row per (person × PP × earnings code × chartfield); $84.25M YTD total |
+| Downstream consumers | Premium / Overtime / RPO via pivots (special-class.md) + "Step somehow" | Six caches sit on BI Payroll; `pivotCacheDefinition6.xml` powers Premium/Overtime/RPO; per-PP-per-position SUMIFS shape decoded for Step (32k cells) + Report Data (18k cells); TEMP Limits + Inactive + Calendar + Budget Summary + OPS all read BI Payroll directly |
+| Refresh model | Unknown | Full FYTD re-pull every payday Tuesday because prior-PP adjustments leak in retroactively |
+| Earnings-code routing | Known: VPO/SVO=RPO, OTP=OT, premium-codes-set=PREMM | Confirmed via snapshot. Plus surprise: $3.51M (4.2% of payroll) sits in `XXX` "***Unspecified***" — the Controller masking sick-leave TRCs |
+| Multi-dept readiness | "DBI shortcut" understood abstractly | Specific: Step's fund-10190 filter would silently zero out CPC + DBI BIF-Continuing positions; account-description literals scattered across hundreds of formulas; CPC inclusion is in-progress (merger prep) |
+| `COMMN:5380` job code format | Implicit | Decoded as `{citywide-common-set prefix} : {4-digit SF job code}`; importer should split |
+| ADR-007 | Provisional | Now known to be wrong about pre-aggregation; needs amendment during Phase 2.4 importer build |
+
+### Out of scope (deferred to follow-on sessions)
+
+- P&P Data, Report Data, all other special-class tab walkthroughs (Premium,
+  Overtime, Step, Retirement Payout) — BI Payroll consumption is documented here,
+  but each tab's projection math + chartfield allocation is its own walkthrough.
+- Operating Report Summary + Operating Report Detail walkthroughs.
+- Roster Approvers, EE Additional Pay, Probation, Eligibility Lists, TEMP Limits,
+  Inactive, Separations, Succession, Staffing Plan, Budget Summary, Vacancies and
+  TEMP, Pos by Dept, Reporting Tree, Departments, Combo, BFM 15.10.006 FY26, Data.
+- ADR-007 amendment (planned during Phase 2.4 importer build).
+- Phase 2.1 (hide budget-dev UI route guard) — comes after the deep-dive is complete.
+- Phase 2.2 sub-phase enumeration in dependency order — done once the walkthrough
+  is complete.
+
