@@ -1459,3 +1459,109 @@ Top action items for Alex (in priority order):
 | Earnings-code routing completeness | "VPO/SVO=RPO, OTP=OT, L08/289=PREMM" | 58 distinct codes seen; 11+ undocumented premium codes carrying $1M+ that the workbook silently absorbs into per-position regular labor. KosPos importer must enumerate explicitly. |
 
 
+---
+
+## Session 19 — Internal Claude setup audit (2026-05-25)
+
+**Worktree:** `funny-cannon-ff06d7`
+**Model:** Opus 4.7 (high effort)
+**Mode:** Interactive audit (Alex available)
+**PRs:** [#_TBD_] (this PR — `docs(audits): internal Claude setup audit`)
+**Tests:** unchanged (no app code touched)
+
+### Prompts
+
+**[~ start]** Session-19 prerequisite audit prompt (per PR #52's
+SESSION_HANDOFF.md). Goal: deep audit of the Claude collaboration setup
+(memory, canonical docs, session log, hooks/settings, repo organization,
+workflow patterns, S18 carry-forward) before resuming Phase 2 content
+work in Session 20. Auto mode — make reasonable calls, fix the trivial,
+surface the rest.
+
+### Workflow
+
+1. Read briefing docs (CLAUDE.md, SESSION_HANDOFF.md, WORKFLOW.md,
+   DECISIONS.md, ROADMAP.md, VISION.md, all 1,461 lines of SESSION_LOG.md
+   through Session 17) + the 8 files in the canonical memory dir + the
+   .claude/ state (settings.json, settings.local.json,
+   hooks/check-session-end-prompt.py, launch.json).
+2. Branched `docs/internal-claude-setup-audit` from main.
+3. Worked through 7 audit areas: A (memory hygiene), B (canonical docs),
+   C (session log + audit cadence), D (hooks/settings), E (file/repo
+   organization), F (workflow patterns), G (S18 carry-forward debt).
+4. Spawned an Explore agent for the anchor-link compliance sweep across
+   all of docs/ + the overlap check between Tabs 16-19 and special-class.md
+   per-class walkthroughs. Spot-verified the agent's claims manually.
+5. Applied 6 trivial memory hygiene fixes in-session (canonical memory
+   dir at `C:\Users\ALK\.claude\projects\...`).
+6. Wrote the audit doc (~510 lines) with Methodology + 7 area sections
+   (each: Findings / Fixes applied / Surfaced for review) + a
+   27-row Summary table + 8 prioritized Recommendations.
+7. Updated SESSION_HANDOFF.md to reflect the audit findings + sharpened
+   Phase 2.0g prompt for Session 20.
+
+### Milestones
+
+- **Audit doc landed:** `docs/audits/internal-claude-setup-audit.md`
+  (NEW). 27 findings across 7 areas: 6 applied, 11 surfaced for Alex's
+  review, 10 no-action confirmations.
+- **Memory hygiene fixes:** `feedback_session_end.md` frontmatter
+  renamed kebab-case + hook-enforcement reference added;
+  `feedback_projections_always_cola_aware.md` broken `[[bargaining-unit]]`
+  link fixed; `MEMORY.md` "Session end prompt" entry renamed to
+  "Session end protocol" with broader scope.
+- **No new memory entries created.** Memory coverage is current — the
+  3 entries from Session 18 + the 5 entries from earlier sessions
+  cover all recurring corrections; no coverage gap found.
+- **Top findings for Alex:**
+  - `.claude/settings.local.json` permission rule is mangled into one
+    string with escaped parens + embedded newlines (almost certainly
+    fails to match any tool call). Quick fix surfaced.
+  - 6 architecturally-significant decisions never became ADRs:
+    COLA-everywhere, MCCP split, userNotes-per-position, Stop hook,
+    anchor-link convention, BVA-as-distinct-source. Recommended:
+    one batched ADR-PR (ADR-010 through 015).
+  - Audit cadence drifted 11 sessions between S7 and S19. Recommended:
+    event-based (per phase close) + 10-session backstop. Next audit
+    fires at Phase 2.0i close.
+  - 4 stale post-merge worktrees registered; `git worktree remove`
+    commands surfaced.
+
+### What changed for KosPos's understanding
+
+| Theme | Before this session | After this session |
+|---|---|---|
+| Memory file slug convention | "kebab-case (per MEMORY.md instructions)" but `feedback_session_end` slipped through | All 8 memory frontmatter names now kebab-case-compliant |
+| `[[link]]` usage | One link pointed to a doc glossary, not a memory | Fixed; `[[link]]` reserved for inter-memory references only |
+| MEMORY.md "Session end prompt" entry scope | Described only the copyable-block rule | Renamed + expanded to cover all three companion rules (copyable block + sync main worktree post-merge + outstanding-items sweep before paste) |
+| `feedback_session_end.md` content | No mention of the hook enforcement | Now notes the Stop hook (PR #51) enforces the primary rule, but the memory remains authoritative |
+| `.claude/settings.local.json` state | Assumed working | Confirmed broken (mangled permission string); fix surfaced for Alex's manual apply |
+| Audit cadence | Implicit "periodically" | Rule proposed: event-based per phase close + every-10-session backstop. Next: Phase 2.0i close. |
+| ADR-worthy decisions tracked | 9 ADRs (ADR-001 to ADR-009) | 6 additional decisions identified for ADR-010 through ADR-015 (batched docs PR recommended) |
+
+### Out of scope (intentionally deferred)
+
+- **Applying the 8 recommendations themselves.** The 6 trivial in-session
+  fixes are applied; the rest are surfaced for Alex's decision and
+  bundling.
+- **Modifying .claude/ files** (settings.local.json, launch.json).
+  Per the PR #51 install pattern, those writes need Alex to run the
+  one-liner himself.
+- **Creating the 6 ADRs.** Batched docs PR after Phase 2.0g lands.
+- **Cleaning up stale worktrees.** Outside this audit session's scope;
+  commands surfaced for Alex.
+
+### Lessons / improvements for next phase
+
+- **Periodic-audit habit works when triggered manually.** No hook
+  required. The "every phase close" rule fires after Phase 2.0i — if
+  that one gets forgotten, *then* consider hooking it.
+- **Memory directory hygiene compounds.** 7 entries with one
+  frontmatter inconsistency + one stale `[[link]]` is fine; at 20+
+  entries the same drift rate would produce a real signal-to-noise
+  problem. Recommend running a memory-audit pass at every phase close,
+  not just every project-wide audit.
+- **Settings.local.json is gitignored and personal but matters.** It
+  silently degrades the working experience when broken. Future
+  audit-doc template should include a "verify settings.local.json
+  parses + permissions are syntactically valid" line item.
