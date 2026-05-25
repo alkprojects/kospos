@@ -858,3 +858,138 @@ using the per-tab template. NO app code this session. Output: BI Payroll walkthr
 - Phase 2.2 sub-phase enumeration in dependency order — done once the walkthrough
   is complete.
 
+---
+
+## Session 15 — Phase 2.0c: P&P Data deep-dive (2026-05-25)
+
+**Worktree:** `heuristic-mahavira-6cce9c`
+**Model:** Opus 4.7 (high effort)
+**Mode:** Interactive walkthrough
+
+### Prompts
+
+**[~ start]** Phase 2.0c kickoff prompt (per SESSION_HANDOFF.md). Goal: walk through
+Tab 6 (P&P Data) and fill in its section of `docs/domain/labor-report.md` using the
+per-tab template. NO app code this session. Output: P&P Data walkthrough + Data
+Sources Inventory updates + reconciliation of the TEMP-category 16/17/c2 vs 16/17/18
+question from Session 13.
+
+**[mid-session]** Three AskUserQuestion clarifications:
+
+- `CH Effective Employee Division = "Update Formula"` for 267 CPC rows (44%): Alex
+  built a manual lookup table inside the OBI report that only knows DBI departments.
+  Citywide dept tree CSV (`Department Classification Structure (16).csv`, 14k rows,
+  64 dept groups) fixes it. Important new domain content: three different "department"
+  concepts (budgeted / effective / combo) and the combo-code maintenance workflow
+  for mid-year moves.
+- Reports-To validation: positions without a reports-to are not necessarily errors
+  (commissions, dept heads report outside the dept). The errors-vs-noise framework
+  needs its own session, but a sketch belongs in P&P. **Major surface area for the
+  app:** generated correction-lists for staff to walk through.
+- CK/CL/CH "where do they belong": computed on read, not stored on Position. After
+  re-explaining what "Position entity" meant, Alex confirmed.
+
+**[follow-up]** UX rule confirmed: every chartfield rendered in the app shows
+**code AND description** in the same control. Other chartfield trees (Account,
+Activity, Authority, Fund, Project, WBS, Agency Use, etc.) are in the same OBI
+folder; document them when their consumer surfaces.
+
+### Workflow
+
+1. Read briefing docs (CLAUDE.md, SESSION_HANDOFF.md, labor-report.md Calendar +
+   BI Payroll patterns, positions.md, appointment-types.md, ps-hcm.md, obi.md).
+2. Branched `docs/labor-report-pnp-data` from main.
+3. Opened the real workbook via openpyxl (read_only=True). Inventoried all 138
+   columns (88 OBI + 50 derived); sampled row 2 with formulas; sampled key
+   categorical column distinct-value counts (Appointment Type, Exempt Category
+   Desc, RTF Status, Fill Status, etc. — 604 data rows DBI + CPC). Cross-tabbed
+   appointment type × exempt category to surface the PEX-on-Cat-18 anomaly (15
+   rows — likely Exempt-to-Permanent conversions per `appointment-types.md`).
+4. Searched every cell of every sheet for formulas referencing `'P&P Data'!` —
+   found Inactive (2,556), Staffing Plan (1,844), Report Data (248). Other tabs
+   that the prompt mentioned (Reporting Tree, Pos by Dept, etc.) showed 0
+   formula refs — consume P&P via pivot caches instead.
+5. Unzipped the `.xlsx` and parsed `xl/pivotCache/pivotCacheDefinition*.xml` +
+   `xl/pivotTables/pivotTable*.xml` to map P&P consumption via pivots: caches 1
+   (137 fields) and 4 (138 fields including `EH Rep To Pay Above`) source 10
+   pivots across 8 sheets — Step, Report Data, Pos by Dept, Vacancies and TEMP,
+   TEMP Limits (×3), Reporting Tree, EE Additional Pay (×2). Extracted the row-
+   field list per pivot.
+6. Asked Alex 3 clarifying questions where the workbook couldn't answer
+   (Update-Formula framing, Reports-To validation, position-entity model);
+   answers materially shaped the walkthrough.
+7. Wrote the Tab 6 section using the per-tab template — full 138-column inventory
+   grouped by purpose (Identity / Vice / Person / Classification / Reporting
+   line / PCS leave / Cat 17/18 / Roster / Combo / RTF / Budget / Effective dept
+   / Vacancy); derived-column breakdown into six groups; full downstream-consumer
+   reference table; TEMP-category 16/17/c2 vs 16/17/18 reconciliation.
+8. Inventoried citywide dept tree CSV (`Department Classification Structure
+   (16).csv`) — 14,240 rows across 64 dept groups. Documented as companion
+   reference dataset; flagged the other chartfield trees as future work.
+9. Cross-linked Tabs 9 (EE Additional Pay), 12 (TEMP Limits), 13 (Inactive),
+   20 (Report Data), 21 (Reporting Tree), 24 (Staffing Plan) with the pivot /
+   XLOOKUP shapes decoded here so future walkthroughs lean on this section.
+10. Added two rows to the DBI-shortcut catalog (manual DBI-only OBI lookup
+    table for Effective Division; 11-level hierarchy materialized in 44
+    columns). Added three rows to the Data Sources Inventory (P&P Data,
+    citywide dept tree, other chartfield trees).
+11. Updated tab-list table status for Tab 6: pending → done 2026-05-25.
+
+### Milestones
+
+- **Tab 6 (P&P Data) walkthrough done.** Full 88-column OBI export inventory
+  grouped by purpose; 50-column derived breakdown (cross-tab status / formatted
+  IDs / 11-level hierarchy climb / array formula / per-level naming /
+  supervisory-pay differential); 10-pivot-table downstream-consumer reference;
+  3-department-concept distinction (budgeted vs effective vs combo) and the
+  combo-code maintenance workflow; 10 detailed KosPos improvements (Position as
+  first-class entity; snapshot history + diff; fingerprint import; companion
+  citywide dept tree; three depts modeled explicitly; Reports-To error-vs-noise
+  framework sketch; hierarchy computed not materialized; supervisory pay
+  differential as derived metric; snapshot date + source recorded; data-quality
+  flags); UI sketch (internal staging + Position Detail page); Excel-export
+  notes; 9 open questions.
+- **TEMP-category 16/17/c2 vs 16/17/18 reconciled.** Both prior descriptions are
+  correct, measuring different things — AG covers 12 categories citywide
+  including Cat 16 + C2; AW covers only the two date-bounded non-renewable
+  cats (17, 18). Cat 16 is hours-tracked via BI Payroll; AW is date-tracked.
+- **6 downstream tab stubs cross-linked** (EE Additional Pay, TEMP Limits,
+  Inactive, Report Data, Reporting Tree, Staffing Plan) with the consumption
+  shape decoded so future walkthroughs lean on this section.
+- **New cross-cutting concern captured:** the 3-department modeling
+  (budgeted-locked-annually / effective-mutable-anytime / combo-code-as-bridge)
+  with the combo-code-missing-after-move failure mode flagged for Data Issues.
+- **DBI-shortcut catalog grew by 2 rows** (CH Effective Employee Division
+  DBI-only lookup; 11-level materialized hierarchy).
+- **Data Sources Inventory** now includes P&P Data + citywide dept tree CSV +
+  placeholder for the other chartfield trees.
+- **UX convention added:** every chartfield rendered in the app shows code AND
+  description in the same control. Per Alex.
+
+### What changed for KosPos's understanding
+
+| Theme | Before this session | After this session |
+|---|---|---|
+| P&P Data shape | "88 columns from OBI plus derived columns" | 88 OBI + 50 derived = 138 cols × 604 rows (DBI+CPC at this snapshot); derived columns break into six groups (cross-tab lookups; formatted IDs; 11-level climb; array display formula; per-level naming; supervisory-pay differential) |
+| Downstream consumers | "Report Data primarily; Inactive cross-references" | Inactive (2,556 XLOOKUPs), Staffing Plan (1,844 XLOOKUPs), Report Data (248 XLOOKUPs + 1 pivot); 10 pivot tables across 8 sheets sourced from two P&P caches (1 and 4) |
+| Department modeling | Single "department" concept implied | Three distinct concepts: budgeted (annual lock), effective (PS HCM mutable), combo (chartfield mapping). Combo code is the bridge for mid-year moves. KosPos models all three. |
+| TEMP categories | "16/17/c2" vs "16/17/18" inconsistency between definitions.md and Tab 12 | Resolved: AG (Exempt Category Description) carries 12 distinct values including Cat 16, 17, 18, and C2; AW (CAT_17_18 Exempt Code) carries only 17 and 18 (the date-bounded categories). Cat 16 is hours-tracked via BI Payroll; AW is date-tracked. Both prior descriptions are correct, measuring different things. |
+| Update-Formula placeholder | Unknown | DBI-only manual OBI lookup table — 267 CPC rows (44%) get the literal string "Update Formula" as a flag. KosPos fix: join Position Department ID to citywide `Department Classification Structure` tree (14k rows, 64 dept groups). Available in same OBI folder as the chartfield trees. |
+| Reports-To error model | Validation TBD | Sketch landed: hard errors (cycle, dangling ref, exceeds depth); likely errors (in-dept PCS position with no Reports-To); noise (commissioners/dept-heads report outside dept). Major app surface area: generated correction-lists for staff. |
+| Hierarchy implementation | Implicit | 11-level climb materialized in 44 columns (CO:DJ + DL:EG) per recalc; caps at depth 11. KosPos computes lazily by walking `reports_to_position_id` with no depth cap. |
+| Companion reference data | "Combo Codes / Task Profiles queries in PS HCM" (per ps-hcm.md) | Citywide chartfield trees live in the same OBI folder as the labor report itself: Department / Account / Activity / Authority / Fund / Project / WBS / Agency Use / Account Budget Control / Department Budget Control / TRIO. Document each when its consuming module surfaces. |
+
+### Out of scope (deferred to follow-on sessions)
+
+- Report Data (Tab 20) — next session; the spine that joins P&P Data and BI
+  Payroll for the per-position dataset.
+- All other walkthroughs (Premium / Overtime / Step / Retirement Payout / Operating
+  Report Summary / Detail / Roster Approvers / EE Additional Pay / Probation /
+  Eligibility Lists / TEMP Limits / Inactive / Separations / Succession / Staffing
+  Plan / Budget Summary / Vacancies and TEMP / Pos by Dept / Reporting Tree /
+  Departments / Combo / BFM / Data).
+- Full Reports-To error-vs-noise rules — own session after Reporting Tree (Tab 21).
+- TPV (Temporary Provisional) addition to `appointment-types.md` Quick Reference
+  table — captured as open question for next session.
+- Phase 2.1 (route guard) and Phase 2.4 (importer wiring + ADR-006/007 amendments).
+
