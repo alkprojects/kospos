@@ -1756,3 +1756,222 @@ COLA-aware switch, (B) Cat 17/18 web research + scenario-tests updates,
   #1 is the most architecturally significant single design
   decision in this session; the Type-as-plan-time-perspective
   framing (vs Type-as-position-attribute) drives the schema.
+
+## Session 21 — Phase 2.0h: Reference + tracking tabs (Tabs 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14, 15, 21, 22) (2026-05-25)
+
+**Worktree:** `nostalgic-chaplygin-08a313`
+**Model:** Opus 4.7 (max effort)
+**Mode:** Auto-mode (Alex away from computer most of the session — completed autonomously)
+**PRs:** [#_TBD_] (this PR — `docs(labor-report): Phase 2.0h — reference + tracking tabs (Tabs 1-4, 8-15, 21-22) + 14 walkthroughs + 16 new Data Issue flags + 9 new Phase 2.2 sub-phases + TX memory + don't-re-remind memory`)
+**Tests:** 146 / 146 passing (no app code touched)
+
+### Prompts
+
+**[~ start]** Session 21 Phase 2.0h prompt (per SESSION_HANDOFF.md PR
+#56). Plus Alex's "added by alex" addendum: ack of S20 Top-3, Marco
+Jacobo TX worked example, Guaiumi confirmed as upstream data bug, CPO
+confirmed to account 510210, request for plain-English restatement of
+all carry-forwards rather than file pointers.
+
+### Workflow
+
+1. Read briefing docs (CLAUDE.md, SESSION_HANDOFF.md PR #56,
+   labor-report.md per-tab template + Phase 2.2 sub-phase enumeration +
+   tab list + cross-cutting concerns, all 8 memory files, all 4 audit
+   files, recent commits on main).
+2. Branched `docs/labor-report-reference-and-tracking-tabs` from main.
+3. Opened the real workbook via openpyxl (read_only=True per S20
+   workaround for Python 3.14 pivot-cache parse bug). Extracted
+   metadata for all 14 tabs in two passes:
+   - **Pass 1 — sheet shape:** dimensions, headers, first-3-rows raw
+     values, sample formulas per col, for all 14 tabs (one Python
+     script). All present; max col ranges from 2 (Data) to 64 (BFM).
+   - **Pass 2 — pivot decoding:** unmapped cacheId → cacheDefinitionN.xml
+     via workbook.xml's `pivotCaches` element. For each of the 22
+     pivot tables, decoded row/col/page/data fields against the
+     decoded cache's `cacheFields` names. Confirmed:
+     - Combo (cache 944): 2 pivots self-referencing (`P5:R23` + `T5:X1183`)
+     - EE Additional Pay (cache 985): 2 pivots — `Rep To Pay Above`
+       supervisory differential + Position Used For acting cross-ref
+     - TEMP Limits (cache 915): 3 pivots — Cat 17/18 / Cat 16 / all-cats
+     - Inactive (cache 1006 = BI Payroll): 1 pivot, dataField =
+       `Sum of Balance Amount`
+     - Reporting Tree (cache 985 = P&P Data ext): 1 pivot with 10-level
+       1RC…10RC row axis
+     - Pos by Dept (cache 915): 1 pivot, dataField = `Count of 11RC`
+       (proxy for headcount — fragile)
+4. Wrote all 14 per-tab walkthroughs (~1,700 lines added). Per the
+   prompt's guidance, defaulted to **abbreviated template** for the
+   thinnest tabs (Data, Probation, Separations, Succession) and
+   **full template** for the substantial ones (BFM, EE Additional
+   Pay, TEMP Limits, Inactive, Reporting Tree).
+5. **Discovered a duplicate-section bug after writing:** the
+   Tab 8 + Tab 9 Edit's old_string only covered Tab 8 + 9, leaving
+   Tab 10-15 stubs in the file *plus* my new Tab 10-15 walkthroughs
+   inserted after Tab 9. Cleaned up by deleting the duplicate 10-15
+   stubs. Lesson: always grep `### Tab N` after a multi-tab Edit
+   to confirm uniqueness.
+6. **Anchor migration.** 14 new `#### KosPos improvements` headings
+   added (one per tab walked, except Tab 22 which is fully subsumed).
+   Old positions 0-11 → new positions 4-25 with the new tabs
+   interleaving at positions 0-3 (Tabs 1-4), 6-13 (Tabs 8-15), and
+   19-20 (Tabs 21-22). Wrote `scratch/migrate_anchors_phase_2_0h.py`
+   with descending-numeric-order regex replacements + closing-paren
+   anchoring to avoid prefix collisions (-1 vs -10). Migrated 23
+   refs across 4 files:
+   - labor-report.md: 15 self-refs
+   - bva-reconciliation-suite.md: 1 cross-doc
+   - labor-report-scenario-tests.md: 3 cross-doc (incl. one
+     no-suffix → -4)
+   - reports-folder-inventory.md: 1 cross-doc
+   Fixed one stray ref in my own Tab 22 walkthrough (had written
+   `-14` expecting Tab 21 to land at occurrence 14; actual was 19).
+7. **Anchor verifier** built per PR #45 template:
+   `scratch/verify_anchors.py`. Fixed initial slugify bug (was
+   collapsing multi-space-runs into single hyphens; corrected to
+   preserve runs per github-slugger's per-space replacement). Final
+   pass: 203 refs checked, 5 remaining "broken" all pre-existing
+   empty `(#)` anchors or literal example patterns in audit docs.
+   No new regressions introduced by this PR.
+8. **Cross-cutting concerns updates.** Added 10 new rows to the
+   DBI-shortcut catalog covering issues surfaced in the new tabs:
+   DHR eligibility scrape, EE Additional Pay per-BU supervisory math,
+   Pos by Dept Count of 11RC headcount proxy, Reporting Tree slicer
+   vocab mismatch with Vacancies and TEMP, Inactive job-code
+   prefix-strip + 7-slot cap, TEMP Limits per-position cap correctness
+   + Guaiumi data bug confirmation, three-tab notes-mixing pattern,
+   change-proposal cols audit-trail gap, Data tab's 2-of-10+ source
+   under-listing.
+9. **Data Sources Inventory updates.** 5 new rows:
+   - Probation tracker (workbook-internal Tab 10)
+   - Pending-separations tracker (Tab 14)
+   - Succession draft (Tab 15)
+   - DHR Eligibility Lists hand-scrape (Tab 11) — points to new
+     `lib/reference/dhr-eligibility/`
+   Existing PS HCM exports row already covers Roster Approvers,
+   Combo, EE Additional Pay — no separate rows needed.
+10. **Phase 2.2 sub-phase enumeration refresh.** Added 9 new per-tab
+    modules to the Per-tab modules section:
+    - `lib/views/probation/` (Tab 10)
+    - `lib/views/separations/` (Tab 14)
+    - `lib/views/succession/` (Tab 15)
+    - `lib/views/ee-additional-pay/` (Tab 9)
+    - `lib/views/roster-approvers/` (Tab 8)
+    - `lib/reference/dhr-eligibility/` (Tab 11)
+    - `lib/reference/combo/` (Tab 3)
+    - **Plus**: `lib/views/temp-limits/` extended with the
+      `TemporaryExchange` (TX) typed entity per
+      [memory `temporary_exchange_tx.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/temporary_exchange_tx.md).
+11. **Data Issues catalog** added 16 new flag categories: 4 roster
+    flags (no-approver / approver-inactive / orphan / position-no-roster),
+    4 additional-pay flags (orphan / supervisory-owed / acting-overlap /
+    expired), 2 probation (end-approaching / extension-required), 1
+    eligibility (class-no-active-list), 2 TX (temp-tx-expiration-imminent /
+    temp-tx-expired), 1 change-mode (change-proposal-pending-review).
+12. **Memory updates:**
+    - Updated [`cat_16_17_18_rules.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/cat_16_17_18_rules.md) with Alex's S21 Guaiumi confirmation (prior 6331 PCS position; hours leaking via BI Payroll Position Identifier across transfers).
+    - New [`temporary_exchange_tx.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/temporary_exchange_tx.md) — TX model + Marco Jacobo worked example + 4 TODOs to confirm with Alex.
+    - New [`feedback_dont_reremind.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_dont_reremind.md) — Alex preference: stop re-asking carry-forwards he's explicitly acknowledged. Includes the 4 items already acknowledged (expired Cat 17/18 / Cat 17/18 limits / Guaiumi / CPO=510210).
+    - Updated `MEMORY.md` index with the 2 new memory files.
+13. **Tab list table** updated: all 14 tabs marked done 2026-05-25
+    (joining the 13 already done from S15-S20).
+14. SESSION_HANDOFF.md updated with Phase 2.0i next prompt + Top-3
+    findings + reasonable-default calls deferred this session.
+
+### Milestones
+
+- **All 14 remaining unwalked tabs walked.** Tabs 1, 2, 3, 4, 8, 9,
+  10, 11, 12, 13, 14, 15, 21, 22 done. **Phase 2.0 complete** —
+  every tab in `Labor Report 5.21.26.xlsx` now has a walkthrough.
+  (Phase 2.0i remains: Data Sources Inventory final + next audit.)
+- **Pivot table layer decoded across all 22 pivot tables.** CacheId
+  → cacheDefinition file mapping established; row/col/page/data
+  fields decoded against the cache's cacheFields names. Pos by
+  Dept's `Count of 11RC` headcount-proxy fragility flagged.
+- **TX (Temporary Exchange) modeled provisionally.** The PS HCM
+  column `CAT_17_18 Exempt TX Expired Date` decoded into a typed
+  `TemporaryExchange` entity with `(original_position, original_employee,
+  temp_employee, start_date, expired_date, source_appointment_type)`
+  fields. Marco Jacobo case = worked example. Memory file authored
+  with 4 TODOs for Alex confirmation.
+- **Phase 2.0 walkthrough fully complete** — 27 of 27 tabs walked
+  (excluding the 2 IGNORE'd cross-org-merger planning tabs).
+- **9 new Phase 2.2 sub-phases enumerated**, bringing the per-tab
+  module list from 16 to 25.
+- **16 new Data Issues catalog flags** — `lib/quality/` scope now
+  44 categorical flags total.
+
+### What changed for KosPos's understanding
+
+| Theme | Before this session | After this session |
+|---|---|---|
+| Tab 1 Data | "Reference index" (1-line stub) | Subsumed by KosPos's built-in source manifest (Admin → Sources). Out-of-date by design — only 2 of 10+ upstream sources listed. |
+| Tab 2 Departments | "DBI+CPC dept list" (1-line stub) | DBI+CPC slice of citywide `Department Classification Structure` (14,240 rows × 64 dept groups). Cols A/B left blank on rows 2+ (visual grouping shortcut — naïve consumer misses dept-group code). `lib/reference/dept-tree/` makes the slice irrelevant. |
+| Tab 3 Combo | "List of combo codes" (1-line stub) | 4,875 rows × 24 cols; per-(Department, Combo Code) chartfield decode (Dept ID / Fund / Authority / Account; **lacks Project + Activity**). 2 self-referencing pivots. `lib/reference/combo/` plus Combo Lookup page. |
+| Tab 4 BFM 15.10.006 FY26 | "Raw BFM eturn" (cross-ref to existing docs) | Full 64-col layout enumerated (position metadata A:AF / date metadata AG:AJ / FY 2024-25 historical AK:AL / FY 2025-26 7 layers AM:AZ / FY 2026-27 6 layers BA:BL). Confirms Board (AZ for FY-this / BL for BY+1) as the canonical layer KosPos defaults to per ADR-004. |
+| Tab 8 Roster Approvers | "PS HCM roster routing query" (1-line) | 867 rows × 9 cols from MTL0170. Text-coerced IDs (`="CPC01"`) for leading-zero preservation; no effective-date column; 4 new Data Issues flags (no-approver / approver-inactive / orphan / position-no-roster). |
+| Tab 9 EE Additional Pay | "Acting + supervisory pay audit" (sketch) | Full dual-entry-check formula decode (S2 / T2 / AA2 + 2 pivots on cache 985). `Rep To Pay Above` derived column hardcodes SEIU 1021 Misc math — per-BU `SupervisoryDifferentialRule` table needed for multi-BU depts. 4 new Data Issues flags. |
+| Tab 10 Probation | "Manual probation tracker" (1-line) | 26 rows × 11 cols; CSC Rule 117 1,040/2,080-hr-worked threshold. Free-text probation period / hand-computed end date / no audit trail for extensions / no outcome capture. `lib/views/probation/` = system of record going forward. |
+| Tab 11 Eligibility Lists | "DHR scrape stub" (1-line) | 40 rows × 8 cols hand-compiled from `sfdhr.org/examination-results`. `Acive` typo inherited from source. CCT / PBT / Continuous typology. `lib/reference/dhr-eligibility/` for periodic scrape. |
+| Tab 12 TEMP Limits | "Cat 16/17/18 expiry tracker" (1-line) | Three vertical blocks (Cat 17/18 expiry A:L / Cat 16 hours-cap N:W / all-cats overflow Y:AK) → KosPos unifies into single Temp Status page. **V2 formula confirmed correct** — Guaiumi 172% case is upstream data contamination, not workbook bug. **TX modeled as typed entity.** Notes column → typed status + userNotes split. |
+| Tab 13 Inactive | "BI Payroll vs P&P cross-ref" (sketch) | Full K formula decode (Add/Done disposition based on existing Report Data INACTIVATED block). Hardcoded `D$755:$D$761` 7-slot cap + brittle `RIGHT(C,4)` prefix-strip + name-parser break on no-comma names. `lib/views/inactive/` = pure live query; cap goes away. |
+| Tab 14 Separations | "Pending-separations tracker" (1-line) | 12 rows × 9 cols; hand-maintained. No employee ID, no status workflow, no cross-link to Tab 24 Staffing Plan § Separations. `lib/views/separations/` = typed `PendingSeparation` entity. |
+| Tab 15 Succession | "Draft succession" (1-line) | 15 rows × 6 cols; free-text Position field (no Position Number join). Sparse coverage (15 rows for hundreds of positions). `lib/views/succession/` — priority TBD with Alex. |
+| Tab 21 Reporting Tree | "Org-chart preview + DQ flags" (sketch) | 606 rows × 53 cols. Pivot row axis = 10-level 1RC…10RC hierarchy walk; cols AI:AT = user-input change-proposal columns (13 of them — Budget Job Code Change / Manager Position Number Change / Effective Department Change / etc.) — **the precursor to KosPos Change Mode per ADR-003.** Slicer vocab (AW:BA) differs from Tab 23's 6 chips → unified vocabulary needed. |
+| Tab 22 Pos by Dept | "Filtered Report Data view" (1-line) | 622 rows × 19 cols; pivot data field = `Count of 11RC` headcount proxy (semantically should be `Distinct Count of Position Number`). Fully subsumed by KosPos's primary Position list view; no separate surface. |
+| TX (Temporary Exchange) | Not modeled | Provisional typed `TemporaryExchange` entity per [memory `temporary_exchange_tx.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/temporary_exchange_tx.md); Marco Jacobo case = worked example confirming the multi-action position pattern. |
+| Guaiumi Cat 16 case | "172% — likely workbook data bug" | **Confirmed by Alex** — prior 6331 PCS position; hours leaking via `Y = Employee ID` filter in BI Payroll. KosPos importer must normalize Position Identifier across transfers. |
+| CPO posting account | "Belief 510210; needs Controller confirmation" | **Confirmed by Alex** — TRC PTO posts to account 510210; verifiable in payroll report. |
+
+### Out of scope (intentionally deferred)
+
+- The 4 restated questions for Alex (carry-forward; restated in
+  plain-English in SESSION_HANDOFF.md end-of-session checklist per
+  Alex's preference).
+- 12 reasonable-default calls (8 from S20 + 4 restated from S17/18)
+  — restated in plain English in SESSION_HANDOFF.md.
+- 5 vacant-no-RTF positions disposition — Alex asked for an
+  explanation rather than re-asking; provided in plain English
+  in handoff.
+- The 4 items Alex acknowledged this session are DROPPED from the
+  next handoff per the new [`feedback_dont_reremind.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_dont_reremind.md)
+  memory.
+- TX rules detailed clarification (the 4 TODOs in
+  `temporary_exchange_tx.md`) — deferred to next session conversation.
+- BVA importer build (Phase 2.4).
+- ADR amendments (Phase 2.4).
+- Tool / setting / hook changes (separate post-2.0i ADR-batch PR).
+
+### Lessons / improvements for next phase
+
+- **Multi-tab Edit's old_string must end at the exact boundary of
+  the LAST tab being replaced.** Tab 8 + 9 Edit's old_string ended
+  at Tab 9's last line, but the new content (which included Tabs
+  10-15 walkthroughs) was inserted without removing the original
+  Tab 10-15 stubs. Result: duplicate sections. Fix was a separate
+  Edit removing the duplicates. **Future multi-tab edits: grep
+  `### Tab N` after each Edit to confirm uniqueness.**
+- **The anchor verifier's slugify must preserve multi-space runs
+  as multi-hyphens.** Initial implementation collapsed `\s+` →
+  single hyphen which doesn't match github-slugger's behavior on
+  headings with em-dashes (which strip to empty, leaving 2 adjacent
+  spaces that become `--`). Fixed by single-char `s.replace(" ", "-")`
+  instead of regex collapse.
+- **Pivot decoding via xl/pivotTables + xl/pivotCache XML works
+  reliably under Python 3.14 + openpyxl 3.1.5's pivot-cache parse
+  bug.** Direct zipfile + ElementTree approach bypasses openpyxl's
+  broken parser. Reusable pattern for future per-pivot analysis.
+- **Alex's "don't re-remind acknowledged items" feedback** drove a
+  new memory file. The hook-enforced session-end prompt was working;
+  the failure was content-level (re-listing items Alex had said
+  "I'm aware of"). Mitigation: scan acknowledgements in the prior
+  session's user-added section before drafting carry-forwards.
+- **Cross-session productivity at high effort:** ~1,700-line
+  documentation contribution in a single autonomous session,
+  covering 14 distinct tabs with consistent template adherence,
+  16 new Data Issues, 9 new sub-phases, 2 new memory files, full
+  anchor migration. This appears to be the upper bound for what
+  a single Opus-4.7-max-effort session can produce coherently
+  before fatigue / consistency drift. Future Phase 2.0i + the
+  audit work should fit comfortably in a single session at
+  medium effort.

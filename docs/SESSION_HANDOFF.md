@@ -4,6 +4,317 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
+## Current status (end of Session 21 — Phase 2.0h Reference + tracking tabs, 2026-05-25)
+
+**Phase:** Phase 2.0 — Labor Report deep-dive walkthrough. **COMPLETE — all 27 walkable tabs walked.**
+**Last main commit (pre-merge):** `b523ad4` (PR #56 — Phase 2.0g) → `<this PR>` (Session 21 Phase 2.0h)
+**Tests:** 146 / 146 passing (no app-code changes this session)
+**Branches in flight:** none after this PR merges
+
+### What landed this session — Phase 2.0h
+
+[**PR #_TBD_**](https://github.com/alkprojects/kospos/pulls) — `docs(labor-report): Phase 2.0h — reference + tracking tabs (Tabs 1-4, 8-15, 21-22) + 14 walkthroughs + 16 new Data Issue flags + 9 new Phase 2.2 sub-phases + TX memory + don't-re-remind memory` — ~1,700 lines added across:
+
+- `docs/domain/labor-report.md` — 14 new per-tab walkthroughs (Tabs 1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14, 15, 21, 22); 10 new cross-cutting concerns rows; 5 new Data Sources Inventory rows; 9 new Phase 2.2 per-tab module sub-phases; 16 new Data Issues catalog entries; anchor migration shifting 12 old occurrence indices to new (Tab 26: -10 → -24; Tab 27: -11 → -25). All 14 tab statuses moved to **done 2026-05-25**.
+- `docs/audits/bva-reconciliation-suite.md` + `docs/audits/labor-report-scenario-tests.md` + `docs/data-sources/reports-folder-inventory.md` — anchor migration for 5 cross-doc refs.
+- `memory/cat_16_17_18_rules.md` — Alex's S21 Guaiumi confirmation appended.
+- `memory/temporary_exchange_tx.md` (new) — TX (Temporary Exchange) typed entity proposal + Marco Jacobo worked example + 4 TODOs.
+- `memory/feedback_dont_reremind.md` (new) — Alex preference: drop acknowledged carry-forwards from handoffs; 4 items now dropped (expired Cat 17/18, Cat 17/18 cite reminders, Guaiumi, CPO).
+- `memory/MEMORY.md` — index updated with 2 new memory files.
+- `docs/SESSION_LOG.md` — Session 21 entry appended.
+
+**203 / 203 anchor refs verified clean** across labor-report.md (incl. 23 anchor migrations + 1 self-ref I wrote with wrong target index). 5 remaining "broken" anchors are pre-existing empty `(#)` patterns or literal example refs unchanged by this PR.
+
+### Items surfaced for Alex's review (carry forward)
+
+Per the new [`feedback_dont_reremind.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_dont_reremind.md): **4 items Alex acknowledged in S21 are DROPPED** from this handoff (the 7 expired Cat 17/18 positions, Cat 17/18 cite reminders, Guaiumi data bug, CPO=510210).
+
+Per Alex's "give me the detail and restate, don't make me read through files" preference: **everything below is restated in plain English in this handoff.**
+
+#### Restated questions for Alex (4 — repeated from prior sessions)
+
+These were drafted in Session 17 + 18 as reasonable-default calls deferred for Alex's confirmation.
+
+1. **Attribution rate on Operating Report Summary.** Three different things on the Operating Report Summary page look like they're called "attrition rate" at the DBI / CPC dept-group level:
+   - **G42 / H42** = (9993 ÷ non-9993 labor) — the spread between the budgeted 9993 attrition savings line and total labor, expressed as a %
+   - **L23 / L32** = (projected balance ÷ total budget) — what % of the total budget is projected to remain unspent
+   - **H43** = a hand-keyed prior-year number with a tooltip-note "Calculated, Questionable"
+
+   All three display as percentages on the same page, look similar, but mean different things. Which one is "the attrition rate" you'd put in the report sent to CON / MYR? **My current default:** G42 / H42 is canonical (9993 ÷ non-9993); L23 / L32 gets renamed to "leftover %" in KosPos. **Confirm or correct?**
+
+2. **`Department Group` pivot label.** The Operating Report Summary's GETPIVOTDATA calls reference a pivot label called `Department Group` — but Report Data doesn't have a column with that exact name. It's a workbook-internal pivot grouping. When KosPos emits the labor-report-shaped .xlsx for downstream consumers, do we need to preserve that `Department Group` label so other people's GETPIVOTDATA formulas still work? **My current default:** yes, preserve it (cosmetic, but breaks downstream Excel formulas if we rename).
+
+3. **OPS Detail snapshot-diff key.** The OPS Detail "what changed since the last report" panel needs a key to identify each row across snapshots. Options:
+   - **(a)** Position Number alone — simplest, but doesn't differentiate vacant-then-filled (same position number, different occupant)
+   - **(b)** `(Effective Dept, Position Number, Fill Status, Budget Job Code)` — captures dept moves + reclassifications
+   - **(c)** Position Number + a separate tracker for "who occupied it when"
+
+   **My current default:** option (b). **Confirm or correct?**
+
+4. **Step variance merit-event aware.** The Step (Tab 18) walkthrough proposed making per-PP step variance "merit-event aware" — instead of uniform per-PP proration, the formula would understand "this employee advanced a step on PP15, so pre-PP15 PPs used Step 4 budget and post-PP15 PPs use Step 5 budget." Adds modeling complexity (per-employee step history) but makes per-PP variance numbers meaningful (currently they drift pre/post-merit even though the FY total is correct). Implement now in Phase 2.4 importer, or defer to a Phase 2.2 sub-phase? **Default: defer.**
+
+#### Reasonable-default calls deferred (12 — restated in plain English per Alex's preference)
+
+**8 from Session 20 (Tab 23-25 walkthroughs):**
+
+5. **(Tab 23)** I reverse-engineered the 6 slicer-chip definitions (`Vacant`, `TEMP`, `Position =/= Budget`, `Temp on Budgeted Position`, `On Leave`, `Exclude`) from the pivot's field bindings. Best-guess semantics in Tab 23 § "Explicit categorical slicer semantics" table. **Do those definitions match your working semantics, or are any wrong?** (Most important: `Position =/= Budget` — does it mean "employee's effective job code differs from position's budgeted job code", or something else?)
+
+6. **(Tab 23)** Where does `Vacant Date` come from? — Possibilities: computed from a P&P Data column natively, hand-entered per snapshot, or derived from the vacancy-history snapshot chain. I haven't inspected the CI formula yet to confirm.
+
+7. **(Tab 23)** `Previous Employee2` (P&P Data col Q) vs `Previous Employee` (cache field 19) — I'm guessing one is second-to-last incumbent, the other is most-recent. **Which is which?**
+
+8. **(Tab 24)** `V Check` semantics for TEMPM-budgeted rows — the formula `IF(P="TEMPM", "", ...)` skips the check, so a temp planned for "E2P" (convert to PCS) on a TEMPM-budgeted position wouldn't appear in Vacancies. **Should it still appear there?**
+
+9. **(Tab 24)** Cost-basis for blank `W` cells — when an Active row has Status = "Not started / List / Posted", the cost cell is blank and gets summed as zero. **Default I picked:** KosPos always computes the expected cost (don't leave blank); let user toggle a "show planned-only" view that hides un-priced rows. **Confirm?**
+
+10. **(Tab 24)** PlannedAction history retention — when a planned action is completed (hire happens, separation files), should KosPos keep the diff records indefinitely or roll up older than 18 months? **Default:** 18 months with summary roll-up.
+
+11. **(Tab 24)** DBI→CPC transfer-of-function propagation — when a position transfers from DBI to CPC mid-year, does it stay on DBI's Staffing Plan until end-of-year or jump to CPC's immediately? Tied to BVA chartfield reconciliation. **Default:** stays on originating dept until EOY for reporting; flagged as "transferring."
+
+12. **(Tab 24 + Tab 25)** Active-row blank-`W` under-count surfaced as "X of Y priced ⚠" diagnostic chip with one-click jump-to-fix; annualized rows switched from pure-PP to COLA-aware per memory [`feedback_projections_always_cola_aware.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_projections_always_cola_aware.md). **Confirm both?**
+
+**4 new from Session 21 (Tab 1-22 walkthroughs):**
+
+13. **(Tab 12)** `E2P` = "Eligible to Promote" — does that mean (a) the employee has met the time-in-class minimum, (b) DHR has placed them on a promotion list, or (c) something else? Belongs in `appointment-types.md`.
+
+14. **(Tab 21)** `PARTIALLY FILLED` semantics — used for pool positions (commissioners). KosPos plans to map this directly to `is_pool_position = true`. **Confirm this 1:1 mapping or describe other states.**
+
+15. **(Tab 21)** Reporting Tree change-proposal cols (AI:AT — Budget Job Code Change / Manager Position Number Change / etc.) — when you fill these in today, what's the workflow? Does someone review, or do you just edit PS HCM directly later? KosPos's Change Mode design assumes a review step.
+
+16. **(Tab 15)** Succession plan scope priority — Phase 2 (current-year workspace) or Phase 7 (people/talent management)? Currently positioned as draft. What class set counts as "leadership/strategic" — MCCP + selected senior PCS, or broader?
+
+#### Open action items (1 — remaining after S21 acknowledgments)
+
+17. **The 5 vacant-no-RTF positions.** Restated in plain English: there are 5 positions in the current snapshot that show **Fill Status = VACANT** and **Latest RTF Submitted Date = blank/null** — meaning the workbook claims no Request to Fill has ever been filed. **But** per memory [`staffing_plan_types.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/staffing_plan_types.md), you flagged that "no RTF" is not always accurate in practice — the position may have had an incumbent in the past (i.e., a "vice" history), which would mean an RTF *must* have been filed at some point. The action: for each of these 5 positions, look at the prior-incumbent history. If there's a "vice" (prior employee on the position), the "no RTF" is a data integrity issue (the RTF was filed but didn't get tracked here), not a real "we've never tried to fill this." If there's no vice history, "no RTF" is likely real and the position is truly an intentional hold or unfunded slot. **Disposition needed per position: data bug vs intentional hold.** Surfaced in [scenario-tests § Scenario 5](audits/labor-report-scenario-tests.md#scenario-5--vacant-but-no-rtf).
+
+### Top 3 findings to surface for Alex this session
+
+1. **Phase 2.0 walkthrough COMPLETE.** All 27 walkable tabs in the workbook now have a walkthrough (excluding the 2 IGNORE'd New Department Org tabs). 25 of the 26 KosPos improvements headings have indexed positions in the anchor system; Phase 2.0i remaining work is Data Sources Inventory final review + the next audit (per WORKFLOW.md audit cadence).
+
+2. **TX (Temporary Exchange) is the missing concept that explains Marco Jacobo + the multi-action position pattern.** Provisional memory `temporary_exchange_tx.md` decodes the `CAT_17_18 Exempt TX Expired Date` column as the expiration of the TX arrangement (distinct from the underlying Cat 17/18 Charter cap). KosPos should model TX as a typed `TemporaryExchange` entity. **4 TODOs need Alex confirmation** in next session: whether TX `expired_date` is CSC-set increments or independent; whether Cat 16 TXs exist; whether TX = "limited duration appointment" or distinct PS HCM construct; TX renewal interaction with the Charter "shall not be renewable" language.
+
+3. **The Reporting Tree change-proposal columns (AI:AT) ARE the Change Mode precursor.** Tab 21 already has 13 user-input change-proposal columns (Budget Job Code Change, Manager Position Number Change, Effective Department Change, etc.) — these map 1:1 to KosPos's `ProposedChange` entity per [ADR-003](DECISIONS.md). Today the workflow is "Alex fixes the source data manually in PS HCM later" — no review, no audit trail. KosPos formalizes them as typed proposals with author / reviewer / status workflow.
+
+### Cumulative state of the labor-report walkthrough
+
+| Phase | Tab | Status |
+|---|---|---|
+| 2.0a | 5 Calendar | done 2026-05-24 |
+| 2.0b | 7 BI Payroll | done 2026-05-25 |
+| 2.0c | 6 P&P Data | done 2026-05-25 |
+| 2.0d | 20 Report Data | done 2026-05-25 |
+| 2.0e | 26 OPS Summary + 27 OPS Detail | done 2026-05-25 |
+| 2.0f | 16 Premium + 17 Overtime + 18 Step + 19 Retirement Payout | done 2026-05-25 |
+| 2.0g | 23 Vacancies and TEMP + 24 Staffing Plan + 25 Budget Summary | done 2026-05-25 |
+| 2.0h | **14 tabs: 1 Data, 2 Departments, 3 Combo, 4 BFM, 8 Roster Approvers, 9 EE Additional Pay, 10 Probation, 11 Eligibility Lists, 12 TEMP Limits, 13 Inactive, 14 Separations, 15 Succession, 21 Reporting Tree, 22 Pos by Dept** | **done 2026-05-25** |
+| **2.0i** | **Data Sources Inventory final + Phase 2.2 sub-phase enumeration refresh + next audit** | **NEXT** |
+| 2.1 | Hide budget-dev UI (route guard) | pending |
+| 2.2 | Per-tab UI sub-phases (25 sub-phases enumerated; +9 added this session) | pending |
+| 2.3 | Excel export | pending |
+| 2.4 | Importer wiring (incl. ADR amendments per the 6 proposed ADRs) | pending |
+
+## Blockers for Alex
+
+None landing-related. Live site:
+<https://alkprojects.github.io/kospos/>. Spot-check the new walkthroughs on
+the live site when convenient:
+
+- [docs/domain/labor-report.md § Tab 4 BFM 15.10.006 FY26](domain/labor-report.md#tab-4--bfm-1510006-fy26) — full 64-col layout enumerated
+- [docs/domain/labor-report.md § Tab 12 TEMP Limits](domain/labor-report.md#tab-12--temp-limits) — TX modeled + Guaiumi case confirmed
+- [docs/domain/labor-report.md § Tab 21 Reporting Tree](domain/labor-report.md#tab-21--reporting-tree) — Change Mode precursor
+- [docs/domain/labor-report.md § Tab 24 Staffing Plan](domain/labor-report.md#tab-24--staffing-plan) (S20) — most architecturally significant single section; Marco Jacobo TX context now in [`temporary_exchange_tx.md` memory](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/temporary_exchange_tx.md)
+- [docs/domain/labor-report.md § Phase 2.2 sub-phases](domain/labor-report.md#phase-22-sub-phases-dependency-order) — now 25 sub-phases, +9 from S21
+
+## Next session prompt — Phase 2.0i (DSI final + Phase 2.2 enumeration refresh + next audit)
+
+Paste this verbatim to start Session 22:
+
+````
+This session closes out Phase 2.0 with the three end-of-walkthrough items:
+
+  1. Data Sources Inventory final review + per-source v2-readiness check.
+  2. Phase 2.2 sub-phase enumeration refresh (final ordering + dependency
+     graph; ready for Phase 2.4 importer build).
+  3. Next audit (per WORKFLOW.md § Audit cadence — Phase 2.0i close fires
+     the event-based trigger).
+
+Read first, in order:
+  docs/CLAUDE.md
+  docs/SESSION_HANDOFF.md (this file)
+  docs/SESSION_LOG.md (Session 21 entry — Phase 2.0h closeout)
+  memory/MEMORY.md + the 9 memory files (incl. new temporary_exchange_tx.md
+    + feedback_dont_reremind.md from S21)
+  docs/domain/labor-report.md — § "Data sources inventory (built during
+    walkthrough)" + § "Phase 2.2 sub-phases (dependency order)" + tab list
+  docs/audits/* — all 5 audit files
+  docs/WORKFLOW.md — § "Audit cadence"
+
+Confirm state on main:
+  git log --oneline origin/main -5
+
+==============================================================================
+TASK — Phase 2.0i: DSI final + Phase 2.2 enumeration refresh + next audit
+==============================================================================
+Branch: docs/phase-2-0i-dsi-final-and-audit
+Scope: 3 deliverables in one PR. The audit is the long pole.
+
+  1. **Data Sources Inventory final.** Review all 17 rows. For each:
+     - Confirm v1 mechanism + v2 plan are accurate.
+     - Add any source surfaced during the walkthrough that didn't get
+       its own row (DHR MOU PDFs for COLA schedules; PS HCM probation
+       tracker — currently offline / no source).
+     - Flag the Snowflake-availability status per source (where SF data
+       platform makes the source available; where it doesn't).
+     - Add a "v1 readiness" column: which sources have a v1 importer
+       built today (`lib/calendar/` shipped Phase 1) vs which are
+       not-yet-built.
+
+  2. **Phase 2.2 sub-phase enumeration refresh.**
+     - Re-enumerate all 25 sub-phases (16 from S15-S20 + 9 from S21)
+       in dependency order.
+     - Build a dependency graph (D2 SVG or markdown table showing
+       blocks).
+     - Pick the canonical Phase 2.2 first sub-phase (the foundation
+       importer most depends on) — most likely `lib/calendar/` is
+       already shipped Phase 1, so first new sub-phase = `lib/cola/`
+       or `lib/importers/obi-payroll/`.
+     - Per Alex's preference: present the choice as a recommendation
+       with trade-offs, not a fait accompli.
+
+  3. **Next audit** (per WORKFLOW.md § Audit cadence).
+     - Recommended scope: **internal Claude setup audit refresh** (Area
+       A-G from Session 19 audit). Re-evaluate hooks, settings, memory
+       hygiene, file/repo organization, workflow patterns, ADR
+       coverage.
+     - Alternative: **labor-report walkthrough audit refresh** (since
+       Phase 2.0 is complete) — re-run the anchor verifier + check
+       cross-doc consistency + verify the 28 → 44 Data Issues catalog
+       hasn't drifted from the per-tab walkthrough sources.
+     - **Recommendation: do BOTH** (the internal-setup refresh is
+       quick; the walkthrough audit confirms Phase 2.0 closeout is
+       clean). Time-box ~3 hours for both combined.
+
+  4. **Anchor migration carry-forward.** No new tab walkthroughs in
+     2.0i = no `#### KosPos improvements` headings added = no anchor
+     shifts. The verifier script (`scratch/verify_anchors.py` from S21)
+     should report 203/203 still clean.
+
+  5. **Re-ask carry-forwards in plain English** per Alex's preference
+     [`feedback_dont_reremind.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_dont_reremind.md):
+     - 4 restated questions (#1-4 above)
+     - 12 reasonable-default calls (#5-16 above)
+     - 1 remaining open action item (#17 — 5 vacant-no-RTF disposition)
+     **Drop** the 4 items Alex acknowledged in S21 (expired Cat 17/18,
+     Cat 17/18 cite reminders, Guaiumi, CPO=510210).
+
+==============================================================================
+Hard constraints
+==============================================================================
+
+  - Branch from main, single-purpose name.
+  - **No app code.** Phase 2.0i is docs + audit only.
+  - **No new npm packages.**
+  - **`npm test` stays green.**
+  - One PR; merge after CI passes; fast-forward main:
+    `git -C "C:\Users\ALK\Desktop\Claude Projects\kospos" pull --ff-only origin main`
+  - Commit message ends with the Co-Authored-By line per CLAUDE.md.
+
+==============================================================================
+What we are NOT doing
+==============================================================================
+
+  - No new walkthroughs (Phase 2.0 is complete).
+  - No new tab walkthroughs at all.
+  - No BVA importer build (Phase 2.4).
+  - No ADR amendments (Phase 2.4).
+  - No app/src/ code changes.
+
+==============================================================================
+Session-end checklist
+==============================================================================
+
+Before ending, update SESSION_HANDOFF.md with:
+  - DSI final state (any new rows / refreshed v2-readiness).
+  - Phase 2.2 sub-phase enumeration final ordering + recommended first.
+  - Audit findings + any ADRs surfaced.
+  - Next-session prompt for Phase 2.1 (route guard for budget-dev UI)
+    OR Phase 2.2 sub-phase 1 (whichever is the agreed next move).
+
+Re-ask only the carry-forwards Alex hasn't acknowledged:
+  - 4 restated questions
+  - 12 reasonable-default calls (#5-16)
+  - 1 open action item (#17)
+
+Recommended model: claude-sonnet-4-6 (DSI review + sub-phase
+enumeration is synthesis-not-deep-reasoning; audit is mostly
+mechanical anchor + consistency checks). Fallback to claude-opus-4-7
+if the audit surfaces complex ADR-worthy decisions.
+Effort: medium.
+````
+
+### Recommended model (Phase 2.0i)
+
+`claude-sonnet-4-6` — DSI review + sub-phase enumeration refresh +
+mechanical audit; no deep walkthrough.
+
+### Recommended effort (Phase 2.0i)
+
+`medium` — three deliverables but each is bounded; not heavy synthesis.
+
+---
+
+## Notes for the next-session model
+
+- **The workbook path:** `C:\Users\ALK\Desktop\Claude Projects\Position
+  Management\Labor Report 5.21.26.xlsx` (gitignored — never commit).
+  openpyxl `read_only=True` mode (read_only=False chokes on pivot
+  caches under Python 3.14 + openpyxl 3.1.5).
+- **Example reports folder:** `C:\Users\ALK\Desktop\Claude Projects\Position
+  Management\example reports\Reports\` — full inventory in
+  [`data-sources/reports-folder-inventory.md`](data-sources/reports-folder-inventory.md).
+- **The local main worktree is at** `C:\Users\ALK\Desktop\Claude Projects\kospos`.
+  After each merge: `git -C "C:\Users\ALK\Desktop\Claude Projects\kospos"
+  pull --ff-only origin main`.
+- **Anchor-link convention** (per Task D audit + Phase 2.0f migration +
+  Session 19 audit + Phase 2.0g migration + Phase 2.0h migration):
+  github-slugger uses lowercase + strip-non-(word|space|hyphen|underscore)
+  + per-space-replaced-with-hyphen (NOT collapse multi-space runs) +
+  0-indexed occurrence-count suffix on dupes. After Phase 2.0h, Tab
+  26's `#### KosPos improvements` slug is `kospos-improvements-24` and
+  Tab 27's is `kospos-improvements-25`.
+- **Memory-file citation convention** — use the file:// URL pattern
+  per SESSION_HANDOFF (S19 + S20 + S21): `[memory `name.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/name.md)`.
+  Avoid the `(#tab-24--staffing-plan)` anti-pattern (semantically misleading
+  even when it "works" inside labor-report.md).
+- **Make the reasonable call, document it, keep going** when
+  Alex-level prose details aren't blocking. Flag in the relevant
+  tab's Open Questions list. **But: don't re-ask items Alex
+  already acknowledged** per [`feedback_dont_reremind.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_dont_reremind.md).
+- **`gh pr merge --squash` fails from a worktree** when local main is
+  checked out elsewhere. Use `gh api -X PUT repos/alkprojects/kospos/pulls/N/merge
+  -f merge_method=squash` instead — pure server-side merge, no local
+  branch switch.
+- **Audit cadence** (per Session 19 audit § C): next audit fires at
+  Phase 2.0i close. Don't audit again before then unless a rule is
+  visibly drifting.
+- **Per-tab anchor-verifier script** — saved at
+  `scratch/verify_anchors.py` (rename to `.scratch/verify_anchors.py`
+  before committing — `.scratch/` is gitignored, `scratch/` is not).
+  Reuses for any future tab additions.
+- **Multi-tab Edit's old_string must end at the LAST tab being
+  replaced.** Discovered in S21 — my Tab 8 + 9 Edit left Tab 10-15
+  stubs in place because old_string stopped at Tab 9. Future
+  multi-tab edits: grep `### Tab N` after each Edit to confirm
+  uniqueness.
+
+---
+
+## Pre-Session 21 status archived below
+
+Original content from end-of-Session-20 handoff retained for reference.
+
+---
+
 ## Current status (end of Session 20 — Phase 2.0g Staffing Plan + Vacancies + Budget Summary, 2026-05-25)
 
 **Phase:** Phase 2.0 — Labor Report deep-dive walkthrough. **In progress.**

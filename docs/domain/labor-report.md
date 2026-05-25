@@ -190,15 +190,25 @@ Catalog of DBI-only assumptions that need to be parameterized for citywide use:
 | Step tab `COUNTIF($D$2:D2, D2)>1` guard on every per-position cell handles pool positions by zeroing duplicates. Loses per-incumbent visibility + O(n²) recalc cost. | Step R, S, U:AU, AW:BW, BY:CY | Pool positions modeled with explicit `max_headcount > 1` attribute; rollup function attributes one prorated budget share per Position Number |
 | Step tab `BY2` per-PP variance assumes **uniform per-PP pay rate** within the FY — doesn't model merit-step events (col AJ of P&P Data). Aggregate sum is correct (actuals also rise post-merit, washes out) but per-PP variance drifts: pre-merit PPs show under-budget, post-merit over-budget. Misleads trend visualization. | Step BY:CY per-PP variance | Per-PP proration uses expected rate at that PP, derived from each employee's step history + future Merit Increase Date |
 | Step tab folds **MCCP positions into STEPM**. Same per-position variance shape, but conceptually wrong — MCCP positions should post to 9994 MCCP Offset (separate account, separate reference data: DHR MCCP-range table vs DHR salary-steps table). DBI's small MCCP population (Deputy Directors) leaks into DBI STEPM; CPC's larger MCCP population is sort-of-correctly attributed to CPC but only because `SUMIFS("Planning")` happens to pick it up. | Step tab + OPS Summary rows 39/48/49 | KosPos splits MCCP into its own tab (per Alex's flag in Phase 2.0f session prompt). STEPM filters to `job_class.is_mccp = false`; 9994 filters to `job_class.is_mccp = true`. |
-| Vacancies and TEMP slicer chips (`Vacant`, `TEMP`, `Position =/= Budget`, `Temp on Budgeted Position`, `On Leave`, `Exclude`) are Excel Slicer objects with workbook-local state — two users opening separate copies and toggling differently produces divergent views silently. Categorical semantics aren't documented in the workbook either. | Vacancies and TEMP row 1 (slicer chips) | URL-encoded filter state shared between users; explicit filter definitions + tooltips per filter (see [Tab 23 § KosPos improvement #4](#kospos-improvements-7)) |
-| Vacancies and TEMP's `CL Included In Staffing Plan` flag is one-way only — flags "Vacancies row missing from Staffing Plan" but not the reverse ("Staffing Plan row not in Vacancies"). The reverse direction lives on Staffing Plan's `V Check` column. Two half-diagnostics in two places. | P&P Data CL + Staffing Plan V | Bidirectional Coverage diagnostic on one panel (see [Tab 23 § KosPos improvement #2](#kospos-improvements-7)) |
-| Staffing Plan 5-section block layout (Active rows 2–28, Separations 33–39, Pending 44–65, TEMP 70–85, Unfunded 90–93) is hardcoded — adding a row requires inserting at the right place AND rebasing the section's `=SUM(W2:W28)` / `=SUM(W33:W39)` / etc. rollup formula. Wrong placement silently breaks the rollup. | Staffing Plan rows 29 / 40 / 66 / 94 | PlannedAction model (per [Tab 24 § KosPos improvement #1](#kospos-improvements-8)) — no row-position dependencies; rollups computed from typed entities |
-| Staffing Plan `W` / `X` cost cells are hand-typed snapshots from the Cost Calculator — no live link back to calculator inputs. A mid-year MOU COLA changes the calculator output but doesn't update existing rows until Alex re-runs. Same paste-value-once drift pattern. Active rows with blank cost (`Status = Not started / List / Posted`) are silently summed as zero — Budget Summary's `B5` therefore under-projects plan cost. | Staffing Plan W:X all rows | Live `expectedCost` computed from PlannedAction parameters (per [Tab 24 § KosPos improvement #2](#kospos-improvements-8)); blank-cost rows surfaced as "X of Y priced ⚠" diagnostic |
-| Staffing Plan annualized rows (`X30`, `X41`, `X67`, `X95`) use pure-PP `Calendar!J2 = 26.1` to extrapolate per-PP cost — same workbook shortcut as elsewhere. Percentage-of-base cost components COLA-inflate; pure-PP annualization undercounts post-COLA. | Staffing Plan X30/41/67/95 | COLA-aware annualization (per [Tab 24 § KosPos improvement #9](#kospos-improvements-8) + memory [`feedback_projections_always_cola_aware.md`](#tab-24--staffing-plan)) |
+| Vacancies and TEMP slicer chips (`Vacant`, `TEMP`, `Position =/= Budget`, `Temp on Budgeted Position`, `On Leave`, `Exclude`) are Excel Slicer objects with workbook-local state — two users opening separate copies and toggling differently produces divergent views silently. Categorical semantics aren't documented in the workbook either. | Vacancies and TEMP row 1 (slicer chips) | URL-encoded filter state shared between users; explicit filter definitions + tooltips per filter (see [Tab 23 § KosPos improvement #4](#kospos-improvements-21)) |
+| Vacancies and TEMP's `CL Included In Staffing Plan` flag is one-way only — flags "Vacancies row missing from Staffing Plan" but not the reverse ("Staffing Plan row not in Vacancies"). The reverse direction lives on Staffing Plan's `V Check` column. Two half-diagnostics in two places. | P&P Data CL + Staffing Plan V | Bidirectional Coverage diagnostic on one panel (see [Tab 23 § KosPos improvement #2](#kospos-improvements-21)) |
+| Staffing Plan 5-section block layout (Active rows 2–28, Separations 33–39, Pending 44–65, TEMP 70–85, Unfunded 90–93) is hardcoded — adding a row requires inserting at the right place AND rebasing the section's `=SUM(W2:W28)` / `=SUM(W33:W39)` / etc. rollup formula. Wrong placement silently breaks the rollup. | Staffing Plan rows 29 / 40 / 66 / 94 | PlannedAction model (per [Tab 24 § KosPos improvement #1](#kospos-improvements-22)) — no row-position dependencies; rollups computed from typed entities |
+| Staffing Plan `W` / `X` cost cells are hand-typed snapshots from the Cost Calculator — no live link back to calculator inputs. A mid-year MOU COLA changes the calculator output but doesn't update existing rows until Alex re-runs. Same paste-value-once drift pattern. Active rows with blank cost (`Status = Not started / List / Posted`) are silently summed as zero — Budget Summary's `B5` therefore under-projects plan cost. | Staffing Plan W:X all rows | Live `expectedCost` computed from PlannedAction parameters (per [Tab 24 § KosPos improvement #2](#kospos-improvements-22)); blank-cost rows surfaced as "X of Y priced ⚠" diagnostic |
+| Staffing Plan annualized rows (`X30`, `X41`, `X67`, `X95`) use pure-PP `Calendar!J2 = 26.1` to extrapolate per-PP cost — same workbook shortcut as elsewhere. Percentage-of-base cost components COLA-inflate; pure-PP annualization undercounts post-COLA. | Staffing Plan X30/41/67/95 | COLA-aware annualization (per [Tab 24 § KosPos improvement #9](#kospos-improvements-22) + memory [`feedback_projections_always_cola_aware.md`](#tab-24--staffing-plan)) |
 | Staffing Plan position appearing across multiple sections (Active + Separation + TEMP for position 1115135) — same Position Number, three rows, no visual cue. A reader scanning each section independently can double-count. The pattern is intentional (Type encodes plan-time perspective, not a position attribute) but the workbook offers no aggregation. | Staffing Plan all sections | PlannedAction[] per Position model — one position, many actions; Position list shows "(N actions)" badge; Position Detail shows all on one timeline |
-| Budget Summary excludes Pending + TEMP + Unfunded entirely from the surplus / deficit calc — only Active hires (`W29`) + Separations (`W40`) feed the rollup. Pending positions transferring to CPC, Unfunded positions, and TEMP placeholders represent real budget exposure invisible at the headline level. | Budget Summary B5 / B6 / B7 | Sensitivity ribbon: Pending-if-active / Unfunded-if-funded / DBI↔CPC transfer (per [Tab 25 § KosPos improvement #5](#kospos-improvements-9)) |
-| Budget Summary has no BY+1 cost ladder — the "concept is right but never matured" issue. The tab's purpose hints at "what's BY+1's surplus given today's hiring plan?" but the formulas are all FY-this. Mid-year hires' full-FY cost extension into BY+1 isn't computed. | Budget Summary B2:B7 | Two-column FY+1 cost ladder (per [Tab 25 § KosPos improvement #1](#kospos-improvements-9)) with COLA-aware extrapolation against BY+1 BFM eturn total budget |
+| Budget Summary excludes Pending + TEMP + Unfunded entirely from the surplus / deficit calc — only Active hires (`W29`) + Separations (`W40`) feed the rollup. Pending positions transferring to CPC, Unfunded positions, and TEMP placeholders represent real budget exposure invisible at the headline level. | Budget Summary B5 / B6 / B7 | Sensitivity ribbon: Pending-if-active / Unfunded-if-funded / DBI↔CPC transfer (per [Tab 25 § KosPos improvement #5](#kospos-improvements-23)) |
+| Budget Summary has no BY+1 cost ladder — the "concept is right but never matured" issue. The tab's purpose hints at "what's BY+1's surplus given today's hiring plan?" but the formulas are all FY-this. Mid-year hires' full-FY cost extension into BY+1 isn't computed. | Budget Summary B2:B7 | Two-column FY+1 cost ladder (per [Tab 25 § KosPos improvement #1](#kospos-improvements-23)) with COLA-aware extrapolation against BY+1 BFM eturn total budget |
 | Budget Summary pivot-label hardcodes (`"Sum of Total Budget"`, `"Sum of Projected Operating Actuals"`) in GETPIVOTDATA calls — same fragility pattern as OPS Summary's GETPIVOTDATA references. If the pivot field labels change in a future revision, Budget Summary silently goes empty. | Budget Summary B2 / B3 | Named refs / structured measures in KosPos's emitted pivots; importer flags renamed measures before they break aggregations |
+| Tab 11 Eligibility Lists is hand-scraped from `sfdhr.org/examination-results` and inherits the `Acive` typo from the source. Citywide expansion requires scraping every class for every dept-group; today only DBI's 40 classes are tracked. | Eligibility Lists rows 2+ | `lib/reference/dhr-eligibility/` — periodic scrape keyed on job class; structured `list_status: 'active' \| 'expired' \| 'pending'` |
+| Tab 9 EE Additional Pay's `Rep To Pay Above` derived column hardcodes one MOU's supervisory-differential math (SEIU 1021 Misc). Other BUs have different rules (IFPTE 21 has a 2-step differential; MEA has range-not-step). DBI's single-MOU population masks this; multi-BU depts get wrong supervisory-owed numbers. | P&P Data derived col `Rep To Pay Above` (cache 4 col 137) | Per-BU `SupervisoryDifferentialRule` table sourced from each MOU's relevant article; manager's BU drives the computation |
+| Tab 22 Pos by Dept's pivot data field is `Count of 11RC` — works as a headcount proxy only because every active row has a populated 11RC. A future refresh where 11RC happens to be blank silently under-counts. The semantically-correct field is Distinct Count of Position Number. | Pos by Dept S column (pivot data) | KosPos emits `Distinct Count of Position Number` instead |
+| Tab 21 Reporting Tree slicer chips (`Vacant` / `TEMP` / `Position =/= Budget (excludes TEMP)` / `Filled non-TEMP TEX` / `On Leave`) use a different vocabulary from Tab 23 Vacancies and TEMP (which has 6 chips including `Temp on Budgeted Position` and `Exclude`). Same categorical concepts, two different names. | Reporting Tree AW:BA vs Vacancies and TEMP row 1 | Unified slicer vocabulary per [Tab 21 § KosPos improvement #4](#kospos-improvements-19) |
+| Tab 13 Inactive's `RIGHT(C2, 4)` job-code prefix-strip assumes 4-digit suffix (e.g. `COMMN:6322`). Breaks for 3- or 5-digit classes (e.g. MTA's `9123A` variants); DBI doesn't have these but citywide expansion does. | Inactive H column | Importer strips `COMMN:` prefix regex-based; preserves raw `job_code_raw` |
+| Tab 13 Inactive's `D$755:$D$761` Report Data lookup hardcodes a 7-slot INACTIVATED block — if inactive count exceeds 7 in any PP, the workbook silently under-counts. | Inactive K column | Live query `positions WHERE in_bi_payroll AND NOT in_pnp_snapshot` — no cap |
+| Tab 12 TEMP Limits Cat 16 hours-cap formula `V2` filters BI Payroll by `Y = Employee ID` + `AD = Position Number` — the per-position filter is correct per [memory `cat_16_17_18_rules.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/cat_16_17_18_rules.md). **The Guaiumi 172%-of-cap case is upstream BI Payroll data contamination** (hours from a prior position leaking via the employee-ID match per Alex's S20 confirmation), not a workbook bug. | TEMP Limits V column | Importer normalizes Position Identifier across transfers; strict `(position_id, fiscal_year)` filter on cap check |
+| Tab 12 TEMP Limits + Tab 14 Separations + Tab 24 Staffing Plan all carry free-text Notes columns mixing structured states (`E2P`, `Pending merge`, `Confirmed`) with operational context. Same Position Number can have notes in 3 places with no cross-link. | TEMP Limits L/W/AK; Separations I; Staffing Plan Notes | Typed status enum + `userNotes` free-text per [memory `feedback_user_notes_per_position.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_user_notes_per_position.md); single Position Detail panel surfaces all notes |
+| Tab 21 Reporting Tree's change-proposal cols (AI:AT) — Budget Job Code Change, Manager Position Number Change, etc. — are typed-into-the-cell, with no audit trail, no review workflow, and no automatic application. Today the workflow is "Alex fixes the source data manually in PS HCM later." | Reporting Tree AI:AT | KosPos Change Mode (per [ADR-003](../DECISIONS.md)) — every proposal becomes a typed `ProposedChange` entity with author / reviewer / status / target-field |
+| Tab 1 Data lists only 2 of the 10+ upstream sources the workbook actually consumes (BI Payroll + P&P Data). Anyone reading it would conclude the workbook only ingests 2 sources. | Data sheet (rows 1, 3) | KosPos source manifest auto-generated from importer modules; rendered as the Admin → Sources page |
 
 ## Tab list — workbook order (`Labor Report 5.21.26.xlsx`)
 
@@ -208,28 +218,28 @@ artifacts — not part of the current-year labor workflow).
 
 | # | Tab | Walkthrough status | KosPos surface |
 |---|---|---|---|
-| 1 | Data | pending | Internal staging (reference index) |
-| 2 | Departments | pending | Reference data (citywide dept tree) |
-| 3 | Combo | pending | Reference data (combo codes) |
-| 4 | BFM 15.10.006 FY26 | pending | Importer staging (BFM position eturn) |
-| 5 | Calendar | **in progress (this session)** | Internal reactive constants |
+| 1 | Data | **done 2026-05-25** | Subsumed by built-in source manifest (Admin → Sources) |
+| 2 | Departments | **done 2026-05-25** | Reference data (citywide dept tree) |
+| 3 | Combo | **done 2026-05-25** | Reference data (combo codes) |
+| 4 | BFM 15.10.006 FY26 | **done 2026-05-25** | Importer staging (BFM position eturn) |
+| 5 | Calendar | **done 2026-05-24** | Internal reactive constants |
 | 6 | P&P Data | **done 2026-05-25** | Importer staging (PS HCM P&P) + Position entity |
 | 7 | BI Payroll | **done 2026-05-25** | Importer staging (OBI BI Payroll) + per-position drill-down |
-| 8 | Roster Approvers | pending | Roster management feature |
-| 9 | EE Additional Pay | pending | Acting-pay / supervisory-pay audit |
-| 10 | Probation | pending | Probation tracker (user-input feature) |
-| 11 | Eligibility Lists | pending | DHR scrape + eligibility lookup |
-| 12 | TEMP Limits | pending | Temp-employee expiration tracker |
-| 13 | Inactive | pending | Cross-system reconciliation (inactive positions) |
-| 14 | Separations | pending | Pending-separations tracker (user-input) |
-| 15 | Succession | pending | Succession planning (draft feature) |
+| 8 | Roster Approvers | **done 2026-05-25** | Roster management feature |
+| 9 | EE Additional Pay | **done 2026-05-25** | Acting-pay / supervisory-pay audit |
+| 10 | Probation | **done 2026-05-25** | Probation tracker (user-input feature) |
+| 11 | Eligibility Lists | **done 2026-05-25** | DHR scrape + eligibility lookup |
+| 12 | TEMP Limits | **done 2026-05-25** | Temp-employee expiration tracker |
+| 13 | Inactive | **done 2026-05-25** | Cross-system reconciliation (inactive positions) |
+| 14 | Separations | **done 2026-05-25** | Pending-separations tracker (user-input) |
+| 15 | Succession | **done 2026-05-25** | Succession planning (draft feature) |
 | 16 | Premium | **done 2026-05-25** | Premium-pay YTD + projection view |
 | 17 | Overtime | **done 2026-05-25** | Overtime YTD + projection view |
 | 18 | Step | **done 2026-05-25** | Step-savings YTD + projection view (MCCP split to dedicated tab) |
 | 19 | Retirement Payout | **done 2026-05-25** | RPO YTD + projection view |
 | 20 | Report Data | **done 2026-05-25** | **Core dataset** — labor positions × budget × actuals × projection |
-| 21 | Reporting Tree | pending | Org-chart preview + data-quality flags (lite Phase 7) |
-| 22 | Pos by Dept | pending | Filtered view of Report Data (low priority) |
+| 21 | Reporting Tree | **done 2026-05-25** | Org-chart preview + data-quality flags (lite Phase 7) |
+| 22 | Pos by Dept | **done 2026-05-25** | Subsumed by Position list view |
 | 23 | Vacancies and TEMP | **done 2026-05-25** | Vacancies + TEMP filter, feeds Staffing Plan |
 | 24 | Staffing Plan | **done 2026-05-25** | **Staffing Plan workspace** — hiring plan |
 | 25 | Budget Summary | **done 2026-05-25** | BY+1 cost rollup (low priority) |
@@ -244,62 +254,365 @@ artifacts — not part of the current-year labor workflow).
 
 ### Tab 1 — Data
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** Reference index listing some of the upstream data sources used by the
-workbook. Not a working tab — for human navigation.
+**Purpose:** Human-navigation index — two rows pointing at the OBI report
+paths the workbook ingests. Not a working tab; nothing reads from it.
 
-**Data sources / Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel
-export / Open questions:** _(walkthrough)_
+**Snapshot scope.** 8 rows × 2 cols. Two non-empty rows: row 1 = `P&P Data`
++ OBI portal path; row 3 = `BI Payroll` + OBI portal path. Cell B2 carries
+the live hyperlink (`https://epuobi-bifrost.sfgov.org/analytics/saw.dll?
+PortalGo&Action=prompt&path=...`) per the sheet's `_rels/sheet1.xml.rels`.
+
+#### Data sources
+
+None — this is a back-reference tab. The two paths it lists are themselves
+catalogued in the [Data sources inventory](#data-sources-inventory-built-during-walkthrough)
+(BI Payroll + P&P Data rows).
+
+#### What's manual / fragile
+
+- **Out of date by design.** The tab predates the labor-report's full
+  source inventory — only 2 of the 10+ sources used today are listed here.
+  Anyone reading it would conclude the workbook only consumes 2 OBI
+  reports, which is wrong.
+- **Hyperlinks fixed in this snapshot.** The OBI URLs in B2 / B4 hardcode
+  `Active Labor - Version 3.13.23` and `Payroll Detail - Version
+  11.15.22` report names. The `Payroll Detail` report has been superseded
+  by `BI Payroll` (39 cols vs 38) — the link still works but points at the
+  legacy URL.
+
+#### KosPos improvements
+
+This tab is subsumed by KosPos's built-in source manifest — every
+importer module declares its upstream source(s), refresh cadence, and v2
+plan; the manifest is rendered as the **Sources** page (Admin → Sources)
+rather than buried in a workbook tab. No separate KosPos surface needed.
+
+#### Open questions / TODO
+
+None.
 
 ---
 
 ### Tab 2 — Departments
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** List of all departments in DBI and CPC. KosPos's target scope is the
-**entire citywide department tree**, not just DBI/CPC — see
-`Department Classification Structure (16).csv` (PS HCM export) in
-`C:\Users\ALK\Desktop\Claude Projects\Position Management\example reports\Reports\`.
+**Purpose:** Flat list of every department within DBI (`229320`…) and CPC
+(`231000`…). 29 rows × 6 cols. Header columns: `Department Group Code` /
+`Department Group Description` / `Division Description` /
+`Section Description` / `Department Code` / `Department Description`.
+At this snapshot, DBI = ~22 departments, CPC = ~7 departments.
 
-**Data sources:** PS HCM (`Department Classification Structure` export). v1 = manual
-upload of the CSV; v2 = scheduled pull when city systems expose it. Not currently in
-the per-source docs — **TODO: add `docs/data-sources/` note about the department-tree
-export** (likely belongs under [`ps-hcm.md`](../data-sources/ps-hcm.md)).
+KosPos's target scope is the **entire citywide department tree** —
+14,240 rows × 64 dept groups, per the
+`Department Classification Structure (16).csv` PS HCM export in
+[`reports-folder-inventory.md`](../data-sources/reports-folder-inventory.md).
+This tab is a **DBI+CPC slice** of that larger reference; everything
+KosPos does on this surface generalizes to citywide.
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough)_
+#### Data sources
+
+PS HCM `Department Classification Structure` export (citywide CSV). v1 =
+manual upload of the CSV; v2 = scheduled pull when city systems expose
+it. Catalogued in the [Data sources inventory](#data-sources-inventory-built-during-walkthrough)
+row "Citywide `Department Classification Structure` CSV."
+
+#### What's manual / fragile
+
+- **DBI+CPC-only slice.** Adding a third dept-group requires hand-editing
+  this tab (today: append rows; tomorrow under KosPos: irrelevant, the
+  citywide tree is the source).
+- **Inherits OBI dept-tree refresh cadence.** New dept codes added to PS
+  HCM mid-FY don't appear until someone re-runs the OBI export.
+- **No `Department Group Description`'s for non-first row in a group.**
+  Row 2 = `DBI / DBI Building Inspection / DBI Administration / DBI ADM
+  Administration-Gen / 229320`; subsequent DBI rows leave cols A-B blank
+  (visual grouping shortcut). A naïve consumer treating each row as
+  standalone misses the dept-group code on rows 2+.
+
+#### KosPos improvements
+
+#### 1. Use the citywide dept tree directly — no per-workbook slice
+
+**Problem.** Tab 2 is a hand-maintained slice of the citywide
+`Department Classification Structure`. Every time a new dept code is
+added to either dept-group, someone has to remember to update this tab
+too. The fact that rows 2+ leave the group code blank also means
+downstream consumers can't pivot purely on `Department Group Code`
+without forward-fill logic.
+
+**KosPos design.** [`lib/reference/dept-tree/`](#1-cross-cutting-infrastructure)
+imports the full 14,240-row citywide tree once, versioned by effective
+date. Position records reference `position_department_id`; the dept-tree
+module returns the full chain (`Department Group Code → Description →
+Division → Section → Department Code → Description`) lazily on read. No
+per-workbook slice exists; selecting a dept-group is a filter on the
+citywide tree, not a separate dataset. Solves the "rows 2+ left blank"
+forward-fill problem trivially because every position carries the full
+chain via lookup.
+
+#### Excel export notes
+
+KosPos's emitted `.xlsx` reconstructs a `Departments` sheet equivalent
+to this one when exporting for a specific dept-group, with the full
+group code filled on every row (no blank-2+ shortcut) so downstream
+consumers can pivot cleanly.
+
+#### Open questions / TODO
+
+None — fully subsumed by `lib/reference/dept-tree/`.
 
 ---
 
 ### Tab 3 — Combo
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** List of combo codes (chartfield string aliases) for DBI and CPC.
+**Purpose:** Per-department **chartfield-string aliases**. One row per
+`(Department, Combo Code)` pair, decoded into the chartfield components
+that the combo code resolves to: `Dept ID`, `Fund`, `Authority`,
+`Agency Use`, `Account`. The workbook uses combo codes as a shorthand
+in places where the full chartfield string would be unwieldy (Acting Pay
+entries, RTF chargeback overrides, etc.). 4,875 rows × 24 cols.
 
-**Data sources:** PS HCM query — `MRG_COMBO_CD_DEPT (5).csv` in
-`C:\Users\ALK\Desktop\Claude Projects\Position Management\example reports\Reports\`.
-v1 = manual upload; v2 = scheduled pull.
+Two on-sheet pivots over the same data, both cache `944` (= the Combo
+sheet itself, range `A1:N1048576`):
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough — Alex to explain combo codes and their use)_
+| Pivot | Location | Row fields | Page fields |
+|---|---|---|---|
+| `PivotTable2` | `P5:R23` | `DeptID Description` → `Dept ID` → `Combo Code` | `Department`, `Fund`, `Authority` |
+| `PivotTable1` | `T5:X1183` | `DeptID Description` → `Dept ID` → `Fund` → `Authority` → `Combo Code` | `Department` |
+
+#### Data sources
+
+PS HCM query `MRG_COMBO_CD_DEPT` (14 cols × 3,697 rows in the latest
+sample). The actual workbook tab has 4,875 rows — broader than a single
+PS export, suggesting Alex has merged multiple snapshots or pulled
+across multiple departments. v1 = manual upload; v2 = scheduled pull.
+
+#### Structure (cols A:N — the active data; cols O:X = pivot scratch space)
+
+| Col | Header | Meaning |
+|---|---|---|
+| A | Department | `DBI` / `CPC` (the dept-group, not the dept code) |
+| B | Combo Code | 7-digit numeric, e.g. `8000129` |
+| C | Combo Code Description | Human-readable, e.g. `DBI-2293461023016667` |
+| D | Eff Date | When the combo code became active |
+| E | Status | `A` (active) or inactive |
+| F | Dept ID | 6-digit dept code, e.g. `229346` |
+| G | DeptID Description | e.g. `DBI ADM Mgmt Info Systems` |
+| H | Fund | 5-digit, e.g. `10230` |
+| I | Fund Descr | e.g. `SR BIF-Continuing Projects` |
+| J | Authority | 5-digit, e.g. `16667` |
+| K | Authority Descr | |
+| L | Agency Use | (often blank) |
+| M | Agency Descr | |
+| N | Account | 6-digit, e.g. `501000` |
+
+#### What's manual / fragile
+
+- **No Project / Activity columns.** PS HCM combo codes typically also
+  carry `Project` + `Activity`; this slice omits them. Downstream
+  consumers needing those have to join against another source.
+- **Cols O:X are pivot scratch space.** Cols O, P, Q (`Department`,
+  `DBI`, blank), then T (`Department`, `CPC`) — these are slicer/page-
+  filter mirrors of the pivot fields. Easy to corrupt by accidentally
+  typing into them.
+- **Pivots self-reference the same sheet.** Both pivots have `cacheSource
+  ref = A1:N1048576, sheet = Combo`. Refreshing the source data requires
+  refreshing the pivots within the same sheet — Excel handles this
+  silently but adds a fragile self-loop.
+
+#### KosPos improvements
+
+#### 1. Surface combo codes as reference data, not a tab
+
+**Problem.** Combo codes are reference data that gets consumed by Acting
+Pay entries, RTF chargeback overrides, and chartfield-string lookups —
+the tab is "the place to find a combo's components." Today, that lookup
+is "open the workbook, scroll to Combo, ctrl-F." Filtering by department
++ fund + authority is what the pivots are for, but they're still inside
+Excel.
+
+**KosPos design.** [`lib/reference/combo/`](#2-per-tab-modules) loads
+the citywide combo dataset (full 3,697 rows, all chartfield components
+including `Project` + `Activity`); a Combo Lookup page lets users search
+by combo code → returns full chartfield string + active status + history.
+Acting Pay / Additional Pay forms autocomplete by combo code or by
+dept/fund/authority. Importer flags inactive combos referenced in
+active Additional Pay entries (currently invisible).
+
+#### Excel export notes
+
+For consumers who still need a flat combo-list export, KosPos emits a
+sheet equivalent to cols A:N here — with `Project` + `Activity` added
+and the pivots regenerated against the emitted range.
+
+#### Open questions / TODO
+
+- **Where does the combo code show up in the workbook's other tabs?**
+  Tab 9 EE Additional Pay doesn't have a Combo Code column visible —
+  trace whether combo lookups happen via XLOOKUPs from Job Code / Position
+  Number elsewhere, or whether the manual entry process bypasses the
+  Combo tab entirely.
 
 ---
 
 ### Tab 4 — BFM 15.10.006 FY26
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** Approved position eturn from the prior cycle, when FY26 was BY. Used as
-historical/anchor lookups by formulas elsewhere in the workbook.
+**Purpose:** The **BFM position eturn** in its raw eturn-row-per-position
+form. This is the per-position budget-by-chartfield grid published by
+BFM for both this FY (FY 2025-26 columns) and BY+1 planning (FY 2026-27
+columns), broken out across all the budget-cycle layers (Original →
+Base → Department → Mayor → Committee → Technical Adjustment → Board).
+**The canonical source for every per-position budget anchor in the
+workbook.** 2,694 rows × 64 cols (A:BL).
 
-**Data sources:** BFM 15.10.006 position eturn. See
-[`../data-sources/bfm.md`](../data-sources/bfm.md) and ADR-004.
+Most of this tab's role is already documented:
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough)_
+- **Where its rows are consumed:** [Tab 20 Report Data § S column](#tab-20--report-data)
+  (per-position auto-SUMIFS); Tab 16 Premium `N5/N6/O8/O9` (special-class
+  hand-paste); Tab 17 Overtime `BN6/BN8` (OT budget anchor); Tab 26 OPS
+  Summary E40 / G40 (TEMPM Interns block).
+- **The Board (`AZ`) vs Technical Adjustment (`AX`) issue:**
+  documented in [cross-cutting concerns](#multi-dept-generalization-caveats-dbi-shortcuts-to-undo)
+  + [Tab 20 § Manual / fragile](#whats-manual--fragile-6) + ADR-004.
+  Resolution: **KosPos defaults to Board-adopted (`AZ`)**; preserves
+  earlier-layer columns for variance views.
+- **The 100-row SPECIAL-class hand-paste:** documented in cross-cutting
+  concerns row "100 hand-pasted SPECIAL-block budgets."
+- **The row-index brittleness:** documented in cross-cutting concerns
+  row "`BFM 15.10.006 FY26` row addresses."
+
+This walkthrough is a **confirmation pass** — surface the full column
+layout so a future session knows what fields are available, but doesn't
+re-derive the analysis already done above.
+
+#### Data sources
+
+BFM 15.10.006 eturn (manual download from BFM portal; annual after
+Board adoption + periodically when Technical Adjustments hit). v2 =
+Snowflake direct query when available. Detail in
+[`../data-sources/bfm.md`](../data-sources/bfm.md) + ADR-004 + the
+[Data sources inventory](#data-sources-inventory-built-during-walkthrough)
+row "BFM 15.10.006 FY26 eturn."
+
+#### Structure (64 cols, grouped)
+
+**Position metadata (A:AF):** `GFS Type` (`NGFS` for non-General Fund),
+`Dept Grp` (`DBI` / `CPC`), `Prior Budget HCM Position#` + `BY HCM Position#`
+(both 8-digit, often identical), `FormID`, dept tree (`Division` /
+`Division Title` / `Section` / `Section Title` / `Dept ID` /
+`Dept ID Title`), chartfield (`Fund` / `Fund Title` / `Project` /
+`Project Title` / `Activity` / `Activity Title` / `Authority` /
+`Authority Title` / `Account Lvl 5 Title` / `Agency Use` /
+`Agency Use Title`), position info (`Prior Budget Position Code` /
+`Position Code`, `Job Class` / `Job Class Title` / `Job Class Tier`,
+`Emp Org` + `Emp Org Title` = bargaining unit), `Ret Indicator` (`C` /
+`U` for covered / uncovered = PERS vs non-PERS),
+`Status`, `Action`.
+
+**Date metadata (AG:AJ):** `Fiscal Year Start`, `PPD Start`, `Fiscal
+Year End`, `PPD End`. These define the position's effective span within
+the FY (used by Tab 24 Staffing Plan in the Active rows' annualization
+math).
+
+**FY 2024-25 historical layer (AK:AL):** `Original FTE`, `Original`.
+
+**FY 2025-26 layers (AM:AZ):** seven layers in order — `Original` (M
+budget intro), `Base` (current-year roll), `Department` (Dept request),
+`Mayor` (May proposal), `Committee` (Budget Committee), `Technical
+Adjustment` (post-Committee tech adjustments), `Board` (final). Each
+layer is two cols: `FTE` + `Dollars`. `AZ` = `FY 2025-26 Board` =
+the **canonical budget anchor** KosPos defaults to.
+
+**FY 2026-27 layers (BA:BL):** same six layers for BY+1 — `Base`,
+`Department`, `Mayor`, `Committee`, `Technical Adjustment`, `Board`. As
+of this snapshot the FY 2026-27 columns are populated only through
+`Department` (the post-Department BY+1 layers are filled in as the
+budget cycle advances). `BL` = `FY 2026-27 Board` will be the
+authoritative BY+1 anchor once the FY27 cycle closes.
+
+#### What's manual / fragile
+
+(All four catalogued in cross-cutting concerns; restated here for the
+walkthrough's completeness.)
+
+1. **Row-index brittleness.** Other tabs reference BFM by row number
+   (`AZ1195+AZ1197+AZ1199+AZ1201`, OPS Summary G40). New rows inserted
+   above shift the references silently.
+2. **Single layer chosen per consumer, inconsistently.** Tab 20 Report
+   Data uses `AX` (Technical Adjustment); Tab 26 OPS E40 uses `AZ`
+   (Board); Tab 16/17/18 hand-pasted literals from one or another layer.
+   Mixing layers cross-tab makes per-position reconciliation harder.
+3. **BFM publishes a new eturn periodically.** Each republish may
+   add/remove rows. The hand-pasted special-class block in Tab 20
+   (rows 649–748) requires re-pasting from the new eturn each time.
+4. **No Project / Activity in the per-position consumption.** Tab 20's
+   SUMIFS keys on `(dept, account, fund, authority)`; the BFM eturn
+   carries Project + Activity but they're not used in the join — fine
+   for DBI's all-on-fund-10190 + all-on-project-10039761 reality,
+   ambiguous for depts that split a single position across multiple
+   projects.
+
+#### KosPos improvements
+
+#### 1. BFM eturn importer as the canonical budget store
+
+**Problem in the workbook.** The BFM eturn is a single tab that other
+tabs index into by row number, layer name (col letter), and account.
+Layer choice is inconsistent. Per-position reconciliation requires the
+reader to know which col the consuming formula picked.
+
+**KosPos design.** [`lib/importers/bfm-eturn/`](#2-per-tab-modules)
+loads the eturn into a typed store keyed on
+`(fiscal_year, snapshot_date, dept, position_code, layer)`. Default
+layer = Board (`AZ` for FY-this, `BL` for BY+1); earlier layers (Original /
+Base / Department / Mayor / Committee / Technical Adjustment) are
+preserved for variance views.
+
+Every consumer (Tab 20 Report Data per-position SUMIFS, Tab 26 OPS
+E40 / G40, Tab 16/17/18 budget anchors) goes through the importer's
+lookup function rather than direct col references. Changing the default
+layer (e.g., switching the canonical pacing math to Committee mid-cycle
+for what-if analysis) flips a single config flag, not 11 cross-tab
+formula edits.
+
+#### 2. BFM special-class summary rows as a typed table
+
+The 100-row special-class block hand-pasted into Tab 20 (rows 649–748)
+is the same BFM eturn's special-class summary rows. Importer extracts
+both per-position rows AND special-class summary rows in one pass;
+[`lib/importers/bfm-special-class/`](#2-per-tab-modules) feeds Tab 20's
+SPECIAL block directly from the typed store. Eliminates the hand-paste.
+
+#### 3. Snapshot-aware mid-cycle republish handling
+
+When BFM republishes the eturn mid-cycle, the importer's full-replace
+model (per `(fiscal_year, snapshot_date)`) captures the new state
+without losing the prior. Variance views compare snapshots ("what
+changed between the May 1 and May 15 Technical Adjustments?"). The
+workbook today silently overwrites; the variance is invisible unless
+Alex manually diffs.
+
+#### Excel export notes
+
+KosPos emits a sheet equivalent to this tab on demand — same column
+layout, same row order — for downstream consumers who use BFM's eturn
+shape directly. The emitted sheet is always Board-layer-defaulted (no
+mixed-layer ambiguity).
+
+#### Open questions / TODO
+
+- **Project + Activity not currently used in consumers.** Citywide
+  generalization needs to confirm that other depts can be served by
+  `(dept, account, fund, authority)` alone, or whether `Project` +
+  `Activity` need to be part of the join key. Defer to Phase 2.4
+  importer build.
 
 ---
 
@@ -2000,7 +2313,7 @@ KosPos's Excel emitter does **not** rebuild a 39-column transactional sheet
       empty and absorb the dollars into 9993 attrition residual.
       KosPos's design is "every named class gets full math, no
       implicit-residual absorption" — see [Tab 26 § KosPos improvement
-      #4](#kospos-improvements-10).
+      #4](#kospos-improvements-24).
 - [ ] **Update ADR-007.** The provisional column list (`YTD Salary / Benefits
       / Total`) was wrong — BI Payroll is transactional, not pre-aggregated.
       ADR-007 needs an amendment landing with the real 39 columns and the
@@ -2016,108 +2329,653 @@ KosPos's Excel emitter does **not** rebuild a 39-column transactional sheet
 
 ### Tab 8 — Roster Approvers
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** Query from PS HCM listing roster approvers. Rosters are a feature Alex
-flagged as **important to KosPos** — full definition pending walkthrough.
+**Purpose:** PS HCM listing of who is authorized to approve **rosters**
+(time/leave reporting groups) within each department. One row per
+`(Roster Group ID, Role, Employee)` triple. **Rosters are a foundational
+PS HCM concept Alex flagged as important to KosPos** — they define the
+time-entry routing for every employee, and the same `Roster Code`
+column appears on P&P Data (`AD Roster Code` / `AE Roster Code
+Description`), Reporting Tree, and Vacancies and TEMP. 867 rows ×
+9 cols.
 
-**Data sources:** PS HCM query.
+#### Data sources
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough — Alex to explain rosters and their use)_
+PS HCM query `MTL0170 Roster Approvers` (9 cols × 866 rows per the
+sample CSV in [`reports-folder-inventory.md`](../data-sources/reports-folder-inventory.md);
+the workbook tab carries 867 rows = header + 866). v1 = manual upload;
+v2 = scheduled pull. Documented in the [Data sources inventory](#data-sources-inventory-built-during-walkthrough)
+PS HCM exports row.
+
+#### Structure (9 cols)
+
+| Col | Header | Meaning |
+|---|---|---|
+| A | GROUP_ID | Roster code, e.g. `CPC01`, `DBIDI`, `DBIM1`. Matches P&P Data col `AD`. **Note:** stored as `="CPC01"` (text-coerced formula) to preserve leading zeros — see Manual / fragile below |
+| B | DESC1 | Roster description, e.g. `City Planning`, `DBI ADM Director_SS` |
+| C | ROLENAME | The approver's role on this roster: `Time Entry` / `Approver` / `Submitter` / etc. |
+| D | EMPLID | Approver's employee ID, also text-coerced (`="177688"`) for leading-zero preservation |
+| E | LAST_NAME | Approver last name |
+| F | FIRST_NAME | Approver first name |
+| G | JOBCODE | Approver's job code, text-coerced (`="1244"`) |
+| H | DESC2 | Approver's job description |
+| I | EMPL_STATUS | Approver's employment status (`A` = active) |
+
+#### What's manual / fragile
+
+- **Text-coerced "formulas" for leading-zero preservation.** Cells A2, D2,
+  G2 store `="CPC01"` / `="177688"` / `="1244"` rather than raw strings.
+  This is a Power Query / OBI import artifact: the source IDs are
+  zero-padded fixed-width strings (`017688`, `01244` etc.), and Excel
+  would auto-convert them to numbers if stored as plain values. The
+  text-coercion preserves the format. Consumers reading the cells via
+  `Get-Content` will see the formula; via OpenXLS / openpyxl `data_only`
+  mode they'll see the resolved value. KosPos importer should normalize
+  to plain strings.
+- **No effective-date column.** PS HCM rosters have an effective-date
+  history; this snapshot captures only the as-of state. A roster
+  reassignment that happened mid-year is invisible.
+- **Cross-dept rosters mixed.** `CPC01` (City Planning), `DBIDI` (DBI
+  Director), and `MTAxx` (MTA) all live in this same sheet. The roster
+  ID prefix implicitly carries the dept-group, but there's no explicit
+  dept-group column. Sorting by GROUP_ID groups by dept, but it's a
+  conventional shortcut, not a typed dimension.
+
+#### KosPos improvements
+
+#### 1. Rosters as a first-class entity, not a tab
+
+**Problem.** Rosters are referenced from at least 4 other tabs (P&P
+Data, Reporting Tree, Vacancies and TEMP, plus implicit references via
+position routing). The approver list and the roster-to-position mapping
+live in two different places. Editing a roster (renaming, splitting,
+reassigning approvers) is a multi-tab manual operation.
+
+**KosPos design.** [`lib/views/roster-approvers/`](#2-per-tab-modules)
+imports the PS HCM `MTL0170` query into a typed `Roster` entity with:
+
+- `roster_code` (the GROUP_ID, normalized to plain text)
+- `description`
+- `dept_group_code` (derived from GROUP_ID prefix; surfaced explicitly)
+- `approvers: { role: Role, employee_id: string, name: string, status: 'A'|'I' }[]`
+- `effective_date` (snapshot-based history)
+
+Every Position record links to a `roster_code`; the Roster Detail page
+shows current approvers + position assignments + roster-level Data
+Issues (e.g., "no Active Approver — every submitter would block").
+
+#### 2. Roster Data Issues to surface
+
+- `roster-no-approver` — every roster needs at least one `ROLENAME =
+  Approver`. Currently no flag exists.
+- `roster-approver-inactive` — `EMPL_STATUS != A`. Currently invisible
+  unless someone manually scans column I.
+- `roster-orphan` — roster code that no position currently references
+  (departed dept, deprecated roster). Currently invisible.
+- `position-no-roster` — position with blank `Roster Code` on P&P Data
+  (employee can't submit time). Already partially flagged on Reporting
+  Tree col AD; surface uniformly.
+
+#### Excel export notes
+
+KosPos's emitted `.xlsx` reconstructs a `Roster Approvers` sheet
+equivalent to the PS HCM query when needed — preserving the
+text-coerced ID format for backward compat with downstream consumers
+that rely on the format.
+
+#### Open questions / TODO
+
+- **Roster routing rules.** Beyond Time Entry / Approver / Submitter,
+  what other roles exist? PS HCM supports more (Reviewer, Backup, etc.)
+  — confirm with Alex which roles KosPos needs to model.
 
 ---
 
 ### Tab 9 — EE Additional Pay
 
-_(Two pivots on P&P Data (cache 4) — see [Tab 6 § How each downstream tab consumes
-P&P Data](#how-each-downstream-tab-consumes-pp-data). Pivot 4's data field is the
-`Rep To Pay Above` derived column — feeds the supervisory-pay-differential audit.)_
+_(Two pivots on P&P Data (cache 4 = `pivotCacheDefinition4.xml`, 138 fields
+incl. derived `Rep To Pay Above`) — see [Tab 6 § How each downstream tab
+consumes P&P Data](#how-each-downstream-tab-consumes-pp-data).)_
 
+**Status:** walkthrough — done 2026-05-25
 
-**Status:** walkthrough — pending
+**Purpose:** **Two-pronged audit of additional-pay assignments** —
+acting-pay dual-entry verification and supervisory-pay differential
+identification.
 
-**Purpose:** Audits acting assignments and supervisory pay. Columns **A–R** are a PS
-HCM query; the rest are formulas + pivots. Two specific checks:
+1. **Acting-assignment dual-entry check** (cols S, T, AA). Acting
+   assignments (`Rate Code = ACTFLT`) must be entered in **two** places
+   in PS HCM — once on the acting employee's record (this tab) and once
+   on the position they're acting in. Cols S and T compare the two
+   entries; col AA does the reverse check. Mismatches surface as
+   `Check`.
+2. **Missed supervisory pay** — supervisors who should be receiving
+   supervisory pay (`Rate Code = SUPFLT`) because their reports earn
+   more than them (`Rep To Pay Above > 0` after subtracting any
+   already-paid supervisory differential). Visible as the
+   `PivotTable10` in the AC:AI range (cache 985, dataField = `Rep To
+   Pay Above`).
 
-1. **Acting-assignment dual-entry check.** Acting assignments must be entered in two
-   places in PS HCM; this tab confirms both entries exist.
-2. **Missed supervisory pay.** Identifies employees who should be receiving supervisory
-   pay but currently aren't.
+363 rows × 35 cols. Detail nuance: acting assignments are MOU-defined
+(SEIU 1021 § 5.B, IFPTE 21 § 5.C, etc.) with class-tier-based pay
+differentials; supervisory pay is also MOU-defined (typically 5–10%
+above the highest-paid report's top step).
 
-Detail nuance to come — acting assignments and supervisory pay are MOU-defined.
+#### Data sources
 
-**Data sources:** PS HCM (additional-pay query) + cross-referenced P&P Data.
+- **Cols A:R** = PS HCM `MRG_HR_EE_ADDL_PAY` query (18 cols × ~363
+  rows). v1 = manual upload; v2 = scheduled pull. Documented in
+  [Data sources inventory](#data-sources-inventory-built-during-walkthrough)
+  PS HCM exports row.
+- **Cols S, T, AA** = formulas (acting-pay dual-entry checks).
+- **Cols V:AB** = `PivotTable4` (cache 985, P&P Data ext) — `Position
+  Used For` cross-reference for each acting-pay row.
+- **Cols AC:AI** = `PivotTable10` (cache 985) — supervisory-pay
+  differential rollup keyed on Manager.
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough — Alex to walk acting/supervisory pay rules)_
+#### Structure (cols A:R from PS HCM)
+
+| Col | Header | Meaning |
+|---|---|---|
+| A | Department | Dept group code |
+| B | Dept Title | |
+| C | Emplid | Employee ID receiving the additional pay |
+| D | Empl Record | PS HCM empl record number (0 = primary) |
+| E | Eff Date | Additional-pay effective date |
+| F-I | Last / First / Middle / Preferred First | Name fields |
+| J | Roster Code | The employee's roster |
+| K | Roster Code Descr | |
+| L | Pay Status | `A` = active |
+| M | Job Code | |
+| N | Union Code | Bargaining unit (`351`, `790`, etc.) |
+| O | Sal Plan | Salary plan (`4` = MCCP range, `1` = SEIU step, etc.) |
+| P | Step | Step within plan (or `NA` for MCCP) |
+| Q | Addl Pay | Additional pay amount (dollar amount per pay period for the differential) |
+| R | Rate Code | `ACTFLT` (Acting Flat) / `SUPFLT` (Supervisory Flat) — the differential type |
+
+#### Formulas (cols S, T, U, V, W, X, Y, Z, AA, AC:AI)
+
+`S2` (Acting Position lookup):
+```excel
+=IF(R2="SUPFLT","",
+   IF(XLOOKUP(C2, X:X, Y:Y) = "Unspecified",
+      XLOOKUP(C2, X:X, Z:Z),
+      XLOOKUP(C2, X:X, Y:Y)))
+```
+For acting-pay rows (`R = ACTFLT`), looks up the employee ID in the
+right-side pivot's "Position Used For" column (X), returning the
+position's current incumbent name (Y) — or the previous incumbent (Z)
+if the position is currently vacant (`Y = "Unspecified"`). This is the
+"who is the acting employee actually acting for" lookup.
+
+`T2` (Acting Pay dual-entry check):
+```excel
+=SINGLE(IF(R2="ACTFLT",
+   IF(ISERROR(XLOOKUP(C2, X:X, X:X)), "Check", "OK"),
+   ""))
+```
+For acting-pay rows, checks whether the employee ID appears in the
+right-side pivot's position-used-for column. If not (`ISERROR`), surfaces
+`Check` — the acting-pay entry exists in `MRG_HR_EE_ADDL_PAY` but the
+*position-side* entry hasn't been made in PS HCM.
+
+`AA2` (Reverse dual-entry check):
+```excel
+=SINGLE(IF(ISERROR(XLOOKUP(X2, C:C, C:C)), "Check", "OK"))
+```
+The reverse: for every position appearing on the right-side pivot's
+"Position Used For" column (X), confirm there's a corresponding
+employee-side entry in col C. If not, `Check` — the position is marked
+acting in PS HCM but no employee is receiving the acting pay.
+
+`PivotTable10` (AC:AI, cache 985) dataField:
+- Source: P&P Data cache 4 col `Rep To Pay Above` (= derived column on
+  P&P Data, computed per-position as `MAX(0, max_report_top_pay -
+  manager_top_pay - supervisory_differential_already_paid)`).
+- Row axis: Manager First / Last / Job Code / Job Desc / Position
+  Number / Person Full Name. Surfaces every manager whose `Sum of Rep
+  To Pay Above > 0` — those who *should* be receiving SUPFLT but
+  aren't (or aren't enough).
+
+#### What's manual / fragile
+
+- **`SINGLE` is a 365-only function.** The workbook uses `_xlfn.SINGLE`
+  for the implicit-intersection behavior. Older Excel versions would
+  silently produce array overflows. Not a problem for Alex's current
+  Excel; flag for KosPos's emitted-xlsx compatibility checks.
+- **`XLOOKUP(C2, X:X, X:X)` to detect presence.** The "is this employee
+  ID in the pivot's position-used-for column" check uses `XLOOKUP`'s
+  `ISERROR` semantics. If `XLOOKUP` succeeds (returns the same X-col
+  value), `ISERROR` is false → OK. If it fails → `Check`. Fragile to
+  pivot refresh: if the pivot's row order changes, individual X
+  references shift, and any cells pointing at specific X-rows break.
+- **No flag for "acting pay exists but employee no longer in roster."**
+  When an employee leaves DBI, their acting-pay record stays until
+  someone manually terminates it. Today only the cross-position
+  ACTFLT/SUPFLT differential is flagged — orphaned pay records aren't.
+- **Supervisory pay differential math is hand-MOU'd.** The `Rep To Pay
+  Above` derived column on P&P Data is computed by Alex's formula
+  walkthrough of each MOU's "% above highest report" rule. Different
+  BUs have different formulas. DBI's all-SEIU-1021 population makes
+  this manageable; multi-BU depts would require per-BU computation.
+
+#### KosPos improvements
+
+#### 1. Acting / Supervisory pay as typed Additional Pay entities
+
+**Problem.** Acting and supervisory pay live in PS HCM's additional-pay
+table, with the dual-entry-cross-check happening only when Alex runs
+this workbook tab. Mid-cycle changes (employee starts acting on PP15
+but PS HCM dual-entry was forgotten) are invisible until next refresh.
+
+**KosPos design.** [`lib/views/ee-additional-pay/`](#2-per-tab-modules)
+imports `MRG_HR_EE_ADDL_PAY` into a typed `AdditionalPay` entity:
+
+- `employee_id`, `position_id` (the position being acted in, NOT the
+  employee's permanent position)
+- `rate_code: 'ACTFLT' | 'SUPFLT' | ...`
+- `amount`, `effective_date`, `expected_end_date`
+- `dual_entry_status: 'matched' | 'employee-only' | 'position-only'`
+
+Importer runs the dual-entry check on every import and persists the
+status. Each additional-pay row surfaces in the relevant position's
+Position Detail under an "Additional Pay" panel, with the dual-entry
+flag inline. A failed dual-entry is a `additional-pay-orphan` Data
+Issue that the importer raises immediately.
+
+#### 2. Supervisory pay differential — per-BU MOU rules
+
+**Problem.** The `Rep To Pay Above` derived column hardcodes one MOU's
+math (SEIU 1021 Misc). Other BUs have different rules (IFPTE 21 has a
+2-step differential rather than %; MEA has range-not-step).
+
+**KosPos design.** [`lib/views/ee-additional-pay/`](#2-per-tab-modules)
+holds a `SupervisoryDifferentialRule` table keyed on bargaining unit,
+sourced from each MOU's relevant article (with citation). The
+`rep_to_pay_above` computation uses the manager's BU's rule. Multi-BU
+departments project correctly without manual per-employee math.
+
+#### 3. Data Issues catalog additions
+
+- `additional-pay-orphan` — dual-entry missing on either side.
+- `additional-pay-supervisory-owed` — manager's `Rep To Pay Above > 0`
+  with no SUPFLT entry. Replaces the manual PivotTable10 scan.
+- `additional-pay-acting-overlap` — same position has multiple
+  concurrent ACTFLT entries (a real CSC violation; today invisible).
+- `additional-pay-expired` — `expected_end_date < TODAY()` but
+  `Pay Status = A`. Today only checked by Alex's eye.
+
+#### Excel export notes
+
+KosPos emits an `EE Additional Pay` sheet equivalent to this tab's
+cols A:R for users who still need the PS-HCM-shaped view, plus a
+typed `additional-pay-flags.csv` sidecar with the Data Issues raised
+per row. The two side-pivots (V:Z, AC:AI) regenerate against the
+exported data.
+
+#### Open questions / TODO
+
+- **Multi-rater rosters.** Some additional-pay entries flow through
+  multiple approvers. PS HCM tracks the approval chain; this tab
+  doesn't surface it. Belongs in the AdditionalPay entity but TBD
+  scope for Phase 2.4.
 
 ---
 
 ### Tab 10 — Probation
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** Tracks probationary employees. Data currently lives in an offline
-spreadsheet (no known PS HCM source). **KosPos becomes the new tracker** — user input
-allowed; additional functionality TBD.
+**Purpose:** Manual tracker for **probationary employees** — when their
+probation period started, when it ends, and any extensions. CSC Rule 117
+sets the probationary period for each appointment type (typically 1,040
+or 2,080 hours worked). KosPos becomes the new system of record. 26 rows ×
+11 cols.
 
-**Data sources:** Offline (Alex's spreadsheet). KosPos = system of record going forward.
+#### Data sources
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough)_
+Alex's hand-maintained spreadsheet (no PS HCM source exists for
+probation tracking at DBI today). KosPos = system of record going
+forward — same data model surfaces inline on Position Detail with a
+"probation timer" widget.
+
+#### Structure (11 cols, all hand-input)
+
+| Col | Header | Meaning |
+|---|---|---|
+| A | Name | Employee full name |
+| B | Job Code | |
+| C | ID #  | Employee ID (note trailing space in header) |
+| D | Probationary Period | Free-text: `2080 hours worked` / `1040 hours worked` |
+| E | Start Work Date | Employee's start date |
+| F | ENDS  | Computed end date (no formula — hand-entered) |
+| G | 1st EXT | First extension's new end date |
+| H | 2nd EXT | Second extension |
+| I | 3rd EXT | Third extension (CSC Rule 117 max is typically 3) |
+| J | Completion  | Date probation cleared |
+| K | Supervisor | Free-text: `confirmed / Carey McElroy`, `confirmed / Alex Koskinen` |
+
+#### What's manual / fragile
+
+- **Free-text probationary-period column.** `2080 hours worked` vs
+  `1040 hours worked` is the canonical CSC Rule 117 distinction (full-
+  time vs half-time threshold), but as free-text it's not enforceable.
+  A typo (`2080 hours worked.` with trailing period) would silently
+  not match any filter.
+- **End date hand-computed.** Col F has no formula — Alex types the
+  expected end date based on starting date + probation hours. Drift
+  if extensions add hours but col F isn't re-computed.
+- **No automatic "approaching end" flag.** Knowing a probation ends in
+  2 weeks requires sorting by F and eyeballing. No prompt to evaluate.
+- **No audit trail for extensions.** Cols G/H/I overwrite each other if
+  Alex extends a probation multiple times in the wrong column. No
+  history of what the prior end-date was.
+- **No outcome capture.** Col J `Completion ` records date cleared, but
+  not the *outcome* (cleared, failed, resigned during probation). For
+  trend analysis ("what % of probations clear successfully?") the data
+  isn't there.
+
+#### KosPos improvements
+
+This becomes a first-class `lib/views/probation/` surface — typed
+entity per probation period with status workflow (Open → Approaching
+→ Extended → Cleared / Failed / Resigned), automatic end-date
+computation from start + hours-worked + extensions, and the
+"approaching end" / "extension required" Data Issues raised
+automatically. Surfaces inline on Position Detail. Full design deferred
+to Phase 2.2 sub-phase.
+
+#### Open questions / TODO
+
+- **CSC Rule 117 hours thresholds.** Confirm canonical values (1,040
+  half-time vs 2,080 full-time) and whether extension max varies by
+  class. Belongs in [`appointment-types.md`](appointment-types.md).
+- **Outcome capture model.** Whether KosPos models pass/fail/resign
+  explicitly, or just records "Cleared" date alongside Position
+  Detail's separation history.
 
 ---
 
 ### Tab 11 — Eligibility Lists
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** Per-job-class eligibility lists for DBI classes. Compiled manually by
-looking up each DBI class at <https://sfdhr.org/examination-results>. No structured
-data source currently exists.
+**Purpose:** Per-job-class **eligibility list** status — for each DBI
+class, what's the current civil-service exam list status (Active /
+Expired / Pending), when does it expire, who at DHR manages it, and
+when is the next list planned. **Eligibility lists are the gateway to
+PCS hiring** — without an active list a department can only hire on
+temp categories. 40 rows × 8 cols.
 
-**Data sources:** DHR website (manual lookup). KosPos improvement: **periodic scrape**
-of `sfdhr.org/examination-results` to keep current. Belongs in
-[`../data-sources/dhr.md`](../data-sources/dhr.md).
+#### Data sources
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough)_
+Manually compiled from <https://sfdhr.org/examination-results> per
+job class. v1 = hand-entered; v2 = **periodic scrape** of
+`sfdhr.org/examination-results` per
+[`../data-sources/dhr.md`](../data-sources/dhr.md). Documented in
+[Data sources inventory](#data-sources-inventory-built-during-walkthrough)
+(new row to add — see Cross-cutting concerns update).
+
+#### Structure (8 cols, all hand-input)
+
+| Col | Header | Meaning |
+|---|---|---|
+| A | Job Code | DBI class, e.g. `1042` (IS Engineer-Journey) |
+| B | Job Description | |
+| C | Type | DHR exam category: `CCT` (Class-Based Continuous Test) / `PBT` (Position-Based Test) / `Continuous` |
+| D | List Status | `Acive` [sic — typo in source data] / `Expired` / `Pending` |
+| E | List Expiration | Date or free-text `Continuous` for CCT lists |
+| F | List Manager | DHR side: `City` / specific analyst name |
+| G | List Planned Date | When DHR has scheduled the next exam |
+| H | Notes | Free-text context, e.g. `4 lists, Applications, Networks, Security, Database` |
+
+#### What's manual / fragile
+
+- **`Acive` typo.** Header D value `Acive` instead of `Active`
+  appears systematically in the data (rows 2, 3). Cosmetic but breaks
+  exact-match filters.
+- **DHR website is the only source.** No structured API — Alex
+  scrapes by hand. Lists added or expired between manual refreshes
+  are invisible.
+- **`Continuous` is overloaded.** Col E uses literal `Continuous` for
+  CCT lists with no fixed expiration; same word also appears in col C
+  as a type. Date / non-date mixing in col E breaks sort-by-date.
+- **Tied to DBI's class list only.** 40 rows = the DBI classes Alex
+  tracks. Citywide expansion needs every class for every dept-group.
+
+#### KosPos improvements
+
+`lib/reference/dhr-eligibility/` — periodic scrape of
+`sfdhr.org/examination-results` keyed on job class. Active /
+Approaching / Expired status computed from list expiration date.
+Inline on Job Class Detail + Vacancy Planning views ("can we hire
+PCS on this class? — Yes (List #03987 expires 2027-01-04) / No (No
+active list; next planned 2026-09)"). Surfaces `class-no-active-list`
+as a Data Issue on any vacant PCS position. Full design deferred to
+Phase 2.2 sub-phase enumeration.
+
+#### Open questions / TODO
+
+- **Scrape cadence.** Daily / weekly / on-demand? DHR's list status
+  changes happen on the order of weeks-to-months; weekly probably
+  sufficient.
+- **CCT / PBT / Continuous typology.** Confirm canonical values
+  with DHR; document in [`../data-sources/dhr.md`](../data-sources/dhr.md).
 
 ---
 
 ### Tab 12 — TEMP Limits
 
-_(Three pivots on P&P Data (cache 1) for the per-position frame — see [Tab 6 §
-How each downstream tab consumes P&P Data](#how-each-downstream-tab-consumes-pp-data).
-BI Payroll hours-remaining formula decoded in [Tab 7 § TEMP Limits](#temp-limits--hours-remaining-gauge).
+_(Three pivots on P&P Data (cache 1 = `pivotCacheDefinition1.xml`, 137 fields)
+for the per-position frame — see [Tab 6 § How each downstream tab consumes
+P&P Data](#how-each-downstream-tab-consumes-pp-data). BI Payroll
+hours-remaining formula decoded in [Tab 7 § TEMP Limits](#temp-limits--hours-remaining-gauge).
 TEMP-category 16/17/c2 vs 16/17/18 reconciliation resolved in [Tab 6 § TEMP-category
 column reconciliation](#temp-category-column-reconciliation-resolves-calendar-walkthrough-open-question).)_
 
+**Status:** walkthrough — done 2026-05-25
 
-**Status:** walkthrough — pending
+**Purpose:** **Tracker for all three temp-appointment categories'
+expiration / remaining-capacity status** — the operational dashboard
+Alex uses to know which temp employees are approaching their Charter-
+set limits and need action (convert-to-PCS, terminate, request a
+TX-extension). Charter cites for Cat 17 (§10.104-17, 2 yr) + Cat 18
+(§10.104-18, 3 yr) per [memory `cat_16_17_18_rules.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/cat_16_17_18_rules.md);
+Cat 16 = 1,040 hr/FY per **position** (not per employee). 30 rows ×
+37 cols.
 
-**Purpose:** Pivot view of P&P Data filtered to temp-appointment categories (Alex's
-words: "cat 16, 17, and 18"). Tracks each temp employee's expiration date so the
-department can plan around them.
+**Three vertical blocks** on one sheet, each a separate pivot, each
+filtered to a different appointment-type slice:
 
-**Data sources:** P&P Data (pivot).
+| Block | Cols | Pivot | Filter | Purpose |
+|---|---|---|---|---|
+| Cat 17/18 expiry | A:L | `PivotTable3` (A1:J30) | Cat 17 + Cat 18 only | Months-remaining countdown vs TX expiration date |
+| Cat 16 hours-cap | N:W | `PivotTable4` (N1:U2) | Cat 16 only | Hours-remaining gauge (1,040 - YTD hours) |
+| All-temps overflow | Y:AK | `PivotTable2` (Y1:AJ1) | All three cats | Catch-all reference incl. EE Exempt Category Description + Employee Appointment Type |
 
-**Open inconsistency to resolve in walkthrough:** [`definitions.md`](definitions.md)
-records the temp appointment categories as `16 / 17 / c2`; Alex's tab description here
-says `16 / 17 / 18`. Need to reconcile — see chat clarifying question.
+#### Data sources
 
-**BI Payroll formula (decoded during Tab 7 walkthrough):** the "hours remaining" cell
-per temp:
+P&P Data pivot (cache 1, all 137 fields) + BI Payroll SUMIFS for the
+hours-remaining math.
+
+#### Structure — Cat 17/18 block (A:L, `PivotTable3`)
+
+| Col | Header | Meaning |
+|---|---|---|
+| A | Effective Employee Division | (pivot row level 1) |
+| B | Employee Department Description | (pivot row level 2) |
+| C | Position Number | (pivot row level 3) |
+| D | Person Full Name | (pivot row level 4) |
+| E | Current Employee ID | (pivot row level 5) |
+| F | Employee Job Code | (pivot row level 6) |
+| G | Employee Job Description | (pivot row level 7) |
+| H | CAT_17_18 Exempt Code | The temp category: `17` or `18` |
+| I | CAT_17_18 Appointment Date | When the TX appointment started |
+| J | CAT_17_18 Exempt TX Expired Date | When the TX expires |
+| K | Months Remaining | `=(J - TODAY()) / 30` — countdown formula |
+| L | Notes | **USER INPUT** free-text per row — e.g. `Pending merge`, `E2P`, `New position requested in budget` |
+
+#### Structure — Cat 16 block (N:W, `PivotTable4`)
+
+| Col | Header | Meaning |
+|---|---|---|
+| N | Effective Employee Division | |
+| O | Employee Department Description | |
+| P | Position Number | |
+| Q | Person Full Name | |
+| R | Current Employee ID | |
+| S | Employee Job Code | |
+| T | Employee Job Description | |
+| U | EE Exempt Category Description | e.g. `16 Temp & Seasonal` |
+| V | Hours Remaining | `=1040-SUMIFS('BI Payroll'!AJ:AJ, 'BI Payroll'!Y:Y, R2, 'BI Payroll'!AI:AI, "Y", 'BI Payroll'!AD:AD, P2)` |
+| W | Notes | **USER INPUT** free-text per row |
+
+#### Structure — All-temps overflow (Y:AK, `PivotTable2`)
+
+Mirror of the Cat 17/18 columns plus `AI Employee Appointment Type`
+and `AJ EE Exempt Category Description` — catches anyone not in the
+Cat 17/18 block or Cat 16 block (e.g., misclassified rows, Cat
+appointments without the expected Exempt Code populated). `AK Notes`
+also user-input.
+
+#### Formulas
+
+`K2` (Cat 17/18 Months Remaining): `=(J2-TODAY())/30`
+- Trivially `(expiration_date - today) / 30`. Decoded into Charter
+  context: a Cat 17 with TX expiration in 4 months requires immediate
+  action; CSC Rule 114 increments are 6-month / 1,040-hour blocks.
+- **Watch-out:** uses `TODAY()`, so the value drifts as the workbook
+  ages. KosPos's equivalent uses snapshot date, not live now.
+
+`V2` (Cat 16 Hours Remaining):
 ```excel
-V2 = 1040 − SUMIFS('BI Payroll'!AJ, Y=person, AI="Y", AD=position)
+=1040-SUMIFS(
+   'BI Payroll'!AJ:AJ,    -- the FTE-counted-hours field
+   'BI Payroll'!Y:Y, R2,  -- match Employee ID
+   'BI Payroll'!AI:AI, "Y", -- only FTE-counted rows
+   'BI Payroll'!AD:AD, P2  -- AND match Position Number
+)
 ```
-1040 = citywide half-time annual cap. `AI = "Y"` filters to FTE-counted hours only —
-non-FTE hours (e.g., comp time taken in lieu of OT pay) don't count against the cap.
-See Tab 7 § How each downstream tab consumes BI Payroll.
+- Implements [memory `cat_16_17_18_rules.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/cat_16_17_18_rules.md)'s
+  rule: per-**position** filter via `AD = P2`. **This formula is correct;
+  the Guaiumi case at 172% is a data bug elsewhere** (see [scenario-tests
+  Scenario 4](../audits/labor-report-scenario-tests.md#scenario-4--cat-16-hours-approaching-cap)
+  + Alex's S20 confirmation that Jimmy's prior position's hours are
+  being pulled in).
+- **Per Alex (S20):** Person 187518 had a 6331 PCS position before
+  this Cat 16. The 560 hours `V2` should compute is being summed with
+  the *prior* position's hours. The fix is **upstream** — BI Payroll's
+  Position Identifier may not match across position transfers, or the
+  workbook's `Y = Employee ID` filter is over-broadening the match.
+  TODO: instrument the SUMIFS to isolate which condition leaks.
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough)_
+#### What's manual / fragile
+
+- **`Notes` cols (L, W, AK) are unstructured user input.** Free-text
+  values like `Pending merge` / `E2P` / `New position requested in
+  budget` are operational state the user maintains in-line. Memory
+  per [`feedback_user_notes_per_position.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_user_notes_per_position.md):
+  KosPos surfaces `userNotes` first-class, with structured-status overlays
+  ("Pending merge" → drop-down `pending-merge` state; "E2P" → an
+  `eligible-to-promote` flag) so the operational state is queryable.
+- **Three pivots share one cache.** All three are on cache 915 (P&P
+  Data). Refreshing P&P Data refreshes all three simultaneously, but
+  changing the filter on any one pivot can drag the others' visible
+  rows if Alex isn't careful (`Slicer Connections` panel).
+- **`Months Remaining` uses `TODAY()`.** Drifts daily; a screenshot
+  taken yesterday and pasted into an email shows different numbers
+  from one taken today. KosPos snapshot-pins to the import date.
+- **Cat 17 expiration date unreliable per [memory `cat_16_17_18_rules.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/cat_16_17_18_rules.md).**
+  PS HCM field often equals Appointment Date for Cat 17s (meaningless).
+  Surface as `cat-17-expiration-date-unreliable` Data Issue rather than
+  trusting J.
+- **Cat 18 expiration date sometimes wrong** per same memory. PS HCM
+  sometimes stores < 3 years for a 3-year-set-up Cat 18. Surface as
+  `cat-18-expiration-date-likely-wrong` flag.
+
+#### KosPos improvements
+
+#### 1. Single Temp Status surface — no per-cat block separation
+
+**Problem.** The workbook has three blocks because each cat has
+different math (months-remaining vs hours-remaining) and different
+fields (Exempt Code vs Exempt Category Description). The user must
+mentally switch between blocks.
+
+**KosPos design.** [`lib/views/temp-limits/`](#2-per-tab-modules) is a
+single Temp Status surface — one row per `(Position, Employee,
+appointment_type)` with the appointment-type-appropriate countdown
+(Cat 16 = % of 1,040 hours used; Cat 17/18 = months to TX expiration
++ Charter cite tooltip). Color coding uniform across cats (amber
+80% → red 100%). Filters by cat, dept, expiration window. Each row
+gets the appropriate Data Issue flag from
+[`lib/quality/`](#1-cross-cutting-infrastructure)
+(`cat-16-hours-cap-warning`, `cat-17-18-expiring-soon`, `cat-17-18-expired`,
+`cat-17-expiration-date-unreliable`, `cat-18-expiration-date-likely-wrong`,
+`high-cat-18-usage`).
+
+#### 2. TX (Temporary Exchange) as first-class concept
+
+**Problem.** The column name `CAT_17_18 Exempt TX Expired Date` carries
+"TX" but the workbook never decodes what TX means or how to model it.
+TX = the PS HCM mechanism by which a Cat 17 or Cat 18 appointment is
+placed on an existing position (the "exchange"); the TX has its own
+expiration date independent of the underlying appointment. **Per Alex
+(S20), Marco Jacobo's case is a worked example of cross-Type planning:
+the same position carries a current 5203 PCS who's expected to separate,
+and the recruitment plan is to backfill with a 5207 — handled in part
+through TX-style temporary appointments while the CSC process advances.**
+KosPos models TX as a typed `TemporaryExchange` linking
+`(original_position, original_employee, temp_employee, start_date,
+expired_date, source_appointment_type)` so the chain is queryable.
+
+#### 3. Per-position cap check uses Position Number, not Employee ID
+
+Already correct in the workbook (the V2 SUMIFS filters by `AD = P2`).
+**Per [scenario-tests Scenario 4 update (S20)](../audits/labor-report-scenario-tests.md#scenario-4--cat-16-hours-approaching-cap)
++ Alex's confirmation (S20),** the Guaiumi case is upstream data
+contamination (his prior-position hours leak in via the BI Payroll
+`Y = Employee ID` filter). KosPos's importer normalizes Position
+Identifier across transfers; the cap check filters strictly by current
+`(position_id, fiscal_year)` and ignores cross-position hours.
+
+#### 4. Notes column → typed status + userNotes free-text
+
+**Problem.** `Notes` mixes structured states (`E2P`, `Pending merge`)
+with free-text context (`New position requested in budget`).
+
+**KosPos design.** Typed `temp_status` field (drop-down: `In progress`,
+`Pending merge`, `Eligible to promote (E2P)`, `Convert to PCS pending`,
+`Terminate pending`, etc.); separate `userNotes` free-text for context
+(per [memory `feedback_user_notes_per_position.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_user_notes_per_position.md)).
+
+#### KosPos UI sketch
+
+A **Temp Status** page at `/temp` — left side: filter chips (`Cat 16`
+/ `Cat 17` / `Cat 18`, `Approaching limit` / `Expired`, `Has note` /
+`Action needed`). Right side: row-per-temp with countdown bar
+(green/amber/red), countdown text (e.g. "4.2 months remaining" or
+"560 / 1,040 hr used"), Data Issue chips, inline `userNotes` editor.
+Click → Position Detail with full temp / TX / Cat history.
+
+#### Excel export notes
+
+KosPos emits a single sheet equivalent to all three blocks combined,
+with appointment-type-appropriate countdown columns visible. Notes
+column preserves the workbook's free-text shape for backward compat;
+typed status column added.
+
+#### Open questions / TODO
+
+- **TX semantics confirmation.** Need to verify with Alex that TX
+  modelling (`TemporaryExchange` entity, links to underlying
+  appointment) matches his operational understanding. Provisional
+  in memory; await confirmation.
+- **`E2P` definition.** "Eligible to Promote" — does this mean the
+  employee has met the time-in-class minimum, or that DHR has placed
+  them on a promotion list, or something else? Document in
+  [`appointment-types.md`](appointment-types.md) once confirmed.
 
 ---
 
@@ -2128,57 +2986,262 @@ Data](#how-each-downstream-tab-consumes-pp-data) — 2,556 references on Positio
 Number / Pos Department / Pos Division. BI Payroll consumption shape decoded in
 [Tab 7 § Inactive](#inactive--total-spend-per-inactive-position).)_
 
+**Status:** walkthrough — done 2026-05-25
 
-**Status:** walkthrough — pending
+**Purpose:** **Reconciliation surface for inactive-but-paid positions.**
+When a temp employee separates, the position is inactivated; once
+inactive it drops off the P&P Data snapshot, but BI Payroll still
+shows it accrued spend YTD. Since Tab 20 Report Data pivots primarily
+off P&P Data, these inactive-but-paid positions and amounts must be
+**manually added** to Report Data's `INACTIVATED` block (rows 755-760)
+— this tab identifies which positions to add and provides the
+`Sum of Balance Amount` for the paste. 640 rows × 11 cols.
 
-**Purpose:** Cross-reference between BI Payroll and P&P Data to surface **inactive
-positions** that still need to be projected. Mechanism: when a temp employee separates,
-the position is inactivated; once inactive it drops off the P&P report, but BI Payroll
-still shows it was paid. Since Report Data pivots primarily off P&P Data, these
-inactive-but-paid positions and amounts must be **manually added** to Report Data —
-this tab identifies which.
+The flow:
 
-**Structure (decoded during Tab 7 walkthrough):** Cols A-E come from the BI Payroll
-pivot cache (Position Identifier, Dept Desc, Job Code, Person Full Name, Sum of
-Balance Amount). Cols F:K are formulas: `F = XLOOKUP(position, 'P&P Data'!B, 'P&P
-Data'!B)` (returns #N/A when position is missing from P&P → that's the inactive flag),
-`G = XLOOKUP(dept, 'P&P Data'!H, 'P&P Data'!F)` (division backfill), `H =
-NUMBERVALUE(RIGHT(jobcode, 4))` (strips the `COMMN:` prefix), `I/J` parse the
-"Last,First" name string, `K` is the disposition flag (`Add` / blank). At snapshot,
-640 rows. See Tab 7 § How each downstream tab consumes BI Payroll.
+1. `PivotTable5` (A:E, cache 1006 = BI Payroll) lists every Position
+   Identifier with FYTD spend, grouped by Dept Description / Job Code /
+   Person Full Name. Data field = `Sum of Balance Amount`.
+2. Cols F:K are computed formulas testing each row against the current
+   P&P Data snapshot — `F = #N/A` means the position is missing from
+   P&P (= inactive).
+3. Col K's `Add` / `Done` / blank disposition tells Alex which rows
+   still need to be pasted into Report Data row 755-760.
 
-**Data sources:** BI Payroll ∪ P&P Data (lookups).
+#### Data sources
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough)_
+- **Cols A:E** = `PivotTable5` (cache 1006 = BI Payroll `A1:AL1048576`)
+  with row fields `Position Identifier` / `Department Description` /
+  `Job Code` / `Person Full Name` and data field `Sum of Balance
+  Amount`.
+- **Cols F:K** = formulas (P&P Data lookup + disposition).
+
+#### Structure (11 cols)
+
+| Col | Header | Source | Meaning |
+|---|---|---|---|
+| A | Position Identifier | pivot | 6-digit position number |
+| B | Department Description | pivot | |
+| C | Job Code | pivot | `COMMN:6322` (prefix-bearing) |
+| D | Person Full Name | pivot | |
+| E | Sum of Balance Amount | pivot data | FYTD $ spend on this position |
+| F | Inactives | formula | `=XLOOKUP(A2, 'P&P Data'!B:B, 'P&P Data'!B:B)` → returns position number if present, `#N/A` if absent (inactive) |
+| G | Division | formula | `=XLOOKUP(B2, 'P&P Data'!H:H, 'P&P Data'!F:F)` → backfills division from any active position in same dept |
+| H | Job | formula | `=NUMBERVALUE(RIGHT(C2, 4))` → strips `COMMN:` prefix, returns numeric job code |
+| I | First | formula | `=RIGHT(D2, LEN(D2) - FIND(",", D2))` → parses first name from "Last, First" |
+| J | Last | formula | `=LEFT(D2, FIND(",", D2) - 1)` → parses last name |
+| K | Done | formula | `=IF(ISERROR(F2), IF(XLOOKUP(A2, 'Report Data'!$D$755:$D$761, 'Report Data'!$D$755:$D$761, "Add") = "Add", "Add", "Done"), "")` → disposition |
+
+`K` formula decoded:
+- **If F is `#N/A`** (= position is inactive), check whether it's
+  already in Report Data INACTIVATED block (D755:D761).
+  - If `Add` (XLOOKUP returns the default), it's missing → flag `Add`.
+  - If present, flag `Done`.
+- **If F is not `#N/A`** (= position is still active in P&P), no
+  action needed → blank.
+
+#### What's manual / fragile
+
+- **Hardcoded range `D$755:$D$761` — only 7 slots.** Report Data's
+  INACTIVATED block is fixed at 7 rows. If the inactive count exceeds 7
+  in any PP, the workbook silently under-counts.
+- **Disposition flag `Add` / `Done` — Alex has to do the actual paste.**
+  The formula identifies what to add; the human does the work. Two-step
+  process, drift if Alex forgets between PP refreshes.
+- **`PivotTable5` is sorted by Position Identifier ascending.** Inserting
+  rows into Report Data INACTIVATED (which expects continuous range)
+  requires Alex to sort the same way before pasting. Sort drift → paste
+  in wrong order → cross-row formulas in Report Data point at the wrong
+  position.
+- **`Job Code` prefix-strip via `RIGHT(C, 4)`.** Works for `COMMN:6322`
+  (4-digit suffix). Breaks for any 5-digit class (e.g., MTA's `9123A`
+  variants) or 3-digit class — would chop the wrong chars. DBI doesn't
+  have these classes currently; citywide expansion needs a regex strip.
+- **`I` and `J` name-parser breaks on names without commas.** Names
+  formatted as "FirstLast" (data quality bug from PS HCM) cause
+  `FIND(",", ...)` to error.
+- **Backfill `G` is a heuristic.** `XLOOKUP(B, 'P&P Data'!H, 'P&P
+  Data'!F)` returns the *first matching* division for the dept-desc.
+  Multi-division depts (rare at DBI; common citywide) get an arbitrary
+  pick.
+
+#### KosPos improvements
+
+#### 1. Inactive view as a live query — no separate import or paste
+
+**Problem.** The whole "identify inactives → paste into Report Data"
+flow exists because P&P Data and BI Payroll are two snapshot files;
+the workbook can't compute "in BI Payroll but not in P&P" without a
+manual cross-reference.
+
+**KosPos design.** [`lib/views/inactive/`](#2-per-tab-modules) is a
+pure query against the same datastore: `positions WHERE in_bi_payroll
+AND NOT in_pnp_snapshot` (no separate importer). Report Data's
+INACTIVATED block goes away — the unified Positions list shows
+inactive positions with a `inactive` chip and the same YTD spend
+inline. Per [cross-cutting concerns](#multi-dept-generalization-caveats-dbi-shortcuts-to-undo)
+"6 hand-pasted INACTIVATED YTD actuals" row, already catalogued.
+
+#### 2. Unlimited inactive count
+
+**Problem.** Report Data's 7-slot INACTIVATED block silently caps the
+count. KosPos's query has no cap. The Operating Report rollups simply
+include all inactive positions in the per-dept-group `Sum of Balance
+Amount`.
+
+#### 3. Robust job-code prefix handling
+
+Importer strips `COMMN:` prefix on read (per cross-cutting concerns row
+"`'COMMN:5380'` job-code prefix as implicit citywide knowledge"); the
+stripped numeric job code is the typed `job_code` field, while the
+original prefixed string is preserved as `job_code_raw` for downstream
+exporters that expect it. Replaces the brittle `RIGHT(C, 4)`.
+
+#### 4. Robust name parser
+
+Importer parses `Person Full Name` upstream into typed `first_name` /
+`last_name` / `middle_name` fields with explicit handling of
+no-comma and multi-comma cases (`Last, First Middle` / `Last, First` /
+`Last, First, Suffix`). KosPos surfaces parsed names; downstream views
+that need the raw "Last, First" reconstruct it.
+
+#### Excel export notes
+
+KosPos emits a sheet equivalent to this tab for downstream consumers
+that need the legacy shape — preserving cols A:E from the BI Payroll
+pivot. The K disposition column drops away (no manual paste needed).
+
+#### Open questions / TODO
+
+None blocking — the design is straightforward live query.
 
 ---
 
 ### Tab 14 — Separations
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** **Rumored / pending** separations (not a complete list, not from a system
-of record). Manually maintained.
+**Purpose:** **Manually-maintained rumor / pending-separations list** —
+employees Alex knows are likely to leave (retirement, transfer,
+medical) but who haven't filed their formal separation paperwork yet.
+**Cross-link to [Tab 24 Staffing Plan § Separations section](#tab-24--staffing-plan)**
+— Tab 14 is upstream signal, Tab 24 § Separations is the planned
+hiring action that the eventual separation triggers. 12 rows × 9 cols.
 
-**Data sources:** Manual entry. KosPos = user-input tracker.
+#### Data sources
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough)_
+Hand-maintained by Alex from word-of-mouth, retirement-eligibility
+reports, and conversations with supervisors. **Not from PS HCM** (PS
+HCM only knows about actual filed separations).
+
+#### Structure (9 cols, all hand-input)
+
+| Col | Header | Meaning |
+|---|---|---|
+| A | Employee | Free-text name |
+| B | Class | Job code |
+| C | Division | DBI division |
+| D | Department | DBI department |
+| E | Estimated Date | Free-text: actual date or `?` if unknown |
+| F | Confirmed? | (blank or `Y` / `N`) |
+| G | Acting Plan | Free-text: `Yes` / `No` |
+| H | Recruitment Challenge | Free-text: `Yes` / `No` |
+| I | Notes | Free-text context, e.g. `How long will they stay, what's the p...` |
+
+#### What's manual / fragile
+
+- **No employee ID column.** Names like `Kenneth Lau` are not joinable
+  to PS HCM without a manual cross-reference. Two employees with the
+  same name = ambiguous.
+- **`Estimated Date` mixes dates with `?`.** Sort-by-date breaks.
+- **`Class` is job code but free-text.** Could be typed.
+- **No status workflow.** A rumored separation that becomes confirmed
+  → filed → cleared has no state machine; Alex overwrites notes.
+- **Not joined to Tab 24 Staffing Plan.** The Staffing Plan §
+  Separations section lists Alex's hiring actions in response to
+  separations, but the two tabs don't reference each other formally —
+  the link is "Alex remembers the rumor when he opens Tab 24."
+
+#### KosPos improvements
+
+This becomes a typed `PendingSeparation` entity in
+`lib/views/separations/` with:
+- `employee_id` (joinable to PS HCM)
+- `status: 'rumored' | 'confirmed' | 'paperwork-filed' | 'cleared'`
+- `estimated_date` (real Date type)
+- `confidence: 'low' | 'medium' | 'high'`
+- `acting_plan_position_id?: string` (cross-link to Tab 24 Staffing
+  Plan's Active row that responds to this separation)
+- `userNotes: string` (free-text per
+  [feedback memory](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_user_notes_per_position.md))
+
+Surfaces on Position Detail as a "pending separation" panel; the
+Staffing Plan workspace shows the linked PendingSeparation inline so
+Alex doesn't have to remember the connection. Full design deferred to
+Phase 2.2 sub-phase.
+
+#### Open questions / TODO
+
+- **Cross-link to Tab 24 § Separations.** Same Position Number on both
+  tabs should be the join key; today neither side enforces this.
 
 ---
 
 ### Tab 15 — Succession
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** Draft feature — succession planning. Alex flagged as a possible KosPos
-addition; scope TBD.
+**Purpose:** **Draft succession-planning surface** — for each leadership
+position, what's the plan if/when the incumbent leaves? Internal-promotion
+candidate identified, or external recruitment? Alex flagged this as a
+*possible* KosPos feature; scope TBD. 15 rows × 6 cols.
 
-**Data sources:** Manual.
+#### Data sources
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough)_
+Manual, hand-maintained.
+
+#### Structure (6 cols, all hand-input)
+
+| Col | Header | Meaning |
+|---|---|---|
+| A | Division | |
+| B | Department | |
+| C | Position | Free-text role name, e.g. `Deputy`, `Div Apps Replacement PM` |
+| D | Acting Plan | `Yes` / `No` — is there an identified acting candidate? |
+| E | Internal or External | `Either` / `Internal` / `External` — recruitment strategy |
+| F | Notes | Free-text |
+
+#### What's manual / fragile
+
+- **No Position Number column.** `Position` is a free-text role
+  description; can't join to P&P Data.
+- **No candidate column.** "Yes" in `Acting Plan` doesn't say *who*.
+  Operational knowledge in Alex's head only.
+- **Sparse coverage.** 15 rows for a dept with hundreds of positions
+  → only leadership / strategic positions are tracked. Coverage gaps
+  not surfaced.
+- **No review cadence.** Plans drift; nothing prompts Alex to
+  re-evaluate.
+
+#### KosPos improvements
+
+`lib/views/succession/` — typed `SuccessionPlan` per Position (linked
+by `position_id`, not free-text role name) with:
+- `strategy: 'internal' | 'external' | 'either'`
+- `candidate_employee_id?: string` (the acting/successor candidate)
+- `last_reviewed_date`
+- `userNotes: string`
+
+Surfaces on Position Detail for any position in the leadership /
+strategic class set. Triage prompt for positions lacking a plan after N
+months. Full design deferred — Alex to scope priority.
+
+#### Open questions / TODO
+
+- **Scope priority.** Is this Phase 2 (current-year workspace) or
+  Phase 7 (people / talent management)? Currently positioned as draft.
+- **Class set definition.** Which classes count as
+  "leadership/strategic"? Probably MCCP + selected senior PCS.
 
 ---
 
@@ -3800,7 +4863,7 @@ chartfield-level variance that the position-aware Report Data cannot model.
 PP and reconcile per chartfield string, excluding inactive positions.** Full
 schema (68 columns), refresh-order timing rule, and verified reconciliation
 pattern in [`../data-sources/bva.md`](../data-sources/bva.md);
-KosPos-side approach in [§ KosPos improvements](#kospos-improvements-6) below.
+KosPos-side approach in [§ KosPos improvements](#kospos-improvements-18) below.
 
 #### Cross-cutting: the dual per-PP grid (Y:AY operating, BB:CB continuing)
 
@@ -4494,7 +5557,7 @@ Current Year workspace. Three surfaces:
    - Surfaces the "what changed via journal entry, not via payroll" picture
      the workbook can't currently produce.
    - Filter: exclude inactive positions.
-4. **Data Issues panel** (cross-cutting, per [§ KosPos improvements](#kospos-improvements-6) #12):
+4. **Data Issues panel** (cross-cutting, per [§ KosPos improvements](#kospos-improvements-18) #12):
    - All the data-quality flags above, grouped by category.
 
 The pool-position recommendation, the missing-CPC-catcher warnings, the BFM
@@ -4596,33 +5659,288 @@ round-trip parity, **without** the hand-paste fragility:
 
 ### Tab 21 — Reporting Tree
 
-**Status:** walkthrough — pending
+_(One pivot `PivotTable15` on P&P Data cache 4 (`pivotCacheDefinition4.xml`,
+138 fields) — see [Tab 6 § How each downstream tab consumes
+P&P Data](#how-each-downstream-tab-consumes-pp-data). Pivot row axis
+includes the 10 derived `1RC…10RC` hierarchy-climb columns. The
+Reports-To error-vs-noise framework sketch lives in
+[Tab 6 § KosPos improvements #6](#6-reports-to-validation--error-vs-noise-framework-sketch).)_
 
-**Purpose:** Visual org chart drawn from P&P Data — who reports to whom at each level.
-Used both to **flag data errors** (broken reports-to chains, etc.) and to **communicate
-system changes** to staff. Error identification is currently manual; KosPos can
-automate. Precursor to the full Phase 7 org-chart module.
+**Status:** walkthrough — done 2026-05-25
 
-**Data sources:** P&P Data (Reports-To position + the derived `2RC…11RC` level codes
-in cols DX:EG — pivot 18 on cache 4; see [Tab 6 § Formulas — derived
-columns](#formulas--structure--derived-columns-ckeh-50-columns) and the consumer
-table). The Reports-To error-vs-noise framework sketch lives in
-[Tab 6 § KosPos improvements #6](#6-reports-to-validation--error-vs-noise-framework-sketch).
+**Purpose:** **Pivot-shaped org-chart preview + data-quality flag
+authoring surface.** Two interleaved jobs on one sheet:
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough — enumerate the manual error-checks to automate)_
+1. **Org-chart preview** — 10-level hierarchy walk (`1RC` through
+   `10RC`) of every position into a visual tree that mirrors the live
+   reports-to chain. Used both to flag data errors (broken reports-to,
+   wrong manager, etc.) and to communicate organizational changes
+   to staff.
+2. **Per-position data-quality flag authoring** — cols AI:AU carry
+   user-input change-proposal columns: when the user spots a wrong
+   Budget Job Code, wrong Manager Position Number, etc., they type
+   the corrected value in the adjacent `*-Change` column. This is the
+   precursor to KosPos's [Change Mode](../DECISIONS.md) workflow (per
+   ADR-003).
+3. **Filter chips for the org-chart audience** — cols AW:BA serve as
+   slicer columns (`Vacant` / `TEMP` / `Position =/= Budget` / `Filled
+   non-TEMP TEX` / `On Leave`) for filtering the tree by status.
+
+606 rows × 53 cols. **The Phase 7 org-chart phase precursor.**
+
+#### Data sources
+
+P&P Data pivot (cache 4 = `pivotCacheDefinition4.xml`, all 138 fields
+incl. the 10 derived `*RC` columns in P&P Data cols CO:DJ + DL:EG).
+The pivot's location is `A1:AH606`, firstDataCol = 34 — meaning rows
+cols A:AG are pivot output (cols A:J = the 10 hierarchy levels;
+cols K:AG = per-position pivot fields), and cols AH:BA are sheet-
+side annotations (Notes + change-proposal cols + slicer chips).
+
+#### Structure — pivot output (A:AG)
+
+| Col | Header | Meaning |
+|---|---|---|
+| A-J | Level 1…10 | 10-level reports-to walk. Each cell either the position label (`0111/0111-Alyce Brown`) or blank if the position is at a lower level than this col |
+| K | Position Number | |
+| L | Employee Job Code | The job code of the **occupant** (may differ from Budget Job Code on TX appointments) |
+| M | Employee Job Description | |
+| N | Budget Position Primary Job Code | The job code the **position** is budgeted for |
+| O | Budget Job Description | |
+| P | Position Fill Status | `FILLED` / `VACANT` / `PARTIALLY FILLED` (= pool positions) |
+| Q | Person Full Name | |
+| R | Preferred Name | |
+| S | Current Employee ID | |
+| T | Employee Status | `A` (active) / `L` (leave) / `T` (terminated being processed) etc. |
+| U | Employee Appointment Type | PCS / PEX / TEX / TEMP / ELC (elected commissioner) etc. |
+| V | EE Exempt Category Description | The Cat code, e.g. `03 Comsnrs, Boards & Committee` |
+| W | Position Reports To | The Reports-To position number |
+| X | Manager First Name | |
+| Y | Manager Last Name | |
+| Z | Previous Employee2 | Who was last on the position before current incumbent |
+| AA | Effective Employee Department | Where the employee actually works |
+| AB | Budget Department Description 1 | Where the position is budgeted |
+| AC | Combo CD DEPT Description | Where their hours charge to |
+| AD | Roster Code | |
+| AE | Roster Code Description | |
+| AF | Vacant Date | When the position became vacant (if applicable) |
+| AG | Exclude | User-set exclusion flag |
+| AH | Vacant TEMP | Computed slicer category |
+
+#### Structure — sheet-side annotations (AI:BA)
+
+These columns are **NOT in the pivot** — they sit alongside the pivot
+and are hand-input or formula-derived per row.
+
+| Col | Header | Purpose |
+|---|---|---|
+| AI | Budget Job Code Change | Proposed correction to Budget Job Code (typed by Alex when N is wrong) |
+| AJ | Manager Position Number Change | Proposed correction to Reports-To |
+| AK | Effective Department Change | Proposed correction to AA |
+| AL | Effective Department Change Code | Numeric code for AK |
+| AM | Budget Department Change | Proposed correction to AB |
+| AN | Budget Department Change Code | Numeric code for AM |
+| AO | Charge Override Department Change | Proposed correction to AC (combo dept) |
+| AP | Combo Code Should Be | Proposed corrected combo code |
+| AQ | Combo Project Code Should Be | |
+| AR | Combo Activity Code Should Be | |
+| AS | Roster Change | Proposed corrected roster code |
+| AT | Position Should Be | Free-text proposed correction to position |
+| AU | Notes | Free-text |
+| AV | (blank) | Visual separator |
+| AW-BA | Vacant / TEMP / Position =/= Budget (excludes TEMP) / Filled non-TEMP TEX / On Leave | Slicer chips (formulas computing categorical state per row) |
+
+#### Formulas
+
+The pivot itself is the dominant calculation; the AW:BA slicer chips
+are computed per-row from the pivot output. The change-proposal cols
+(AI:AT) are user-input free-text.
+
+#### What's manual / fragile
+
+- **10-level cap on hierarchy climb.** The 1RC…10RC derived columns on
+  P&P Data (cols DX:EG) materialize the walk to depth 10. Depths >10
+  are silently truncated. Per [cross-cutting concerns](#multi-dept-generalization-caveats-dbi-shortcuts-to-undo)
+  "11-level `Level 1…11` hierarchy climb" row: KosPos walks lazily,
+  no cap.
+- **Change-proposal cols are unstructured.** Typed-into-the-cell
+  proposed corrections (AI:AT) are not validated, not audit-trailed,
+  and not routed to anyone for review. Today the workflow is "Alex
+  fixes the source data manually in PS HCM later." No automation.
+- **Per [Tab 6 § Reports-To validation framework](#6-reports-to-validation--error-vs-noise-framework-sketch)
+  classes of errors:** broken chains, cycles, dangling refs, excessive
+  depth, ambiguous (commissioner) reports-to are all currently
+  identified by eyeballing the tree — no automation.
+- **The 5 slicer cols AW:BA differ from the 6 chips on Tab 23
+  Vacancies and TEMP.** Tab 21 has `Vacant`, `TEMP`, `Position =/=
+  Budget (excludes TEMP)`, `Filled non-TEMP TEX`, `On Leave`. Tab 23
+  has `Vacant`, `TEMP`, `Position =/= Budget`, `Temp on Budgeted
+  Position`, `On Leave`, `Exclude`. Different vocabularies for nearly-
+  identical categories. KosPos unifies into one slicer vocabulary.
+- **Sheet locked to DBI+CPC scope.** The pivot's source is filtered
+  via P&P Data's effective-dept filter applied before refresh. Other
+  depts can't be added without unblocking the source.
+
+#### KosPos improvements
+
+#### 1. Reports-To validation framework as automatic Data Issues
+
+**Problem.** Tab 6 § KosPos improvements #6 sketches an error-vs-noise
+framework with 4 categorical Data Issues (`reports-to-empty-non-
+commissioner` / `reports-to-cycle` / `reports-to-dangling-ref` /
+`reports-to-excessive-depth`). They exist in the catalog but are not
+yet computed — Tab 21 today is the manual-eyeball process.
+
+**KosPos design.** [`lib/views/reporting-tree/`](#2-per-tab-modules)
+on import runs the four categorical checks (already enumerated in
+the [Data Issues catalog](#data-issues-catalog-libquality-scope))
+and raises flags inline. The org-chart UI shows broken-chain nodes
+in red, excessive-depth nodes in amber, and cycles as visible loops
+with the offending edge highlighted.
+
+#### 2. Change Mode wires the change-proposal cols formally
+
+**Problem.** Cols AI:AT are change proposals that aren't audit-trailed.
+Wrong Budget Job Code typed in AI sits there until Alex notices and
+fixes the source — no review, no approval, no record of the proposal.
+
+**KosPos design.** Per [ADR-003](../DECISIONS.md) Change Mode: every
+proposal becomes a `ProposedChange` entity with author, reviewer,
+target field, current value, proposed value, status (`pending` /
+`approved` / `applied` / `rejected`). Tab 21's change cols map 1:1
+to typed change targets:
+
+- AI Budget Job Code Change → `position.budget_job_code` field
+- AJ Manager Position Number Change → `position.reports_to_position_id`
+- AK/AL Effective Department Change → `position.effective_department_id`
+- AM/AN Budget Department Change → `position.budget_department_id`
+- AP/AQ/AR Combo {Code, Project, Activity} Should Be → `position.combo`
+- AS Roster Change → `position.roster_code`
+- AT Position Should Be → free-text catch-all (`position.userNotes`)
+
+Approval workflow surfaces in admin view; approved changes apply on
+the next import sync.
+
+#### 3. Phase 7 org-chart precursor
+
+**Problem.** Tab 21 is the closest thing to an org-chart Alex has
+today, but it's a flat pivot, not a visual tree.
+
+**KosPos design.** [`lib/views/reporting-tree/`](#2-per-tab-modules)
+is the Phase 2 lite org-chart preview (list-shaped, like the pivot
+today but with computed Data Issues). The full Phase 7 org chart
+(`@xyflow/react` + `dagre` per ADR-001) consumes the same data and
+adds visual layout + audience-mode filtering (Internal Management /
+Internal All Staff / External — per [domain `positions.md`](positions.md)).
+
+#### 4. Unified slicer vocabulary across Tabs 21, 22, 23
+
+**Problem.** Same categorical labels (Vacant, TEMP, On Leave) have
+two different definitions across tabs. `Position =/= Budget` is on
+both Tab 21 and Tab 23 but the definitions may differ (one excludes
+TEMP, the other may not).
+
+**KosPos design.** Per
+[Tab 23 § Explicit categorical slicer semantics](#tab-23--vacancies-and-temp),
+explicit definitions are documented in one place; all KosPos
+filter chips use those definitions. The vocabulary delta between
+Tab 21 and Tab 23 is a workbook artifact that vanishes.
+
+#### KosPos UI sketch
+
+A **Reporting Tree** page at `/reporting-tree` — the Phase 2 lite
+version is a sortable list (like the pivot) with reports-to chain
+visualized inline; each row carries Data Issue chips. **Change Mode
+toolbar** at the top: "Add proposed change" → opens a form keyed to
+the selected row. Filter chips at the left (Vacant / TEMP / etc.).
+
+The full Phase 7 org chart inherits this list view as the
+"flat-list mode" toggle and adds visual-tree mode + audience-mode
+filtering on top.
+
+#### Excel export notes
+
+KosPos emits a sheet equivalent to this tab for users who still
+need the pivot shape — preserving the col A:AG pivot output and
+regenerating the change-proposal cols (AI:AT) as plain user-editable
+columns. The unified slicer chips replace the AW:BA columns.
+
+#### Open questions / TODO
+
+- **`PARTIALLY FILLED` semantics.** Used for pool positions (multiple
+  incumbents on one Position Number — commissioners). Per cross-cutting
+  concerns "Pool positions" row, KosPos surfaces a `pool-position-detected`
+  Data Issue and lets the user choose to keep as pool or split. Confirm
+  whether Tab 21's `PARTIALLY FILLED` should map to KosPos's
+  `is_pool_position = true` directly.
+- **Audience modes for the lite Phase 2 view.** Phase 7 defines three
+  audience modes; the Phase 2 lite reporting-tree view may or may not
+  need any of them — default = single Internal Management view.
 
 ---
 
 ### Tab 22 — Pos by Dept
 
-**Status:** walkthrough — pending
+_(One pivot `PivotTable28` on P&P Data cache 1
+(`pivotCacheDefinition1.xml`, 137 fields) — same cache as Tab 12 TEMP
+Limits + Tab 23 Vacancies and TEMP.)_
 
-**Purpose:** Pivot view of Report Data by department. Alex notes: rarely used; low
-priority. Likely subsumed by KosPos's filterable position list.
+**Status:** walkthrough — done 2026-05-25
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough — confirm whether to keep as separate surface or fold in)_
+**Purpose:** **Filtered department-shaped pivot of every position** —
+group by Effective Division → Effective Department → Manager → Fill
+Status → Roster → Position Number → Person, with two page filters
+(`Exclude` / `Vacant TEMP`) and a count of `11RC` as the data field.
+Alex notes: **rarely used; low priority.** Largely subsumed by
+KosPos's filterable Position list. 622 rows × 19 cols.
+
+#### Data sources
+
+P&P Data pivot (cache 1). Same cache as Tab 12 + Tab 23. PivotTable28
+location: `A4:S622`, firstDataCol = 18.
+
+#### Structure
+
+| Col | Header | Meaning |
+|---|---|---|
+| A | Exclude | Page filter (slicer chip) |
+| B | (Multiple Items) | Vacant TEMP page filter (slicer chip) |
+| C-G | Vacant / TEMP / Position =/= Budget / Temp on Budgeted Position / On Leave | Slicer chips (same vocabulary as Tab 23) |
+| (rows ≥4) | Pivot output | Row fields: Effective Division → Effective Department → Manager First/Last → Position Fill Status → Roster Code Description → Position Number → Employee Job Code → Job Description → Budget Position Primary Job Code → Budget Job Description → Person Full Name → Preferred Name → Employee Status → Employee Appointment Type → EE Exempt Category Description → Previous Employee → Budget Department Description 1. Data: `Count of 11RC` |
+
+#### What's manual / fragile
+
+- **Single data field is `Count of 11RC`.** Count-of-11RC works as a
+  proxy for "headcount per group" because every active row has a
+  populated 11RC, but it's a non-obvious choice. A future refresh
+  where 11RC happens to be blank on some rows would silently
+  under-count. The semantically-correct field would be Count of
+  Position Number (or `Distinct Count of Position Number` for pool
+  positions).
+- **Pivot row axis is very deep** (18 levels). Collapses/expands are
+  workbook-local state — two users opening the file see different
+  collapse states. Same issue as Tab 23 slicer chips.
+- **`(Multiple Items)` in B opaque.** Standard Excel pivot page-filter
+  display when 2+ items are selected — Alex can't see which.
+
+#### KosPos improvements
+
+This tab is fully subsumed by KosPos's primary Position list view
+(`lib/views/positions/`) with department-tree grouping enabled. The
+slicer-chip vocabulary unification (per
+[Tab 21 § KosPos improvement #4](#kospos-improvements-19))
+applies here too. No separate KosPos surface for Tab 22.
+
+#### Excel export notes
+
+KosPos emits a sheet equivalent to this tab on demand — same row
+axis, count using `Distinct Count of Position Number` rather than
+`Count of 11RC` for unambiguous semantics.
+
+#### Open questions / TODO
+
+- **Confirm Alex doesn't actively use this tab.** If he does, surface
+  the use case so the KosPos Position list covers it.
 
 ---
 
@@ -5321,7 +6639,7 @@ notice.
 **KosPos design.** Position list view shows each position once with a
 badge "(3 actions)" when multiple. Position Detail view shows all
 actions on one timeline. Coverage diagnostic (per
-[Tab 23 § KosPos improvement #2](#kospos-improvements-7)) explicitly
+[Tab 23 § KosPos improvement #2](#kospos-improvements-21)) explicitly
 calls out "Position 1115135 has Active + Separation + TEMP all at once
 — is this intentional?"
 
@@ -5363,7 +6681,7 @@ need this disambiguation.
 
 **KosPos design.** When marking a position as "intentional hold,"
 KosPos checks the position's vice history (per
-[Tab 23 § KosPos improvement #3](#kospos-improvements-7)). If a prior
+[Tab 23 § KosPos improvement #3](#kospos-improvements-21)). If a prior
 incumbent existed, surface "this position has been filled before
 (by [name] 2023-02 to 2024-08) — RTF data may have aged; consider
 'data integrity issue' classification rather than 'never filled'."
@@ -5515,7 +6833,7 @@ For parity:
       mid-year, does it stay on DBI's Staffing Plan until end of FY
       (per current Pending notes "Hold per CPC"), or jump to CPC's
       Staffing Plan immediately? Tied to BVA-driven chartfield
-      reconciliation in [Tab 20 § KosPos improvement #2](#kospos-improvements-6).
+      reconciliation in [Tab 20 § KosPos improvement #2](#kospos-improvements-18).
 - [ ] **The 5 vacant-no-RTF positions** from
       [scenario-tests § Scenario 5](../audits/labor-report-scenario-tests.md#scenario-5--vacant-but-no-rtf)
       — cross-check each against this Staffing Plan + the vice history
@@ -5698,7 +7016,7 @@ Net plan-adjusted surplus  $N₁           $N₂
 
 The BY+1 column is what the workbook gestures at but doesn't compute.
 Sources from Staffing Plan's per-PP cost + COLA-aware annualization (see
-[Tab 24 § KosPos improvement #9](#kospos-improvements-8)) + the next-FY
+[Tab 24 § KosPos improvement #9](#kospos-improvements-22)) + the next-FY
 BFM eturn for the BY+1 total budget.
 
 ##### 2. Hire-mix sensitivity scenarios
@@ -5816,7 +7134,7 @@ For parity:
   as the workbook. The KosPos exporter regenerates the pivot under
   the same name/anchor so downstream consumers' references hold (see
   the "Department Group" pivot-label preservation discussion under
-  [Tab 26 KosPos improvements](#kospos-improvements-10)).
+  [Tab 26 KosPos improvements](#kospos-improvements-24)).
 - **Sign convention** documented inline as cell comments: "B3 stored
   as negative because OPS Summary returns expense-positive; Budget
   Summary uses budget-positive convention."
@@ -6305,7 +7623,7 @@ flagged on a fresh refresh: any line that moved >10% or >$100k. Saves
 auto-pin at every report milestone (6-month, 9-month, year-end). This
 is the **"what changed since the last report" feature** Alex flagged in
 the initial walkthrough description; it's the obvious win KosPos
-delivers over Excel. See also [Tab 27 § KosPos improvements](#kospos-improvements-11)
+delivers over Excel. See also [Tab 27 § KosPos improvements](#kospos-improvements-25)
 where the same primitive powers position-level drill-down.
 
 ##### 7. Reconcile per-dept pivot to per-class block — the closure check is automatic
@@ -6508,7 +7826,7 @@ Two operational use cases:
    flagged this as the obvious KosPos win. Today the workflow is:
    open last week's OPS Detail in a second window, eyeball-diff
    against this week's, find the changed rows. KosPos automates this
-   — see [§ KosPos improvements](#kospos-improvements-11).
+   — see [§ KosPos improvements](#kospos-improvements-25).
 
 #### Data sources
 
@@ -6633,7 +7951,7 @@ error-prone — Alex flagged this explicitly as the obvious KosPos win
 in the initial Tab 27 stub.
 
 **KosPos design.** Every page-state save (per [OPS Summary improvement
-#6](#kospos-improvements-10)) captures the full OPS Detail row set
+#6](#kospos-improvements-24)) captures the full OPS Detail row set
 keyed by `(Effective Dept, Position Number, Fill Status, Budget Job
 Code)`. The Detail view renders with a default-on **"Δ since
 `<prior_snapshot>`"** column toggle:
@@ -6833,9 +8151,13 @@ available).
 | DHR Hourly Rates of Pay (`Hourly-Rates-of-Pay-by-Classification-and-Step-FY{NN}-{NN+1}.xlsx`) 29×17,116 (Steps) + 20×124 (Ranges) | Reference data for class × step rate lookups; underpins Step / RTPOM / OVERM math. Documented in [`../data-sources/dhr.md`](../data-sources/dhr.md). | DHR website download; annual after MOU ratification | Snowflake (if exposed) | `lib/reference/dhr-steps/` + `lib/reference/dhr-ranges/` |
 | OBI Payroll Detail (older variant of BI Payroll; 38×42,949 in 11.8.23 sample) | Older schema (38 cols) preserved for backward-compat testing of the BI Payroll importer. Same source as today's BI Payroll; column count grew to 39 in current snapshot. | Manual OBI re-run | Snowflake direct query | Same path as BI Payroll (`lib/importers/obi-payroll/`) with header-driven schema detection |
 | BFM 15.10.006 FY26 eturn (per-position + per-special-class summary rows; ~30 cols incl. FY26 Original / Base / Department / Mayor / Committee / Technical Adjustment / Board layers) | **Report Data** (S Total Budget SUMIFS on column `AX FY 2025-26 Technical Adjustment` — stale, should be `AZ Board`; SPECIAL block hand-paste from per-class summary rows), **Operating Report Summary** (TEMPM E40 from `AZ1195+AZ1197+AZ1199+AZ1201`), **Overtime** tab (FY26 OT budget anchor `BN6 / BN8`), Premium / Step / others as BY-anchor source | Manual download from BFM; refresh annually (Board-adopted) + periodically when Technical Adjustments hit; per-position rows + summary rows in same file | Snowflake direct query when available | `lib/importers/bfm-eturn/` — header-driven fingerprint, full-replace per `(fiscal_year, snapshot_date)`; uses Board-adopted (`AZ`) as default budget anchor with Technical-Adjustment / Department / etc. preserved for variance views; documented in [`../data-sources/bfm.md`](../data-sources/bfm.md) and ADR-004 |
-| `BVA` report (Budget vs Actuals, per PS Financials via OBI) — 68 cols × 2,710 rows for DBI+CPC FY26 sample; full schema in [`../data-sources/bva.md`](../data-sources/bva.md) | _(planned)_ **Report Data** chartfield-level reconciliation (BVA budget vs eturn = KK adjustments; BVA actuals vs BI Payroll = GL adjustments — see [Tab 20 § KosPos improvements #1–#2](#kospos-improvements-6)) | _(planned)_ Manual OBI re-pull each PP, **Wednesday-or-later after payday Tuesday** (see [§ Refresh-order timing](#refresh-order-timing--obi-1-day-lag--payroll-to-gl-gap--bva-wed-or-later)); full-replace per `(fiscal_year, snapshot_date)` | Snowflake direct query when available | `lib/importers/bva/` — header-driven fingerprint; chartfield-keyed; pre-computes reconciliation cube on import; snapshot date sourced from file mtime (filename version date is the report-definition version, NOT the data snapshot) |
+| `BVA` report (Budget vs Actuals, per PS Financials via OBI) — 68 cols × 2,710 rows for DBI+CPC FY26 sample; full schema in [`../data-sources/bva.md`](../data-sources/bva.md) | _(planned)_ **Report Data** chartfield-level reconciliation (BVA budget vs eturn = KK adjustments; BVA actuals vs BI Payroll = GL adjustments — see [Tab 20 § KosPos improvements #1–#2](#kospos-improvements-18)) | _(planned)_ Manual OBI re-pull each PP, **Wednesday-or-later after payday Tuesday** (see [§ Refresh-order timing](#refresh-order-timing--obi-1-day-lag--payroll-to-gl-gap--bva-wed-or-later)); full-replace per `(fiscal_year, snapshot_date)` | Snowflake direct query when available | `lib/importers/bva/` — header-driven fingerprint; chartfield-keyed; pre-computes reconciliation cube on import; snapshot date sourced from file mtime (filename version date is the report-definition version, NOT the data snapshot) |
 | Inactive tab `Sum of Balance Amount` (computed inside the workbook from BI Payroll's pivot cache; not a separate upstream file) | Report Data INACTIVATED block (rows 755–760) — **hand-pasted** each PP refresh into U column | Workbook-internal pivot; copy-paste-as-values into Report Data | Live query in KosPos: `positions WHERE in_bi_payroll AND NOT in_pnp_snapshot` → drives Inactive view directly | `lib/views/inactive/` — pure query, no separate import; INACTIVATED block in Report Data goes away |
 | Staffing Plan (workbook-internal; will be its own importable surface in Phase 2) | Report Data HIRING (24 rows) + SEPARATING (4 rows) — direct cell refs into `'Staffing Plan'!{col}{n}` for B/D/F/G/H/K/L/M/N/O/W | Workbook tab; Alex edits directly | KosPos Staffing Plan workspace (Tab 24 surface) — first-class data store; Report Data view joins to it | `lib/staffing-plan/` — Phase 2.2 sub-phase enumeration target |
+| Probation tracker (workbook-internal Tab 10) | Probation tab only | Hand-maintained spreadsheet (Alex's; no PS HCM source for probation at DBI today) | KosPos = system of record; surfaces inline on Position Detail | `lib/views/probation/` — typed entity with status workflow + end-date auto-computation |
+| Pending-separations tracker (workbook-internal Tab 14) | Separations tab only | Hand-maintained (rumored / pending separations; not from a system) | KosPos = typed `PendingSeparation` entity, cross-linked to Staffing Plan § Separations rows | `lib/views/separations/` — typed entity with status workflow |
+| Succession draft (workbook-internal Tab 15) | Succession tab only | Hand-maintained draft | KosPos = `SuccessionPlan` per Position (priority TBD per Alex) | `lib/views/succession/` — typed entity |
+| DHR Eligibility Lists (workbook-internal Tab 11 hand-scrape) | Eligibility Lists tab; Vacancy Planning + Job Class Detail (planned) | Hand-compiled from <https://sfdhr.org/examination-results>; 40 DBI classes | Periodic scrape of `sfdhr.org/examination-results` keyed on job class; documented in [`../data-sources/dhr.md`](../data-sources/dhr.md) | `lib/reference/dhr-eligibility/` — versioned by scrape date |
 
 ## Phase 2.2 sub-phases (dependency order)
 
@@ -6917,9 +8239,37 @@ Tab dependencies noted in parentheses.
 - **`lib/views/reporting-tree/`** — Tab 21 Reporting Tree — feeds
   Phase 7 org chart.
 - **`lib/views/temp-limits/`** — Tab 12 TEMP Limits — Cat 16/17/18
-  expiry tracker (depends on lib/quality).
+  expiry tracker (depends on lib/quality). **Also models TX
+  (Temporary Exchange)** as a typed entity per [Tab 12 § KosPos
+  improvement #2](#kospos-improvements-10).
 - **`lib/views/eligibility/`** — Tab 11 Eligibility Lists — DHR scrape
   + lookup.
+- **`lib/reference/dhr-eligibility/`** — Tab 11 source — periodic
+  scrape of `sfdhr.org/examination-results` keyed on job class;
+  versioned by scrape date.
+- **`lib/reference/combo/`** — Tab 3 Combo — chartfield-string aliases
+  reference (full citywide combo dataset, all chartfield components
+  incl. Project + Activity); supports Combo Lookup page + autocomplete
+  on Acting / Additional Pay forms.
+- **`lib/views/roster-approvers/`** — Tab 8 Roster Approvers — typed
+  `Roster` entity (replaces text-coerced PS HCM strings); roster Data
+  Issues (`roster-no-approver`, `roster-approver-inactive`,
+  `roster-orphan`, `position-no-roster`).
+- **`lib/views/ee-additional-pay/`** — Tab 9 EE Additional Pay —
+  acting / supervisory pay tracker. Importer runs the dual-entry check
+  on every import + per-BU `SupervisoryDifferentialRule` table for
+  the supervisory-owed computation.
+- **`lib/views/probation/`** — Tab 10 Probation — typed entity with
+  status workflow (Open → Approaching → Extended → Cleared / Failed /
+  Resigned); end-date auto-computation; "approaching end" Data Issue.
+  System of record going forward.
+- **`lib/views/separations/`** — Tab 14 Separations — typed
+  `PendingSeparation` entity (status: `rumored` / `confirmed` /
+  `paperwork-filed` / `cleared`); cross-link to Staffing Plan §
+  Separations rows.
+- **`lib/views/succession/`** — Tab 15 Succession — `SuccessionPlan`
+  per Position; surfaces on Position Detail for leadership / strategic
+  class set; review-cadence prompt. (Priority TBD.)
 
 ### 3. Reconciliation & projection
 
@@ -6960,13 +8310,27 @@ suite:
 | `negative-balance-amount` | [Scenario 8](../audits/labor-report-scenario-tests.md#scenario-8--negative-or-zero-balance-amount-rows) | informational |
 | `earnings-code-undocumented` | [Scenario 9](../audits/labor-report-scenario-tests.md#scenario-9--earnings-code-orphans) | yellow |
 | `earnings-code-zero-routing` | Scenario 9 | yellow |
-| `premium-fringe-ratio-drift` | [Tab 16 § KosPos improvement #3](#kospos-improvements-2) | yellow |
+| `premium-fringe-ratio-drift` | [Tab 16 § KosPos improvement #3](#kospos-improvements-14) | yellow |
 | `staffing-plan-orphan` | Tab 24 § V Check column | yellow |
 | `vacancy-unplanned` | Tab 23 § Coverage diagnostic | yellow |
 | `position-multi-action` | Tab 24 § Cross-section position duplication | informational |
 | `bva-kk-adjustment-detected` | BVA reconciliation (Task B) | informational |
 | `bva-gl-adjustment-detected` | BVA reconciliation (Task B) | informational |
 | `dbi-shortcut-active` | Catalog from cross-cutting concerns | informational (importer warning) |
+| `roster-no-approver` | [Tab 8 § KosPos improvement #2](#kospos-improvements-6) — roster has zero active `ROLENAME=Approver` rows | red |
+| `roster-approver-inactive` | Tab 8 — `EMPL_STATUS != A` for an approver row | yellow |
+| `roster-orphan` | Tab 8 — roster code referenced by no current position | informational |
+| `position-no-roster` | Tab 8 — position with blank `Roster Code` (employee can't submit time) | yellow |
+| `additional-pay-orphan` | [Tab 9 § KosPos improvement #3](#kospos-improvements-7) — dual-entry missing on either side | yellow |
+| `additional-pay-supervisory-owed` | Tab 9 — manager's `Rep To Pay Above > 0` with no SUPFLT entry | yellow |
+| `additional-pay-acting-overlap` | Tab 9 — same position has multiple concurrent ACTFLT entries | red |
+| `additional-pay-expired` | Tab 9 — `expected_end_date < TODAY()` but `Pay Status = A` | yellow |
+| `probation-end-approaching` | Tab 10 — probation end date within 30 days | yellow |
+| `probation-extension-required` | Tab 10 — probation ENDS today or past with no Completion | red |
+| `class-no-active-list` | Tab 11 — vacant PCS position whose class has no active eligibility list (cannot hire PCS) | yellow |
+| `temp-tx-expiration-imminent` | Tab 12 — Cat 17/18 TX expiration within 90 days | yellow |
+| `temp-tx-expired` | Tab 12 — TX past expiration; CSC violation if employee still on position | red |
+| `change-proposal-pending-review` | [Tab 21 § KosPos improvement #2](#kospos-improvements-19) — `ProposedChange` awaiting reviewer action > 7 days | informational |
 
 Every Data Issue is paired with an inline `userNotes` affordance per
 [`feedback_user_notes_per_position.md` memory](#tab-24--staffing-plan):
