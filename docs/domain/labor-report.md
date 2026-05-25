@@ -166,7 +166,7 @@ Catalog of DBI-only assumptions that need to be parameterized for citywide use:
 | 11-level `Level 1…11` hierarchy climb materialized in 44 columns next to P&P Data | P&P Data CO:DJ + DL:EG (read by Reporting Tree pivot) | Compute hierarchy lazily by walking `reports_to_position_id`; cap not at 11 |
 | `'BI Payroll'!F = 10190` filter on Report Data's per-PP OPERATING grid (Y:AY) — multi-fund via `F IN {10190, 10000}` but DBI+CPC-operating-only | Report Data Y:AY per-position + OVERTIME/PAYOUT catcher blocks | Configurable per-dept operating-fund set; multi-dept join derives operating funds from BFM fund-control = `FACCT` |
 | `'BI Payroll'!F <> 10190` filter on Report Data's per-PP CONTINUING grid (BB:CB) — **wrong complement** of the `{10190, 10000}` operating filter; dormant fund-10000 double-count bug | Report Data BB:CB per-position + OVERTIME/PAYOUT catcher blocks | Derive continuing-fund filter as the **complement** of the operating-fund set, not a hardcoded `<>10190` |
-| `'BFM 15.10.006 FY26'!AX` (Technical Adjustment) used as the budget anchor in Report Data S; should be `AZ` (Board-adopted) per [Tab 20 § Manual / fragile](#whats-manual--fragile-20) | Report Data S (per-position auto-SUMIFS) + NEWP rows (hand-key); inconsistent with TEMPM OPS E40 which already uses `AZ` | KosPos defaults to **Board-adopted (`AZ`)**; preserves earlier-layer columns (Original / Department / Mayor / Committee / Technical Adjustment) for variance views |
+| `'BFM 15.10.006 FY26'!AX` (Technical Adjustment) used as the budget anchor in Report Data S; should be `AZ` (Board-adopted) per [Tab 20 § Manual / fragile](#whats-manual--fragile-2) | Report Data S (per-position auto-SUMIFS) + NEWP rows (hand-key); inconsistent with TEMPM OPS E40 which already uses `AZ` | KosPos defaults to **Board-adopted (`AZ`)**; preserves earlier-layer columns (Original / Department / Mayor / Committee / Technical Adjustment) for variance views |
 | OVERTIME + PAYOUT catcher blocks DBI-only (18 + 18 rows; **zero CPC**) — under-counts CPC OT/RPO in the dept rollup | Report Data rows 611–628 + 630–647 | Catcher rows generated per `(dept-group, dept)` for every dept in the active scope, not just DBI |
 | 100 hand-pasted SPECIAL-block budgets (rows 649–748) refreshed manually each PP from BFM special-class summary rows | Report Data rows 649–748 | Derived live query: `SUM(eturn.budget WHERE account_description = X AND dept_group = Y)` from the BFM importer |
 | 6 hand-pasted INACTIVATED YTD actuals (Report Data U755:U760) copied from Inactive tab's pivot each refresh | Report Data INACTIVATED block | Live query: `positions WHERE in_bi_payroll AND NOT in_pnp_snapshot` — no separate paste |
@@ -662,9 +662,10 @@ Include a `Calendar` sheet for downstream compatibility, but built KosPos-style:
 
 - [ ] Confirm with Alex: Jun 30, 2026 +2.0% is intentionally ignored (~one weekday
       impact).
-- [ ] Confirm `'BI Payroll'!X` is the canonical PPE column in the OBI BI Payroll
+- [x] Confirm `'BI Payroll'!X` is the canonical PPE column in the OBI BI Payroll
       export (will resolve during BI Payroll walkthrough; if it's a different column,
-      `H2` formula needs adjusting per FY).
+      `H2` formula needs adjusting per FY). **Resolved 2026-05-25 (Tab 7 walkthrough):**
+      column X = "Earning Period End Date" confirmed.
 - [ ] Decide where the `job class → bargaining unit` lookup lives — `domain/dhr.md`
       or a separate `domain/bargaining-units.md`?
 - [ ] Settle the per-projection-page UI for the pure-vs-COLA-aware delta: always show
@@ -1286,7 +1287,7 @@ Touchpoints:
      pointer.
    - **Budget block**: budgeted FTE, budgeted job code (= or ≠ filled job code),
      budgeted dept, split-funded indicator.
-   - Drill-down tabs: Payroll Detail (per [Tab 7 § UI sketch](#kospos-ui-sketch-7)),
+   - Drill-down tabs: Payroll Detail (per [Tab 7 § UI sketch](#kospos-ui-sketch-1)),
      Snapshot History (this position's changes over time), Data Issues (flags from
      `lib/quality/`).
 3. **Data Issues panel** (`lib/quality/`):
@@ -1333,9 +1334,13 @@ cleaned of the workbook's derived columns:
       identical across all rows. Confirm whether OBI can emit per-position
       effective-dated changes (would let KosPos compute change history without
       snapshot diffs) or whether snapshot history is the only path.
-- [ ] **Other chartfield trees.** Account, Activity, Authority, Fund, Project, WBS,
+- [x] **Other chartfield trees.** Account, Activity, Authority, Fund, Project, WBS,
       etc. live in the same OBI folder. Document each when its consumer surfaces;
-      only the Department tree is documented here.
+      only the Department tree is documented here. **Resolved 2026-05-25 (Task C
+      this session):** full inventory of all 11 chartfield trees + their row/col
+      shapes captured in [`../data-sources/reports-folder-inventory.md`](../data-sources/reports-folder-inventory.md)
+      § PS Financials chartfield trees. Per-tree details surface as each
+      consuming module is built.
 - [ ] **Combo-code maintenance workflow.** When an employee moves departments, a
       combo code must be added so payroll posts to the new dept's chartfields.
       Currently no column in P&P Data tells you *which* employees moved without a
@@ -1624,8 +1629,12 @@ BB2 = IF(COUNTIF($D$2:$D2, $D2) > 1, 0,
 Three columns excluded instead of four (no Premium exclusion — Report Data
 includes premium in the per-position regular labor figure, presumably because
 PREMM_E rolls up separately at the special-class level). 18,225 cells
-reference BI Payroll on this tab. **Multi-fund-aware** because it's the
-position-level dataset that everything else trues up to.
+reference BI Payroll on this tab (counting formula cells with at least one
+`'BI Payroll'!` reference; the SUMIFS-clause occurrence count is much
+higher at ~133k across the dual operating-vs-continuing grid — see
+[Tab 20 § per-position formulas](#formulas--per-position-block-rows-2606)).
+**Multi-fund-aware** because it's the position-level dataset that
+everything else trues up to.
 
 ##### TEMP Limits — hours-remaining gauge
 
@@ -1959,13 +1968,19 @@ KosPos's Excel emitter does **not** rebuild a 39-column transactional sheet
       total = $721k; earnings-code total (VPO + SVO) = $683k. Investigate
       whether the difference is in `200075` payroll-employee-reimbursement
       liability bucket or a small-dollar miscategorization.
-- [ ] **TEMPM filter `'BI Payroll'!AE = "COMMN:5380"` undercounts.** The
+- [x] **TEMPM filter `'BI Payroll'!AE = "COMMN:5380"` undercounts.** The
       workbook misses temp pay posting to `505020` ($49k Sick), `505040`
       ($42k Vac), `505050` ($55k Other Timeoff), `505060` ($71k LSP),
       `505070` ($44k Holiday) at the DBI+CPC level. Confirm the desired
       definition during Tab 16+ (TEMPM is on the Premium tab's adjacent
       block, or on its own Tab 40 / OPS row 40). See
       [`special-class.md`](special-class.md) § TEMPM_E open question.
+      **Partially resolved 2026-05-25 (Tab 26 OPS Summary walkthrough):**
+      at CPC the workbook's response is to leave row 50's E/H formulas
+      empty and absorb the dollars into 9993 attrition residual.
+      KosPos's design is "every named class gets full math, no
+      implicit-residual absorption" — see [Tab 26 § KosPos improvement
+      #4](#kospos-improvements-3).
 - [ ] **Update ADR-007.** The provisional column list (`YTD Salary / Benefits
       / Total`) was wrong — BI Payroll is transactional, not pre-aggregated.
       ADR-007 needs an amendment landing with the real 39 columns and the
@@ -2348,7 +2363,7 @@ chartfield-level variance that the position-aware Report Data cannot model.
 PP and reconcile per chartfield string, excluding inactive positions.** Full
 schema (68 columns), refresh-order timing rule, and verified reconciliation
 pattern in [`../data-sources/bva.md`](../data-sources/bva.md);
-KosPos-side approach in [§ KosPos improvements](#kospos-improvements-20) below.
+KosPos-side approach in [§ KosPos improvements](#kospos-improvements-2) below.
 
 #### Cross-cutting: the dual per-PP grid (Y:AY operating, BB:CB continuing)
 
@@ -2392,7 +2407,7 @@ the **HIRING / SEPARATING / NEWP** archetypes, not the per-position rows.
 
 | Col | Source | Notes |
 |---|---|---|
-| A | P&P Data `CH` Effective Employee Division | DBI-only manual lookup table; CPC rows carry literal `"Update Formula"` — see [Tab 6 § Manual / fragile](#whats-manual--fragile-6) |
+| A | P&P Data `CH` Effective Employee Division | DBI-only manual lookup table; CPC rows carry literal `"Update Formula"` — see [Tab 6 § Manual / fragile](#whats-manual--fragile) |
 | B | P&P Data `CG` Effective Employee Department | Rolled-up text dept name |
 | C | P&P Data `CB` Budget Department Code 1 | 6-digit dept ID (annual-locked) |
 | D | P&P Data `B` Position Number | **Primary key** — drives BFM join, BI Payroll SUMIFS, COUNTIF dedup |
@@ -3042,7 +3057,7 @@ Current Year workspace. Three surfaces:
    - Surfaces the "what changed via journal entry, not via payroll" picture
      the workbook can't currently produce.
    - Filter: exclude inactive positions.
-4. **Data Issues panel** (cross-cutting, per [§ KosPos improvements](#kospos-improvements-20) #12):
+4. **Data Issues panel** (cross-cutting, per [§ KosPos improvements](#kospos-improvements-2) #12):
    - All the data-quality flags above, grouped by category.
 
 The pool-position recommendation, the missing-CPC-catcher warnings, the BFM
@@ -3076,17 +3091,26 @@ round-trip parity, **without** the hand-paste fragility:
 
 #### Open questions / TODO
 
-- [ ] **BVA report example.** Get an example BVA export from Alex (he'll
+- [x] **BVA report example.** Get an example BVA export from Alex (he'll
       provide). Document its column shape (FY, dept, fund, account, project,
       activity, authority, budget, actuals) in a new
       [`../data-sources/bva.md`](../data-sources/bva.md) or as a section in
       [`../data-sources/bfm.md`](../data-sources/bfm.md). Phase 2.4 importer
-      depends on this.
-- [ ] **Confirm BFM!AX → AZ migration is safe.** Per Alex, the S formula
+      depends on this. **Resolved 2026-05-25 (BVA interlude + Task B this
+      session):** sample `BvA - All Fields - Version 10.20.25 (42).csv`
+      (68 cols × 2,710 rows) documented at
+      [`../data-sources/bva.md`](../data-sources/bva.md) with verified
+      reconciliation pattern; end-to-end reconciliation suite in
+      [`../audits/bva-reconciliation-suite.md`](../audits/bva-reconciliation-suite.md).
+- [x] **Confirm BFM!AX → AZ migration is safe.** Per Alex, the S formula
       should reference BFM!AZ (Board-adopted), not AX (Technical Adjustment).
       Verify with DBI finance team that AZ is the right column for all
       use cases; check whether any in-year Technical Adjustment rows would
-      be unintentionally erased by the migration.
+      be unintentionally erased by the migration. **Resolved 2026-05-25
+      (BVA interlude + Task B Test 3):** AX vs AZ migration is safe in
+      this snapshot — AX == AZ for all 673 BFM class-summary rows (no
+      Technical Adjustments have been applied post-Board). KosPos
+      defaults to AZ and preserves AX as a variance-view layer.
 - [ ] **NEWP row 750–751 budget mismatch.** Hand-keyed S values
       ($83,095 + $34,153 = $117,248) don't match BFM!AZ1273–1274. Find the
       right BFM cells for position 1158346 / NEWP315641 and correct.
@@ -3094,21 +3118,38 @@ round-trip parity, **without** the hand-paste fragility:
       both blocks for the next workbook refresh. Confirm citywide OT and
       RPO totals against the Premium / Overtime / Retirement Payout tab
       pivots to verify nothing else is missing.
-- [ ] **Position pool-detection threshold.** Where to set the
+- [x] **Position pool-detection threshold.** Where to set the
       "consider one-position-per-person" Data Issue threshold — every pool
       position? Or only `incumbent_count > 5`? Per Alex's prose,
       commissioners (14 incumbents) are intentional; small pools (~2–3)
-      might also be intentional for short-term backfills.
+      might also be intentional for short-term backfills. **Partially
+      resolved 2026-05-25 (Task B Test 5):** empirical pool census = 8
+      pool positions / 36 dup rows: position 1094089 (14 incumbents),
+      1068950 / 1125966 / 1092892 (7 each), 1158719 (3), + 3 more.
+      KosPos flags every pool position with N≥2 incumbents and
+      recommends one-per-row but lets the user decide per-position.
 - [ ] **GL row 762 future shape.** When the first FY26 GL journal lands,
       what shape does it take in Report Data? Single row with hand-keyed
       U? Or do we wait for the BVA reconciliation feature to land before
       modeling GL?
-- [ ] **MERGE row 753 source detail.** The $2.31M into DBI ADM MIS — which
+- [x] **MERGE row 753 source detail.** The $2.31M into DBI ADM MIS — which
       specific KK journal moved this in, and from where? BVA will answer
-      once uploaded.
-- [ ] **Dormant `<>10190` double-count bug activation point.** Track when
+      once uploaded. **Resolved 2026-05-25 (Task B Test 4):** the
+      $2,310,727 is a **hand-keyed estimate**, not BVA-derived — it
+      doesn't match any BVA Transfer & Other Budget total exactly. BVA
+      shows the actual KK movement as DBI ADM MIS (Dept Code 229346)
+      Perm Salaries = -$2,049,808 + Mandatory Fringe Benefits ≈ -$680k
+      = -$2,728,369 total, all on fund "SR BIF Operating Project". MERGE
+      row 753 will be **decommissioned in Phase 2.4** in favor of
+      BVA-driven per-chartfield reconciliation.
+- [x] **Dormant `<>10190` double-count bug activation point.** Track when
       CPC roll-in starts posting operating actuals to fund 10000 — KosPos
-      filter fix needs to be in place before that happens.
+      filter fix needs to be in place before that happens. **Partially
+      resolved 2026-05-25 (Task B Test 7):** confirmed STILL DORMANT in
+      this snapshot — 0 BI Payroll rows have `F=10000 AND Department
+      Group Code = "DBI"`. DBI posts only to funds 10190 ($51.84M YTD) +
+      10230 ($213k). KosPos's complement-of-operating-fund-set design
+      handles activation correctly when CPC roll-in begins.
 - [ ] **Pivot 17 vs pivot caches.** Confirm during Reporting Tree (Tab 21)
       walkthrough whether pivot 17 actually sits on Report Data and what
       it visualizes; the count came from Tab 6 but the in-workbook target
@@ -3303,7 +3344,7 @@ range `'Report Data'!A1:CB1048576`). Three row fields, eight data fields:
 | Data field 1 (col D) | `[19] YTD Operating Budget` | T `YTD Operating Budget` | `S/N2*M2` per-row (COLA-paced YTD budget) summed by Effective Dept. |
 | Data field 2 (col E) | `[20] YTD Operating Actuals` | U `YTD Operating Actuals` | `SUM(Y:AY)` per-row (operating-fund per-PP grid) summed by Effective Dept. |
 | Data field 3 (col F) | `[21] YTD Operating Balance` | V `YTD Operating Balance` | `T-U` per-row, summed. |
-| Data field 4 (col G) | `[18] Total Budget` | S `Total Budget` | `SUMIFS(BFM!AX, BFM!D, D2)` per-row (per-position budget) **plus** the 100 hand-pasted SPECIAL block rows (S649:S748). Summed by Effective Dept. **Read** [Tab 20 § Manual/fragile](#whats-manual--fragile-20): the `BFM!AX` Technical Adjustment reference is stale; should be `BFM!AZ` Board. |
+| Data field 4 (col G) | `[18] Total Budget` | S `Total Budget` | `SUMIFS(BFM!AX, BFM!D, D2)` per-row (per-position budget) **plus** the 100 hand-pasted SPECIAL block rows (S649:S748). Summed by Effective Dept. **Read** [Tab 20 § Manual/fragile](#whats-manual--fragile-2): the `BFM!AX` Technical Adjustment reference is stale; should be `BFM!AZ` Board. |
 | Data field 5 (col H) | `[22] Projected Operating Actuals` | W `Projected Operating Actuals` | COLA-aware two-mode projection per-row, summed. |
 | Data field 6 (col I) | `[23] Projected Operating Balance` | X `Projected Operating Balance` | `S-W` per-row, summed. |
 | Data field 7 (col J) | `[51] YTD Continuing Actuals` | AZ `YTD Continuing Actuals` | `SUM(BB:CB)` per-row (continuing-fund per-PP grid) summed. |
@@ -3655,7 +3696,7 @@ flagged on a fresh refresh: any line that moved >10% or >$100k. Saves
 auto-pin at every report milestone (6-month, 9-month, year-end). This
 is the **"what changed since the last report" feature** Alex flagged in
 the initial walkthrough description; it's the obvious win KosPos
-delivers over Excel. See also [Tab 27 § KosPos improvements](#kospos-improvements-27)
+delivers over Excel. See also [Tab 27 § KosPos improvements](#kospos-improvements-4)
 where the same primitive powers position-level drill-down.
 
 ##### 7. Reconcile per-dept pivot to per-class block — the closure check is automatic
@@ -3817,10 +3858,14 @@ cells where a class doesn't apply. Layout consistency over compactness.
       grouping is intentional and whether to preserve the "Department
       Group" name during the KosPos rebuild for downstream-formula
       compatibility.
-- [ ] **TEMPM Interns G40 references BFM rows 1195/1197/1199/1201.**
-      Cross-reference [Task B reconciliation suite](audits/bva-reconciliation-suite.md) — does
+- [x] **TEMPM Interns G40 references BFM rows 1195/1197/1199/1201.**
+      Cross-reference [Task B reconciliation suite](../audits/bva-reconciliation-suite.md) — does
       BVA see this $180k in DBI's Salaries chartfield, or has it
-      already been disposed via KK?
+      already been disposed via KK? **Resolved 2026-05-25 (Task B Test
+      4 / Test 1):** all 4 BFM rows have AX == AZ in this snapshot (no
+      KK Technical Adjustment applied), and BVA shows zero `Transfer &
+      Other Budget` on these specific TEMPM chartfields. The $180k is
+      still in DBI's Salaries chartfield set as originally budgeted.
 - [ ] **Reconciliation closure (improvement #7) detects SPECIAL block
       paste errors only at the dept-group total level.** Per-class
       validation needs the BFM eturn join — i.e., did the user paste
@@ -3854,7 +3899,7 @@ Two operational use cases:
    flagged this as the obvious KosPos win. Today the workflow is:
    open last week's OPS Detail in a second window, eyeball-diff
    against this week's, find the changed rows. KosPos automates this
-   — see [§ KosPos improvements](#kospos-improvements-27).
+   — see [§ KosPos improvements](#kospos-improvements-4).
 
 #### Data sources
 
@@ -3939,7 +3984,7 @@ pivot refresh.
 #### What's manual / fragile
 
 OPS Detail's fragility is **almost entirely inherited from
-[Tab 20 Report Data](#whats-manual--fragile-20)**. The pivot adds no
+[Tab 20 Report Data](#whats-manual--fragile-2)**. The pivot adds no
 formulas or hand-keyed values, so no new sources of error are
 introduced here. The relevant items from Report Data that surface
 prominently in OPS Detail:
@@ -3979,7 +4024,7 @@ error-prone — Alex flagged this explicitly as the obvious KosPos win
 in the initial Tab 27 stub.
 
 **KosPos design.** Every page-state save (per [OPS Summary improvement
-#6](#kospos-improvements-26)) captures the full OPS Detail row set
+#6](#kospos-improvements-3)) captures the full OPS Detail row set
 keyed by `(Effective Dept, Position Number, Fill Status, Budget Job
 Code)`. The Detail view renders with a default-on **"Δ since
 `<prior_snapshot>`"** column toggle:
@@ -4063,7 +4108,7 @@ Data formulas + per-PP BI Payroll detail), you XLOOKUP from the
 position number.
 
 **KosPos design.** Every per-position row is a hyperlink to the Position
-Detail page (per [Tab 6 KosPos UI sketch](#kospos-ui-sketch-6)). The
+Detail page (per [Tab 6 KosPos UI sketch](#kospos-ui-sketch)). The
 side panel render shows the position's full P&P record, the per-PP
 operating + continuing grid, the per-PP earnings-code breakdown, and
 the projection components.
@@ -4103,7 +4148,7 @@ Excel-export naming below.
 The KosPos-emitted `.xlsx` includes both the headline and the detail in
 parallel sheets:
 
-- **Sheet `OPS Summary`** — per [Tab 26 § Excel export](#excel-export-notes-26).
+- **Sheet `OPS Summary`** — per [Tab 26 § Excel export](#excel-export-notes-3).
 - **Sheet `OPS Detail`** — 26 columns matching the workbook layout (A:Z)
   plus three more added for KosPos value:
   - `AA` Prior-snapshot YTD Operating Actuals (for at-a-glance Δ).
@@ -4179,7 +4224,7 @@ available).
 | DHR Hourly Rates of Pay (`Hourly-Rates-of-Pay-by-Classification-and-Step-FY{NN}-{NN+1}.xlsx`) 29×17,116 (Steps) + 20×124 (Ranges) | Reference data for class × step rate lookups; underpins Step / RTPOM / OVERM math. Documented in [`../data-sources/dhr.md`](../data-sources/dhr.md). | DHR website download; annual after MOU ratification | Snowflake (if exposed) | `lib/reference/dhr-steps/` + `lib/reference/dhr-ranges/` |
 | OBI Payroll Detail (older variant of BI Payroll; 38×42,949 in 11.8.23 sample) | Older schema (38 cols) preserved for backward-compat testing of the BI Payroll importer. Same source as today's BI Payroll; column count grew to 39 in current snapshot. | Manual OBI re-run | Snowflake direct query | Same path as BI Payroll (`lib/importers/obi-payroll/`) with header-driven schema detection |
 | BFM 15.10.006 FY26 eturn (per-position + per-special-class summary rows; ~30 cols incl. FY26 Original / Base / Department / Mayor / Committee / Technical Adjustment / Board layers) | **Report Data** (S Total Budget SUMIFS on column `AX FY 2025-26 Technical Adjustment` — stale, should be `AZ Board`; SPECIAL block hand-paste from per-class summary rows), **Operating Report Summary** (TEMPM E40 from `AZ1195+AZ1197+AZ1199+AZ1201`), **Overtime** tab (FY26 OT budget anchor `BN6 / BN8`), Premium / Step / others as BY-anchor source | Manual download from BFM; refresh annually (Board-adopted) + periodically when Technical Adjustments hit; per-position rows + summary rows in same file | Snowflake direct query when available | `lib/importers/bfm-eturn/` — header-driven fingerprint, full-replace per `(fiscal_year, snapshot_date)`; uses Board-adopted (`AZ`) as default budget anchor with Technical-Adjustment / Department / etc. preserved for variance views; documented in [`../data-sources/bfm.md`](../data-sources/bfm.md) and ADR-004 |
-| `BVA` report (Budget vs Actuals, per PS Financials via OBI) — 68 cols × 2,710 rows for DBI+CPC FY26 sample; full schema in [`../data-sources/bva.md`](../data-sources/bva.md) | _(planned)_ **Report Data** chartfield-level reconciliation (BVA budget vs eturn = KK adjustments; BVA actuals vs BI Payroll = GL adjustments — see [Tab 20 § KosPos improvements #1–#2](#kospos-improvements-20)) | _(planned)_ Manual OBI re-pull each PP, **Wednesday-or-later after payday Tuesday** (see [§ Refresh-order timing](#refresh-order-timing--obi-1-day-lag--payroll-to-gl-gap--bva-wed-or-later)); full-replace per `(fiscal_year, snapshot_date)` | Snowflake direct query when available | `lib/importers/bva/` — header-driven fingerprint; chartfield-keyed; pre-computes reconciliation cube on import; snapshot date sourced from file mtime (filename version date is the report-definition version, NOT the data snapshot) |
+| `BVA` report (Budget vs Actuals, per PS Financials via OBI) — 68 cols × 2,710 rows for DBI+CPC FY26 sample; full schema in [`../data-sources/bva.md`](../data-sources/bva.md) | _(planned)_ **Report Data** chartfield-level reconciliation (BVA budget vs eturn = KK adjustments; BVA actuals vs BI Payroll = GL adjustments — see [Tab 20 § KosPos improvements #1–#2](#kospos-improvements-2)) | _(planned)_ Manual OBI re-pull each PP, **Wednesday-or-later after payday Tuesday** (see [§ Refresh-order timing](#refresh-order-timing--obi-1-day-lag--payroll-to-gl-gap--bva-wed-or-later)); full-replace per `(fiscal_year, snapshot_date)` | Snowflake direct query when available | `lib/importers/bva/` — header-driven fingerprint; chartfield-keyed; pre-computes reconciliation cube on import; snapshot date sourced from file mtime (filename version date is the report-definition version, NOT the data snapshot) |
 | Inactive tab `Sum of Balance Amount` (computed inside the workbook from BI Payroll's pivot cache; not a separate upstream file) | Report Data INACTIVATED block (rows 755–760) — **hand-pasted** each PP refresh into U column | Workbook-internal pivot; copy-paste-as-values into Report Data | Live query in KosPos: `positions WHERE in_bi_payroll AND NOT in_pnp_snapshot` → drives Inactive view directly | `lib/views/inactive/` — pure query, no separate import; INACTIVATED block in Report Data goes away |
 | Staffing Plan (workbook-internal; will be its own importable surface in Phase 2) | Report Data HIRING (24 rows) + SEPARATING (4 rows) — direct cell refs into `'Staffing Plan'!{col}{n}` for B/D/F/G/H/K/L/M/N/O/W | Workbook tab; Alex edits directly | KosPos Staffing Plan workspace (Tab 24 surface) — first-class data store; Report Data view joins to it | `lib/staffing-plan/` — Phase 2.2 sub-phase enumeration target |
 
