@@ -38,3 +38,8 @@ Thumbs.db
 .idea/
 *.swp
 .scratch/
+
+# Claude Code personal state (the parts that should NOT be committed)
+# .claude/settings.json (shared) and .claude/hooks/ (shared) ARE committed.
+.claude/settings.local.json
+.claude/projects/
