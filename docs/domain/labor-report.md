@@ -117,6 +117,34 @@ upload.
 See Tab 7 (BI Payroll) § Manual / fragile and § KosPos improvements #4 for
 details.
 
+### Refresh-order timing — OBI 1-day lag + payroll-to-GL gap + BVA Wed-or-later
+
+A BVA-vs-payroll reconciliation (or any cross-system comparison that
+involves the GL) is **only meaningful if both sides reflect the same PP**.
+Three coupled constraints govern when each source becomes "current":
+
+1. **Payroll OBI reports run BEFORE payroll actually posts to GL.** A
+   BI Payroll pull on a Tuesday morning shows what's posted *so far*, not
+   what's about to post that day.
+2. **OBI data is 1 business day behind live.** Whatever posted today won't
+   be in OBI until tomorrow.
+3. **Payroll posts every other Tuesday.**
+
+**Practical rule:** BVA (and any reconciliation against payroll) **must be
+run Wednesday or later** after a payday Tuesday to reflect the full PP. A
+Tuesday-morning BVA pull is one PP behind BI Payroll, and the apparent
+"GL adjustment" of one full PP between the two is a timing artifact, not a
+real journal entry.
+
+KosPos UX must surface each snapshot's effective PP alongside the others
+(BI Payroll, P&P Data, BVA, eturn) so users can see when two sources are
+out-of-sync by timing rather than by data. Same rule applies to the
+Inactive view (BI Payroll vs P&P Data both have to be from the same
+post-payday cycle for the cross-check to be valid).
+
+See [`../data-sources/bva.md`](../data-sources/bva.md) § Refresh-order
+timing rule for the canonical statement.
+
 ### Multi-dept generalization caveats (DBI shortcuts to undo)
 
 Catalog of DBI-only assumptions that need to be parameterized for citywide use:
@@ -2310,9 +2338,10 @@ carry position detail — only chartfields**. Comparing BVA against the eturn
 (budget side) and against BI Payroll (actuals side) surfaces the
 chartfield-level variance that the position-aware Report Data cannot model.
 **KosPos should require the BVA upload alongside BI Payroll and P&P Data each
-PP and reconcile per chartfield string, excluding inactive positions.** See
-[`../data-sources/bfm.md`](../data-sources/bfm.md) for the planned BVA
-data-source entry and [§ KosPos improvements](#kospos-improvements-20) below.
+PP and reconcile per chartfield string, excluding inactive positions.** Full
+schema (68 columns), refresh-order timing rule, and verified reconciliation
+pattern in [`../data-sources/bva.md`](../data-sources/bva.md);
+KosPos-side approach in [§ KosPos improvements](#kospos-improvements-20) below.
 
 #### Cross-cutting: the dual per-PP grid (Y:AY operating, BB:CB continuing)
 
@@ -2857,18 +2886,24 @@ detail of every journal.
 
 ##### 2. Require BVA upload alongside BI Payroll and P&P Data each PP
 
-`lib/importers/bva/` — new importer.
+`lib/importers/bva/` — new importer. Full data-source documentation in
+[`../data-sources/bva.md`](../data-sources/bva.md) (68-column schema +
+refresh-order timing rule + verified reconciliation examples against the
+10.20.25 sample).
 
 - BVA report comes from PS Financials via OBI. Carries chartfield-level
-  budget and actuals (no position detail).
-- Per Alex's prose: KosPos compares BVA against the eturn (budget side) and
-  against BI Payroll (actuals side), shows per-chartfield variances as
-  KK adjustments (budget delta) and GL adjustments (actuals delta).
-  **Excludes inactive positions from the comparison.**
-- TODO during importer build (Phase 2.4 / 2.4-adjacent): get an example BVA
-  export from Alex and document the column shape in
-  [`../data-sources/bfm.md`](../data-sources/bfm.md) or a new
-  [`../data-sources/bva.md`](../data-sources/bva.md).
+  budget (Original / Supplemental / Transfer & Other / Carryforwards /
+  Revised) and actuals (GL Actuals + Encumbrance + Pre-Encumbrance + Reserved)
+  with **no position detail**.
+- **KK adjustment per chartfield** = `BVA.Revised_Budget_Pre_Close −
+  BFM_eturn.FY_Board`. Verified against the sample: DBI Perm Salaries shows
+  -$2.04M `Transfer & Other Budget` (the DBI→CPC transfer-of-function); CPC
+  Perm Salaries shows +$1.98M.
+- **GL adjustment per chartfield** = `BVA.GL_Actuals − BI_Payroll_YTD
+  (excluding inactive positions)`. Verified for DBI Fund 10190 OT: BVA
+  $438,678 vs OPS!E37 $438,786 — $108 delta (rounding + OBI 1-day lag).
+- **Refresh-order rule:** BVA must be pulled Wednesday-or-later after a
+  payday Tuesday; see [§ Cross-cutting concerns — Refresh-order timing](#refresh-order-timing--obi-1-day-lag--payroll-to-gl-gap--bva-wed-or-later).
 
 ##### 3. Replace the SPECIAL block hand-paste with a derived per-(dept × class) view
 
@@ -3210,7 +3245,7 @@ available).
 | Citywide `Department Classification Structure` CSV (dept tree, 14,240 rows, 64 dept groups citywide) | P&P Data importer (fixes `CH Effective Employee Division` "Update Formula" placeholder); future modules that need any dept-tree-level rollup (Division / Section / Unit / Sub-Unit) | Manually downloaded from same OBI folder as the other chartfield trees; refreshed periodically as new dept codes are added | Snowflake direct query when available | `lib/reference/dept-tree/` — versioned by effective date; Position importer joins `Position Department ID` against the active tree to derive hierarchy attributes |
 | Other chartfield trees in the same OBI folder (Account, Activity, Authority, Fund, Project, WBS, Agency Use, Account Budget Control, Department Budget Control, TRIO) | _(future)_ — each becomes reference data when its consuming KosPos module surfaces | Manual download from OBI; refresh periodically | Snowflake direct query | `lib/reference/<tree-name>/` — same pattern as dept tree; documented per-module as walkthroughs land |
 | BFM 15.10.006 FY26 eturn (per-position + per-special-class summary rows; ~30 cols incl. FY26 Original / Base / Department / Mayor / Committee / Technical Adjustment / Board layers) | **Report Data** (S Total Budget SUMIFS on column `AX FY 2025-26 Technical Adjustment` — stale, should be `AZ Board`; SPECIAL block hand-paste from per-class summary rows), **Operating Report Summary** (TEMPM E40 from `AZ1195+AZ1197+AZ1199+AZ1201`), **Overtime** tab (FY26 OT budget anchor `BN6 / BN8`), Premium / Step / others as BY-anchor source | Manual download from BFM; refresh annually (Board-adopted) + periodically when Technical Adjustments hit; per-position rows + summary rows in same file | Snowflake direct query when available | `lib/importers/bfm-eturn/` — header-driven fingerprint, full-replace per `(fiscal_year, snapshot_date)`; uses Board-adopted (`AZ`) as default budget anchor with Technical-Adjustment / Department / etc. preserved for variance views; documented in [`../data-sources/bfm.md`](../data-sources/bfm.md) and ADR-004 |
-| `BVA` report (Budget vs Actuals, per PS Financials via OBI) — **NEW source identified during Report Data walkthrough** | _(planned)_ **Report Data** chartfield-level reconciliation (BVA budget vs eturn = KK adjustments; BVA actuals vs BI Payroll = GL adjustments — see [Tab 20 § KosPos improvements #1–#2](#kospos-improvements-20)) | _(planned)_ Manual OBI re-pull each PP, alongside BI Payroll; full-replace per `(fiscal_year, as_of_date)` | Snowflake direct query when available | `lib/importers/bva/` — chartfield-keyed; reconciles against the eturn and against the BI Payroll snapshot for the same `as_of_date`. **TODO**: get an example BVA export from Alex; document column shape in [`../data-sources/bfm.md`](../data-sources/bfm.md) or new `bva.md` |
+| `BVA` report (Budget vs Actuals, per PS Financials via OBI) — 68 cols × 2,710 rows for DBI+CPC FY26 sample; full schema in [`../data-sources/bva.md`](../data-sources/bva.md) | _(planned)_ **Report Data** chartfield-level reconciliation (BVA budget vs eturn = KK adjustments; BVA actuals vs BI Payroll = GL adjustments — see [Tab 20 § KosPos improvements #1–#2](#kospos-improvements-20)) | _(planned)_ Manual OBI re-pull each PP, **Wednesday-or-later after payday Tuesday** (see [§ Refresh-order timing](#refresh-order-timing--obi-1-day-lag--payroll-to-gl-gap--bva-wed-or-later)); full-replace per `(fiscal_year, snapshot_date)` | Snowflake direct query when available | `lib/importers/bva/` — header-driven fingerprint; chartfield-keyed; pre-computes reconciliation cube on import; snapshot date sourced from file mtime (filename version date is the report-definition version, NOT the data snapshot) |
 | Inactive tab `Sum of Balance Amount` (computed inside the workbook from BI Payroll's pivot cache; not a separate upstream file) | Report Data INACTIVATED block (rows 755–760) — **hand-pasted** each PP refresh into U column | Workbook-internal pivot; copy-paste-as-values into Report Data | Live query in KosPos: `positions WHERE in_bi_payroll AND NOT in_pnp_snapshot` → drives Inactive view directly | `lib/views/inactive/` — pure query, no separate import; INACTIVATED block in Report Data goes away |
 | Staffing Plan (workbook-internal; will be its own importable surface in Phase 2) | Report Data HIRING (24 rows) + SEPARATING (4 rows) — direct cell refs into `'Staffing Plan'!{col}{n}` for B/D/F/G/H/K/L/M/N/O/W | Workbook tab; Alex edits directly | KosPos Staffing Plan workspace (Tab 24 surface) — first-class data store; Report Data view joins to it | `lib/staffing-plan/` — Phase 2.2 sub-phase enumeration target |
 

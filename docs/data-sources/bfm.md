@@ -31,32 +31,23 @@ KosPos imports both flavors and joins them. See Phase 2 (importers).
 
 These typically come embedded in budget instructions or as a downloadable spreadsheet. Add the canonical URL when you confirm it.
 
-## BVA report (Budget vs Actuals) — TODO
+## BVA report
 
-Identified during the Tab 20 (Report Data) walkthrough as the **source of truth
-for budget AND actuals**, sourced from PS Financials and delivered via OBI.
-Not yet imported by KosPos; planned for Phase 2.4.
+BVA (Budget vs Actuals) is sourced from PS Financials and delivered via OBI —
+not a BFM artifact, even though its `Original Budget` column reconciles to
+the BFM eturn's `FY Board` column. Full schema, refresh-order timing rule,
+and reconciliation pattern in [`bva.md`](bva.md).
 
-Critical because:
+The reconciliation relevant to BFM:
 
-- **KK budget journals** (mid-year transfers, e.g., FY26's DBI→CPC transfer of
-  function) and **GL actuals journals** (post-PP adjustments that don't run
-  through PS HCM timesheets) **carry only chartfield-string detail — no
-  position attribution**.
-- The position-aware labor report (BI Payroll → Report Data) misses these
-  entirely.
-- BVA captures both, at chartfield level.
+```
+KK_adjustment(chartfield) = BVA.Revised_Budget_Pre_Close(chartfield)
+                          − BFM_eturn.FY_Board(chartfield)
+```
 
-KosPos workflow (per [`../domain/labor-report.md`](../domain/labor-report.md)
-Tab 20 § KosPos improvements):
-
-- Upload BVA each PP, alongside BI Payroll.
-- Compare BVA against the BFM eturn (budget side) → surfaces KK adjustments.
-- Compare BVA against BI Payroll (actuals side) → surfaces GL adjustments.
-- Both comparisons exclude inactive positions.
-
-**TODO:** Alex to provide an example BVA export so its column shape can be
-documented here (or in a dedicated `bva.md`) before the importer is built.
+When that delta is non-zero, a mid-year KK budget journal (transfer,
+supplemental, carryforward) moved budget into or out of the chartfield
+relative to what was adopted. See `bva.md` § Reconciliation pattern.
 
 ## BFM eturn — Report Data dependency notes
 
