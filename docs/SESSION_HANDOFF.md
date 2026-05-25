@@ -153,144 +153,312 @@ its shape is verified against the labor workbook (DBI Fund 10190 OT
 matches OPS!E37 within $108 of rounding + OBI 1-day lag) and documented
 in `data-sources/bva.md`.
 
-## Next session prompt — Phase 2.0e (Operating Report Summary + Detail deep-dive)
+## Next session prompt — Phase 2.0e (OPS Summary + Detail) PLUS autonomous side-quests
 
-This is an **interactive walkthrough** like Sessions 13–16. Goal: fill in the
-**Operating Report Summary** (Tab 26) **and Operating Report Detail** (Tab 27)
-sections of `docs/domain/labor-report.md`. No app code this session. Output: both
-tabs' walkthroughs + Data Sources Inventory updates + any cross-cutting concerns
-that emerge.
+**Mode shift: this session runs without Alex.** Alex is asleep. The next session
+should do **as much non-blocking work as possible** without him: continue
+Phase 2.0e (the OPS Summary + Detail walkthroughs) AND tackle four
+autonomous side-quests that don't need interactive Q&A. Ship each as its own
+small PR and merge before moving to the next. Aim for **4–7 merged PRs** over
+the session, not one big bundle.
 
-**Bid-an-honest-scope note.** OPS Summary is **the headline labor projection
-page** — the number that feeds the 6-month and 9-month reports to CON / MYR. OPS
-Detail is the drill-down used to investigate "what changed between two report
-runs," which is the snapshot-diff feature KosPos plans to build. The two tabs
-are tightly coupled; walking them in one session makes sense. **Both together
-should fit in one session — they're rollup pages, not new datasets.** The
-special-class block of OPS is already documented in
-[`special-class.md`](domain/special-class.md) § "Operating Report Summary —
-DBI section reference" (rows 36–42); the walkthrough should fill in the
-non-special-class rows + the OPS Detail tab.
+**The rule for blocked items:** if you'd normally pause for Alex's prose
+(business rules, presentation context, judgment calls on direction), make
+the reasonable call yourself, document the call + reasoning in the PR
+description, and flag the question in the relevant tab's `Open questions /
+TODO` list. Use AskUserQuestion ONLY for genuinely unresolvable forks where
+both options are equally plausible and the call carries irreversible
+consequences — none of the in-scope work qualifies.
 
 Paste this verbatim to start the next session:
 
 ````
-We're continuing Phase 2 — labor-report deep-dive. Tabs 26 + 27 (Operating
-Report Summary + Operating Report Detail) are next.
-
-Session goal: walk through both tabs of `Labor Report 5.21.26.xlsx` and fill in
-their sections in docs/domain/labor-report.md using the per-tab template.
-NO app code this session. Both tabs in one session — they're rollup pages, not
-new datasets.
+This session runs autonomously — Alex is asleep. Continue Phase 2 (OPS
+Summary + Detail walkthroughs) AND tackle four autonomous side-quests.
+Ship each as its own small PR and merge before moving to the next. Aim for
+4–7 merged PRs. NO app code in any of them.
 
 Read first, in order:
   docs/CLAUDE.md
-  docs/SESSION_HANDOFF.md (this file)
-  docs/domain/labor-report.md — note the Calendar (Tab 5), P&P Data (Tab 6),
-    BI Payroll (Tab 7), and Report Data (Tab 20) walkthroughs as pattern
-    references. The OPS rollup pulls from Report Data; the Report Data
-    walkthrough already decoded the per-dept catcher blocks (OVERTIME,
-    PAYOUT) and the 100-row SPECIAL budget reference block (rows 649–748)
-    that OPS reads. Use those as starting points; do not re-derive.
-  docs/domain/special-class.md — § "Operating Report Summary — DBI section
-    reference" rows 36–42 already document the special-class block. Fill in
-    the non-special-class rows (regular labor, RPO/Premium/etc. headers,
-    total, percent-attrition) + OPS Detail.
-  docs/domain/budget-process.md — three-function framework; OPS covers
-    functions 2 and 3 (current-year YTD and projection).
-  docs/data-sources/bva.md — new this interlude; full BVA schema +
-    refresh-order timing rule + reconciliation pattern. Not the immediate
-    focus this session but read so OPS-tab improvements that mention
-    BVA reconciliation cross-link correctly.
+  docs/SESSION_HANDOFF.md (this file — full context on what landed)
+  docs/SESSION_LOG.md (Sessions 13–16 + the BVA interlude — gives you the
+    walkthrough pattern and the prior decisions)
+  docs/domain/labor-report.md (Tabs 5, 6, 7, 20 walkthroughs are the per-tab
+    template; cross-cutting concerns includes the refresh-order timing rule)
+  docs/domain/special-class.md (already documents OPS rows 36–42)
+  docs/data-sources/bva.md (the new reconciliation reference + 68-col schema)
 
 Confirm state on main:
   git log --oneline origin/main -5
 
-Workflow:
+Then work the queue below in order. Each task is its own PR (single-purpose
+branch, merge via squash, delete branch). Mark a task done only after its
+PR is merged on origin/main.
 
-  1. Open the workbook directly (Python + openpyxl, read-only). Inventory
-     OPS Summary's row labels (A or B column) and each per-row formula
-     across columns C / D / E / F / G / H / I (YTD Budget / YTD Actuals /
+==============================================================================
+TASK A — Phase 2.0e: Operating Report Summary + Detail walkthroughs
+==============================================================================
+Branch: docs/labor-report-ops-summary-detail
+Scope: BOTH tabs in this one PR — they're rollup pages, not new datasets.
+
+  1. Open `C:\Users\ALK\Desktop\Claude Projects\Position Management\Labor
+     Report 5.21.26.xlsx` (gitignored; never commit). Use openpyxl
+     read-only.
+  2. OPS Summary (Tab 26): inventory every row label + the per-row formula
+     across whatever columns the tab uses (YTD Budget / YTD Actuals /
      YTD Balance / Total Budget / Projected Actuals / Projected Balance).
-     Identify the non-special-class rows (regular labor, total labor,
-     fringe, etc.).
-  2. Decode the OPS Detail tab — it's a drill-down view. Likely a similar
-     row structure but joined to dept-level or position-level slices.
-     Capture what makes it different from Summary (column count, filter
-     context, etc.).
-  3. Walk both tabs through the per-tab template (Status / Purpose / Data
-     sources / Formulas / Manual-fragile / KosPos improvements / UI
-     sketch / Excel export / Open questions).
-  4. Update the Data Sources Inventory with OPS-specific reads if any
-     (Report Data, special-class.md cross-refs).
-  5. Capture the snapshot-diff workflow for OPS Detail: how does Alex
-     investigate "what changed since the last run" today, and what
-     does KosPos need to surface for the equivalent feature?
-  6. Ship as ONE docs PR: `docs/labor-report-ops-summary-detail`. Merge per
-     the CLAUDE.md shutdown rule. Update SESSION_HANDOFF.md with the
-     next tab's prompt (likely Phase 2.0f — per-special-class tabs).
+     The special-class block (rows 36–42) is already in special-class.md —
+     reference, don't restate. Fill in the non-special-class rows: regular
+     labor, total labor, fringe, attrition %, totals/subtotals.
+  3. OPS Detail (Tab 27): decode the drill-down structure. Likely either
+     a longer row list (per-dept or per-position breakdown) or a per-PP
+     time series. Capture what makes it differ from Summary.
+  4. Walk both tabs through the per-tab template (Status / Purpose /
+     Data sources / Formulas / Manual-fragile / KosPos improvements /
+     UI sketch / Excel export / Open questions).
+  5. For business-rule questions (snapshot-diff workflow today, how OPS is
+     presented to CON / MYR, what's manual vs auto-computed): make the
+     reasonable call from existing context (special-class.md, Tab 20),
+     flag the question in Open questions / TODO, and keep going. Do NOT
+     stop for Alex.
+  6. Update Data Sources Inventory + tab-list status (pending → done).
+  7. Update SESSION_HANDOFF.md to point at Phase 2.0f (per-special-class
+     tabs) as next.
 
-Rules:
-  - Interactive walkthrough — wait for Alex's prose where the workbook can't
-    answer (e.g., how the snapshot diff is investigated today; how OPS
-    Summary is presented to CON / MYR; what's manual vs auto-computed).
-  - Cross-reference existing math docs (special-class.md, budget-process.md)
-    rather than restating.
-  - All KosPos projections are COLA-aware by default — see memory entry
-    `feedback_projections_always_cola_aware.md`.
-  - BU = bargaining unit (defined in labor-report.md § cross-cutting).
-  - Treat Report Data as the spine OPS Summary pulls from (per Tab 20
-    walkthrough); OPS Detail likely drill-downs into Report Data per-position
-    rows.
+==============================================================================
+TASK B — Reconciliation suite (extends the BVA verification)
+==============================================================================
+Branch: docs/bva-reconciliation-suite
+Scope: write a `docs/audits/bva-reconciliation-suite.md` (NEW file). Run
+Python (openpyxl + csv) reconciliations against the labor workbook + BVA +
+BFM eturn. Document each finding with the actual numbers.
 
-Hard constraints:
-  - Branch from main, single-purpose name.
-  - No new npm packages.
-  - npm test stays green (no app changes this session).
-  - One PR per logical chunk; MERGE before ending session.
+Suggested coverage (cherry-pick if any prove infeasible):
+
+  - **Per-chartfield GL adjustments:** for every BVA row with non-zero
+    GL Actuals in DBI or CPC, compute `BVA.GL_Actuals - BI_Payroll_YTD
+    (matching chartfield, excluding inactives)`. List the top 10 largest
+    positive + 10 largest negative deltas.
+  - **Per-chartfield KK adjustments:** for every BVA row with non-zero
+    `Transfer & Other Budget`, document where the budget moved
+    from/to (mostly the DBI→CPC transfer of function but possibly other
+    inter-dept moves).
+  - **SPECIAL block hand-paste verification:** for each of the 100 rows
+    in Report Data 649–748, find the corresponding BFM eturn cell. Confirm
+    whether S was pasted from BFM!AX (Technical Adjustment) or BFM!AZ
+    (Board-adopted). Report mismatches.
+  - **MERGE row 753 lookup:** filter BVA for DBI ADM MIS (Dept Code 229346)
+    Salaries. Does `Transfer & Other Budget` show the $2,310,727 from
+    MERGE row 753? If not, where does that number live in BVA?
+  - **Pool-position COUNTIF dedup check:** for the 36 duplicate position
+    rows (608 rows / 568 distinct), confirm every duplicate has S=0 and
+    Y:CB all zeros. Flag any leakage.
+  - **Text-vs-numeric BFM join check:** of the 102 per-position S=0 rows,
+    how many are genuinely-missing-from-BFM vs how many fail the join only
+    because of the text-vs-int coercion mismatch?
+  - **Dormant `<>10190` double-count bug check:** scan BI Payroll for
+    rows where `F = 10000` and `Department Group Code = DBI` (or any
+    operating posting that would land in 10000). Confirm the bug is still
+    dormant in this snapshot.
+
+For each: report what you found, what it means, what KosPos should surface.
+This becomes the evidence base for KosPos's `lib/quality/` flags.
+
+==============================================================================
+TASK C — Inventory all files in example reports/Reports/
+==============================================================================
+Branch: docs/data-sources-reports-folder-inventory
+Scope: `C:\Users\ALK\Desktop\Claude Projects\Position Management\example
+reports\Reports\` contains ~26 files. `reports.txt` in that folder is
+Alex's hand-written index — read it FIRST. For each file, document:
+
+  - OBI report ID or originating system
+  - Header shape (sample first row of cols)
+  - Row count
+  - What KosPos uses it for (cross-reference the existing data-sources
+    docs; UPDATE those docs where this file fills a gap)
+
+Specifically:
+
+  - **5 BFM `15.10.xxx` / `15.15.xxx` xlsx files** — Chart of Accounts
+    Query, Position+Calc'd Benefits Detail (the eturn we know),
+    Benefit Rates, Job Class Rates + COLA, FTE Cost Report. Update
+    `data-sources/bfm.md` with each report's role.
+  - **11 `*Classification Structure*.csv` files** — chartfield trees Tab
+    6 flagged as future work. Inventory each, document in
+    `data-sources/ps-financials.md` or a new `data-sources/chartfields.md`.
+  - **`Hourly-Rates-of-Pay-by-Classification-and-Step-FY25-26.xlsx`** —
+    update `data-sources/dhr.md` with this as the DHR pay rates source.
+  - **`MRG_HR_EE_ADDL_PAY` / `MRG_TL_TASK_PROFILE_BY_TASKGRP` /
+    `MRG_COMBO_CD_DEPT` / `MTL0170_4531347`** — PS HCM exports. Cross-link
+    from `data-sources/ps-hcm.md` and from the relevant tabs
+    (EE Additional Pay = Tab 9; Combo = Tab 3; Roster Approvers = Tab 8).
+  - **`Active Labor - Version 8.30.24.csv`** and **`Payroll Detail -
+    Version 11.8.23.csv`** — older OBI labor reports. Compare against
+    BI Payroll (Tab 7); are they precursors / variants / different scopes?
+  - **`Eturns 5.14.26.xlsx`** — recent eturns workbook; sibling of the
+    BFM eturn already in the labor report.
+
+Update `data-sources/README.md` to list all the source files with one-line
+descriptions. Update the labor-report Data Sources Inventory with any new
+upstream sources discovered.
+
+==============================================================================
+TASK D — Audit prior walkthroughs (Tabs 5 / 6 / 7 / 20 + cross-cutting)
+==============================================================================
+Branch: docs/labor-report-walkthrough-audit
+Scope: write a `docs/audits/labor-report-walkthrough-audit.md` (NEW file)
+documenting findings. Then fix what can be fixed in the source docs in the
+same PR (or a follow-up PR if the fixes are large enough to warrant
+separation).
+
+Checks:
+
+  - **Anchor links resolve.** Every `[...](#anchor-id)` in labor-report.md
+    points at a real generated anchor. Especially check the `-N` suffix
+    convention (`#kospos-improvements-20`, `#whats-manual--fragile-20`,
+    etc.) — confirm those resolve by counting heading-occurrence order.
+  - **Cross-tab refs are consistent.** When Tab 7 mentions Report Data's
+    formula shape, does Tab 20's actual decoded shape match what Tab 7
+    described? Report any drift.
+  - **Open questions / TODO triage.** For every "Open questions / TODO"
+    bullet in Tabs 5, 6, 7, 20, check whether it's been answered elsewhere
+    (later walkthroughs, the BVA interlude, this audit). Close out the
+    ones that are now resolved.
+  - **DBI-shortcut catalog completeness.** Every DBI-only assumption
+    mentioned in any tab's "What's manual / fragile" section is also in
+    the cross-cutting concerns table.
+  - **Internal consistency of the Calendar reference cells.** Every tab
+    that uses Calendar (M2 / N2 / I2 / J2 / K2 / L2 / O2 / H2) uses it
+    the same way (no Tab claims I2 means PPs-remaining when it actually
+    means PPs-elapsed, etc.).
+  - **Stale assertions.** Anything that says "TODO: confirm with Alex" but
+    was actually confirmed during a later session (the BVA timing rule,
+    the AX→AZ migration, etc.) should be marked resolved.
+  - **Memory entries.** Re-read the auto-memory files
+    (`C:\Users\ALK\.claude\projects\C--Users-ALK-Desktop-Claude-Projects-kospos\memory\`)
+    against the docs; flag any drift.
+
+==============================================================================
+TASK E — Test edge-case scenarios surfaced in the docs
+==============================================================================
+Branch: docs/labor-report-scenario-tests
+Scope: write `docs/audits/labor-report-scenario-tests.md` (NEW file)
+with one section per scenario. Each section: hypothesis (from the doc),
+test (Python query against the workbook / BVA / BFM eturn), result,
+implication for KosPos. Some overlap with Task B is OK — Task B is
+chartfield-level; Task E is position-level / scenario-level.
+
+Suggested scenarios (cherry-pick if any are infeasible):
+
+  - **Reports-To chain integrity.** Walk every position's reports-to chain.
+    Find: dangling refs (parent doesn't exist), cycles, depth > 11, empty
+    reports-to on non-Commissioner/non-DeptHead positions. Generate the
+    correction-list that Tab 6 § Improvement #6 envisions.
+  - **Pool position census.** Every position where the same Position
+    Number appears in 2+ Report Data rows. Tab 20 says 36 duplicates —
+    enumerate them, classify (commissioner / temp pool / split-funded /
+    other), and recommend per-position whether to split.
+  - **Cat 17/18 expiry warning.** Every position with `CAT_17_18 Exempt
+    TX Expired Date` within 90 days of today (2026-05-25).
+  - **Cat 16 hours-approaching-cap.** Every Cat 16 temp with hours used
+    > 80% of 1,040.
+  - **Vacant-but-no-RTF.** Per Tab 6 § Improvement #10 — every position
+    with Fill Status = VACANT and Latest RTF ID blank, non-pool.
+  - **Appointment ↔ Exempt-Category mismatches.** Tab 6 noted 15
+    PEX-on-Cat-18 rows; enumerate them with names so Alex can ask DHR.
+  - **Sick-leave bucket size.** Per Tab 7 cross-cutting — confirm the
+    XXX bucket is still ~4.2% of FYTD ($3.51M). Update the constant if
+    it's drifted.
+  - **Negative or zero Balance Amount rows.** Per Tab 7 § Improvement #8
+    — top 20 negative-amount rows in BI Payroll (retroactive adjustments
+    worth flagging).
+  - **Earnings-code orphans.** Per Tab 7 § Improvement #8 — earnings
+    codes appearing in BI Payroll that don't map to any documented
+    routing rule.
+
+Each scenario writeup ends with: "KosPos surfaces this as: [Data Issue
+category]." That bridges the audit work to the importer's `lib/quality/`
+design.
+
+==============================================================================
+Hard constraints (apply to every PR)
+==============================================================================
+
+  - Branch from main, single-purpose name (per CLAUDE.md non-negotiable #1).
+  - **No app code.** Phase 2 is docs only.
+  - **No new npm packages.**
+  - **`npm test` stays green** — if it ever fails on main, stop and surface
+    that to Alex in the handoff rather than trying to fix app code.
+  - One PR per task. Squash-merge each, delete branch, fast-forward main
+    worktree (`git -C "C:\Users\ALK\Desktop\Claude Projects\kospos" pull
+    --ff-only origin main`) before starting the next task. The local main
+    worktree is at `C:\Users\ALK\Desktop\Claude Projects\kospos`; don't
+    try to check it out into a worktree subdirectory (that triggers a
+    "main is already used by worktree" error — harmless after merge but
+    breaks `gh pr merge`'s post-merge sync, hence the manual ff-pull).
+  - **MERGE before moving to the next task.** Don't pile up parallel PRs
+    that touch the same files — they'll conflict.
+  - Commit messages end with the Co-Authored-By line per CLAUDE.md.
+
+==============================================================================
+What we are NOT doing this session
+==============================================================================
+
+  - No `app/src/` code changes.
+  - No PREMM / STEPM / TEMPM / 9994 / 9995 / 9993 math rewrite (Phase 6).
+  - No budget-development UI changes (Phase 2.1 route guard).
+  - No new web research.
+  - No tabs beyond Tasks A–E. If you finish all five with time left, draft
+    the Phase 2.0f prompt in SESSION_HANDOFF.md and stop — don't start
+    Phase 2.0f without Alex.
+  - No BVA importer build (Phase 2.4).
+  - No ADR-006 / ADR-007 amendments (Phase 2.4).
+  - No tool / setting / hook changes.
+  - No memory consolidation runs (the consolidate-memory skill).
+
+==============================================================================
+Session-end checklist
+==============================================================================
+
+Before ending, update SESSION_HANDOFF.md with:
+  - Which of Tasks A–E completed (with PR numbers + merge commit shas).
+  - What didn't get to (and why — context limit, blocker, complexity).
+  - Top 3 findings from each completed task that Alex needs to know.
+  - Next-session prompt: if Phase 2.0e (Task A) completed, the next
+    walkthrough is Phase 2.0f (per-special-class tabs: Premium / Overtime /
+    Step / Retirement Payout). Otherwise pick up where this session stopped.
+  - Any AskUserQuestion you deferred — list each with the choice you made
+    and why, so Alex can correct on the next session.
 
 Recommended model: claude-opus-4-7. Effort: high.
 ````
 
 ## Recommended model
 
-`claude-opus-4-7` — same synthesis-heavy work as Sessions 13–16.
+`claude-opus-4-7` — Tasks A–E are synthesis-heavy.
 
 ## Recommended effort
 
-`high` — OPS is the headline page; precision matters.
+`high` — multi-task autonomous session; quality of judgment calls matters
+more than throughput.
 
 ## Notes for the next-session model
 
-- **Open the workbook directly.** Workbook path:
-  `C:\Users\ALK\Desktop\Claude Projects\Position Management\Labor Report 5.21.26.xlsx`
-  (`.xlsx` files are gitignored — never commit them). Use openpyxl read-only mode.
-- **Lean on the existing walkthroughs.** Tab 20 (Report Data) already decoded
-  the SPECIAL block (rows 649–748) and the per-dept catcher blocks that OPS
-  reads. Tab 7 (BI Payroll) already decoded the Premium / Overtime / RPO
-  pivots that OPS GETPIVOTDATA cells pull from. Don't redo any of that;
-  reference it.
-- **`special-class.md` already documents OPS rows 36–42** (PREMM, OVERM,
-  RTPOM, STEPM, TEMPM, 9993, 9994) in detail. The new walkthrough fills in
-  the non-special-class rows + the OPS Detail tab.
-- **Wait for Alex's prose** on snapshot-diff workflow ("what changed since
-  the last report") — this is the KosPos snapshot-diff feature's design
-  source.
-- **BVA-import question from Session 16 stays open** — Alex agreed to
-  provide an example BVA export; if it's available, briefly look at its
-  shape and add the column-list to `data-sources/bfm.md` (or `bva.md`) as
-  a side-task before drafting OPS.
-- **Bid an honest scope.** Both OPS tabs together should fit one session.
-  They're rollup pages, not new datasets.
-
-## What we are explicitly NOT doing next session
-
-- No `app/src/` code changes.
-- No PREMM / STEPM / TEMPM / 9994 / 9995 / 9993 math rewrite (deferred to
-  Phase 6 Budget Development).
-- No budget-development UI changes (route-guard is sub-phase 2.1).
-- No new web research.
-- No tabs beyond OPS Summary + OPS Detail this session.
-- No BVA importer build (deferred to Phase 2.4); read the BVA example only,
-  don't write code.
-- No ADR-006 / ADR-007 amendments (deferred to Phase 2.4 importer build).
+- **The workbook path:** `C:\Users\ALK\Desktop\Claude Projects\Position
+  Management\Labor Report 5.21.26.xlsx` (gitignored — never commit).
+  openpyxl read-only mode. The same file ALSO exists in `Position
+  Management\example reports\Reports\` — both are identical; use the
+  parent-dir path for consistency with prior sessions.
+- **Example reports folder:** `C:\Users\ALK\Desktop\Claude Projects\Position
+  Management\example reports\Reports\` — 26 files including `reports.txt`
+  (Alex's hand-written index — READ FIRST).
+- **BVA file already present:** `BvA - All Fields - Version 10.20.25 (42).csv`
+  in the same folder. 68 cols × 2,710 rows. Schema and reconciliation
+  pattern in `docs/data-sources/bva.md`.
+- **The local main worktree is at** `C:\Users\ALK\Desktop\Claude Projects\kospos`
+  (separate from `.claude/worktrees/stupefied-herschel-a0bb3d` which is
+  this session's worktree). After each merge: `git -C "C:\Users\ALK\Desktop\Claude Projects\kospos" pull --ff-only origin main`.
+- **Make the reasonable call, document it, keep going.** This is the
+  autonomous-session rule. Don't stop for clarifications that aren't
+  truly blocking. Alex reviews on next login.
