@@ -88,7 +88,9 @@ this becomes part of the "generated correction list" that
 [Tab 21 Reporting Tree](../domain/labor-report.md#tab-21--reporting-tree)
 will surface.
 
-## Scenario 1b — Pool position census (extending [Task B Test 5](bva-reconciliation-suite.md))
+## Scenario 1b — Pool position census (extending Task B Test 5)
+
+_Extends [Task B Test 5](bva-reconciliation-suite.md)._
 
 **Hypothesis** ([Tab 20 § Pool positions](../domain/labor-report.md#multi-dept-generalization-caveats-dbi-shortcuts-to-undo)):
 the 36 duplicate-row positions are dominated by commissioners (ELC
@@ -138,6 +140,42 @@ some positions have `CAT_17_18 Exempt TX Expired Date` in the **past**
 (employees operating beyond their legal exempt-appointment expiry) and
 some are **approaching** the 90-day expiry window.
 
+**Authoritative Charter limits (confirmed via Session 20 research):**
+
+- **Charter §10.104-17** — "Appointments . . . shall not exceed two
+  years and shall not be renewable" for substitutes for civil service
+  employees on leave.
+- **Charter §10.104-18** — "Appointments . . . shall not exceed three
+  years and shall not be renewable" for special projects and
+  professional services with limited-term funding.
+
+Both categories require Civil Service Commission approval (Group III
+under §10.104-16–19). CSC Rule 114 further provides that **HR Director
+may approve Cat 17 appointments in increments of up to 1,040 hours
+(six months), to a maximum of 4,160 hours = 4 increments = 2 years.**
+
+Sources:
+[SF Charter §10.104](https://codelibrary.amlegal.com/codes/san_francisco/latest/sf_charter/0-0-0-1076);
+[CSC Adviser 34 - Exempt Appointments Know Your Status](https://www.sf.gov/reports--april-2018--exempt-appointments-know-your-status-civil-service-adviser-34);
+[CSC Rule 114: Appointments](https://www.sf.gov/reports--july-2024--rule-114-appointments-civil-service-commission).
+
+**PS HCM data caveats (per
+[memory `cat_16_17_18_rules.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/cat_16_17_18_rules.md)):**
+
+- **Cat 17 Expiration Date is unreliable.** PS HCM often stores the
+  `Expiration Date = Appointment Date` (meaningless / placeholder).
+  The real expiration trigger is operational: "when the original
+  employee returns from leave," not the calendar date. Don't trust
+  the field for Cat 17s without validation against the original
+  incumbent's leave status (Employee Status = `L` for the sister
+  position).
+- **Cat 18 Expiration Date may be wrong.** Some Cat 18 positions are
+  set up for less than the 3-year maximum even when the intent was
+  3 years. **Recommended additional check:** flag any Cat 18 where
+  `Expiration Date ≠ Appointment Date + 3 years` for user review —
+  "expiration date may be wrong — double-check against intended
+  term."
+
 **Test:** Walk every P&P Data row's `AY = CAT_17_18 Exempt TX Expired
 Date`. Classify each populated date as already-expired, expiring within
 90 days (by 2026-08-23), or future-expiring.
@@ -169,8 +207,21 @@ Date`. Classify each populated date as already-expired, expiring within
    oldest is 2 years past (Flores, 728 days). This is a serious
    data-quality issue — these employees should either have been
    converted to permanent (PCS) or terminated by their expiry date,
-   per CSC Rule 113.5.
-2. **No positions expire within the next 90 days**, so KosPos's
+   per Charter §10.104-17 / §10.104-18 (both stipulate "shall not
+   exceed two/three years and shall not be renewable").
+2. **The 4 Cat 17 cases** (Ng, Carrion, Chen — also the Mayer
+   Cat-18 case earlier) need to be cross-checked against PS HCM's
+   storage caveat above — the Expiration Date may be a placeholder.
+   The operational expiration trigger is "original incumbent returns
+   from leave"; check `Employee Status` on the sister position before
+   classifying as expired.
+3. **The 3 Cat 18 cases** (Flores, Tamimi, Mccallum) at 700+ days
+   past expiry are the highest-confidence violations — Cat 18 dates
+   are typically calendar-driven (project end date), so a 728-day
+   over-expiry is almost certainly a real over-stay. **Run the
+   Appointment-Date + 3-years check on these to detect the
+   "Expiration Date may be wrong" pattern noted above.**
+4. **No positions expire within the next 90 days**, so KosPos's
    90-day-horizon warning would be quiet — but the immediate "expired
    already" backlog needs attention.
 
@@ -178,15 +229,40 @@ Date`. Classify each populated date as already-expired, expiring within
 
 - _Data Issue category 1_ — **`cat-17-18-expired`**. Hard red flag with
   days-past-expiry. Each row needs: convert to PCS, terminate, or
-  document override.
+  document override (in the [free-text userNotes
+  field](../domain/positions.md), per
+  [memory `feedback_user_notes_per_position.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_user_notes_per_position.md)).
 - _Data Issue category 2_ — **`cat-17-18-expiring-soon`** (within 90
   days). Yellow warning with countdown. Currently 0 active warnings.
+- _Data Issue category 3_ — **`cat-17-expiration-date-unreliable`**.
+  For Cat 17 positions specifically, surface as "expiration unknown
+  — review with HR" rather than confidently showing a date. If the
+  Cat 17 is on the same Position Number as a Cat 17-eligible incumbent
+  on Leave (`Employee Status = L`), suggest the linkage but don't
+  assume it.
+- _Data Issue category 4_ — **`cat-18-expiration-date-likely-wrong`**.
+  For Cat 18 positions where `Expiration Date ≠ Appointment Date + 3 years`,
+  flag for user verification ("expiration date may be wrong —
+  double-check against intended term"). For depts with many Cat 18s
+  relative to PCS, additionally flag as `high-cat-18-usage` ("may
+  trigger DHR scrutiny per Charter §10.104-18 limited-term-funding
+  certification requirement").
 
 ## Scenario 4 — Cat 16 hours-approaching-cap
 
 **Hypothesis** ([appointment-types.md](../domain/appointment-types.md)):
-Cat 16 (Temp & Seasonal) employees are capped at 1,040 hours per FY. Any
-Cat 16 employee with hours > 80% of cap deserves a warning.
+Cat 16 (Temp & Seasonal) employees are capped at **1,040 hours per
+fiscal year, per position** (per
+[memory `cat_16_17_18_rules.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/cat_16_17_18_rules.md); cap resets
+each FY; enforcement is DHR-driven). Any Cat 16 position with hours
+> 80% of cap deserves a warning.
+
+**Key rule clarification (per Session 18 + the per-position rule):**
+the cap is **per position number**, not per employee. An employee who
+worked a Cat 16 stint at Position A and then moved to Position B
+shouldn't have hours from A counted against B's cap. The labor-report
+workbook's check may currently sum hours by Person Number, which
+double-counts when an employee has moved between positions.
 
 **Test:** Find every P&P Data row with `EE Exempt Category Description`
 starting with `"16"`. For each, look up their Person Number in BI
@@ -198,32 +274,65 @@ Payroll and sum `AJ Earning Hours` for FY26.
 |---|---|---|---|---|---|---|
 | 1159156 | 187518 | Guaiumi, Jimmy | TEX | 6333 | **1,792.0** | **172.3%** ⚠ |
 
-**Findings:**
+**Findings (revised Session 20, 2026-05-25):**
 
-1. **Cat 16 employee Guaiumi is at 172% of the 1,040-hour cap.** Either:
-   - **The cap rule is misunderstood** — 1,040 hours might be a
-     rolling/lookback figure not an FY26 figure (e.g., per CSC Rule
-     114.5 the 1,040 could be over a 2-year period; needs verification
-     during Tab 12 TEMP Limits walkthrough).
-   - **The employee is also working in a different appointment
-     category for some hours** — the 1,792 hours mixes Cat 16 and
-     non-Cat 16 work. P&P Data lists Guaiumi as "TEX" appointment,
-     not "Cat 16" — possibly the `EE Exempt Category Description = 16`
-     is stale and the employee has since converted to TEX, but the
-     P&P Data column wasn't updated.
-   - **The 1,040 cap is being violated**, with operational consequence
-     CSC may impose.
-2. **n=1 is a tiny sample** — KosPos's Cat 16 monitoring becomes
+1. **Almost certainly a labor-report data bug, NOT a CSC violation.**
+   Per [memory `cat_16_17_18_rules.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/cat_16_17_18_rules.md)
+   captured in Session 18, the Cat 16 cap is per **position**, not
+   per employee. The 1,792 hours likely mixes:
+   - Cat 16 hours on a *previous* position the employee occupied
+     (now backed out of), and
+   - Hours on the current position 1159156.
+   Person 187518 may have worked Cat 16 for another position earlier
+   in FY26, accumulated some hours there, then moved to current
+   position 1159156. Summing by **Person Number** double-counts;
+   summing by **Position Number** would give a different (and
+   probably under-1040) number.
+2. **P&P Data's appointment-type drift is a separate signal.** P&P
+   lists Guaiumi as "TEX", not "Cat 16" — `EE Exempt Category
+   Description = 16` may be stale data, hinting that the conversion
+   actually happened. Still flag as `appt-cat-mismatch` but
+   separately from cap-violation.
+3. **n=1 is a tiny sample** — KosPos's Cat 16 monitoring becomes
    significantly more important in departments that hire seasonal /
-   summer-intern staff (DPW, Rec & Park, etc.).
+   summer-intern staff (DPW, Rec & Park, etc.). The per-position
+   filter rule is foundational for those departments.
 
 **KosPos surfaces this as:** _Data Issue category_ — **`cat-16-hours-cap-warning`**.
-- > 100% of cap = hard red flag (cap violation)
-- 80-100% of cap = yellow warning
-- < 80% = no flag
-- Cross-check P&P Data's appointment type against the BI Payroll
-  earnings codes (TEX vs Cat 16); if they disagree, flag as
-  `appt-cat-mismatch`.
+
+**The per-position cap-check requirement** (
+[memory `cat_16_17_18_rules.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/cat_16_17_18_rules.md)):
+
+```ts
+function checkCat16Cap(positionId: PositionNumber, fy: FiscalYear) {
+  const hours = sum(
+    biPayroll
+      .filter(row => row.positionNumber === positionId && row.fy === fy)
+      .map(row => row.earningHours)
+  )
+  // KEY: filter by Position Number, NOT Employee ID — the cap is per-position
+  return hours / 1040
+}
+```
+
+Thresholds:
+- > 100% of cap on a single Position Number = hard red flag (cap
+  violation; DHR will be informed).
+- 80-100% of cap on a single Position Number = yellow warning
+  (approaching cap).
+- < 80% = no flag.
+
+Plus cross-checks:
+- **Appointment-type drift** — if P&P Data's `EE Exempt Category
+  Description` doesn't match the appointment type encoded in BI
+  Payroll for the position's current incumbent, flag as
+  `appt-cat-mismatch` separately (handles the Guaiumi-style case
+  where the data lags the conversion).
+- **Cross-position attribution diagnostic** — if `hours_by_person`
+  exceeds the cap but `hours_by_position` doesn't, surface as
+  "person worked multiple Cat 16 positions in FY — review which
+  positions count." Helpful debugging signal vs the workbook's
+  silent over-count.
 
 ## Scenario 5 — Vacant-but-no-RTF
 

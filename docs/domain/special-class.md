@@ -419,7 +419,7 @@ In both modes the allocated amounts must sum to the dept-level OVERM budget
 **Earnings codes:** dozens — `L08` Lead Worker Pay $5, `289` Bilingual Pay $60,
 `253` Cert Prem 6%, `125` Cert 4%, `269` Struct Eng Prem 10.27%, `113`, `335`,
 `318`, `117`, `332`, `600` Architect License Prem 5%, `601`, and others — see
-[`../audits/labor-report-scenario-tests.md` § Scenario 9](../audits/labor-report-scenario-tests.md#scenario-9--undocumented-premium-pay-codes)
+[`../audits/labor-report-scenario-tests.md` § Scenario 9](../audits/labor-report-scenario-tests.md#scenario-9--earnings-code-orphans)
 for the documented list (11+ codes carrying $1M+ total). All post to the same
 account 509010.
 
@@ -516,7 +516,7 @@ chartfield string with no additional allocation needed.
   [`labor-report.md` § Tab 16 Premium § KosPos improvement #1](labor-report.md#tab-16--premium).
 - **Premium-code enumeration** — importer must handle all 11+ codes posting
   to 509010, not just L08 + 289 (the only two the current importer routes).
-  See [scenario-tests § Scenario 9](../audits/labor-report-scenario-tests.md#scenario-9--undocumented-premium-pay-codes).
+  See [scenario-tests § Scenario 9](../audits/labor-report-scenario-tests.md#scenario-9--earnings-code-orphans).
 - **Hire-plan awareness** — positions to be hired mid-year accrue premium
   only after their start date. Workbook's run-rate-only projection misses
   this. Alex's expected impact is small but the model can handle it.
