@@ -3,22 +3,24 @@
 next-session prompt as a triple-backtick fenced code block.
 
 Triggers ONLY when this session modified docs/SESSION_HANDOFF.md (signaling
-session end). If the most recent main-thread assistant final reply doesn't
-contain a triple-backtick fenced block, returns decision=block with a
-reminder telling Claude to paste the prompt.
+session end). The rule is considered satisfied for the session as soon as
+ANY assistant text turn AFTER the most recent SESSION_HANDOFF.md edit
+contains a triple-backtick fenced block — not just the most recent reply.
+This avoids re-blocking on every follow-up assistant turn after the prompt
+was already pasted once.
 
-Memory reference: feedback_end_of_session_prompt.md.
+Memory reference: feedback_session_end.md.
+ADR reference: ADR-013.
 Self-contained — stdlib only. Cross-platform.
 
 Logic:
   1. Parse the transcript JSONL into entries.
-  2. Find the most recent REAL user turn (excludes tool_result-only entries
-     which are stored with type=='user').
-  3. Concatenate text from every non-sidechain assistant entry after that
-     boundary — that's the full final reply.
-  4. If any Edit/Write/MultiEdit/NotebookEdit anywhere in the session
-     targeted docs/SESSION_HANDOFF.md AND the final reply has no fenced
-     block → return decision=block.
+  2. Find the index of the LAST Edit/Write/MultiEdit/NotebookEdit targeting
+     docs/SESSION_HANDOFF.md anywhere in the session.
+  3. If no such edit exists → return (don't block).
+  4. Scan every assistant text turn AFTER that index for a triple-backtick
+     fenced block. If any has one → return (don't block — rule satisfied).
+  5. Otherwise → return decision=block with a reminder.
 """
 import json
 import os
@@ -47,7 +49,18 @@ def find_transcript(hook_input):
     return candidate if os.path.exists(candidate) else None
 
 
+def has_fenced_block(text):
+    return bool(re.search(r"```[\s\S]*?```", text or ""))
+
+
 def scan_transcript(transcript_path):
+    """Returns (touched_handoff, rule_satisfied).
+
+    touched_handoff: True if any Edit/Write/MultiEdit/NotebookEdit in this
+        session targeted docs/SESSION_HANDOFF.md.
+    rule_satisfied: True if at least one assistant text turn AFTER the
+        most recent such edit contained a triple-backtick fenced block.
+    """
     entries = []
     try:
         with open(transcript_path, encoding="utf-8") as fh:
@@ -60,36 +73,10 @@ def scan_transcript(transcript_path):
                 except Exception:
                     continue
     except Exception:
-        return (False, "")
+        return (False, False)
 
-    def is_real_user_turn(entry):
-        """True if this user entry is a genuine user prompt (not a
-        tool_result-only entry). Tool results are stored with
-        type=='user'; we exclude them so the boundary aligns with actual
-        conversation turns."""
-        if entry.get("type") != "user":
-            return False
-        if entry.get("isSidechain"):
-            return False
-        msg = entry.get("message") or {}
-        content = msg.get("content")
-        if isinstance(content, str):
-            return True
-        if isinstance(content, list):
-            for block in content:
-                if not isinstance(block, dict):
-                    continue
-                if block.get("type") in (None, "text"):
-                    return True
-                # tool_result blocks don't count
-        return False
-
-    touched_handoff = False
-    last_user_idx = -1
+    last_handoff_edit_idx = -1
     for i, entry in enumerate(entries):
-        if is_real_user_turn(entry):
-            last_user_idx = i
-            continue
         if entry.get("isSidechain"):
             continue
         if entry.get("type") != "assistant":
@@ -108,10 +95,12 @@ def scan_transcript(transcript_path):
                 inp = block.get("input") or {}
                 fp = (inp.get("file_path", "") or "").replace("\\", "/")
                 if fp.endswith("docs/SESSION_HANDOFF.md") or fp.endswith("/SESSION_HANDOFF.md"):
-                    touched_handoff = True
+                    last_handoff_edit_idx = i
 
-    final_text_parts = []
-    for entry in entries[last_user_idx + 1:]:
+    if last_handoff_edit_idx < 0:
+        return (False, False)
+
+    for entry in entries[last_handoff_edit_idx + 1:]:
         if entry.get("isSidechain"):
             continue
         if entry.get("type") != "assistant":
@@ -122,13 +111,11 @@ def scan_transcript(transcript_path):
             continue
         for block in content:
             if isinstance(block, dict) and block.get("type") == "text":
-                final_text_parts.append(block.get("text", "") or "")
+                text = block.get("text", "") or ""
+                if has_fenced_block(text):
+                    return (True, True)
 
-    return (touched_handoff, "\n".join(final_text_parts))
-
-
-def has_fenced_block(text):
-    return bool(re.search(r"```[\s\S]*?```", text or ""))
+    return (True, False)
 
 
 def main():
@@ -136,22 +123,23 @@ def main():
     transcript = find_transcript(hook_input)
     if not transcript:
         return
-    touched_handoff, last_text = scan_transcript(transcript)
+    touched_handoff, satisfied = scan_transcript(transcript)
     if not touched_handoff:
         return
-    if has_fenced_block(last_text):
+    if satisfied:
         return
     output = {
         "decision": "block",
         "reason": (
             "[End-of-session check] You modified docs/SESSION_HANDOFF.md this "
-            "session, which signals session end. Your most recent message does "
-            "not contain a triple-backtick fenced code block. Per memory "
-            "feedback_end_of_session_prompt.md, you must paste the next-session "
-            "prompt verbatim as a copyable triple-backtick fenced block in your "
-            "final reply (NOT just a reference to the file). Read the 'Next "
-            "session prompt' section in docs/SESSION_HANDOFF.md and paste the "
-            "entire fenced block to the user now."
+            "session, which signals session end. No triple-backtick fenced "
+            "code block has appeared in your assistant text since that edit. "
+            "Per memory feedback_session_end.md (and ADR-013), paste the "
+            "next-session prompt verbatim as a copyable triple-backtick "
+            "fenced block (NOT just a reference to the file). Read the "
+            "'Next session prompt' section in docs/SESSION_HANDOFF.md and "
+            "paste the entire fenced block to the user now. Once it appears "
+            "once in this session, the hook will stop firing."
         ),
     }
     sys.stdout.write(json.dumps(output))
