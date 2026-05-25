@@ -166,7 +166,7 @@ Catalog of DBI-only assumptions that need to be parameterized for citywide use:
 | 11-level `Level 1…11` hierarchy climb materialized in 44 columns next to P&P Data | P&P Data CO:DJ + DL:EG (read by Reporting Tree pivot) | Compute hierarchy lazily by walking `reports_to_position_id`; cap not at 11 |
 | `'BI Payroll'!F = 10190` filter on Report Data's per-PP OPERATING grid (Y:AY) — multi-fund via `F IN {10190, 10000}` but DBI+CPC-operating-only | Report Data Y:AY per-position + OVERTIME/PAYOUT catcher blocks | Configurable per-dept operating-fund set; multi-dept join derives operating funds from BFM fund-control = `FACCT` |
 | `'BI Payroll'!F <> 10190` filter on Report Data's per-PP CONTINUING grid (BB:CB) — **wrong complement** of the `{10190, 10000}` operating filter; dormant fund-10000 double-count bug | Report Data BB:CB per-position + OVERTIME/PAYOUT catcher blocks | Derive continuing-fund filter as the **complement** of the operating-fund set, not a hardcoded `<>10190` |
-| `'BFM 15.10.006 FY26'!AX` (Technical Adjustment) used as the budget anchor in Report Data S; should be `AZ` (Board-adopted) per [Tab 20 § Manual / fragile](#whats-manual--fragile-2) | Report Data S (per-position auto-SUMIFS) + NEWP rows (hand-key); inconsistent with TEMPM OPS E40 which already uses `AZ` | KosPos defaults to **Board-adopted (`AZ`)**; preserves earlier-layer columns (Original / Department / Mayor / Committee / Technical Adjustment) for variance views |
+| `'BFM 15.10.006 FY26'!AX` (Technical Adjustment) used as the budget anchor in Report Data S; should be `AZ` (Board-adopted) per [Tab 20 § Manual / fragile](#whats-manual--fragile-6) | Report Data S (per-position auto-SUMIFS) + NEWP rows (hand-key); inconsistent with TEMPM OPS E40 which already uses `AZ` | KosPos defaults to **Board-adopted (`AZ`)**; preserves earlier-layer columns (Original / Department / Mayor / Committee / Technical Adjustment) for variance views |
 | OVERTIME + PAYOUT catcher blocks DBI-only (18 + 18 rows; **zero CPC**) — under-counts CPC OT/RPO in the dept rollup | Report Data rows 611–628 + 630–647 | Catcher rows generated per `(dept-group, dept)` for every dept in the active scope, not just DBI |
 | 100 hand-pasted SPECIAL-block budgets (rows 649–748) refreshed manually each PP from BFM special-class summary rows | Report Data rows 649–748 | Derived live query: `SUM(eturn.budget WHERE account_description = X AND dept_group = Y)` from the BFM importer |
 | 6 hand-pasted INACTIVATED YTD actuals (Report Data U755:U760) copied from Inactive tab's pivot each refresh | Report Data INACTIVATED block | Live query: `positions WHERE in_bi_payroll AND NOT in_pnp_snapshot` — no separate paste |
@@ -179,6 +179,17 @@ Catalog of DBI-only assumptions that need to be parameterized for citywide use:
 | OPS Summary CPC E49 / E50 / H49 / H50 absent (MCCP Offset + TEMP have no YTD-actuals or projection; absorbed into 9993 residual). MCCP YTD spend invisible. | Operating Report Summary rows 49 + 50 | Every named special class gets explicit YTD + projection treatment; no implicit-residual absorption |
 | OPS Summary uses pure-PP pacing (`G/J2*I2`) in special-class D column while the per-dept rollup D column uses COLA-weighted from Report Data T. Same header ("YTD Operating Budget"), two different math. | Operating Report Summary D36–D51 (special-class) vs D2–D33 (pivot) | All YTD-budget pacing COLA-weighted universally (per memory `feedback_projections_always_cola_aware.md`); straight-line as an optional simplified-view side-note |
 | OPS Summary L23 / L32 / L33 ratio (`projected_balance / total_budget`) conceptually different from G42 / H42 attrition rate (`9993 / non-9993`). Both display as %, easy to confuse. | Operating Report Summary L column vs row 42/52 | Separate visual treatment with explicit "leftover %" vs "attrition rate %" labels; tooltips explain the math |
+| Premium tab `N5/N6/N7` (DBI) + `O8/O9/O10` (CPC) hardcoded budget literals — refresh annually from BFM eturn. Same pattern as Overtime's `BN6/BN8`; both classes share the "single per-FY refresh point" fragility. | Premium L:Q projection panel + Overtime BK3:BN8 reference panel | Each special-class card pulls its FY budget literals from BFM's special-class summary rows by `(dept-group, account, FY)` lookup, not by hand-keyed cells |
+| Premium tab `N7` (DBI total) and `O10` (CPC total) are hardcoded literal sums, not `=SUM(N5:N6)` / `=SUM(O8:O9)` formulas. Salary-share ratio (`N5/N7`) silently drifts if budget literals are updated but total isn't kept in sync. | Premium L:Q projection panel | Derived totals — never literal sums where the components are present |
+| Overtime CPC rows inherit DBI's salary-to-total gross-up ratio (`BN8/BN6 ≈ 1.086`) — `BS16/BS17` formulas reference the same `$BN$8` and `$BN$6`. Wrong if CPC's OT-benefit composition differs from DBI's. | Overtime BP:BS projection panel rows 16-17 | Per-dept-group salary-to-total gross-up ratio sourced from each dept-group's own BFM budget |
+| Retirement Payout tab `(Multiple Items)` page filter is opaque — the visible cell doesn't show which accounts are selected (510210 + 505060 inferred from posting patterns). A new RPO account added by Controller silently disappears unless someone re-edits the pivot. | Retirement Payout B1 page filter | Explicit account-list in the routing rule; importer flags unrecognized accounts posting to RPO-relevant earnings codes |
+| Retirement Payout `OPS!E38` uses `Department Group Code = "DBI"` for GETPIVOTDATA, **not Fund Code** — inconsistent with PREMM/OVERM/STEPM which all filter by fund. Reader expecting same-shortcut pattern would be wrong. | OPS Summary E38 vs E36/E37/E39 | Unify on `sum across dept_group.operating_funds + capital_funds`; RPO needs no different treatment than other classes |
+| Retirement Payout earnings codes incomplete — Phase 4 RPO research identified `VPO` + `SVO`; this session (Phase 2.0f) added `CPO` Comp Time Pay Out at row 61 ($7,209 at DBI PS Technical Support); $31k of the snapshot reconciliation gap still unaccounted. | RPO routing rules (importer) | Importer enumerates all `(account, earnings_code)` pairs in BI Payroll posting to RPO accounts; flags unknowns in Data Issues |
+| Step tab `BI Payroll!AI` (`Step Indicator = "Y"`) is a **workbook-internal column added on import**, not present in OBI source. Mapping from TRC → step-eligibility is set in the import script. If the mapping drifts, every Step variance silently changes. | Step U:AU + AW:BW per-PP cells | Explicit TRC-to-step-eligibility table in `lib/labor/step-eligibility.ts`, versioned by effective date, with per-TRC MOU citations |
+| Step tab `U2` formula subtracts **four hardcoded earnings-code categories** (`"Overtime - Scheduled Misc"`, `"Ret Payout - SP & Vac - Misc"`, `"Premium Pay - Misc"`, `"Temp Misc LumpSum Payoff"`) — residual approach. If Controller renames any, the SUMIFS silently zeroes and the non-step earnings get over-attributed to STEPM. | Step U:AU per-PP cells | Sum positively (only step-eligible $ included) using the TRC step-indicator; eliminates literal account-description subtractions |
+| Step tab `COUNTIF($D$2:D2, D2)>1` guard on every per-position cell handles pool positions by zeroing duplicates. Loses per-incumbent visibility + O(n²) recalc cost. | Step R, S, U:AU, AW:BW, BY:CY | Pool positions modeled with explicit `max_headcount > 1` attribute; rollup function attributes one prorated budget share per Position Number |
+| Step tab `BY2` per-PP variance assumes **uniform per-PP pay rate** within the FY — doesn't model merit-step events (col AJ of P&P Data). Aggregate sum is correct (actuals also rise post-merit, washes out) but per-PP variance drifts: pre-merit PPs show under-budget, post-merit over-budget. Misleads trend visualization. | Step BY:CY per-PP variance | Per-PP proration uses expected rate at that PP, derived from each employee's step history + future Merit Increase Date |
+| Step tab folds **MCCP positions into STEPM**. Same per-position variance shape, but conceptually wrong — MCCP positions should post to 9994 MCCP Offset (separate account, separate reference data: DHR MCCP-range table vs DHR salary-steps table). DBI's small MCCP population (Deputy Directors) leaks into DBI STEPM; CPC's larger MCCP population is sort-of-correctly attributed to CPC but only because `SUMIFS("Planning")` happens to pick it up. | Step tab + OPS Summary rows 39/48/49 | KosPos splits MCCP into its own tab (per Alex's flag in Phase 2.0f session prompt). STEPM filters to `job_class.is_mccp = false`; 9994 filters to `job_class.is_mccp = true`. |
 
 ## Tab list — workbook order (`Labor Report 5.21.26.xlsx`)
 
@@ -203,10 +214,10 @@ artifacts — not part of the current-year labor workflow).
 | 13 | Inactive | pending | Cross-system reconciliation (inactive positions) |
 | 14 | Separations | pending | Pending-separations tracker (user-input) |
 | 15 | Succession | pending | Succession planning (draft feature) |
-| 16 | Premium | pending | Premium-pay YTD + projection view |
-| 17 | Overtime | pending | Overtime YTD + projection view |
-| 18 | Step | pending | Step-savings YTD + projection view |
-| 19 | Retirement Payout | pending | RPO YTD + projection view |
+| 16 | Premium | **done 2026-05-25** | Premium-pay YTD + projection view |
+| 17 | Overtime | **done 2026-05-25** | Overtime YTD + projection view |
+| 18 | Step | **done 2026-05-25** | Step-savings YTD + projection view (MCCP split to dedicated tab) |
+| 19 | Retirement Payout | **done 2026-05-25** | RPO YTD + projection view |
 | 20 | Report Data | **done 2026-05-25** | **Core dataset** — labor positions × budget × actuals × projection |
 | 21 | Reporting Tree | pending | Org-chart preview + data-quality flags (lite Phase 7) |
 | 22 | Pos by Dept | pending | Filtered view of Report Data (low priority) |
@@ -1980,7 +1991,7 @@ KosPos's Excel emitter does **not** rebuild a 39-column transactional sheet
       empty and absorb the dollars into 9993 attrition residual.
       KosPos's design is "every named class gets full math, no
       implicit-residual absorption" — see [Tab 26 § KosPos improvement
-      #4](#kospos-improvements-3).
+      #4](#kospos-improvements-7).
 - [ ] **Update ADR-007.** The provisional column list (`YTD Salary / Benefits
       / Total`) was wrong — BI Payroll is transactional, not pre-aggregated.
       ADR-007 needs an amendment landing with the real 39 columns and the
@@ -2164,108 +2175,1462 @@ questions:** _(walkthrough)_
 
 ### Tab 16 — Premium
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** Summary of premium pay actuals + straight-line projections. Data from
-BI Payroll.
+**Purpose:** **Per-(dept × job class × earnings code) YTD premium-pay actuals and
+year-end projection** for the special-class line PREMM. Two regions on one sheet:
 
-**Source pivot (decoded during Tab 7 walkthrough):** `Premium!A3:J116` (pivotTable9
-on `pivotCacheDefinition6.xml`). Page filter `Account Description = "Premium Pay -
-Misc"` (account 509010). Row fields: Dept Grp → Dept → Job Code → Job Desc → Earn
-Code → Earn Desc. Col field: Fund Code. Data field: `Sum of Balance Amount`. Adjacent
-projection panel `L3:Q11` is **not** a pivot — manual table comparing budget vs
-projected per (dept × Account Lvl 5 = 5010Salary / 5130Fringe). See Tab 7 § How each
-downstream tab consumes BI Payroll.
+1. **Main pivot (A1:J116)** — pivot of BI Payroll filtered to `Account
+   Description = "Premium Pay - Misc"` (account 509010), broken out per (Dept
+   Group → Dept → Job Code → Job Desc → Earnings Code → Earnings Code
+   Description) × Fund Code. Where the YTD actuals live, by earnings code.
+2. **Projection panel (L1:Q11)** — hand-built reference table mapping each
+   dept-group's `(5010 Salary, 5130 Fringe)` budget components to a projected
+   year-end actual, using a salary-actuals-times-fringe-ratio mechanism. Where
+   OPS Summary row 36 (DBI) and row 45 (CPC) source their `H` column from.
 
-**Existing math reference:** [`special-class.md`](special-class.md) § PREMM_E (partial
-— `Premium!P5 / P6` decoded; `N5 / N6 / N7` ratios pending).
+**Snapshot scope.** 116 rows in the pivot × 17 cols total (J + the projection
+panel). The pivot has 9 DBI dept rows and 2 CPC dept rows at this snapshot.
 
-**KosPos improvement Alex flagged:** projections could incorporate hiring information
-— some positions to be hired later will carry premium pay. Small expected impact, but
-the model can be made aware.
+#### Data sources
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough)_
+- **Source:** OBI BI Payroll, filtered to `Account Description = "Premium Pay -
+  Misc"`. The pivot reads from cache `pivotCacheDefinition6.xml` (= the BI Payroll
+  source range `BI Payroll!A1:AL1048576`, per [Tab 7 § How each downstream tab
+  consumes BI Payroll](#how-each-downstream-tab-consumes-bi-payroll)). The
+  projection panel's literal `N5/N6/O8/O9` budget cells are refreshed once per FY
+  from the BFM 15.10.006 eturn's special-class summary rows (the same source
+  feeding [Tab 20 Report Data SPECIAL block](#tab-20--report-data)).
+- **Refresh cadence:** the pivot refreshes whenever BI Payroll re-imports (each
+  payday Tuesday + ad-hoc); the budget literals refresh annually when BFM
+  republishes the position eturn.
+
+#### Structure — main pivot (A1:J116)
+
+**Page filter (row 1):**
+
+| Cell | Value |
+|---|---|
+| A1 | `Account Description` (page-filter label) |
+| B1 | `Premium Pay - Misc` (selected value — account 509010) |
+
+**Header rows (rows 3–4):**
+
+| Cell | Value | Meaning |
+|---|---|---|
+| A3 | `Sum of Balance Amount` | Data field |
+| G3 | `Fund Code` | Column field label |
+| A4 | `Department Group Code` | Row field 1 |
+| B4 | `Department Description` | Row field 2 |
+| C4 | `Job Code` | Row field 3 |
+| D4 | `Job Description` | Row field 4 |
+| E4 | `Earnings Code` | Row field 5 |
+| F4 | `Earnings Code Description` | Row field 6 |
+| G4 | `10190` | Fund column (DBI operating) |
+| H4 | `10000` | Fund column (CPC operating) |
+| I4 | `10020` | Fund column (occasional) |
+| J4 | `10840` | Fund column (occasional) |
+
+**Earnings codes seen at this snapshot:** `L08` Lead Worker Pay - $5, `289`
+Bilingual Pay - $60.00, `600` Architect License Prem - 5%, and others — see
+[Tab 7 walkthrough](#tab-7--bi-payroll) and the scenario-tests audit for the
+broader catalog of 11+ premium codes the importer must enumerate.
+
+#### Structure — projection panel (L1:Q11)
+
+**Page tag (row 1):** L1 = `Job Class`, M1 = `PREMM_E`. Just identifying labels;
+no math.
+
+**Header row (row 4):**
+
+| Cell | Value |
+|---|---|
+| L4 | `Dept Grp` |
+| M4 | `Account Lvl 5 Title` |
+| N4 | `10190` (DBI fund column) |
+| O4 | `10000` (CPC fund column) |
+| P4 | `Projected` |
+| Q4 | `Surplus / (Deficit)` |
+
+**Per-dept-group block (rows 5–10):**
+
+| Row | L Dept Grp | M Account Lvl 5 | N (10190) | O (10000) | P Projected | Q Surplus |
+|---|---|---|---|---|---|---|
+| 5 | `DBI` | `5010Salary` | **1,096,699** literal | — | =GETPIVOTDATA(...,10190)×(N5/N7)/I2×J2 = 942,752 | =N5−P5 = 153,946 |
+| 6 | (blank) | `5130Fringe` | **94,860** literal | — | =N6/N5×P5 = 81,544 | =N6−P6 = 13,316 |
+| 7 | `DBI Total` | — | **1,191,559** literal (sum N5+N6) | — | — | — |
+| 8 | `CPC` | `5010Salary` | — | **5,512** literal | =GETPIVOTDATA(...,10000)×(O8/O10)/I2×J2 = 41,841 | =N8−P8 = -41,841 |
+| 9 | (blank) | `5130Fringe` | — | **477** literal | =O9/O8×P8 = 3,621 | =N9−P9 = -3,621 |
+| 10 | `CPC Total` | — | — | **5,989** literal (sum O8+O9) | — | — |
+| 11 | `Grand Total` | — | 1,191,559 | 5,989 | — | — |
+
+**Projection formula decoded — per dept-group, two-step:**
+
+```excel
+P5_DBI_Salary  = GETPIVOTDATA("Balance Amount", $A$3, "Fund Code", 10190)
+                 × (N5 / N7)                  ← salary share of total budget
+                 / Calendar!I2 × Calendar!J2  ← annualize via pure-PP ratio
+P6_DBI_Fringe  = N6 / N5 × P5                 ← gross up salary projection by budgeted fringe-to-salary ratio
+```
+
+Decoded in words:
+
+1. **Get YTD actual premium-pay dollars** for the dept-group's operating fund
+   (DBI = 10190, CPC = 10000). The `GETPIVOTDATA` call sums the pivot's data
+   field filtered to that one fund.
+2. **Scale by the salary share of the dept-group's premium budget.** N5/N7
+   = 1,096,699 / 1,191,559 = 92.04% — DBI's PREMM budget is 92% salary, 8%
+   fringe. The pivot only holds premium *salary* actuals (the 509010 account
+   is salary-only); benefits don't post to a dedicated premium-benefit account.
+   So we apportion the YTD actuals as if they reflected the budgeted
+   salary-to-total split.
+3. **Annualize via the pure-PP ratio** (`J2/I2` = 26.1/22.4 = 1.165 at this
+   snapshot). The same straight-line pacing OVERM and RTPOM use.
+4. **Cross-walk salary projection → fringe projection** via the budgeted
+   fringe-to-salary ratio (`N6/N5` = 94,860/1,096,699 = 8.65%). Same "use the
+   budget's ratio because benefits don't post separately" reasoning as
+   [OVERM § Year-end projection](special-class.md#overm_e--overtime-misc--workbook-extracted-2026-05-24-autonomous-overnight).
+
+OPS Summary consumers:
+
+- **DBI H36** = `=Premium!P5 + Premium!P6` = $1,024,297 (projected total)
+- **CPC H45** = `=Premium!P8 + Premium!P9` = $45,462 (projected total)
+
+#### What's manual / fragile
+
+1. **N5 / N6 / O8 / O9 are hardcoded literals** refreshed once per FY from the
+   BFM 15.10.006 eturn's premium-pay summary rows. No formula trace; an FY27
+   refresh requires Alex to update each cell by hand. Same annual-refresh risk
+   pattern as [OVERM's BN6/BN8](special-class.md#overm_e--overtime-misc--workbook-extracted-2026-05-24-autonomous-overnight).
+2. **N7 / O10 are literal totals**, not `=SUM(N5:N6)` / `=SUM(O8:O9)`. If N5
+   is updated and N7 isn't kept in sync, the salary-share ratio silently drifts
+   from 92% to something else.
+3. **Fund 10190 / 10000 GETPIVOTDATA hardcodes** — the DBI/CPC shortcut
+   already cataloged in [cross-cutting concerns](#multi-dept-generalization-caveats-dbi-shortcuts-to-undo).
+   Any premium pay posting to a non-operating fund (DBI BIF-Continuing 10230,
+   CPC capital projects 10770) is silently excluded from the projection.
+4. **Pure-PP annualization** (`/I2*J2`) rather than COLA-weighted. Same shortcut
+   the workbook uses for OVERM and RTPOM. Premium dollar amounts mostly don't
+   COLA-inflate (a $5 lead-worker premium stays $5 regardless of MOU), so the
+   shortcut is mathematically defensible for *premium itself*; but the fringe
+   gross-up rides on the (budgeted) ratio which is COLA-influenced. KosPos
+   default = COLA-aware everywhere (per memory
+   `feedback_projections_always_cola_aware.md`) and let the per-class projection
+   function decide whether COLA inflation applies.
+5. **Salary-vs-fringe split assumes the budgeted ratio matches the actual
+   ratio.** True at the start of the year; can drift if Controller reclasses
+   between accounts (rare). No reconciliation between the projection's implied
+   total and the actual posted benefit dollars for premium-flagged earnings.
+6. **Account filter is the literal string `"Premium Pay - Misc"`.** If the
+   Controller renames account 509010 (e.g., "Premium Pay - Misc - All"), the
+   pivot silently goes empty. Same fragility pattern as other tabs' literal
+   account-description filters (cataloged in cross-cutting concerns).
+7. **No per-(job class, earnings code) breakout in the projection.** The
+   projection collapses to a single (Dept Grp × Salary/Fringe) cell. The
+   pivot shows the per-(job class × earnings code) detail, but the projection
+   doesn't drill down. Hard to surface "53% of DBI's premium overrun is from
+   `289` Bilingual Pay" without manual analysis.
+8. **No hiring-information awareness in the projection.** Alex's flag:
+   positions hired mid-year will accrue premium pay only for their fraction
+   of the FY. Workbook ignores this — projects on the run-rate of YTD only.
+   Small expected impact (Alex's note), but a known under-projection bias.
+
+#### KosPos improvements
+
+##### 1. Per-(job class × earnings code) projection grain
+
+**Problem in the workbook.** Projection collapses to one cell per dept-group ×
+(salary, fringe). The pivot has the per-(job class × earnings code) detail, but
+nothing in the projection uses it.
+
+**KosPos design.** Project at the same grain the pivot exposes:
+`projected_premium[dept_group, job_class, earnings_code] = YTD_per_grain ×
+annualize_factor`. Roll up to the (dept_group, salary_vs_fringe) cells the
+OPS Summary needs. The grain-level projections power a drill-down: "DBI
+projected $1.02M PREMM — of which $670k Bilingual Pay (`289`), $180k Lead
+Worker Pay (`L08`), $100k Architect License Prem (`600`), $74k others."
+
+##### 2. Surface premium codes the importer doesn't yet enumerate
+
+**Problem flagged in [position-level scenario tests § Scenario 9](../audits/labor-report-scenario-tests.md#scenario-9--undocumented-premium-pay-codes):**
+11+ premium-pay earnings codes (`253` Cert Prem 6%, `125` Cert 4%, `269` Struct
+Eng Prem 10.27%, `113`, `335`, `318`, `117`, `332`, `600`, `601`, etc.)
+carrying $1M+ total are not enumerated in the KosPos importer's premium-routing
+rules. The current rules only handle `L08` + `289`.
+
+**KosPos design.** The importer's premium-pay router uses **the account
+description as the primary discriminator** (`Premium Pay - Misc` →
+`category: PREMM`) and stores the earnings code as a sub-classification dim.
+Any new earnings code that posts to 509010 is automatically picked up. The Data
+Issues panel flags the first PP an unknown earnings code appears, prompting the
+admin to confirm the classification (vs. mis-posted to the wrong account).
+
+##### 3. Make the fringe gross-up auditable
+
+**Problem in the workbook.** `P6 = N6/N5 × P5` is opaque. A reader can't see
+the 8.65% fringe-to-salary ratio it embeds, can't see whether that ratio
+matches the dept-group's actual fringe rate.
+
+**KosPos design.** Show the ratio inline with the projection: `P6 fringe
+projection = $81,544 ($P5 salary × 8.65% budgeted fringe-to-salary ratio)`.
+On hover: "Ratio derived from FY26 BFM budget: $94,860 fringe / $1,096,699
+salary = 8.65%". If the actual posted fringe-to-salary ratio for the dept-
+group's premium spend is materially different (>1pp), flag in Data Issues as
+"premium fringe ratio drift — review chart of accounts mapping."
+
+##### 4. Hire-plan-aware projection
+
+**Problem in the workbook.** Workbook projects on YTD run-rate only. Positions
+hired mid-year haven't accrued YTD premium-pay yet; the projection misses
+their post-hire premium pay. The error is small for most positions (only some
+job classes carry premiums) but cumulative.
+
+**KosPos design.** Project per position:
+`projected_premium[position] = YTD_premium[position] + expected_per_PP_premium[position, job_class] × remaining_PPs`.
+For positions in the hiring plan with a known start date, `remaining_PPs`
+starts from the start date. `expected_per_PP_premium` is computed from the
+job class's historical premium-pay rate (Budget Master's `Y5` cell — premium $
+as pct of total salary for that job class — but applied per PP, not per FY).
+Small material change vs the run-rate-only projection, but it's the right
+direction and matches what Alex flagged.
+
+##### 5. Per-fund projection (drop the 10190 / 10000 hardcode)
+
+**Problem in the workbook.** GETPIVOTDATA filters to one fund per dept-group.
+DBI premium pay posting to BIF-Continuing (10230) is silently excluded.
+
+**KosPos design.** Sum across `dept_group.operating_funds` (the per-dept-group
+fund set sourced from BFM `Fund Control = "FACCT"`, per
+[cross-cutting concerns](#multi-dept-generalization-caveats-dbi-shortcuts-to-undo)).
+Show a per-fund breakdown drilldown for users investigating "where is my
+premium pay actually posting."
+
+#### KosPos UI sketch
+
+**Premium Pay page** — one of the per-special-class cards on the Operating
+Report headline (see [Tab 26 § KosPos improvement #1](#tab-26--operating-report-summary)).
+
+Layout:
+
+```
+DBI · Premium Pay (PREMM) · FY26 · as of PP 22 of 26.1
+┌────────────────────────────────────────────────────────────────────┐
+│ Total Budget    YTD Actual    YTD Pace    Projected    Variance    │
+│  $1,191,559     $879,090       $1,022,641  $1,024,297  +$167,262   │
+└────────────────────────────────────────────────────────────────────┘
+
+By earnings code (FY26 YTD)              By dept (FY26 YTD)
+  289 Bilingual Pay        $670,000        DBI ADM Finance      $120k
+  L08 Lead Worker Pay      $180,000        DBI IS Bldg Insp     $240k
+  600 Architect License    $100,000        DBI PS Plan Review   $200k
+  others (8 codes)          $74,000        ... (6 more depts)
+                                         
+Year-end projection breakdown
+  YTD actuals (run-rate)             $879,090
+  + Continuing premium pay           $145,207  (annualize remaining PPs)
+  + Fringe gross-up                  $81,544   (× 8.65% budgeted ratio)
+  + Hire-plan adjustment             $0        (no premium-pay positions in plan)
+  ────                              ─────────
+  Projected total                  $1,024,297
+```
+
+Drill-down: click any earnings-code row → grain-level view (per-job-class
+breakdown for that code, per-PP trend chart).
+
+#### Excel export notes
+
+For parity:
+
+- **Sheet `Premium`.** A1:J116 = mirror the BI Payroll-sourced pivot (KosPos
+  emits its own pivot from the live data, not a paste-snapshot).
+- L1:Q11 = mirror the projection panel structure.
+- Add an explicit `Projection Methodology` block at the bottom citing each
+  ratio source (BFM eturn rows, COLA-aware vs straight-line choice, fund-set
+  membership).
+- **Named ranges:** `DBI_PREMM_SalaryBudget`, `DBI_PREMM_FringeBudget`,
+  `DBI_PREMM_Projected`, etc. — downstream-formula compatibility without the
+  workbook's cell-address fragility.
+
+#### Open questions / TODO
+
+- [ ] **Confirm account 509010 = "Premium Pay - Misc" is the only premium-pay
+      account at the dept-group level.** Some MCCP-related premium variations
+      (e.g., MCCP performance bonus) may use other accounts; if so, the page
+      filter is incomplete.
+- [ ] **Verify the Y5 ratio in Budget Master** (premium $ as pct of total
+      salary per job class). The hire-plan-aware projection (improvement #4)
+      needs this ratio per-job-class; confirm it's stable enough to project
+      forward and where exactly it lives in the BFM workbook.
+- [ ] **Reasonable-default call (this session):** the projection's pure-PP
+      annualization stays as-is for PREMM because premium $ amounts mostly
+      don't COLA-inflate. KosPos still calls the COLA-aware projection
+      function but the function returns the same number when COLA inflation
+      doesn't apply to the dollars. Confirm with Alex if any premium codes
+      DO COLA-inflate (e.g., percentage-of-base premiums like the 6248
+      structural eng prem 10.27%).
+- [ ] **CPC PREMM rounds to $5,989 budget, projects to $45,462** — 7.6× the
+      budget. Tiny absolute numbers but large variance ratio. Confirm
+      whether CPC PREMM is materially mis-budgeted or whether the
+      reclassifications across the year shift one or two specific premiums
+      from one dept-group to another (manual reclass would post YTD against
+      CPC fund without a corresponding budget transfer).
+- [ ] **Reconcile against [Task B BVA reconciliation suite](../audits/bva-reconciliation-suite.md)**
+      Test 3 — does BVA show the same DBI premium total as BI Payroll
+      filtered by `Account Description = "Premium Pay - Misc"`? Should be
+      a clean account-level reconciliation; if not, an opposite-direction
+      reclass exists.
+
+---
 
 ---
 
 ### Tab 17 — Overtime
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** Summary of overtime actuals + projections. Data from BI Payroll.
+**Purpose:** **Per-(fund × dept × job class × person × PP) YTD overtime hours +
+dollars and year-end projection** for the special-class line OVERM. Three regions on
+one sheet:
 
-**Source pivot (decoded during Tab 7 walkthrough):** main pivot `Overtime!A5:BL114`
-(pivotTable11 on `pivotCacheDefinition6.xml`). Page filter `Account Description =
-"Overtime - Scheduled Misc"` (account 511010). Row fields: Fund → Dept → Job Code →
-Job Desc → Person. Col field: Earning Period End Date. **Visible data field is `Sum of
-Earning Hours`** (not dollars); the dollar field exists in the cache and is pulled
-via the OPS!E37 `GETPIVOTDATA("Sum of Balance Amount", …, "Fund Code", 10190)`.
-Secondary pivot `Overtime!BP5:BR19` (pivotTable13) provides per-dept dollar totals
-feeding the BS15 projection rollup. See Tab 7 § How each downstream tab consumes BI
-Payroll.
+1. **Main pivot (A5:BA114)** — pivot of BI Payroll filtered to `Account
+   Description = "Overtime - Scheduled Misc"` (account 511010), broken out per
+   (Fund Code → Department Description → Job Code → Job Description → Person Full
+   Name) × Earning Period End Date. Cols F:AB carry `Sum of Earning Hours`
+   per-PP; cols AC:AY carry `Sum of Balance Amount` (dollars) per-PP. AZ + BA
+   are the row totals. Where the per-person YTD OT detail lives.
+2. **Side reference panel (BK3:BN8)** — small per-(dept-group × account-lvl-5)
+   table holding the **hardcoded FY budget literals** (BN6 = DBI OT salary
+   budget $349,749; BN8 = DBI OT total budget $380,000) that feed the
+   projection formula. Refreshed once per FY from BFM.
+3. **Projection panel (BP5:BS19)** — per-dept-row projection table that gross-
+   ups YTD salary actuals to total cost. Feeds `OPS!H37` (DBI) and `OPS!H46`
+   (CPC).
 
-**Existing math reference:** [`special-class.md`](special-class.md) § OVERM_E (fully
-documented from Session 11 extraction). The labor-report-tab view is the YTD + projection
-presentation; the existing OVERM UI in `app/src/modules/special-class/` is the
-budget-development form (hidden in Phase 2.1).
+Already documented in detail in
+[special-class.md § OVERM_E](special-class.md#overm_e--overtime-misc--workbook-extracted-2026-05-24-autonomous-overnight)
+(formulas decoded from Session 10 + Session 11). This tab walkthrough adds the
+**labor-report-as-Excel-surface view** of the same math, plus three things the
+existing special-class.md walkthrough doesn't catalog: the row 18 CPC rollup
+formula, the BS-row dept-by-dept distribution, and the OPS Summary consumer
+linkage.
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough — Alex to confirm Overtime tab BN5:BT15 dept rows 7–14 not
-yet extracted; cross-ref special-class.md)_
+**Snapshot scope.** 114 rows × 71 cols (A:BS). Main pivot 9 DBI dept slices
+(rows 6–14) + 10190 Total (15) + 2 CPC dept slices (110–112, partial) + 10000
+Total (113) + Grand Total (114). Projection panel: 9 DBI rows (6–14) + DBI
+total (15) + 2 CPC rows (16–17) + CPC total (18) + Grand Total (19).
+
+#### Data sources
+
+- **Source:** OBI BI Payroll, account `Overtime - Scheduled Misc` (511010).
+  Pivot cache = `pivotCacheDefinition6.xml` (BI Payroll source range
+  `A1:AL1048576`). The data field that appears visibly is **Earning Hours**
+  (not dollars) — convenient for spot-check ("how many OT hours did
+  Smith,John work in PP15?"). The **dollar field is available in the same
+  cache** and gets pulled by OPS Summary via `GETPIVOTDATA("Sum of Balance
+  Amount", ...)`. Both fields are computed from the BI Payroll's per-row
+  Earning Hours / Balance Amount; the pivot just aggregates them.
+- **Budget literals:** `BN6`, `BN7`, `BN8` refresh once per FY from BFM
+  15.10.006 special-class summary rows (the same source as
+  [Tab 16 Premium § N5/N6/N7](#tab-16--premium)).
+- **Refresh cadence:** pivot re-aggregates on BI Payroll re-import; budget
+  literals updated annually.
+
+#### Structure — main pivot (A5:BA114)
+
+**Page filter (row 1):** A1 = `Account Description`, B1 = `Overtime - Scheduled
+Misc`.
+
+**Row 3 labels:** F3 = `Values`, G3 = `Earning Period End Date` (col field).
+BK3 = `Job Class`, BL3 = `OVERM_E` (just identifiers).
+
+**Row 4 data field labels:** F4 = `Sum of Earning Hours`, AC4 = `Sum of Balance
+Amount`. The pivot has both data fields side-by-side: cols F:AB = hours per PP,
+cols AC:AY = dollars per PP, AZ = hours total, BA = dollars total. **23 PPs per
+side** (rather than 27) because PP1–PP3 had no Misc OT activity in the snapshot.
+
+**Row 5 axis headers:**
+
+| Cell | Value | Meaning |
+|---|---|---|
+| A5 | `Fund Code` | Row field 1 (outer) |
+| B5 | `Department Description` | Row field 2 |
+| C5 | `Job Code` | Row field 3 |
+| D5 | `Job Description` | Row field 4 |
+| E5 | `Person Full Name` | Row field 5 (innermost) |
+| F5 | `2025-07-04` (PP1 PPE) | First PPE column (hours sub-pivot) |
+| ... | ... | ... |
+| AB5 | `2026-05-08` (PP22 PPE) | Last hours-by-PP column |
+| AC5 | `2025-07-04` | First PPE column (dollars sub-pivot) |
+| ... | ... | ... |
+| AY5 | `2026-05-08` | Last dollars-by-PP column |
+| AZ4 | `Total Sum of Earning Hours` | Row hours total |
+| BA4 | `Total Sum of Balance Amount` | Row dollars total |
+
+**Sub-rollup rows** (the pivot's subtotal rows):
+
+- `10190 Total` at row 15 (DBI fund total)
+- `10000 Total` at row 113 (CPC fund total) — BA113 = $3,944.37 (DBI's E46 source)
+- `Grand Total` at row 114 — BA114 = $442,730.52 (matches BR19 in projection panel)
+
+#### Structure — side reference panel (BK3:BN8)
+
+| Cell | Value | Meaning |
+|---|---|---|
+| BK3 | `Job Class` | (label) |
+| BL3 | `OVERM_E` | Identifier |
+| BK5 | `Dept Grp` | Row field |
+| BL5 | `Fund` | Row field |
+| BM5 | `Account Lvl 5 Title` | Row field |
+| BN5 | `Sum of FY 2025-26 Board` | Data field |
+| BK6 | `DBI` | DBI row |
+| BL6 | `10190` | DBI fund |
+| BM6 | `5010Salary` | Account |
+| **BN6** | **349,749** literal | **DBI budgeted OT salary** (refresh: annually from BFM) |
+| BM7 | `5130Fringe` | Account |
+| **BN7** | **30,251** literal | DBI budgeted OT fringe |
+| BK8 | `Grand Total` | Sum |
+| **BN8** | **380,000** literal | **DBI budgeted OT total** (= BN6+BN7) |
+
+These three literals are the single annual-refresh point that drives every
+projection in the BS column. If BN6 or BN8 is stale, every BS cell drifts.
+
+#### Structure — projection panel (BP5:BS19) — verbatim
+
+| Row | BP Fund | BQ Department | BR YTD Actual $ | BS Projected |
+|---|---|---|---|---|
+| 5 | (header) Fund Code | Department Description | Sum of Balance Amount | Projected |
+| 6 | `10190` | DBI ADM Finance | 40.24 | =BR6×$BN$8/I2×J2/$BN$6 = 50.94 |
+| 7 | (blank inherits 10190) | DBI IS Building Inspection | 46,996.41 | 59,495.52 |
+| 8 | | DBI IS Code Compliance | 15.16 | 19.19 |
+| 9 | | DBI IS Electrical Inspection | 185,893.40 | 235,333.40 |
+| 10 | | DBI IS Housing Inspection | 1,846.85 | 2,338.04 |
+| 11 | | DBI IS Plumbing Inspection | 16,847.73 | 21,328.53 |
+| 12 | | DBI PS Permit Processing | 1,132.90 | 1,434.20 |
+| 13 | | DBI PS Plan Review | 185,963.19 | 235,421.75 |
+| 14 | | DBI IS Administrative Support | 50.27 | 63.64 |
+| **15** | `10190 Total` | | **438,786.15** | **=SUM(BS6:BS14) = 555,485.23** ← OPS!H37 |
+| 16 | `10000` | CPC Current Planning | 2,356.06 | 2,982.68 |
+| 17 | (blank inherits 10000) | CPC Administration | 1,588.31 | 2,010.74 |
+| **18** | `10000 Total` | | **3,944.37** | **=SUM(BS16:BS17) = 4,993.41** ← OPS!H46 |
+| 19 | `Grand Total` | | 442,730.52 | (no formula; visual total only) |
+
+**Per-dept projection formula:**
+
+```excel
+BS6 = BR6 * $BN$8 / Calendar!$I$2 * Calendar!$J$2 / $BN$6
+```
+
+Decoded in [special-class.md § OVERM_E year-end projection](special-class.md#overm_e--overtime-misc--workbook-extracted-2026-05-24-autonomous-overnight):
+`YTD_OT_salary_for_dept × (budgeted_total / budgeted_salary) × (PPs_in_FY / PPs_elapsed)`.
+The `BN8/BN6` ratio is a **salary→total gross-up via the BFM-budgeted ratio**
+(≈1.086 — for every $1 of OT salary actual, the formula assumes $1.086 of true
+OT cost including OT-attributable benefits that BI Payroll can't tag directly).
+
+OPS Summary consumers:
+
+- **DBI H37** = `=Overtime!BS15` = $555,485 (DBI OT projected)
+- **CPC H46** = `=Overtime!BS18` = $4,993 (CPC OT projected)
+
+Both feed the OPS Summary special-class block's H column ("Projected Operating
+Actuals") for their respective dept-group OVERM row.
+
+#### What's manual / fragile
+
+Most fragility is already cataloged in
+[special-class.md § OVERM_E](special-class.md#overm_e--overtime-misc--workbook-extracted-2026-05-24-autonomous-overnight).
+Tab-level additions:
+
+1. **CPC uses the same `BN6`/`BN8` budget literals as DBI** — but CPC's
+   budget should be its own salary + total. Looking at the formula
+   `BS16 = BR16*BN8/I2*J2/BN6`, CPC inherits DBI's salary-to-total gross-up
+   ratio (1.086). For CPC's tiny OT activity this is harmless ($4k); for a
+   larger dept-group with different OT-benefit composition (e.g., a higher
+   premium-cap-OT mix that changes the benefit load), the formula would
+   silently produce wrong CPC projections. KosPos: per-dept-group salary-to-
+   total ratio derived from each dept-group's own BFM budget, not shared.
+2. **No row reserved for "Grand Total" projection.** BS19 is empty by
+   convention. KosPos: the OPS Summary derives the all-dept-groups total
+   from the per-dept-group rows; no separate Grand Total cell to maintain.
+3. **Fund-coded rows (BP6=10190, BP16=10000) are pivot-style sub-rollup
+   labels.** Inserting a third fund (BIF-Continuing 10230 for DBI's
+   billable OT) requires adding rows and shifting the SUM ranges in BS15
+   and BS18. KosPos: query-driven, no row-position dependencies.
+4. **9 DBI rows hardcoded in the SUM(BS6:BS14) range.** If a 10th DBI
+   dept gets OT activity, it lands in row 14a (insert) — which Excel
+   usually picks up — *or* the new dept gets pivoted differently and
+   ends up outside the SUM, in which case it silently disappears from
+   `OPS!H37`. The
+   [Tab 26 OPS Summary § "DBI/CPC block-shape asymmetry"](#tab-26--operating-report-summary)
+   note generalizes this fragility category.
+5. **`BN6` and `BN8` literals are at the same scale as the projection
+   they feed.** If BN6 is updated to FY27's $370,000 but BS6 hasn't
+   re-computed (Excel sometimes caches), the formula silently outputs
+   wrong dollars. Hard to detect without a comparison against the BFM
+   eturn directly.
+6. **Pure-PP annualization** (`/I2*J2`) — same shortcut as PREMM/RTPOM.
+   OT dollars don't COLA-inflate at the rate-of-pay level (OT premium is
+   1.5× of base, base is already COLA-adjusted in BI Payroll). But the
+   gross-up ratio uses budgeted dollars that include COLA. Mostly washes
+   out for OT, but KosPos's COLA-aware default still applies — the
+   function chooses straight-line when COLA inflation doesn't apply.
+
+#### KosPos improvements
+
+Most improvements already documented in
+[special-class.md § OVERM_E TODO resolution](special-class.md#overm_e--overtime-misc--workbook-extracted-2026-05-24-autonomous-overnight)
++ existing OVERM UI in `app/src/modules/special-class/`. Tab-level additions:
+
+##### 1. Per-dept-group salary-to-total gross-up ratio
+
+**Problem:** BN6/BN8 are DBI-specific; CPC inherits via cross-formula. Each
+dept-group should derive its own salary-to-total OT ratio from its own BFM
+budget.
+
+**KosPos design.** When the BFM importer ingests the special-class summary
+rows, persist `dept_group → {ot_salary_budget, ot_total_budget,
+ot_gross_up_ratio}`. The projection function takes (dept_group, ytd_salary)
+and applies that dept-group's ratio, not a shared one.
+
+##### 2. Per-person OT pattern detection
+
+**Problem:** the pivot has per-person YTD detail (`Person Full Name` row
+field, per-PP hours in cols F:AB) but the projection only uses the
+dept-aggregated number. Anomalous individual patterns — one person racking
+up 40+ OT hours per PP for the last 6 PPs — are invisible until someone
+manually scans the pivot.
+
+**KosPos design.** Surface as a Data Issue: "Person X (Job Class Y) has
+worked >Z OT hours/PP for the last N PPs — possible misclassification of
+a regular schedule, or a workload signal." Threshold tunable; default to
+flag anything 3σ above the dept-group's per-person mean over the last 8 PPs.
+
+##### 3. T&L-based OT-benefit derivation (future)
+
+Already noted in special-class.md § OVERM_E. When a T&L (Time & Labor)
+importer exists, replace the budgeted salary-to-total ratio with the actual
+per-PP OT-benefit posting. Today's ratio is the conservative second-best.
+
+##### 4. PP1–PP3 zero-activity collapse
+
+**Problem:** the pivot has 27 PPE columns reserved but at this snapshot
+PP1–PP3 had zero Misc OT activity, so they're collapsed out of the
+visible pivot. The OPS!H37 projection doesn't notice — it's already
+working off the row totals. But the per-PP trend in the KosPos UI should
+display all 27 columns (with empty cells where no activity) so the user
+sees the seasonality correctly.
+
+**KosPos design.** Per-PP trend chart always shows the full PP set;
+zero-activity PPs render as gaps, not as collapsed columns.
+
+#### KosPos UI sketch
+
+Mirrors [Tab 16 Premium § KosPos UI sketch](#tab-16--premium):
+
+```
+DBI · Overtime (OVERM) · FY26 · as of PP 22 of 26.1
+┌────────────────────────────────────────────────────────────────────┐
+│ Total Budget    YTD Actual    YTD Pace    Projected    Variance    │
+│  $380,000       $438,786       $326,130    $555,485    -$175,485   │
+└────────────────────────────────────────────────────────────────────┘
+
+By dept (FY26 YTD)                          By person (top 5)
+  DBI PS Plan Review            $186k         Trevor Byrne          $9,000
+  DBI IS Electrical Inspection  $186k         (other names redacted in mock)
+  DBI IS Plumbing Inspection    $17k          ...
+  ... (6 more depts)
+                                            
+Year-end projection breakdown
+  YTD OT salary actuals              $438,786
+  Annualize to FY end (× 26.1/22.4)  $510,000  (pure-PP shown for parity)
+                                     $511,000  (COLA-aware, KosPos default — same to ±0.1%)
+  Salary → Total gross-up (× 1.086)  $555,485  (= projected total OT cost)
+  ────                              ─────────
+  Projected total                  $555,485    matches workbook BS15
+```
+
+Per-PP trend chart underneath: line chart with FY week-by-week OT
+salary $ + a band showing the budget pace.
+
+#### Excel export notes
+
+- Mirror A5:BA114 layout for the pivot (live data, no paste-snapshot).
+- BP5:BS19 projection panel emitted with the same shape but with
+  per-dept-group salary-to-total ratios broken out (one block per
+  dept-group, not a single `BN6/BN8` constant).
+- Named ranges: `DBI_OVERM_SalaryBudget`, `DBI_OVERM_TotalBudget`,
+  `DBI_OVERM_GrossUpRatio`, etc.
+- Add an explicit `Projection Methodology` block at the bottom citing
+  the BN6/BN8 source and the salary-to-total gross-up reasoning.
+
+#### Open questions / TODO
+
+All seven open questions for OVERM_E were resolved in Session 11 — see
+[special-class.md § OVERM_E TODO resolution status](special-class.md#overm_e--overtime-misc--workbook-extracted-2026-05-24-autonomous-overnight).
+Tab-walkthrough additions:
+
+- [ ] **CPC OT projection uses DBI's BN6/BN8 ratio.** Confirm with Alex
+      whether this is intentional (CPC's OT is too small to bother with
+      its own budget) or an oversight. KosPos: per-dept-group ratio
+      regardless of size.
+- [ ] **Per-PP trend visualization.** Confirm Alex's preference: line
+      chart, bar chart, or sparkline-in-table.
+- [ ] **Per-person anomaly threshold.** What's the "this person is
+      working too much OT" threshold? Probably 80 hrs/PP is the absolute
+      cap (you can't work more than 100% of a PP). Below that, flag at
+      3σ vs dept-group mean? At 40 hrs/PP regardless?
+- [ ] **Reconcile against [Task B BVA reconciliation suite](../audits/bva-reconciliation-suite.md)**
+      Test 3 — does BVA show the same per-chartfield OT total as
+      BI Payroll filtered by Account = "Overtime - Scheduled Misc"?
+      Should be a clean reconciliation.
+
+---
 
 ---
 
 ### Tab 18 — Step
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** Per-position step-savings YTD + projection. **Formulas are complicated**;
-Alex flagged that COLA shortcuts may exist in the math and wants to review carefully.
+**Purpose:** **Per-position YTD step-variance and year-end step-savings projection**
+for the special-class line STEPM. The most complex of the four per-special-class
+tabs — by far. Five layers of per-position math:
 
-**Source SUMIFS shape (decoded during Tab 7 walkthrough):** the `S` column
-(`YTD Operating STEP Actual`) is `SUM(BY2:CY2)`, where each `BY..CY` cell is one PP.
-Per-PP cell: `SUMIFS('BI Payroll'!AL, AD=position, X=PPE, F=10190) − SUMIFS(... V="Overtime
-- Scheduled Misc") − SUMIFS(... V="Ret Payout - SP & Vac - Misc") − SUMIFS(... V="Premium
-Pay - Misc") − SUMIFS(... V="Temp Misc LumpSum Payoff")`. **Fund 10190 filter is a DBI
-shortcut** — silently zeroes out CPC + DBI's BIF-Continuing (10230) positions. 32,670
-cells reference BI Payroll on this tab. See Tab 7 § How each downstream tab consumes BI
-Payroll.
+1. **Position spine (A:Q, 17 cols)** — copy of the position roster (Effective
+   Division → Dept → Budget Dept Code → Position Number → Fill Status → Job
+   Code → Appointment Type → Budget Job Code → Names → Manager → Roster →
+   Budgeted Dept → Combo Dept).
+2. **Per-position totals (R, S, T)** — Total Budget, YTD STEP Actual,
+   Projected STEP Actual.
+3. **Per-PP YTD salary actuals (U:AU, 27 PPs)** — per-PP salary actuals
+   excluding OT, RPO, Premium, TEMP (= step-eligible salary only).
+4. **Per-PP step-flagged hours (AW:BW, 27 PPs)** — per-PP hours flagged
+   `Step Indicator = "Y"` in BI Payroll col AI (the step-relevant earnings
+   only — regular pay, vacation, sick, holiday; NOT overtime, premium, or
+   payouts).
+5. **Per-PP step variance (BY:CY, 27 PPs)** — the heart of step math:
+   per-PP actual minus prorated budget, scaled by the step-hours share of the
+   80-hour PP.
 
-**Existing math reference:** [`special-class.md`](special-class.md) § STEPM_C (partial
-— per-position cell map captured; `BY2` per-PP variance formula known to use
-`XLOOKUP(BY1, Calendar!B, Calendar!C) * 80` denominator with 80-hour PP assumption baked
-in, per [`definitions.md`](definitions.md)).
+The S column = `SUM(BY:CY)` per position. The T column projects forward to FY
+end using a clever pre-vs-post-COLA switching rule. OPS Summary row 39 (DBI)
+and row 48 (CPC) split Step's per-position rows by Effective Division =
+"Planning" → CPC, all other → DBI.
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough — Alex to confirm COLA treatment in `BY2`)_
+**Snapshot scope.** 605 data rows × 103 cols (A:CY). Division split: 267
+Planning (CPC) + 153 DBI Inspection Services + 111 DBI Permit Services + 73
+DBI AdminIstration + 1 blank. Appointment-type spread: 429 PCS / 88 vacant /
+35 ELC / 29 PEX / 19 TEX / 5 TPV. Every position appears even if it has
+zero step variance — the COUNTIF guard zeroes out duplicate rows for pool
+positions (same Position Number, multiple incumbents).
+
+#### Data sources
+
+- **Position spine + salary actuals:** [Tab 6 P&P Data](#tab-6--pp-data) +
+  [Tab 7 BI Payroll](#tab-7--bi-payroll). The U:AU per-PP cells issue
+  per-(position, PP) SUMIFS against BI Payroll's `AL` (Balance Amount)
+  column, joined on `AD` (Position Number) and `X` (Earning Period End
+  Date), filtered to `F = 10190` (DBI operating fund — a **DBI shortcut**,
+  see § Manual / fragile).
+- **Step-flagged hours:** BI Payroll col `AI` is a workbook-internal column
+  set on import = `"Y"` for earnings that count toward step (regular pay,
+  vacation, sick, holiday). The AW:BW cells SUMIFS BI Payroll's `AJ` (hours)
+  column with the same per-(position, PP) filter, plus `AI = "Y"`.
+- **Budget:** R column = `SUMIFS('BFM 15.10.006 FY26'!AX, ..., D = Position
+  Number)`, summing the Technical-Adjustment budget per position. **Uses BFM
+  col AX (Technical Adjustment), not AZ (Board-adopted)** — same staleness
+  bug as [Tab 20 Report Data § Manual / fragile](#whats-manual--fragile-6);
+  the catalog item is already in [cross-cutting concerns](#multi-dept-generalization-caveats-dbi-shortcuts-to-undo).
+- **Calendar constants:** the per-PP variance formula uses Calendar `B`
+  (PPE date), `C` (PP%), `E` (per-PP COLA delta), `H2` (today's PPE), `K2`
+  (pure remaining PPs), `L2` (COLA effective date), `N2` (total COLA PPs),
+  `O2` (COLA-weighted remaining). **Step is the workbook's heaviest
+  Calendar consumer** (~49k cell refs per Tab 5 walkthrough).
+- **Refresh cadence:** rebuilt per PP from the BI Payroll re-import.
+
+#### Structure — position spine + totals (A:T)
+
+| Col | Header | Source / Formula |
+|---|---|---|
+| A | Effective Employee Division | from P&P Data |
+| B | Effective Employee Department | from P&P Data |
+| C | Budget Department Code 1 | from P&P Data |
+| **D** | **Position Number** | from P&P Data — **primary key** |
+| E | Position Fill Status | from P&P Data |
+| F | Employee Job Code | from P&P Data |
+| G | Employee Appointment Type | from P&P Data |
+| H | Budget Job Code | from P&P Data |
+| I | Employee First Name | from P&P Data |
+| J | Employee Last Name | from P&P Data |
+| K | Employee Name Vice 1 | from P&P Data |
+| L | Manager First Name | from P&P Data |
+| M | Manager Last Name | from P&P Data |
+| N | Roster Code | from P&P Data |
+| O | Roster Code Description | from P&P Data |
+| P | Budgeted Department | from P&P Data |
+| Q | Combo CD DEPT Description | from P&P Data |
+| **R** | **Total Budget** | `=IF(COUNTIF($D$2:D2,D2)>1, 0, SUMIFS('BFM 15.10.006 FY26'!$AX, ...$D, D2))` |
+| **S** | **YTD Operating STEP Actual** | `=SUM(BY2:CY2)` |
+| **T** | **Projected Operating STEP Actual** | (formula below) |
+
+**COUNTIF guard on every per-position cell** (R, S/sum-source U, T-via-BY):
+`IF(COUNTIF($D$2:D2, D2)>1, 0, ...)`. This zeros out duplicate rows for **pool
+positions** — positions with `Position Max Headcount > 1` where one Position
+Number serves multiple bodies (commissioners, some temps). The first
+occurrence of a Position Number gets the full SUMIFS; subsequent occurrences
+get zero. Prevents double-counting at the dept rollup.
+
+#### Structure — per-PP YTD salary actuals (U:AU)
+
+**Headers:** `U1 = =Calendar!B2` (PP1 PPE 2025-07-04) through `AU1 =
+=Calendar!B28` (PP27 PPE 2026-06-30). Cols mirror Calendar rows 2–28.
+
+**Per-PP cell formula:**
+
+```excel
+U2 = IF(COUNTIF($D$2:$D2, $D2)>1, 0,
+       SUMIFS('BI Payroll'!$AL, 'BI Payroll'!$AD, $D2, 'BI Payroll'!$X, U$1, 'BI Payroll'!$F, 10190)
+     - SUMIFS('BI Payroll'!$AL, 'BI Payroll'!$AD, $D2, 'BI Payroll'!$X, U$1, 'BI Payroll'!$F, 10190, 'BI Payroll'!$V, "Overtime - Scheduled Misc")
+     - SUMIFS('BI Payroll'!$AL, 'BI Payroll'!$AD, $D2, 'BI Payroll'!$X, U$1, 'BI Payroll'!$F, 10190, 'BI Payroll'!$V, "Ret Payout - SP & Vac - Misc")
+     - SUMIFS('BI Payroll'!$AL, 'BI Payroll'!$AD, $D2, 'BI Payroll'!$X, U$1, 'BI Payroll'!$F, 10190, 'BI Payroll'!$V, "Premium Pay - Misc")
+     - SUMIFS('BI Payroll'!$AL, 'BI Payroll'!$AD, $D2, 'BI Payroll'!$X, U$1, 'BI Payroll'!$F, 10190, 'BI Payroll'!$V, "Temp Misc LumpSum Payoff"))
+```
+
+Decoded: **per-(position, PPE, fund=10190) total salary, minus the four
+non-step earnings categories (OT, RPO, PREMM, TEMPM lump sum)**. The
+remainder is the step-eligible salary actuals for that position × PP.
+
+Why subtract: the BI Payroll pivot table doesn't have a "step-only" earnings
+category, so Step computes it residually. Earnings types NOT subtracted but
+still in U include: regular pay, vacation, sick, holiday, comp time used —
+all of which count toward step.
+
+#### Structure — per-PP step-flagged hours (AW:BW)
+
+**Headers:** `AW1 = =U1`, `AX1 = =V1`, ... — same PPE dates as U:AU.
+
+**Per-PP cell formula:**
+
+```excel
+AW2 = IF(COUNTIF($D$2:$D2, $D2)>1, 0,
+        SUMIFS('BI Payroll'!$AJ, 'BI Payroll'!$AD, $D2, 'BI Payroll'!$X, AW$1, 'BI Payroll'!$F, 10190, 'BI Payroll'!$AI, "Y"))
+```
+
+`'BI Payroll'!AI` is a workbook-internal column added on import = `"Y"` for
+step-eligible TRC (Time Reporting Codes), blank otherwise. `AJ` = Earning
+Hours. So `AW2` = **per-(position, PPE) step-flagged hours**.
+
+Worked example: position 1106950 (Lewis-Koskinen — Alex's own seat) at PP1
+shows `AW2 = 32` (4-day partial PP; 32 of 32 weekday-hours all step-flagged
+because the position is exempt PCS with regular schedule), then 80 hours/PP
+sustained through the FY.
+
+#### Structure — per-PP step variance (BY:CY) — the heart of the math
+
+**Headers:** `BY1 = =AW1`, ... — same PPE dates.
+
+**Per-PP cell formula:**
+
+```excel
+BY2 = IF(U2 = 0, 0,
+         U2 - ((XLOOKUP(BY$1, Calendar!$B, Calendar!$C) + XLOOKUP(BY$1, Calendar!$B, Calendar!$E))
+                / Calendar!$N$2) * $R2)
+      * AW2 / (XLOOKUP(BY$1, Calendar!$B, Calendar!$C) * 80)
+```
+
+**Decoded in two parts.**
+
+Part 1 — **how much over/under the prorated budget for this PP**:
+
+```
+prorated_budget_this_PP = ((PP_fraction + COLA_delta_at_PP) / total_COLA_PPs) × position_total_budget
+over_under = actual_salary_this_PP − prorated_budget_this_PP
+```
+
+- `PP_fraction` (Calendar!C) = 1.0 for full PPs, ~0.4 for PP1, ~0.7 for PP27.
+- `COLA_delta_at_PP` (Calendar!E) = 0 for pre-COLA PPs, 0.015 for post-COLA
+  PPs (FY26 SEIU 1021 Misc Jan 3, 2026 +1.5%).
+- `total_COLA_PPs` (Calendar!N2) = 26.295 (≈ 26.3) — the synthetic
+  COLA-weighted PP count (per [Calendar § "The 26.3 trick"](#tab-5--calendar)).
+- `position_total_budget` (R2) = the position's full-year BFM budget.
+
+So a position's prorated budget for any given PP is its share of the FY's
+COLA-weighted PP count, weighted by both the PP's own fraction (full or
+partial) and any COLA effect kicking in during that PP. **This is COLA-aware
+per-PP proration** — not a shortcut.
+
+Part 2 — **scale by step-hours share of the 80-hour PP**:
+
+```
+step_share_of_PP = AW2 / (PP_fraction × 80)
+```
+
+`PP_fraction × 80` = the maximum hours possible in that PP (full PP = 80,
+PP1 partial = 32). `AW2` = the position's step-flagged hours that actually
+posted. Ratio = "what fraction of this PP did the position spend on step-
+eligible work."
+
+**Final per-PP variance** = `over_under × step_share_of_PP`.
+
+In words: **for each PP, take how far over (or under) budget the position
+ran, then attribute only the step-eligible hours' share of that variance
+to STEP**. The rest goes to whichever bucket the non-step earnings posted to
+(OT, RPO, PREMM, TEMP) — and those buckets have their own per-class lines.
+
+**Convention:** if the position has zero salary actual for the PP (U2 = 0,
+i.e., position was vacant or person was on unpaid leave that whole PP), the
+variance is forced to 0. Avoids attributing a "fully under budget" variance
+to STEP when the person simply wasn't there.
+
+#### Structure — year-end projection (T column)
+
+```excel
+T2 = S2
+   + INDEX($BY2:$CY2, 1, XLOOKUP(Calendar!$H$2, Calendar!$B, Calendar!$A))
+     / XLOOKUP(Calendar!$H$2, Calendar!B, Calendar!C)
+     × IF(Calendar!$H$2 >= Calendar!$L$2, Calendar!$K$2, Calendar!$O$2)
+```
+
+Decoded:
+
+1. **YTD step variance** (S2 = sum of BY:CY for elapsed PPs).
+2. **Annualize the current-PP variance:** `INDEX(BY:CY, 1, current_PP_index) /
+   current_PP_fraction × remaining_PPs`. `XLOOKUP(H2, Calendar!B, Calendar!A)`
+   returns the current PP number; `INDEX` pulls that column's variance from
+   the BY:CY array; divide by `PP_fraction` (Calendar!C) to get the per-full-
+   PP rate; multiply by `remaining_PPs`.
+3. **Pre-vs-post-COLA switching for `remaining_PPs`:**
+   - If `today's PPE ≥ COLA effective date (L2 = 2026-01-16)` → use pure-PP
+     remaining (`Calendar!K2`).
+   - Otherwise → use COLA-weighted remaining (`Calendar!O2`).
+4. Add to S2.
+
+**Why the switch.** Pre-COLA: the projection assumes the remaining PPs
+include the COLA delta (which inflates per-PP step variance because budget
+proration suddenly absorbs more per PP). Post-COLA: the COLA has already
+landed; remaining PPs are at the new wage with no further COLA delta to add.
+The math is internally consistent with the per-PP proration in BY:CY: it
+uses the COLA-weighted denominator pre-COLA and the pure-PP denominator
+post-COLA, matching whatever proration logic was in effect when the run-rate
+sample (current-PP variance) was taken.
+
+OPS Summary consumers:
+
+- **DBI E39** = `=SUM(Step!S:S) − SUMIFS(Step!S, A, "Planning")` = -$884,974
+  (verified ✓ via summing Step's S col by Division).
+- **DBI H39** = `=SUM(Step!T:T) − SUMIFS(Step!T, A, "Planning")` = -$939,939
+  (verified ✓).
+- **CPC E48** = `=SUMIFS(Step!S, A, "Planning")` = $5,247 (CPC's STEP value
+  is tiny because Planning's positions are mostly TEMPM-flagged or MCCP-Range
+  positions; step variance is near-zero by structure).
+- **CPC H48** = `=SUMIFS(Step!T, A, "Planning")` = $5,247.
+
+#### What's manual / fragile
+
+1. **`'BI Payroll'!F = 10190` filter on every U:AU and AW:BW cell.** DBI
+   shortcut. Silently zeroes CPC positions (CPC operates in fund 10000) and
+   DBI's BIF-Continuing positions (fund 10230). CPC's Step rows in this
+   workbook therefore show $0 for U:AU and AW:BW — but the Effective
+   Division is `Planning`, so OPS Summary still attributes them to CPC. The
+   $5,247 CPC step value comes from a handful of rows where the position
+   posted to 10190 for some reason. **The fund filter needs to come from
+   `dept_group.operating_funds`**, already cataloged in [cross-cutting
+   concerns](#multi-dept-generalization-caveats-dbi-shortcuts-to-undo).
+2. **BFM AX column (Technical Adjustment) in R formula.** Should be AZ
+   (Board-adopted). Same staleness pattern as Tab 20. KosPos default = AZ;
+   user can switch to other budget layers (Original / Department / Mayor /
+   Committee / Technical Adjustment) for variance views.
+3. **80 hours per PP hardcoded** in the variance denominator. The PP1
+   partial and PP27 partial don't have 80 hours available (they have
+   `PP_fraction × 80` = 32 / 56). The formula compensates by multiplying
+   `PP_fraction × 80` instead of literal 80, so it's actually self-correcting
+   for partial PPs. **But the 80-hour assumption ignores Fire dept** (Fire
+   has a different schedule — see [definitions.md § Pay Period](definitions.md#pay-period-pp)
+   for the 56-hour-week Platoon schedule note). For DBI/CPC this is fine;
+   for future Fire-dept rollout the per-PP-hours constant must be looked up
+   from the bargaining unit's schedule.
+4. **Four hardcoded earnings-code subtractions in U:AU** (`"Overtime -
+   Scheduled Misc"`, `"Ret Payout - SP & Vac - Misc"`, `"Premium Pay - Misc"`,
+   `"Temp Misc LumpSum Payoff"`). If the Controller renames any of these
+   account descriptions, the SUMIFS silently goes to 0, and the position's
+   step variance silently *includes* the non-step earnings (over-attributing
+   variance to STEP). KosPos: derive step-eligibility from the BI Payroll
+   `Step Indicator` flag (AI = "Y") directly, not by subtracting non-step
+   buckets. This collapses U into a single SUMIFS and eliminates the four
+   literal account descriptions.
+5. **Step Indicator column AI is a workbook-internal value.** Set on import,
+   not in OBI source. If the import script's TRC-to-Step-Indicator mapping
+   drifts, every step variance silently changes. **KosPos:** explicit
+   TRC-to-step-eligibility table in `lib/labor/step-eligibility.ts`,
+   versioned by effective date, with the source MOU citation per TRC.
+6. **COUNTIF guard at every cell** (R, S, U, AW, BY, ...). Inefficient
+   (O(n²) eval per workbook recalc) and obscures the math intent. KosPos:
+   pool positions get their `Position Max Headcount > 1` flag preserved;
+   the rollup function knows to count each position once regardless of
+   incumbent count.
+7. **`BY2`'s structure assumes `position_total_budget` (R2) is allocated
+   evenly across PPs proportional to PP_fraction + COLA_delta.** True for
+   positions with no merit-step events during the year. For a position that
+   gets a step bump mid-year, the budget allocation should rise after the
+   step date. The BY:CY formula doesn't know about step events — it just
+   prorates the FY total uniformly across COLA-weighted PPs. STEPM correctly
+   captures the *variance* (because actuals jump too), but the **per-PP
+   proration is theoretical, not actual**. Step-variance is correct in
+   aggregate (S column sums to the right number) but the per-PP attribution
+   is approximate.
+8. **MCCP positions get folded into Step** — the per-position variance
+   formula treats MCCP positions the same as step positions, which is
+   conceptually wrong:
+   - **Step positions:** budget at top regular step; actual at incumbent's
+     current step; STEPM credit = difference. Per-PP variance formula
+     correctly captures it.
+   - **MCCP positions:** budget at top of Range A; actual anywhere in
+     Range A/B/C; **9994 MCCP Offset credit = difference**. The variance
+     mechanism is the same shape but the bucket is different. Today's
+     formula attributes the MCCP offset to STEPM in the per-position math;
+     the OPS Summary's `SUMIFS(Step, "Planning", ...)` happens to pick up
+     CPC MCCP and route it to CPC's row, but that's a happy accident of
+     CPC being mostly MCCP. **DBI has MCCP positions too** (a small
+     handful, e.g., MCCP-classified Deputy Directors) and their offsets
+     leak into the DBI STEPM line. See § KosPos improvements #1 below for
+     the proposed split.
+9. **103-col-wide tab is slow to recalc.** Every per-PP cell does 4 SUMIFS
+   against BI Payroll (~40k rows). 605 positions × 27 PPs × (U + AW + BY) =
+   ~50k cells; each does 1–5 SUMIFS = up to 250k SUMIFS evaluations per
+   workbook recalc. Excel handles it but reopens are slow. KosPos: same
+   math as a single SQL query against the position-by-PP grid.
+
+#### KosPos improvements
+
+##### 1. Split MCCP Offset into its own special-class tab (9994)
+
+**Alex's flag** (carried forward from Phase 4 / Session 8 [special-class.md
+§ 9994](special-class.md#9994m_c--mccp-offset-misc--pending-walkthrough),
+re-flagged in this session's prompt): **MCCP handling needs splitting out
+from STEPM**.
+
+**The conceptual distinction:**
+
+| | **STEPM (step classes)** | **9994 (MCCP)** |
+|---|---|---|
+| Budget assumption | Top regular step | Top of Range A |
+| Actual position | At incumbent's current step (1–10 typically) | Anywhere in Range A / Range B / Range C |
+| Adjustment classification | Step Adjustments - Misc (account 5050xx) | MCCP Offset - Misc (separate account) |
+| Reference axis | DHR salary steps table | DHR MCCP range table |
+| Per-position math | Top-step budget − projected step actual | Range-A-top budget − projected range actual |
+| Mid-year change | Merit step bump auto-advances on Merit Increase Date | Performance review can re-set within range (not auto) |
+
+The math shape is the same — both compute `(budget − projected_actual)` per
+position — but the **reference data** is different (Steps table vs MCCP
+Ranges table) and the **accounts they post to** are different (50xx Step
+Adjustments vs the MCCP Offset account family).
+
+**KosPos design.** Two separate special-class surfaces:
+
+- **STEPM tab (this Tab 18, rebuilt):** per-position step-class adjustments,
+  using the DHR salary-steps reference data, posting to STEPM account.
+  Excludes MCCP positions (filtered out by `job_class.is_mccp = false`).
+- **MCCP Offset tab (new, to be drafted in Phase 2.0h):** per-position MCCP
+  offset, using the DHR MCCP-range reference data, posting to MCCP Offset
+  account. Includes only MCCP positions. Each position's offset = (Range A
+  top − incumbent's current rate × annualized).
+
+This eliminates the OPS Summary CPC asymmetry where MCCP Offset (row 49)
+gets a hardcoded budget cell but no E/H formulas — because under the split,
+9994 is its own row with its own per-tab YTD + projection treatment.
+
+DBI's small MCCP population (handful of Deputy Directors) gets correctly
+routed to a DBI 9994 row in the rebuilt OPS Summary instead of leaking
+into DBI STEPM. Visibility improves; reconciliation closure tightens.
+
+**Tab order in KosPos:** Step, MCCP Offset, ... — kept adjacent to make
+the conceptual pair obvious in the UI.
+
+##### 2. Step-eligibility from BI Payroll TRC table, not residual subtraction
+
+**Problem in the workbook.** U:AU = "all salary minus four hardcoded
+non-step earnings categories." The four are literal account-description
+strings. If the chart of accounts is renamed, the subtraction silently
+fails open (variance over-attributed to STEPM).
+
+**KosPos design.** Source step-eligibility from BI Payroll's TRC (Time
+Reporting Code) directly:
+
+```ts
+type StepEligibleTRC = {
+  trc_code: string;
+  trc_description: string;
+  step_eligible: true;
+  effective_start: Date;
+  effective_end: Date | null;
+  mou_citation: string;
+};
+```
+
+The labor-data importer joins BI Payroll's TRC code against this lookup
+to set `is_step_eligible` per BI Payroll row at import time. Step variance
+then sums positively (only step-eligible $ included) instead of negatively
+(everything minus non-step). Eliminates the four literal subtractions.
+
+##### 3. Surface step-event awareness
+
+**Problem in the workbook.** BY2's per-PP proration assumes the position's
+budget is uniformly spread across PPs — including the assumption that the
+employee's pay rate is constant within the FY. In reality, employees on
+Step 1–9 typically advance one step on their Merit Increase Date (col AJ of
+P&P Data). The proration absorbs this incorrectly: post-merit PPs cost
+more per PP than pre-merit, but the formula treats them equally.
+
+The aggregate S column sums correctly (because actuals also rise post-
+merit, so variance washes out at year-end), but **the per-PP variance values
+themselves drift** — pre-merit PPs show under-budget variance (too generous),
+post-merit PPs show over-budget variance (too tight). Misleading for trend
+visualization.
+
+**KosPos design.** Per-PP proration takes the **expected rate at that PP**
+into account, derived from each employee's step history + future Merit
+Increase Date. Aggregate variance unchanged; per-PP variance becomes
+meaningful (zero variance when employees are on plan; positive variance
+only when actuals differ from expected).
+
+##### 4. Pool position handling
+
+**Problem:** the COUNTIF guard absorbs pool positions by zeroing duplicate
+rows. Loses the per-incumbent visibility.
+
+**KosPos design:** pool positions modeled with explicit `max_headcount > 1`
+attribute. The variance rollup function knows to attribute one prorated
+budget share per Position Number (not per incumbent), but **the per-PP
+variance breakdown can drill into per-incumbent detail** (which body in
+the pool contributed how much variance). Today's workbook can't do this.
+
+##### 5. Per-FY constants pulled live
+
+**Problem:** PP-hours assumption (80) hardcoded; subset of dept-groups
+(DBI 10190 only). Both already cataloged.
+
+**KosPos design:** per-bargaining-unit per-PP-hours from the MOU's schedule
+article; per-dept-group operating-fund-set from BFM.
+
+#### KosPos UI sketch
+
+**Step Savings page** — one of the per-special-class cards. Different layout
+from Premium/Overtime because Step is per-position, not per-earnings-code:
+
+```
+DBI · Step Savings (STEPM) · FY26 · as of PP 22 of 26.1
+┌────────────────────────────────────────────────────────────────────┐
+│ Total Budget    YTD Actual    YTD Pace    Projected    Variance    │
+│  -$586,292      -$884,974     -$503,178   -$939,939    +$353,647   │
+└────────────────────────────────────────────────────────────────────┘
+                                                  (credit; positive = more savings)
+
+By position (top 5 contributors to projected savings)
+  POS 1106950  Lewis-Koskinen   Class 953  -$8,932   (1 step below top)
+  POS 11xxxxx  Smith,John       Class 6248 -$7,621   (3 steps below top)
+  POS 11xxxxx  Doe,Jane         Class 6270 -$6,884
+  POS 11xxxxx  ... (vacant)     Class 6248 -$5,500   (vacancy savings)
+  POS 11xxxxx  ... (vacant)     Class 1450 -$4,732
+                                                  
+Step events this FY
+  PP15 merit advances: 47 positions advanced 1 step (Jan 16, 2026)
+  PP12 reclasses: 3 positions to higher class (Dec 5, 2025)
+                                                  
+Year-end projection breakdown
+  YTD step actual variance                  -$884,974
+  Current-PP run-rate × remaining PPs       -$54,965    (pre-COLA switch: ÷ O2; post-COLA: ÷ K2)
+  Step event adjustments (planned merits)   $0          (none scheduled past PP22)
+  ────                                     ─────────
+  Projected total                          -$939,939
+```
+
+Position drill-down: click a row → per-position step trajectory chart
+showing PP-by-PP variance + step-event annotations.
+
+#### Excel export notes
+
+- Mirror A:T layout (per-position spine + totals).
+- U:AU per-PP YTD salary actuals — emitted from the live query, no
+  per-cell SUMIFS chain.
+- AW:BW per-PP step-flagged hours — emitted from the live query.
+- BY:CY per-PP step variance — emitted with the same proration formula,
+  using whichever salary-rate source KosPos has (step-event-aware in
+  improvement #3 mode, uniform proration in legacy-parity mode).
+- **Named ranges:** `STEPM_DBI_TotalActual`, `STEPM_DBI_TotalProjection`,
+  `STEPM_PerPosition[positionNumber].variance`, etc.
+- **MCCP positions excluded** when KosPos has split MCCP into its own tab
+  (improvement #1). Excel export emits two sheets: `Step` (step-class
+  positions only) and `MCCP Offset` (MCCP positions only).
+
+#### Open questions / TODO
+
+- [ ] **Reasonable-default call (this session, per Alex's session prompt):**
+      KosPos splits MCCP into its own tab (9994). Aligns with the deferred
+      reasonable-default #3 in [Tab 26 open questions](#open-questions--todo-7).
+      No correction needed — Alex's session prompt explicitly endorses this.
+- [ ] **Confirm step-event awareness (improvement #3) is wanted.** Adds
+      modeling complexity; benefit is meaningful per-PP variance display.
+      Possibly defer to a Phase 2.2 sub-phase.
+- [ ] **Confirm BI Payroll col AI (`Step Indicator = "Y"`) value-set is
+      authoritative.** The workbook treats `"Y"` as the only step-eligible
+      flag value. Are there other values (`"P"` partial? `"E"` exempt?) we
+      need to handle?
+- [ ] **Step events extraction.** Where in the data sources are merit-step
+      events? P&P Data col AJ = `Employee Merit Increase Date` gives the
+      *next* event date but not history. For step-event-aware projection
+      we need a per-employee step history from PS HCM.
+- [ ] **MCCP range data source.** The 9994 tab walkthrough (deferred to
+      Phase 2.0h) needs DHR's MCCP range table. Confirm location with
+      Alex; if it lives in `15.15.022 - SF MCCP Pay Tables FY26.xlsx`
+      (already in [`data-sources/reports-folder-inventory.md`](../data-sources/reports-folder-inventory.md)),
+      tag the importer requirement.
+- [ ] **Pool positions in Step.** Confirm whether pool positions
+      (e.g., commissioner positions with 30 incumbents) carry meaningful
+      step variance or whether their COUNTIF-zeroed pattern is correct
+      end-to-end. Suspect they're all TEMPM-classified so the variance is
+      zero regardless, but verify.
+- [ ] **Cross-check against [Task B BVA reconciliation](../audits/bva-reconciliation-suite.md)**:
+      does BVA show STEPM total = $586,292 budget for DBI? If the BFM
+      special-class summary rows the SPECIAL block in Tab 20 reads from
+      reconcile, then OPS!G39 should match.
+
+---
 
 ---
 
 ### Tab 19 — Retirement Payout
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** Per-employee retirement-payout actuals YTD + year-end projection. Data
-from BI Payroll (earnings codes VPO, SVO).
+**Purpose:** **Per-(dept-group × dept × job class × person × earnings code × PP) YTD
+retirement-payout actuals** for the special-class line RTPOM. Pure pivot, no
+projection panel — the year-end projection lives in OPS Summary as
+`H38 = IF(Calendar!K2=0, E38, MAX(G38, E38))` (already documented in
+[special-class.md § RTPOM_E year-end projection](special-class.md#rtpom_e--retirement-payout-account-510210--walked-through-2026-05-23)).
 
-**Source pivot (decoded during Tab 7 walkthrough):** `Retirement Payout!A5:AF66`
-(pivotTable15 on `pivotCacheDefinition6.xml`). Page filter `Account Description =
-"(Multiple Items)"` — inferred to be accounts `510210` "Ret Payout - SP & Vac - Misc"
-+ `505060` "Temp Misc LumpSum Payoff" (the temp parallel). Row fields: Dept Grp →
-Dept → Job Code → Job Desc → Person → Earn Code → Earn Desc. Col fields: Fund Code
-(outer) × Earning Period End Date (inner). Data field: `Sum of Balance Amount`.
-**OPS!E38 rolls up by `Department Group Code = "DBI"`**, not by fund — so picks up
-both 510210 and 505060 for the whole DBI group regardless of fund. Snapshot
-reconciliation: account totals $721k vs earnings-code totals (VPO + SVO) $683k —
-$38k spread to investigate (see Tab 7 § Open questions). See Tab 7 § How each
-downstream tab consumes BI Payroll.
+This is the simplest of the four per-special-class tabs structurally — a single
+pivot with no auxiliary panels — but the **per-employee detail it surfaces is the
+most operationally interesting**. Each row names a specific person, the earnings
+codes they cashed out, when, and how much. This is the per-employee retirement-
+payout data Alex would use to recognize patterns and identify candidates for
+the per-employee scenario builder deferred from Phase 4 (Session 9).
 
-**Existing math reference:** [`special-class.md`](special-class.md) § RTPOM_E (fully
-documented; `H38 = IF(Calendar!K2=0, E38, MAX(G38, E38))` projection).
+**Snapshot scope.** 66 rows × 70 cols (A:BR; visible projection slice A:AF). Two
+dept-group blocks (CPC rows 6–8 envt planning + 9–13 community equity + 14–15
+exec office + 16–18 citywide + 19–... current planning ; DBI rows starting
+around row 30). Two row totals (row 65 DBI Total $359,014, row 66 Grand Total).
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough)_
+#### Data sources
+
+- **Source:** OBI BI Payroll, page-filtered to **two accounts** rolled up via
+  the `"(Multiple Items)"` selection in B1:
+  - **`510210`** "Ret Payout - SP & Vac - Misc" — the main retirement-payout
+    account (vacation pay out + vested-sick / wellness pay out — see
+    [special-class.md § RTPOM_E per-employee math](special-class.md#per-employee-payout-math--eligibility-rules)
+    for the eligibility research).
+  - **`505060`** "Temp Misc LumpSum Payoff" — the temp parallel (temp
+    employees' final payouts).
+  
+  Pivot cache = `pivotCacheDefinition6.xml` (BI Payroll source).
+- **Earnings codes in account 510210:**
+  - **`VPO`** (Vacation Pay Out) — every position pays this out.
+  - **`SVO`** (Severance Pay Out) — only for positions with vested sick /
+    wellness pay eligibility.
+  - **`CPO`** (Comp Time Pay Out) — **third earnings code newly identified
+    this session** at row 61 (DBI PS Technical Support). Per the Phase 4
+    RTPOM research, SEIU 1021 ¶431 pays comp time at termination — and the
+    workbook does post it to 510210. KosPos must enumerate this code in
+    the RTPOM routing rules (the prior research had only identified VPO
+    + SVO; CPO is the third).
+- **Refresh cadence:** pivot re-aggregates on BI Payroll re-import.
+
+#### Structure — pivot (A1:AF66)
+
+**Page filter (row 1):** A1 = `Account Description`, B1 = `(Multiple Items)`.
+The `(Multiple Items)` label means a multi-value selection (510210 + 505060) is
+active. The actual selected values aren't visible in the cell — they're stored
+in the pivot's `pageItems` XML. **Maintenance fragility:** if the selection is
+accidentally narrowed to one account, the pivot silently drops the other; no
+visible cue.
+
+**Row 3 labels:** A3 = `Sum of Balance Amount` (data field), H3 = `Fund Code`
+(outer col field), I3 = `Earning Period End Date` (inner col field).
+
+**Row 4 fund headers (outer col axis):**
+
+| Cell | Value | Meaning |
+|---|---|---|
+| H4 | `10190` | DBI operating fund |
+| R4 | `10230` | DBI BIF-Continuing |
+| T4 | `10000` | CPC operating fund |
+| AE4 | `10770` | CPC capital projects |
+| AF4 | `Grand Total` | Row-total column |
+
+Five fund segments cover most DBI/CPC retirement-payout activity. The pivot's
+**OPS Summary consumer (E38) uses `Department Group Code = "DBI"` not Fund
+Code** — so picks up the **entire** DBI block (sum across all 5 funds for
+DBI), not just one fund. This is a meaningful difference from PREMM and OVERM
+which filter by fund.
+
+**Row 5 PPE headers (inner col axis):** sparse — only PPs with activity get
+columns. At this snapshot, the visible PPE dates start at 2025-07-18 (H5)
+and continue through 2026-05-08 (AD5). Cols are dynamically generated per
+PP × fund combination, hence H:AF spans 5 funds × ~13 PPs per fund (with
+empty cells where no activity in that PP × fund slice).
+
+**Row fields (rows 6+):** Department Group Code → Department Description →
+Job Code → Job Description → Person Full Name → Earnings Code → Earnings Code
+Description. Six-deep row axis — this is the per-person grain. Worked
+examples:
+
+- Row 6: `CPC > CPC Environmental Planning > COMMN:5298 (Planner 3-Env
+  Review) > Dito,Laura C > VPO Vacation Pay Out > $3,100.34` (in PP starting
+  9/26 — col U)
+- Row 9: `CPC > Community Equity > COMMN:0931 Manager III > Haddadanyazdi >
+  VPO > $5,111.54`
+- Row 10: `(same person) > SVO Severance Pay Out > $49,738`
+- Row 12: `(another person) > VPO > $632.98`
+- Row 61: **`CPO Comp Time Pay Out`** at DBI PS Technical Support, $7,209
+  (the newly-identified earnings code)
+
+#### Structure — sub-rollup rows + totals
+
+**Dept-group sub-rollups** appear as expected:
+
+- `CPC Environmental Planning Total` (row 8): $3,604
+- `CPC Community Equity Total` (row 13): $93,458
+- `CPC Executive Office Total` (row 15): $7,036
+- `CPC Citywide Planning Total` (row 18): $28,576
+- `CPC Current Planning Total` (subsequent rows): not extracted but contributes
+  to CPC overall
+
+DBI sub-rollups appear in the later rows. **Row 65 = `DBI Total` = $359,014**
+(verified ✓ against OPS!E38 = $359,014 GETPIVOTDATA). **Row 66 = `Grand Total`
+= $721,528** (CPC $362,514 + DBI $359,014, per OPS!E47 + E38).
+
+#### Year-end projection (lives in OPS Summary, not here)
+
+The projection rule from [special-class.md § RTPOM_E year-end projection](special-class.md#rtpom_e--retirement-payout-account-510210--walked-through-2026-05-23):
+
+```excel
+OPS!H38 = IF(Calendar!$K$2 = 0, E38, MAX(G38, E38))
+        = IF(0 = 0, E38, MAX(249,998, 359,014))
+        = $359,014  (since K2 = 3.7 ≠ 0, → MAX(249,998, 359,014) = 359,014)
+```
+
+**Re-verified this session against the live OPS Summary cell** ✓ —
+`H38 = =IF(Calendar!$K$2=0,E38,MAX(G38,E38))`, evaluates to $359,014.
+
+In words: **if no PPs remain (year is over), projection = YTD actual; otherwise,
+projection = max(total budget, YTD actual)**. The MAX-of-budget-vs-actual is
+deliberately conservative: it floors at budget so RPO never projects below
+budget, protecting against under-projecting an overrun in a lumpy line.
+
+CPC's parallel: `OPS!H47 = IF(Calendar!$K$2=0, E47, MAX(G47, E47))` =
+$362,514.
+
+#### What's manual / fragile
+
+1. **`"(Multiple Items)"` page filter is opaque.** Reader can't see which
+   accounts are selected. If a third RTPOM-relevant account is added by the
+   Controller (e.g., a new "Ret Payout - Bonus Misc" account), it doesn't
+   get picked up unless someone manually edits the pivot's page selection.
+   The CPO comp-time code identified this session is at least posting to
+   the existing 510210, so it's caught — but **a new account would silently
+   disappear**.
+2. **Per-PPE columns are dynamically generated** based on which (Fund × PPE)
+   slices have data. **The fund-outer × PPE-inner ordering means PPEs are
+   not aligned across funds.** Row 6's $3,100 (CPC fund 10190, PPE 2025-
+   09-26) sits in column U; the same PPE for fund 10000 sits in a different
+   column. KosPos: per-PP rendering should align by PPE across funds, not
+   nest fund-then-PPE.
+3. **OPS Summary uses Department Group Code, not Fund Code, for RTPOM
+   GETPIVOTDATA.** Different from PREMM/OVERM. Means RTPOM picks up *all*
+   funds for the dept-group, including BIF-Continuing and capital project
+   funds. Operationally correct (a retiring employee's accrued vacation
+   pays out regardless of which fund their position was budgeted in), but
+   **inconsistent with PREMM/OVERM/STEPM which all filter by fund.** A
+   reader expecting the same fund-shortcut pattern would be wrong here.
+   KosPos: unify on "sum across `dept_group.operating_funds`" plus capital
+   funds where the dept-group operates; RTPOM is no different.
+4. **Per-employee detail is sensitive.** Knowing "Person X received $50k in
+   severance pay" is HR-confidential. The workbook displays this in plain
+   text. **KosPos must gate per-person RPO data behind admin-only access**
+   (same posture as the [Tab 7 § Controller-side data masking](#tab-7--bi-payroll)
+   sick-leave bucket). Public-facing views collapse to dept-group totals.
+5. **Snapshot reconciliation gap** (noted in [Tab 7 § Open questions](#tab-7--bi-payroll)):
+   the account-side total ($721k) vs earnings-code-side total (VPO + SVO =
+   $683k) shows a **$38k spread**. The CPO finding this session ($7,209
+   at DBI PS Technical Support) explains part of it, but only part. There
+   may be other unrecognized earnings codes posting to 510210 + 505060.
+   **Action:** when KosPos importer runs, enumerate all distinct (account,
+   earnings_code) pairs in BI Payroll and flag any that aren't in the
+   RTPOM routing table.
+6. **`SP` in account name (`Ret Payout - SP & Vac - Misc`)** has now been
+   confirmed as **Sick Pay** = vested-sick / wellness balance (per Phase 4
+   RTPOM research, [special-class.md § per-employee math](special-class.md#per-employee-payout-math--eligibility-rules)).
+   The TODO in that section to "confirm with Controller's Payroll Division"
+   can be marked complete based on the observed posting pattern (SVO codes
+   post here exclusively).
+
+#### KosPos improvements
+
+##### 1. Per-PPE column alignment (not fund-nested)
+
+**Problem:** the workbook's outer-fund × inner-PPE column structure
+fragments per-PP detail. A person's $3,100 in PP6 sits in one column for
+DBI's fund 10190 and a different column for the rare fund 10230 posting.
+
+**KosPos design.** Single per-PPE column axis (one column per PP), with
+a fund attribute on each per-employee row. Faceted view lets the user
+filter by fund if needed; default view aggregates across funds.
+
+##### 2. Per-employee retirement scenarios
+
+**Already deferred** from Phase 4 (Session 9 — "per employee scenarios,
+move to out of scope"). The Tab 19 walkthrough reaffirms the
+data-availability case: RPO has clean per-employee history (this person
+cashed out $X in PP Y), and combined with P&P Data's eligibility
+attributes (years of service, age, MOU, sick balance), KosPos can offer
+"if Person X retires by PP Z, expected payout is $Q" estimates. Re-flag
+as a Phase 6 item rather than Phase 4 — needs:
+
+- Per-employee leave-balance importer (sick + vacation balances from
+  PS HCM) — not in the current data set.
+- Per-MOU comp-time + vested-sick payout rules already researched.
+- Per-employee retirement-eligibility flag derived from age + service
+  + tier (per the [SFERS Leaving City Service guide](https://mysfers.org/leaving-city-service/)).
+
+##### 3. Enumerate CPO + any other earnings codes posting to 510210/505060
+
+**Problem:** Phase 4 RPO research enumerated VPO + SVO; CPO was missed.
+The Data Issues panel should flag any unrecognized earnings codes
+posting to these accounts so KosPos's routing rules stay current.
+
+**KosPos design.** Importer maintains a known-codes registry:
+
+```ts
+type RPOEarningsCode = {
+  code: string;          // "VPO" / "SVO" / "CPO"
+  description: string;
+  payout_kind: 'vacation' | 'sick_vested' | 'comp_time' | 'severance' | 'other';
+  mou_section?: string;
+  effective_since: Date;
+};
+```
+
+A new earnings code observed in 510210 + 505060 surfaces in Data Issues
+as "unrecognized RPO earnings code — confirm routing". The
+[scenario-tests audit](../audits/labor-report-scenario-tests.md) already
+flagged similar "enumerate unknown codes" requirements for premium pay;
+RPO follows the same pattern.
+
+##### 4. Conservative projection alternative
+
+**Problem:** `MAX(budget, YTD)` is conservative but coarse. Lumpy line —
+in PP 22 RPO might be $50k under budget; in PP 23 a single retirement
+cashes out $80k and suddenly it's $30k over. The projection swings
+between PPs depending on luck of cashout timing.
+
+**KosPos design.** Three projection modes side-by-side (only the conservative
+displays as headline; others queryable):
+
+1. **Conservative (workbook default)**: `MAX(budget, YTD)`.
+2. **Straight-line annualize**: `YTD × J2/I2`. Often lower than conservative
+   mid-year, sometimes wildly off if a $50k cashout happened in PP1.
+3. **Historical-mean-anchored**: `MAX(YTD, average of prior 3 FYs × pacing
+   factor)`. Smooths the lumpiness.
+
+The conservative answer goes in the report; the others inform planning.
+Same pattern proposed in [Tab 26 § attrition rate](#tab-26--operating-report-summary)
+for the 9993 line.
+
+##### 5. Itemized projection (per Phase 4 deferred work)
+
+For positions tagged `likelyToRetire = {yes, no, unknown}`, compute an
+itemized projection: "if all 'yes' employees retire by year-end at their
+estimated payout, expected RPO = $X." Use as a sanity bound on the lump-sum
+projection. Already in [special-class.md § RTPOM notes / improvement
+ideas](special-class.md#rtpom_e--retirement-payout-account-510210--walked-through-2026-05-23).
+
+#### KosPos UI sketch
+
+**Retirement Payout page** — one of the per-special-class cards. Mirrors
+PREMM/OVERM headline but with per-employee detail behind admin-only role
+gate:
+
+```
+DBI · Retirement Payout (RTPOM) · FY26 · as of PP 22 of 26.1
+┌────────────────────────────────────────────────────────────────────┐
+│ Total Budget    YTD Actual    YTD Pace    Projected    Variance    │
+│  $249,998       $359,014       $214,558    $359,014    -$109,016   │
+│                                                  ↑ MAX(budget, YTD)│
+└────────────────────────────────────────────────────────────────────┘
+                  (conservative — never projects below budget)
+
+By earnings code (FY26 YTD)
+  VPO Vacation Pay Out       $270,000
+  SVO Severance Pay Out      $82,000
+  CPO Comp Time Pay Out      $7,000     ← NEW: enumerate in routing rules
+                                                  
+[Admin only:] By dept × person (FY26 YTD)
+  DBI ADM Records Mgmt        Smith,J          $48,000
+  DBI IS Plumbing Inspection  Jones,T          $35,000
+  ... (8 more individuals)
+                                                  
+Projection mode (conservative — default)
+  YTD actuals                $359,014
+  Total budget               $249,998
+  MAX rule selects           $359,014
+  ────                       ─────────
+  Projected total            $359,014
+  
+Alternative projections (planning view)
+  Straight-line annualize    $418,330  (YTD × 26.1/22.4)
+  Hist-mean anchored         $312,000  (mean of FY23-FY25 × pacing)
+```
+
+Admin-role-gated per-employee table appears only for users with HR-detail
+permission.
+
+#### Excel export notes
+
+- Mirror A1:AF66 pivot layout for parity.
+- Per-employee rows masked or omitted in standard exports; admin export
+  emits full detail.
+- Earnings-code summary block added (count + total per code) so the import
+  side can be cross-referenced.
+- Named ranges: `DBI_RTPOM_YTDActual`, `DBI_RTPOM_TotalBudget`,
+  `DBI_RTPOM_Projected`, `RTPOM_KnownEarningsCodes` (the routing table).
+
+#### Open questions / TODO
+
+- [ ] **Confirm CPO posting account.** This session's extraction shows CPO
+      (Comp Time Pay Out) at row 61 contributing to 510210. SEIU 1021 ¶431
+      says comp time pays out at termination. Confirm with Controller that
+      CPO always posts to 510210 (not to a separate comp-time account or
+      back to the regular OT account 511010).
+- [ ] **Investigate the $38k snapshot reconciliation gap** (Tab 7 §
+      Open questions). CPO accounts for $7k; the remaining $31k is
+      still unaccounted for. May be other earnings codes (e.g., a
+      bilingual lump sum at termination), or may be a refund / reversal
+      causing one side to net different from the other.
+- [ ] **Reasonable-default call (this session):** RPO projection rule
+      `MAX(budget, YTD)` is correct as-is — it's the conservative report
+      figure. Alternative projections render as planning view, never as
+      headline. Aligns with [Tab 5 Calendar § Improvement #3 — show
+      correct headline + alternatives as side notes](#tab-5--calendar).
+- [ ] **Per-employee scenario builder is Phase 6**, not Phase 2.0f.
+      Already cataloged; re-affirmed this walkthrough.
+- [ ] **Reconcile against [Task B BVA reconciliation suite](../audits/bva-reconciliation-suite.md)**
+      Test 3 — does BVA show $721k for accounts 510210 + 505060 across
+      DBI + CPC dept groups? Already covered for PREMM/OVERM-style
+      reconciliation; RPO should join cleanly too.
+- [ ] **Per-MOU pay rules verification.** RTPOM research left ~5 open
+      MOU items (vacation caps per MOU, comp-time pay rate, vested-sick
+      formula details, public-safety MOUs). Defer to Phase 6 — none
+      block the YTD-and-projection presentation that Tab 19 provides.
+
+---
 
 ---
 
@@ -2363,7 +3728,7 @@ chartfield-level variance that the position-aware Report Data cannot model.
 PP and reconcile per chartfield string, excluding inactive positions.** Full
 schema (68 columns), refresh-order timing rule, and verified reconciliation
 pattern in [`../data-sources/bva.md`](../data-sources/bva.md);
-KosPos-side approach in [§ KosPos improvements](#kospos-improvements-2) below.
+KosPos-side approach in [§ KosPos improvements](#kospos-improvements-6) below.
 
 #### Cross-cutting: the dual per-PP grid (Y:AY operating, BB:CB continuing)
 
@@ -3057,7 +4422,7 @@ Current Year workspace. Three surfaces:
    - Surfaces the "what changed via journal entry, not via payroll" picture
      the workbook can't currently produce.
    - Filter: exclude inactive positions.
-4. **Data Issues panel** (cross-cutting, per [§ KosPos improvements](#kospos-improvements-2) #12):
+4. **Data Issues panel** (cross-cutting, per [§ KosPos improvements](#kospos-improvements-6) #12):
    - All the data-quality flags above, grouped by category.
 
 The pool-position recommendation, the missing-CPC-catcher warnings, the BFM
@@ -3344,7 +4709,7 @@ range `'Report Data'!A1:CB1048576`). Three row fields, eight data fields:
 | Data field 1 (col D) | `[19] YTD Operating Budget` | T `YTD Operating Budget` | `S/N2*M2` per-row (COLA-paced YTD budget) summed by Effective Dept. |
 | Data field 2 (col E) | `[20] YTD Operating Actuals` | U `YTD Operating Actuals` | `SUM(Y:AY)` per-row (operating-fund per-PP grid) summed by Effective Dept. |
 | Data field 3 (col F) | `[21] YTD Operating Balance` | V `YTD Operating Balance` | `T-U` per-row, summed. |
-| Data field 4 (col G) | `[18] Total Budget` | S `Total Budget` | `SUMIFS(BFM!AX, BFM!D, D2)` per-row (per-position budget) **plus** the 100 hand-pasted SPECIAL block rows (S649:S748). Summed by Effective Dept. **Read** [Tab 20 § Manual/fragile](#whats-manual--fragile-2): the `BFM!AX` Technical Adjustment reference is stale; should be `BFM!AZ` Board. |
+| Data field 4 (col G) | `[18] Total Budget` | S `Total Budget` | `SUMIFS(BFM!AX, BFM!D, D2)` per-row (per-position budget) **plus** the 100 hand-pasted SPECIAL block rows (S649:S748). Summed by Effective Dept. **Read** [Tab 20 § Manual/fragile](#whats-manual--fragile-6): the `BFM!AX` Technical Adjustment reference is stale; should be `BFM!AZ` Board. |
 | Data field 5 (col H) | `[22] Projected Operating Actuals` | W `Projected Operating Actuals` | COLA-aware two-mode projection per-row, summed. |
 | Data field 6 (col I) | `[23] Projected Operating Balance` | X `Projected Operating Balance` | `S-W` per-row, summed. |
 | Data field 7 (col J) | `[51] YTD Continuing Actuals` | AZ `YTD Continuing Actuals` | `SUM(BB:CB)` per-row (continuing-fund per-PP grid) summed. |
@@ -3696,7 +5061,7 @@ flagged on a fresh refresh: any line that moved >10% or >$100k. Saves
 auto-pin at every report milestone (6-month, 9-month, year-end). This
 is the **"what changed since the last report" feature** Alex flagged in
 the initial walkthrough description; it's the obvious win KosPos
-delivers over Excel. See also [Tab 27 § KosPos improvements](#kospos-improvements-4)
+delivers over Excel. See also [Tab 27 § KosPos improvements](#kospos-improvements-8)
 where the same primitive powers position-level drill-down.
 
 ##### 7. Reconcile per-dept pivot to per-class block — the closure check is automatic
@@ -3899,7 +5264,7 @@ Two operational use cases:
    flagged this as the obvious KosPos win. Today the workflow is:
    open last week's OPS Detail in a second window, eyeball-diff
    against this week's, find the changed rows. KosPos automates this
-   — see [§ KosPos improvements](#kospos-improvements-4).
+   — see [§ KosPos improvements](#kospos-improvements-8).
 
 #### Data sources
 
@@ -3984,7 +5349,7 @@ pivot refresh.
 #### What's manual / fragile
 
 OPS Detail's fragility is **almost entirely inherited from
-[Tab 20 Report Data](#whats-manual--fragile-2)**. The pivot adds no
+[Tab 20 Report Data](#whats-manual--fragile-6)**. The pivot adds no
 formulas or hand-keyed values, so no new sources of error are
 introduced here. The relevant items from Report Data that surface
 prominently in OPS Detail:
@@ -4024,7 +5389,7 @@ error-prone — Alex flagged this explicitly as the obvious KosPos win
 in the initial Tab 27 stub.
 
 **KosPos design.** Every page-state save (per [OPS Summary improvement
-#6](#kospos-improvements-3)) captures the full OPS Detail row set
+#6](#kospos-improvements-7)) captures the full OPS Detail row set
 keyed by `(Effective Dept, Position Number, Fill Status, Budget Job
 Code)`. The Detail view renders with a default-on **"Δ since
 `<prior_snapshot>`"** column toggle:
@@ -4148,7 +5513,7 @@ Excel-export naming below.
 The KosPos-emitted `.xlsx` includes both the headline and the detail in
 parallel sheets:
 
-- **Sheet `OPS Summary`** — per [Tab 26 § Excel export](#excel-export-notes-3).
+- **Sheet `OPS Summary`** — per [Tab 26 § Excel export](#excel-export-notes-7).
 - **Sheet `OPS Detail`** — 26 columns matching the workbook layout (A:Z)
   plus three more added for KosPos value:
   - `AA` Prior-snapshot YTD Operating Actuals (for at-a-glance Δ).
@@ -4224,7 +5589,7 @@ available).
 | DHR Hourly Rates of Pay (`Hourly-Rates-of-Pay-by-Classification-and-Step-FY{NN}-{NN+1}.xlsx`) 29×17,116 (Steps) + 20×124 (Ranges) | Reference data for class × step rate lookups; underpins Step / RTPOM / OVERM math. Documented in [`../data-sources/dhr.md`](../data-sources/dhr.md). | DHR website download; annual after MOU ratification | Snowflake (if exposed) | `lib/reference/dhr-steps/` + `lib/reference/dhr-ranges/` |
 | OBI Payroll Detail (older variant of BI Payroll; 38×42,949 in 11.8.23 sample) | Older schema (38 cols) preserved for backward-compat testing of the BI Payroll importer. Same source as today's BI Payroll; column count grew to 39 in current snapshot. | Manual OBI re-run | Snowflake direct query | Same path as BI Payroll (`lib/importers/obi-payroll/`) with header-driven schema detection |
 | BFM 15.10.006 FY26 eturn (per-position + per-special-class summary rows; ~30 cols incl. FY26 Original / Base / Department / Mayor / Committee / Technical Adjustment / Board layers) | **Report Data** (S Total Budget SUMIFS on column `AX FY 2025-26 Technical Adjustment` — stale, should be `AZ Board`; SPECIAL block hand-paste from per-class summary rows), **Operating Report Summary** (TEMPM E40 from `AZ1195+AZ1197+AZ1199+AZ1201`), **Overtime** tab (FY26 OT budget anchor `BN6 / BN8`), Premium / Step / others as BY-anchor source | Manual download from BFM; refresh annually (Board-adopted) + periodically when Technical Adjustments hit; per-position rows + summary rows in same file | Snowflake direct query when available | `lib/importers/bfm-eturn/` — header-driven fingerprint, full-replace per `(fiscal_year, snapshot_date)`; uses Board-adopted (`AZ`) as default budget anchor with Technical-Adjustment / Department / etc. preserved for variance views; documented in [`../data-sources/bfm.md`](../data-sources/bfm.md) and ADR-004 |
-| `BVA` report (Budget vs Actuals, per PS Financials via OBI) — 68 cols × 2,710 rows for DBI+CPC FY26 sample; full schema in [`../data-sources/bva.md`](../data-sources/bva.md) | _(planned)_ **Report Data** chartfield-level reconciliation (BVA budget vs eturn = KK adjustments; BVA actuals vs BI Payroll = GL adjustments — see [Tab 20 § KosPos improvements #1–#2](#kospos-improvements-2)) | _(planned)_ Manual OBI re-pull each PP, **Wednesday-or-later after payday Tuesday** (see [§ Refresh-order timing](#refresh-order-timing--obi-1-day-lag--payroll-to-gl-gap--bva-wed-or-later)); full-replace per `(fiscal_year, snapshot_date)` | Snowflake direct query when available | `lib/importers/bva/` — header-driven fingerprint; chartfield-keyed; pre-computes reconciliation cube on import; snapshot date sourced from file mtime (filename version date is the report-definition version, NOT the data snapshot) |
+| `BVA` report (Budget vs Actuals, per PS Financials via OBI) — 68 cols × 2,710 rows for DBI+CPC FY26 sample; full schema in [`../data-sources/bva.md`](../data-sources/bva.md) | _(planned)_ **Report Data** chartfield-level reconciliation (BVA budget vs eturn = KK adjustments; BVA actuals vs BI Payroll = GL adjustments — see [Tab 20 § KosPos improvements #1–#2](#kospos-improvements-6)) | _(planned)_ Manual OBI re-pull each PP, **Wednesday-or-later after payday Tuesday** (see [§ Refresh-order timing](#refresh-order-timing--obi-1-day-lag--payroll-to-gl-gap--bva-wed-or-later)); full-replace per `(fiscal_year, snapshot_date)` | Snowflake direct query when available | `lib/importers/bva/` — header-driven fingerprint; chartfield-keyed; pre-computes reconciliation cube on import; snapshot date sourced from file mtime (filename version date is the report-definition version, NOT the data snapshot) |
 | Inactive tab `Sum of Balance Amount` (computed inside the workbook from BI Payroll's pivot cache; not a separate upstream file) | Report Data INACTIVATED block (rows 755–760) — **hand-pasted** each PP refresh into U column | Workbook-internal pivot; copy-paste-as-values into Report Data | Live query in KosPos: `positions WHERE in_bi_payroll AND NOT in_pnp_snapshot` → drives Inactive view directly | `lib/views/inactive/` — pure query, no separate import; INACTIVATED block in Report Data goes away |
 | Staffing Plan (workbook-internal; will be its own importable surface in Phase 2) | Report Data HIRING (24 rows) + SEPARATING (4 rows) — direct cell refs into `'Staffing Plan'!{col}{n}` for B/D/F/G/H/K/L/M/N/O/W | Workbook tab; Alex edits directly | KosPos Staffing Plan workspace (Tab 24 surface) — first-class data store; Report Data view joins to it | `lib/staffing-plan/` — Phase 2.2 sub-phase enumeration target |
 
