@@ -1565,3 +1565,194 @@ surface the rest.
   silently degrades the working experience when broken. Future
   audit-doc template should include a "verify settings.local.json
   parses + permissions are syntactically valid" line item.
+
+---
+
+## Session 20 — Phase 2.0g: Staffing Plan + Vacancies + Budget Summary (Tabs 23-25) (2026-05-25)
+
+**Worktree:** `nervous-noether-2e2f42`
+**Model:** Opus 4.7 (high effort)
+**Mode:** Auto-mode (Alex bias-toward-action)
+**PRs:** [#_TBD_] (this PR — `docs(labor-report): Phase 2.0g — Staffing Plan + Vacancies + Budget Summary (Tabs 23-25) + Tab 16 PREMM COLA-aware fix-up + Cat 17/18 Charter cite + lib/quality enumeration`)
+**Tests:** unchanged (no app code touched)
+
+### Prompts
+
+**[~ start]** Session 20 Phase 2.0g prompt (per SESSION_HANDOFF.md PR #55):
+Walk three forward-looking-planning tabs (Vacancies and TEMP / Staffing
+Plan / Budget Summary) plus 3 carry-forward fix-ups: (A) Tab 16 PREMM
+COLA-aware switch, (B) Cat 17/18 web research + scenario-tests updates,
+(C) 4 restated questions for Alex.
+
+### Workflow
+
+1. Read briefing docs (CLAUDE.md, SESSION_HANDOFF.md PR #55, audit
+   doc, all 8 memory files including the 3 new Session-18 entries,
+   labor-report.md per-tab template + Tab 16 walkthrough + Tab 20
+   cross-refs to Staffing Plan, special-class.md TEMPM stub,
+   bva-reconciliation-suite.md, scenario-tests.md, walkthrough-audit.md,
+   budget-process.md).
+2. Branched `docs/labor-report-staffing-plan-and-friends` from main.
+3. Opened the real workbook via openpyxl (read_only=True). Inventoried:
+   - **Tab 23 Vacancies and TEMP**: 132 rows × 22 cols. Pivot
+     (`PivotTable28`) sourced from `pivotCacheDefinition1.xml`
+     (cacheId=915) = same cache backing P&P Data, 605 cached records,
+     137 fields incl. 12 workbook-internal columns (CD:CL).
+     20 row fields + 2 page fields (Vacant TEMP, Exclude).
+     103 distinct positions at Grand Total.
+   - **Tab 24 Staffing Plan**: 95 rows × 25 cols. **5-section block
+     layout** (Active rows 2-30 / Separations 33-41 / Pending 43-67 /
+     TEMP 69-85 / Unfunded 89-95). Each section: 25-col header + data
+     + Totals row (`=SUM(W2:W28)` style) + Annualized row
+     (`=X29*Calendar!J2`). Per-row: 14 XLOOKUPs into P&P Data + manual
+     entries for Type / Position / Status / Start PPE / Cost / PP Cost
+     / Notes; col V `Check` XLOOKUPs into Vacancies and TEMP for
+     validation.
+   - **Tab 25 Budget Summary**: 21 rows × 2 cols. **The smallest
+     functional tab in the workbook** (only 7 cells carry math).
+     GETPIVOTDATA against OPS Summary's pivot for Total Budget +
+     Projected Existing Spending, plus `=-Staffing Plan!W29` (Active
+     hires) + `=-Staffing Plan!W40` (Separations) → final
+     `=B4+SUM(B5:B6)` net surplus / deficit.
+4. Wrote all three per-tab sections using the per-tab template
+   (~1,300+ lines added). Tab 24 was the major write — included
+   PlannedAction model proposal, cross-section position duplication
+   pattern, DBI→CPC transfer-of-function visible in Pending notes.
+5. **Fix-up (A) — Tab 16 PREMM COLA-aware switch.** Updated the P5/P8
+   projection narrative to explicitly distinguish dollar-amount-fixed
+   premiums (`L08` $5, `289` $60 — no COLA inflation) from
+   percentage-of-base premiums (`269` 10.27%, `600` 5%, 9 Cert codes
+   — DO COLA-inflate). Added a new `##### COLA-aware premium
+   projection — the KosPos default` subsection. Updated Manual /
+   fragile #4 to flag the workbook's pure-PP shortcut as a
+   percentage-of-base under-projection. Resolved the corresponding
+   Open Question (`[x]` with note).
+6. **Fix-up (B) — Cat 17/18 web research.** Web-searched + WebFetch:
+   - **Cat 17 Charter limit confirmed: 2 years, not renewable** per
+     [Charter §10.104-17](https://codelibrary.amlegal.com/codes/san_francisco/latest/sf_charter/0-0-0-1076).
+     CSC Rule 114 detail: HR Director may approve in 1,040-hour
+     increments (6 months), maximum 4 increments = 4,160 hours = 2 years.
+   - **Cat 18 Charter limit confirmed: 3 years, not renewable** per
+     same. CSC Rule 114 also requires departmental certification of
+     limited-term funding source.
+   - Both require Civil Service Commission approval (Group III under
+     §10.104-16–19).
+   Updated [`cat_16_17_18_rules.md` memory](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/cat_16_17_18_rules.md)
+   with the verified cites. Updated [scenario-tests § Scenario 3](audits/labor-report-scenario-tests.md#scenario-3--cat-1718-expiry-warning-already-expired-emphasized)
+   with the Charter cites + 4 categorical Data Issue flags
+   (`cat-17-18-expired`, `cat-17-18-expiring-soon`,
+   `cat-17-expiration-date-unreliable`, `cat-18-expiration-date-likely-wrong`).
+   Updated [scenario-tests § Scenario 4](audits/labor-report-scenario-tests.md#scenario-4--cat-16-hours-approaching-cap)
+   to reclassify Guaiumi as "labor-report data bug suspected" with
+   the per-position cap-check requirement. Added Data Issues catalog
+   (28 categories) + Phase 2.2 sub-phase enumeration (15+ sub-phases)
+   to labor-report.md with explicit user-notes-per-position pairing.
+7. **Cross-cutting concerns update.** Added 10 new rows to the
+   DBI-shortcut catalog (slicer state local, workbook-internal `CL`
+   one-way diagnostic, 5-section hardcoded layout, paste-once cost
+   cells, blank-cost rows under-counted, position-multi-section
+   duplication, Pending/TEMP/Unfunded excluded from Budget Summary,
+   missing BY+1 cost ladder, pivot-label hardcodes, COLA-unaware
+   annualized rows).
+8. **Anchor-link migration.** Tabs 23/24/25 added 3 new
+   `#### KosPos improvements` headings, shifting Tab 26 / 27
+   occurrence indices from -7/-8 to -10/-11. Migrated 4 intra-file
+   references per the SESSION_HANDOFF.md migration list (L2003,
+   L6308, L6511, L6636). Built github-slugger anchor verifier in
+   the style of PR #45 — found 1 broken anchor I'd introduced
+   (em-dash double-space bug in `cola-aware-premium-projection`
+   slug); fixed. Also caught 2 pre-existing broken anchors in
+   special-class.md (`scenario-9--undocumented-premium-pay-codes`
+   → `scenario-9--earnings-code-orphans`) + 5 broken intra-file
+   memory pointers in scenario-tests.md (anti-pattern: using
+   `(#tab-24--staffing-plan)` as the URL for memory-file citations);
+   converted to the file:// pattern per SESSION_HANDOFF.md
+   convention. All 107 intra-file + cross-doc refs in labor-report.md
+   now resolve cleanly.
+9. **Tab list table** updated: Tabs 23 / 24 / 25 marked done 2026-05-25.
+10. SESSION_HANDOFF.md updated with the Phase 2.0h next prompt + the
+    8 reasonable-default calls deferred this session + the 4 restated
+    questions for Alex + the 5 open action items.
+
+### Milestones
+
+- **All three Phase 2.0g tabs walked.** Vacancies and TEMP pivot
+  structure decoded (PivotTable28 / cacheId=915 → P&P Data with 12
+  workbook-internal columns). Staffing Plan's 5-section block layout
+  fully mapped, with the Active + Separations + Pending + TEMP +
+  Unfunded Type taxonomy from [memory `staffing_plan_types.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/staffing_plan_types.md)
+  cross-referenced. Budget Summary's 7-cell arithmetic and the
+  "concept right but never matured" BY+1 cost ladder gap captured.
+- **Tab 16 PREMM projection now COLA-aware as primary** (workbook's
+  pure-PP exposed as parity-check side-view per
+  [memory `feedback_projections_always_cola_aware.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_projections_always_cola_aware.md)).
+  Open Question #3 (was reasonable-default call) marked resolved
+  with the percentage-of-base vs $-amount taxonomy.
+- **Cat 17/18 limits authoritatively cited** (Charter §10.104-17/18
+  + CSC Rule 114 + CSC Adviser 34). Memory `cat_16_17_18_rules.md`
+  updated with cites; scenario-tests Scenarios 3 + 4 updated with
+  4 categorical Data Issue flags including the new per-position
+  Cat 16 cap requirement and the Cat 18 "Expiration Date ≠
+  Appointment Date + 3 years" check.
+- **`lib/quality/` scope formally enumerated** in Phase 2.2 sub-phases
+  with 28 Data Issue categories + the
+  [`feedback_user_notes_per_position.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_user_notes_per_position.md)
+  inline-notes pairing requirement.
+- **Anchor-link convention enforced**: 107 / 107 refs in
+  labor-report.md verified clean (incl. 4 Tab 26/27 migrations + my
+  own self-refs); 2 pre-existing special-class.md cross-doc breaks
+  fixed; 5 scenario-tests.md memory-pointer anti-patterns converted
+  to the file:// convention.
+
+### What changed for KosPos's understanding
+
+| Theme | Before this session | After this session |
+|---|---|---|
+| Vacancies and TEMP tab | "Pivot view of Report Data filtered to vacancies + temp" | **Pivot of P&P Data** (PivotTable28 / cacheId=915, same cache as P&P), keyed by 6 slicer chips (`Vacant` / `TEMP` / `Position =/= Budget` / `Temp on Budgeted Position` / `On Leave` / `Exclude`) bound to workbook-internal P&P Data columns CD:CL. 103 positions at Grand Total. 20-field row hierarchy from Effective Employee Division to Vacancy Date. CPC rows show literal `"Update Formula"` from the DBI-only `CH Effective Employee Division` XLOOKUP. |
+| Staffing Plan tab | "Hiring plan workspace — very important" | **5-section block layout** (Active / Separations / Pending / TEMP / Unfunded — matching [memory `staffing_plan_types.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/staffing_plan_types.md) taxonomy). Each section: 25-col header + data rows + Totals + Annualized. 14 XLOOKUPs per row into P&P Data; W/X cost cells manual via Cost Calculator (often blank for early-stage hires — silent W29 SUM under-count). Position 1115135 appears 3× across Active + Separation + TEMP — intentional ("Type encodes plan-time perspective, not position attribute"). DBI→CPC transfer-of-function visible per-position in Pending notes ("Transferring to CPC, hold per CPC"). |
+| Budget Summary tab | "BY+1 cost rollup — low priority — concept right but never matured" | **7-cell arithmetic**: Total Budget − Projected Existing Spending = existing surplus; minus Staffing Plan Active hires + plus Separations = net projected surplus/deficit. **BY+1 column NOT computed** (matching Alex's "never matured" flag). Excludes Pending + TEMP + Unfunded entirely from headline; KosPos surfaces these as sensitivity ribbon. |
+| Tab 16 PREMM projection | "Pure-PP annualization (workbook); KosPos calls COLA-aware function returning same number" | **Two-bucket taxonomy explicit**: dollar-amount-fixed premiums (`L08` $5, `289` $60) don't COLA-inflate; percentage-of-base premiums (`269` 10.27%, `600` 5%, all 9 Cert codes) DO COLA-inflate. KosPos's COLA-aware projection returns the same number as pure-PP only when the dept-group's premium mix is exclusively $-amount; returns larger number when percentage-of-base codes present. |
+| Cat 17 / Cat 18 rule sources | "Alex's working knowledge from running these at DBI; CSC + DHR + admin code cross-check is a still-open TODO" | **Authoritatively cited**: Charter §10.104-17 (2 years, not renewable) / §10.104-18 (3 years, not renewable + limited-term funding certification); CSC Rule 114 (HR Director increments + Group III CSC approval); CSC Adviser 34. Memory `cat_16_17_18_rules.md` updated with cites. |
+| Cat 16 cap check | "1,040 hours / FY / employee; Guaiumi at 172% = potential CSC violation" | **Reclassified to "labor-report data bug suspected"** — the per-position rule from Session 18 memory + per-position summing means Guaiumi's hours likely mix a prior position's Cat 16 stint. KosPos's cap check filters by Position Number, not Employee ID. |
+| `lib/quality/` scope | Vaguely "Data Issue flags" | **28 categorical flags enumerated** + the user-notes-per-position pairing requirement. Listed in labor-report.md § Phase 2.2 sub-phases with source links to walkthrough / scenario-test origins. |
+| Phase 2.2 sub-phases | "Built at end of walkthrough" placeholder | **Populated**: 3 buckets (cross-cutting infrastructure / per-tab modules / reconciliation & projection) with 15+ sub-phases, each ship as one PR with importer + view + tests. |
+
+### Out of scope (intentionally deferred)
+
+- The 4 restated questions for Alex (carry-forward from Session 17 + 18
+  reasonable-default calls; surfaced again in SESSION_HANDOFF.md
+  end-of-session checklist).
+- The 5 open action items for Alex (the 7 already-expired Cat 17/18
+  positions; Guaiumi Cat 16; 5 vacant-no-RTF disposition; 9
+  reasonable-default calls; CPO posting account).
+- ADR-006 / ADR-007 amendments (Phase 2.4 importer build).
+- BVA importer build (Phase 2.4).
+- The 6 ADRs from Session 19 audit (separate batched PR after this lands).
+- The 4 stale-worktree cleanup from Session 19 audit (Alex action).
+- Workbook fix recommendations (e.g., AX→AZ migration, slicer-chip
+  semantics documentation, BY+1 cost ladder math) — KosPos design
+  documented, but the workbook itself stays as-is until Alex
+  decides whether to retrofit.
+
+### Lessons / improvements for next phase
+
+- **Anchor migration playbook validated.** The migration list baked
+  into the SESSION_HANDOFF prompt was correct; the verifier script
+  built off PR #45's template caught 1 new break (em-dash slug bug)
+  + surfaced 2 pre-existing breaks for opportunistic cleanup.
+- **The "memory file pointer" pattern needs a consistent style.**
+  The `[`memory.md` ...](#tab-24--staffing-plan)` anti-pattern I
+  introduced 27 times in labor-report.md "works" (anchor resolves
+  to Tab 24 heading in the same file) but is semantically misleading
+  — clicking jumps to Tab 24 not the memory file. Convention from
+  SESSION_HANDOFF.md is `[memory `cat_16_17_18_rules.md`](file:///C:/Users/.../memory/cat_16_17_18_rules.md)`.
+  Adopted for the 5 scenario-tests.md instances; 27 in
+  labor-report.md left as-is to avoid scope creep (they don't
+  produce broken-link 404s on the live site, just confusing
+  navigation). Future style-cleanup PR could unify.
+- **Per-tab walkthrough template scales well.** Tab 23 + 24 + 25
+  together added ~1,300 lines without straining the template.
+  The PlannedAction model proposal in Tab 24 § KosPos improvement
+  #1 is the most architecturally significant single design
+  decision in this session; the Type-as-plan-time-perspective
+  framing (vs Type-as-position-attribute) drives the schema.

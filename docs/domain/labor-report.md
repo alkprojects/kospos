@@ -190,6 +190,15 @@ Catalog of DBI-only assumptions that need to be parameterized for citywide use:
 | Step tab `COUNTIF($D$2:D2, D2)>1` guard on every per-position cell handles pool positions by zeroing duplicates. Loses per-incumbent visibility + O(n²) recalc cost. | Step R, S, U:AU, AW:BW, BY:CY | Pool positions modeled with explicit `max_headcount > 1` attribute; rollup function attributes one prorated budget share per Position Number |
 | Step tab `BY2` per-PP variance assumes **uniform per-PP pay rate** within the FY — doesn't model merit-step events (col AJ of P&P Data). Aggregate sum is correct (actuals also rise post-merit, washes out) but per-PP variance drifts: pre-merit PPs show under-budget, post-merit over-budget. Misleads trend visualization. | Step BY:CY per-PP variance | Per-PP proration uses expected rate at that PP, derived from each employee's step history + future Merit Increase Date |
 | Step tab folds **MCCP positions into STEPM**. Same per-position variance shape, but conceptually wrong — MCCP positions should post to 9994 MCCP Offset (separate account, separate reference data: DHR MCCP-range table vs DHR salary-steps table). DBI's small MCCP population (Deputy Directors) leaks into DBI STEPM; CPC's larger MCCP population is sort-of-correctly attributed to CPC but only because `SUMIFS("Planning")` happens to pick it up. | Step tab + OPS Summary rows 39/48/49 | KosPos splits MCCP into its own tab (per Alex's flag in Phase 2.0f session prompt). STEPM filters to `job_class.is_mccp = false`; 9994 filters to `job_class.is_mccp = true`. |
+| Vacancies and TEMP slicer chips (`Vacant`, `TEMP`, `Position =/= Budget`, `Temp on Budgeted Position`, `On Leave`, `Exclude`) are Excel Slicer objects with workbook-local state — two users opening separate copies and toggling differently produces divergent views silently. Categorical semantics aren't documented in the workbook either. | Vacancies and TEMP row 1 (slicer chips) | URL-encoded filter state shared between users; explicit filter definitions + tooltips per filter (see [Tab 23 § KosPos improvement #4](#kospos-improvements-7)) |
+| Vacancies and TEMP's `CL Included In Staffing Plan` flag is one-way only — flags "Vacancies row missing from Staffing Plan" but not the reverse ("Staffing Plan row not in Vacancies"). The reverse direction lives on Staffing Plan's `V Check` column. Two half-diagnostics in two places. | P&P Data CL + Staffing Plan V | Bidirectional Coverage diagnostic on one panel (see [Tab 23 § KosPos improvement #2](#kospos-improvements-7)) |
+| Staffing Plan 5-section block layout (Active rows 2–28, Separations 33–39, Pending 44–65, TEMP 70–85, Unfunded 90–93) is hardcoded — adding a row requires inserting at the right place AND rebasing the section's `=SUM(W2:W28)` / `=SUM(W33:W39)` / etc. rollup formula. Wrong placement silently breaks the rollup. | Staffing Plan rows 29 / 40 / 66 / 94 | PlannedAction model (per [Tab 24 § KosPos improvement #1](#kospos-improvements-8)) — no row-position dependencies; rollups computed from typed entities |
+| Staffing Plan `W` / `X` cost cells are hand-typed snapshots from the Cost Calculator — no live link back to calculator inputs. A mid-year MOU COLA changes the calculator output but doesn't update existing rows until Alex re-runs. Same paste-value-once drift pattern. Active rows with blank cost (`Status = Not started / List / Posted`) are silently summed as zero — Budget Summary's `B5` therefore under-projects plan cost. | Staffing Plan W:X all rows | Live `expectedCost` computed from PlannedAction parameters (per [Tab 24 § KosPos improvement #2](#kospos-improvements-8)); blank-cost rows surfaced as "X of Y priced ⚠" diagnostic |
+| Staffing Plan annualized rows (`X30`, `X41`, `X67`, `X95`) use pure-PP `Calendar!J2 = 26.1` to extrapolate per-PP cost — same workbook shortcut as elsewhere. Percentage-of-base cost components COLA-inflate; pure-PP annualization undercounts post-COLA. | Staffing Plan X30/41/67/95 | COLA-aware annualization (per [Tab 24 § KosPos improvement #9](#kospos-improvements-8) + memory [`feedback_projections_always_cola_aware.md`](#tab-24--staffing-plan)) |
+| Staffing Plan position appearing across multiple sections (Active + Separation + TEMP for position 1115135) — same Position Number, three rows, no visual cue. A reader scanning each section independently can double-count. The pattern is intentional (Type encodes plan-time perspective, not a position attribute) but the workbook offers no aggregation. | Staffing Plan all sections | PlannedAction[] per Position model — one position, many actions; Position list shows "(N actions)" badge; Position Detail shows all on one timeline |
+| Budget Summary excludes Pending + TEMP + Unfunded entirely from the surplus / deficit calc — only Active hires (`W29`) + Separations (`W40`) feed the rollup. Pending positions transferring to CPC, Unfunded positions, and TEMP placeholders represent real budget exposure invisible at the headline level. | Budget Summary B5 / B6 / B7 | Sensitivity ribbon: Pending-if-active / Unfunded-if-funded / DBI↔CPC transfer (per [Tab 25 § KosPos improvement #5](#kospos-improvements-9)) |
+| Budget Summary has no BY+1 cost ladder — the "concept is right but never matured" issue. The tab's purpose hints at "what's BY+1's surplus given today's hiring plan?" but the formulas are all FY-this. Mid-year hires' full-FY cost extension into BY+1 isn't computed. | Budget Summary B2:B7 | Two-column FY+1 cost ladder (per [Tab 25 § KosPos improvement #1](#kospos-improvements-9)) with COLA-aware extrapolation against BY+1 BFM eturn total budget |
+| Budget Summary pivot-label hardcodes (`"Sum of Total Budget"`, `"Sum of Projected Operating Actuals"`) in GETPIVOTDATA calls — same fragility pattern as OPS Summary's GETPIVOTDATA references. If the pivot field labels change in a future revision, Budget Summary silently goes empty. | Budget Summary B2 / B3 | Named refs / structured measures in KosPos's emitted pivots; importer flags renamed measures before they break aggregations |
 
 ## Tab list — workbook order (`Labor Report 5.21.26.xlsx`)
 
@@ -221,9 +230,9 @@ artifacts — not part of the current-year labor workflow).
 | 20 | Report Data | **done 2026-05-25** | **Core dataset** — labor positions × budget × actuals × projection |
 | 21 | Reporting Tree | pending | Org-chart preview + data-quality flags (lite Phase 7) |
 | 22 | Pos by Dept | pending | Filtered view of Report Data (low priority) |
-| 23 | Vacancies and TEMP | pending | Vacancies + TEMP filter, feeds Staffing Plan |
-| 24 | Staffing Plan | pending | **Staffing Plan workspace** — hiring plan |
-| 25 | Budget Summary | pending | BY+1 cost rollup (low priority) |
+| 23 | Vacancies and TEMP | **done 2026-05-25** | Vacancies + TEMP filter, feeds Staffing Plan |
+| 24 | Staffing Plan | **done 2026-05-25** | **Staffing Plan workspace** — hiring plan |
+| 25 | Budget Summary | **done 2026-05-25** | BY+1 cost rollup (low priority) |
 | 26 | Operating Report Summary | **done 2026-05-25** | **Headline projection page** |
 | 27 | Operating Report Detail | **done 2026-05-25** | Drill-down for projection variance review |
 | – | New Department Org | **IGNORE** | Cross-org merger planning (out of scope) |
@@ -1991,7 +2000,7 @@ KosPos's Excel emitter does **not** rebuild a 39-column transactional sheet
       empty and absorb the dollars into 9993 attrition residual.
       KosPos's design is "every named class gets full math, no
       implicit-residual absorption" — see [Tab 26 § KosPos improvement
-      #4](#kospos-improvements-7).
+      #4](#kospos-improvements-10).
 - [ ] **Update ADR-007.** The provisional column list (`YTD Salary / Benefits
       / Total`) was wrong — BI Payroll is transactional, not pre-aggregated.
       ADR-007 needs an amendment landing with the real 39 columns and the
@@ -2269,7 +2278,7 @@ no math.
 ```excel
 P5_DBI_Salary  = GETPIVOTDATA("Balance Amount", $A$3, "Fund Code", 10190)
                  × (N5 / N7)                  ← salary share of total budget
-                 / Calendar!I2 × Calendar!J2  ← annualize via pure-PP ratio
+                 / Calendar!I2 × Calendar!J2  ← annualize via pure-PP ratio (WORKBOOK SHORTCUT)
 P6_DBI_Fringe  = N6 / N5 × P5                 ← gross up salary projection by budgeted fringe-to-salary ratio
 ```
 
@@ -2285,11 +2294,58 @@ Decoded in words:
    So we apportion the YTD actuals as if they reflected the budgeted
    salary-to-total split.
 3. **Annualize via the pure-PP ratio** (`J2/I2` = 26.1/22.4 = 1.165 at this
-   snapshot). The same straight-line pacing OVERM and RTPOM use.
+   snapshot). The same straight-line pacing OVERM and RTPOM use — **a workbook
+   shortcut that under-projects percentage-of-base premiums after a mid-year
+   COLA.** See § Manual / fragile #4 below + the
+   [Tab 16 COLA-aware projection note](#cola-aware-premium-projection--the-kospos-default) further down.
 4. **Cross-walk salary projection → fringe projection** via the budgeted
    fringe-to-salary ratio (`N6/N5` = 94,860/1,096,699 = 8.65%). Same "use the
    budget's ratio because benefits don't post separately" reasoning as
    [OVERM § Year-end projection](special-class.md#overm_e--overtime-misc--workbook-extracted-2026-05-24-autonomous-overnight).
+
+##### COLA-aware premium projection — the KosPos default
+
+Per [`feedback_projections_always_cola_aware.md` memory](#tab-24--staffing-plan)
+(reconfirmed Session 18 with Alex's worked example), KosPos's projection
+function is **always COLA-aware** and uses the workbook's pure-PP
+output as a parity-check side-view, not as the answer.
+
+**Two kinds of premium pay** with different COLA behavior:
+
+| Premium type | Examples | COLA-inflates? | Why |
+|---|---|---|---|
+| **Dollar-amount-fixed** | `L08` Lead Worker Pay $5, `289` Bilingual Pay $60 | **No** | The premium is a flat dollar amount per occurrence; the MOU sets it as a dollar, not a percentage of base. A COLA on the base salary leaves the premium amount unchanged. |
+| **Percentage-of-base** | `269` Struct Eng Prem 10.27%, `600` Architect License Prem 5%, `253` Cert Prem 6%, `125` Cert 4%, `113` 2%, `335` 2.5%, `318` 5.5%, `117` 3%, `332` 1%, `S48` Standby 10%, `601` Backflow 5% | **Yes** | The premium is a percentage of the employee's base salary. When base salary COLA-inflates, the premium amount paid per PP scales with it. |
+
+**The KosPos `projectPremium()` function** (illustrative):
+
+```ts
+function projectPremium({ deptGroup, ppe, ytdActuals, snapshot }: Inputs): Money {
+  const remainingPps = Calendar.remainingPps(ppe)
+  // Sum per-PP projected premium across remaining PPs, applying each PP's
+  // then-effective COLA to the percentage-of-base components.
+  const futurePremium = sum(remainingPps.map(pp =>
+    ytdActuals.dollarAmountFixed / Calendar.ppsElapsed(ppe)             // no COLA scaling
+    + ytdActuals.percentageOfBase / Calendar.ppsElapsed(ppe)
+       * Calendar.colaFactorAt(pp)                                       // COLA-aware scaling
+  ))
+  return ytdActuals.total + futurePremium
+}
+```
+
+**When the dept-group's premium-pay mix is exclusively $-amount premiums**
+(say a dept with only L08 Lead Worker codes), `colaFactorAt(pp) = 1` across
+the board and the COLA-aware function **returns the same number** as the
+pure-PP function. When the mix includes percentage-of-base premiums (most
+dept-groups, including DBI with 269 Struct Eng and 600 Architect), the
+COLA-aware function returns a **larger** projection — accurately
+reflecting that post-PP15 PPs cost more than pre-COLA PPs.
+
+**This is why the workbook's pure-PP under-projection is mathematically
+significant for PREMM**, contradicting an earlier Session-17 reasonable-default
+call ("pure-PP is fine for PREMM because $-amount premiums don't COLA-inflate")
+that didn't account for the percentage-of-base premium types. Resolved at
+[§ Open question #3](#open-questions--todo-2) below.
 
 OPS Summary consumers:
 
@@ -2309,14 +2365,23 @@ OPS Summary consumers:
    already cataloged in [cross-cutting concerns](#multi-dept-generalization-caveats-dbi-shortcuts-to-undo).
    Any premium pay posting to a non-operating fund (DBI BIF-Continuing 10230,
    CPC capital projects 10770) is silently excluded from the projection.
-4. **Pure-PP annualization** (`/I2*J2`) rather than COLA-weighted. Same shortcut
-   the workbook uses for OVERM and RTPOM. Premium dollar amounts mostly don't
-   COLA-inflate (a $5 lead-worker premium stays $5 regardless of MOU), so the
-   shortcut is mathematically defensible for *premium itself*; but the fringe
-   gross-up rides on the (budgeted) ratio which is COLA-influenced. KosPos
-   default = COLA-aware everywhere (per memory
-   `feedback_projections_always_cola_aware.md`) and let the per-class projection
-   function decide whether COLA inflation applies.
+4. **Pure-PP annualization** (`/I2*J2`) rather than COLA-weighted — **a
+   workbook shortcut that under-projects PREMM after a mid-year COLA.**
+   $-amount premiums (`L08` Lead Worker Pay $5, `289` Bilingual Pay $60)
+   are insensitive to COLA — the workbook's shortcut works for those. But
+   **percentage-of-base premiums (`269` Struct Eng 10.27%, `600` Architect
+   License Prem 5%, plus the 9 other Cert codes documented in
+   [scenario-tests § Scenario 9](../audits/labor-report-scenario-tests.md#scenario-9--earnings-code-orphans)) DO
+   COLA-inflate** — when base salary jumps by the FY26 SEIU 1021 Misc 1.5%
+   COLA at PP15, the per-PP premium amount paid against those codes
+   scales by the same 1.5%. Pure-PP annualization misses this delta.
+   Per [`feedback_projections_always_cola_aware.md` memory](#tab-24--staffing-plan)
+   (reconfirmed Session 18), **KosPos default is COLA-aware projection
+   as the primary output**; the function returns the same number as
+   pure-PP when the dept-group's premium mix is exclusively $-amount
+   codes, and a (slightly) larger number when percentage-of-base codes
+   are present. The workbook's pure-PP output is exposed as a
+   parity-check side-view, not as the answer.
 5. **Salary-vs-fringe split assumes the budgeted ratio matches the actual
    ratio.** True at the start of the year; can drift if Controller reclasses
    between accounts (rare). No reconciliation between the projection's implied
@@ -2352,7 +2417,7 @@ Worker Pay (`L08`), $100k Architect License Prem (`600`), $74k others."
 
 ##### 2. Surface premium codes the importer doesn't yet enumerate
 
-**Problem flagged in [position-level scenario tests § Scenario 9](../audits/labor-report-scenario-tests.md#scenario-9--undocumented-premium-pay-codes):**
+**Problem flagged in [position-level scenario tests § Scenario 9](../audits/labor-report-scenario-tests.md#scenario-9--earnings-code-orphans):**
 11+ premium-pay earnings codes (`253` Cert Prem 6%, `125` Cert 4%, `269` Struct
 Eng Prem 10.27%, `113`, `335`, `318`, `117`, `332`, `600`, `601`, etc.)
 carrying $1M+ total are not enumerated in the KosPos importer's premium-routing
@@ -2461,13 +2526,20 @@ For parity:
       salary per job class). The hire-plan-aware projection (improvement #4)
       needs this ratio per-job-class; confirm it's stable enough to project
       forward and where exactly it lives in the BFM workbook.
-- [ ] **Reasonable-default call (this session):** the projection's pure-PP
+- [x] **Reasonable-default call (this session):** the projection's pure-PP
       annualization stays as-is for PREMM because premium $ amounts mostly
       don't COLA-inflate. KosPos still calls the COLA-aware projection
       function but the function returns the same number when COLA inflation
       doesn't apply to the dollars. Confirm with Alex if any premium codes
       DO COLA-inflate (e.g., percentage-of-base premiums like the 6248
-      structural eng prem 10.27%).
+      structural eng prem 10.27%). **(Resolved Session 20, 2026-05-25 —
+      reconfirmed COLA-everywhere principle: percentage-of-base premiums
+      (`269` Struct Eng 10.27%, `600` Architect 5%, all 9 Cert codes) DO
+      COLA-inflate; KosPos's projection function is COLA-aware as primary,
+      returning the same number as pure-PP only when the dept-group's
+      premium mix is exclusively $-amount codes. See § COLA-aware premium
+      projection above + § Manual / fragile #4. Memory:
+      [`feedback_projections_always_cola_aware.md`](#tab-24--staffing-plan).)**
 - [ ] **CPC PREMM rounds to $5,989 budget, projects to $45,462** — 7.6× the
       budget. Tiny absolute numbers but large variance ratio. Confirm
       whether CPC PREMM is materially mis-budgeted or whether the
@@ -4556,48 +4628,1220 @@ questions:** _(walkthrough — confirm whether to keep as separate surface or fo
 
 ### Tab 23 — Vacancies and TEMP
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** Another pivot view of Report Data filtered to vacancies + temp positions.
-**Used as a reconciliation check** — every vacant or temp position must appear in the
-Staffing Plan. If a position is here but missing from Staffing Plan, that's a gap.
+**Purpose:** **The reconciliation source for the hiring plan.** A pivot of P&P
+Data filtered to vacancies + temp positions, broken down by Effective
+Employee Division → Department → Manager → Position, with subtotals at each
+level and a Grand Total headcount at the bottom. **Every position here
+should appear in the Staffing Plan** ([Tab 24](#tab-24--staffing-plan));
+when one is missing the Staffing Plan's `V` "Check" column flags it. The
+relationship is bidirectional: this tab is the *source* of vacancy /
+temp-position discovery, the Staffing Plan is the *workspace* where each
+becomes a planned action.
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough)_
+**Snapshot scope.** 132 rows × 22 cols. 103 distinct positions at this
+snapshot (the Grand Total at R132 column U). Distribution:
+
+- DBI: 51 positions across 9 subtotalled dept rows (`DBI ADM`, `DBI IS`,
+  `DBI PS`).
+- CPC: 51 positions across 4 dept rows (each labeled `Update Formula` —
+  the DBI-only Effective Employee Division shortcut documented in
+  [cross-cutting concerns](#multi-dept-generalization-caveats-dbi-shortcuts-to-undo)).
+- One `Grand Total` row at the bottom.
+
+#### Data sources
+
+- **Source:** `P&P Data` via **pivotCacheDefinition1.xml (cacheId=915)** —
+  the same cache backing **PivotTable28** that this tab renders. 605
+  cached records × 137 fields. The cache contains every OBI P&P column
+  (A:CC) **plus** the 12+ workbook-internal columns appended at CD:EG
+  (`Effective Employee Department/Division`, `Vacant Date`, `Vacant TEMP`,
+  `Exclude`, `Included In Staffing Plan`, the `Pos # Formatted` +
+  `Rep To # Formatted` reporting-tree helpers, the 11-level hierarchy
+  climb, …).
+- **Refresh cadence:** the pivot refreshes whenever P&P Data re-imports
+  (every payday Tuesday + ad-hoc); the slicer chips at row 1 are
+  user-driven filter selections persisted with the workbook.
+- **Downstream consumers:**
+  - [Tab 24 § V "Check" column](#tab-24--staffing-plan) —
+    `=IF(P="TEMPM","", IF(ISERROR(XLOOKUP(B, 'Vacancies and TEMP'!G, 'Vacancies and TEMP'!G)), "Check", ""))`.
+    Per-row test that the Staffing Plan position number is present in
+    this tab's `G` column.
+  - No other tab reads this one directly — it's a workspace, not a
+    feeder.
+
+#### Structure
+
+**Slicer chips (row 1):** the six categorical filters that drive what gets
+pivoted in. These are Excel Slicer objects bound to specific P&P Data
+cache fields — the user clicks each chip to include/exclude that
+category.
+
+| Cell | Slicer | P&P Data column |
+|---|---|---|
+| A1 | `Exclude` | `CK = Exclude` (XLOOKUP into `'Report Data'!R`, the same `Exclude` flag the per-position rows carry) |
+| C1 | `Vacant` | `Position Fill Status = "VACANT"` (cache field 13) |
+| D1 | `TEMP` | `Budget Job Code = "TEMPM"` or similar — the temp-position marker |
+| E1 | `Position =/= Budget` | row-level test `Position Job Code ≠ Budget Position Primary Job Code` (employee held against a different budgeted slot than the position's primary) |
+| F1 | `Temp on Budgeted Position` | row-level test: incumbent is appointment-type TEX / Cat 16-18 sitting on a non-TEMPM-budgeted slot (temp filling a permanent position) |
+| G1 | `On Leave` | `Employee Status = "L"` (cache field 24) |
+
+**Page filters (row 2):**
+
+| Cell | Field | Selected value |
+|---|---|---|
+| A2 | `Vacant TEMP` (cache field 87) | `(blank)` — i.e., all rows passing the slicer chips above |
+| (implicit) | `Exclude` (cache field 88, hidden) | excludes rows flagged `Y` in P&P Data's `CK` |
+
+**Row fields (rows 4 + below) — 20 hierarchical row fields:**
+
+| Order | Cache field | Column header (row 4) |
+|---|---|---|
+| 1 | 85 Effective Employee Division | A4 `Effective Employee Division` |
+| 2 | 84 Effective Employee Department | B4 `Effective Employee Department` |
+| 3 | 37 Manager First Name | C4 |
+| 4 | 38 Manager Last Name | D4 |
+| 5 | 13 Position Fill Status | E4 |
+| 6 | 52 Roster Code Description | F4 |
+| 7 | 1 Position Number | G4 |
+| 8 | 29 Employee Job Code | H4 |
+| 9 | 30 Employee Job Description | I4 |
+| 10 | 67 Budget Position Primary Job Code | J4 |
+| 11 | 73 Budget Job Description | K4 |
+| 12 | 25 Person Full Name | L4 |
+| 13 | 28 Preferred Name | M4 |
+| 14 | 24 Employee Status | N4 |
+| 15 | 31 Employee Appointment Type | O4 |
+| 16 | 32 EE Exempt Category Description | P4 |
+| 17 | 19 Previous Employee2 (vice) | Q4 |
+| 18 | 80 Budget Department Description 1 | R4 |
+| 19 | 86 Vacant Date | S4 |
+| 20 | 89 Included In Staffing Plan | T4 |
+
+**Data field (column U):** `Count of 11RC` (field 136). A workbook-internal
+running-count column on P&P Data used as the pivot's measure — appears as
+`1` on every position row and sums up the subtotals.
+
+#### Workbook-internal columns the pivot relies on
+
+P&P Data appends 12 workbook-internal columns (CD:CL + helpers) after the
+137-column OBI P&P export. The Vacancies pivot keys off six of them:
+
+| Col | Header | How it's computed |
+|---|---|---|
+| CG | `Effective Employee Department` | XLOOKUP / hand-map of `Employee Department Code` → consolidated dept name (handles depts moved between cost centers) |
+| CH | `Effective Employee Division` | **DBI-only manual lookup** — XLOOKUPs DBI dept codes → DBI Division labels (`DBI AdminIstration`, `DBI Inspection Services`, `DBI Permit Services`). CPC rows return the literal `"Update Formula"`. **Already in cross-cutting concerns** as a DBI shortcut. |
+| CI | `Vacant Date` | The PPE on which the position became vacant (joined from a vacancy-tracking source, exact source TBD — possibly hand-entered on snapshot). Used as the row's `S` value in the pivot. |
+| CJ | `Vacant TEMP` | Categorical combiner used as a page filter — `(blank)` means the row passes the slicer, anything else is a sub-classification (e.g., "TEMP on Vacant", "Vacant non-TEMP"). |
+| CK | `Exclude` | `=XLOOKUP(B, 'Report Data'!D, 'Report Data'!R)` — pulls the per-position exclude flag from Report Data (the same one that zeroes the position's actuals + budget there). |
+| CL | `Included In Staffing Plan` | `=IF(XLOOKUP(B, 'Staffing Plan'!B, 'Staffing Plan'!B, "")="", "", "Y")` — flips to `"Y"` if the position number is present anywhere in Staffing Plan. **This is the reconciliation primitive.** |
+
+Together these form a **vacancy-tracking sub-schema layered onto P&P
+Data**. KosPos rebuilds them as model fields on the Position entity
+(`exclude: boolean`, `vacantSince: Date`, `includedInStaffingPlan:
+boolean`), not as XLOOKUPs into other tabs.
+
+#### What's manual / fragile
+
+1. **`CH Effective Employee Division` returns `"Update Formula"` for
+   every CPC row.** The pivot's level-1 grouping at column A shows
+   `"Update Formula"` for all 51 CPC positions — a literal placeholder
+   string from the DBI-only XLOOKUP. Subtotal rows ("Update Formula
+   Total" at R131) carry this through. **Same DBI shortcut already in
+   cross-cutting concerns** (CPC rows get the literal `"Update Formula"`
+   placeholder). KosPos's citywide dept-classification tree eliminates
+   this.
+2. **Slicer state is workbook-local.** The 6 slicer chips at row 1
+   (`Vacant`, `TEMP`, `Position =/= Budget`, `Temp on Budgeted Position`,
+   `On Leave`, `Exclude`) are Excel Slicer objects whose selection state
+   is persisted with the file. If two users open separate copies and
+   toggle differently, their views diverge silently. KosPos's
+   URL-encoded filter state shares cleanly between users.
+3. **`CK Exclude` depends on Report Data being refreshed first.** If
+   the user refreshes P&P Data but not Report Data, the pivot's exclude
+   filter pulls stale flags. KosPos derives `exclude` once at the model
+   layer; downstream views can't disagree.
+4. **`CL Included In Staffing Plan` is a one-way diagnostic.** It tells
+   you whether a Vacancies-tab position has a Staffing Plan row, but not
+   the reverse (Staffing Plan rows that don't appear in Vacancies — say,
+   a position the user added manually to plan-only). The Staffing Plan's
+   `V` "Check" column is the reverse-direction half of the same
+   diagnostic; both have to be inspected separately.
+5. **`Manager First Name` + `Manager Last Name` as row fields** (cols
+   C–D) inherit the manager from the position's `Reports To`. If
+   `Reports To` points to a vacant manager position, the row shows
+   blank manager — visually identical to "no manager at all" without
+   inspecting the underlying chain.
+6. **`Previous Employee2` (col Q, "vice") is the vacancy attribution
+   field.** When a position becomes vacant, the `Previous Employee2`
+   field carries the person who vacated it — critical for tracking
+   "who left, when, and what role to backfill." But this field is
+   **only populated for one prior incumbent**; a position vacated → backfilled
+   → re-vacated may carry only the most recent vice, losing the
+   intermediate history. Cross-references the [`staffing_plan_types.md`
+   memory's RTF caveat](#tab-24--staffing-plan) — historic-vice
+   inspection is the suggested cross-check for "no RTF" gaps.
+7. **No date filter.** The pivot shows the current state regardless of
+   when each position became vacant. A `Vacant Date` from 2024 is
+   visually identical to one from last week. KosPos surfaces vacancy
+   age as a sort + color treatment.
+8. **The slicer chip semantics aren't documented in the workbook.** What
+   does `Position =/= Budget` mean exactly? `Temp on Budgeted Position`?
+   These categorical names depend on a reader who already knows the
+   DBI vocabulary. KosPos renames + tooltips each filter explicitly.
+
+#### KosPos improvements
+
+##### 1. Promote vacancy + temp tracking to first-class model fields
+
+**Problem in the workbook.** Vacancy state lives as P&P Data columns
+CD:CL — XLOOKUPs back into Report Data + Staffing Plan, plus
+hand-populated dates. The pivot view derives from these columns. There's
+no canonical "Position.isVacant" or "Position.vacancyState" — every
+consumer has to re-derive it.
+
+**KosPos design.** The Position entity carries first-class fields:
+
+```ts
+type Position = {
+  // ...existing fields...
+  fillStatus: 'FILLED' | 'VACANT' | 'PARTIALLY_FILLED' | 'OVER_FILLED'  // from P&P
+  vacancyState: 'active' | 'temp-filled' | 'on-leave' | null   // computed from incumbent
+  vacantSince: Date | null                                       // PPE position became vacant
+  previousIncumbent: { person, vacancyDate, vacancyReason } | null   // last vice
+  inHiringPlan: boolean                                          // joined from staffing-plan table
+  exclude: boolean                                               // from import-side decision, not from Report Data
+}
+```
+
+The Vacancies and TEMP "tab" in KosPos is just a filtered view of the
+position list — no separate sheet, no slicer state to keep in sync.
+
+##### 2. Bidirectional Staffing Plan ↔ Vacancies reconciliation
+
+**Problem in the workbook.** `CL Included In Staffing Plan` flags
+"Vacancies row missing from Staffing Plan." Staffing Plan's `V` "Check"
+flags "Staffing Plan row not found in Vacancies." Two separate
+half-diagnostics in two places.
+
+**KosPos design.** A single "Coverage" panel on the Vacancy Planning
+page surfaces both directions:
+
+```
+Coverage diagnostics — 103 vacant/temp positions / 95 Staffing Plan rows
+
+  ⚠ 8 vacant positions have no Staffing Plan row
+     → review:  [1146853 Customer Svc Rep] [1147953 IS Prg Anlst Princ] ...
+
+  ⚠ 3 Staffing Plan rows reference positions not on Vacancies (no longer vacant?)
+     → review:  [...]
+
+  ✓ 92 positions cross-referenced cleanly
+```
+
+Each issue links directly to the relevant row for one-click action.
+
+##### 3. Vacancy age + vice history surfaced as first-class
+
+**Problem in the workbook.** `Vacant Date` is a column but not sorted /
+colored / aged. `Previous Employee2` carries only the most recent vice
+— prior-prior vacancies lose attribution.
+
+**KosPos design.**
+
+- **Age sort.** Default sort by `vacantSince` ascending (oldest first).
+  Color-coded: <30 days green, 30-90d yellow, >90d red.
+- **Vice history per position.** Snapshot-based: each P&P snapshot
+  captures the then-current incumbent; the history derives from the
+  sequence. A position that went filled → vacant → filled → vacant
+  shows: "Last 4 incumbents: A (filled 2024-01–2024-08), vacant
+  2024-08–2024-11, B (filled 2024-11–2025-03), vacant since 2025-03."
+- **Cross-reference with RTF history.** The vacant-no-RTF scenario from
+  [scenario-tests § Scenario 5](../audits/labor-report-scenario-tests.md#scenario-5--vacant-but-no-rtf)
+  benefits directly: a vacant position with a documented prior
+  incumbent vacate-and-rehire shows "RTF data integrity issue
+  suspected" rather than "intentional hold" by default
+  (per [`staffing_plan_types.md`
+  memory](#tab-24--staffing-plan)).
+
+##### 4. Explicit categorical slicer semantics
+
+**Problem in the workbook.** Slicer chips `Vacant`, `TEMP`, `Position
+=/= Budget`, `Temp on Budgeted Position`, `On Leave`, `Exclude` are
+opaque shorthand. A new user has no way to know what each filter does
+without asking Alex.
+
+**KosPos design.** Each filter has an explicit definition + tooltip:
+
+| Filter | Definition | Tooltip |
+|---|---|---|
+| Vacant | `fillStatus = VACANT` | "Position has no current incumbent. Most positions need an RTF + hiring sequence." |
+| TEMP-budgeted | `budgetJobCode = TEMPM` (PS HCM code 5380 at DBI) | "Position is budgeted as Temporary in the BFM eturn. Different cost behavior than PCS." |
+| Job code drift | `employeeJobCode ≠ budgetPositionPrimaryJobCode` | "Incumbent is acting in a different class than what the position is budgeted for. Surface for reclassification review." |
+| Temp on PCS slot | `appointmentType ∈ {TEX, Cat 16-18} AND budgetJobCode ≠ TEMPM` | "Temp incumbent filling a permanent slot. Usually temporary; if persistent, consider PCS conversion." |
+| On Leave | `employeeStatus = L` | "Incumbent is on leave (medical, parental, etc.). A Cat 17 backfill may be present on a sister position." |
+| Excluded | from quality-flag system | "Position is excluded from rollups by user decision. Document why in user notes." |
+
+##### 5. Surface citywide dept-classification natively (no `Update Formula` placeholder)
+
+**Problem in the workbook.** `CH Effective Employee Division` for CPC
+rows returns the literal `"Update Formula"`. Visible everywhere. Already
+[cataloged](#multi-dept-generalization-caveats-dbi-shortcuts-to-undo).
+
+**KosPos design.** Position → Department → Department Classification
+Structure (PS HCM citywide tree) is the canonical hierarchy. No per-dept
+manual lookups; the tree handles all departments uniformly. The
+"Effective Division" label rolls up to whatever level the user asks for
+(division / dept-group / dept).
+
+#### KosPos UI sketch
+
+**Vacancy Planning page** — the primary forward-looking surface
+(per [`staffing_plan_types.md` memory](#tab-24--staffing-plan):
+"vacancy planning is a major function of KosPos"). Layout:
+
+```
+Vacancy Planning · DBI + CPC · as of PPE 2026-05-21
+┌─────────────────────────────────────────────────────────────────────┐
+│ 103 vacant/temp positions    95 Staffing Plan rows    8 unplanned  │
+│ ⚠ 8 vacancies have no plan   ⚠ 7 expired Cat 17/18 sitting vacant │
+└─────────────────────────────────────────────────────────────────────┘
+
+[Filter] Vacant ✓  TEMP ✓  On Leave  Job Code Drift  …
+
+DBI ADM (3)                                          [+ Add to plan]
+  1119984 Secretary 2          Vacant 2026-01-22 (PP 14) — no RTF [⚠]
+  1129033 Pr Admin Analyst     Vacant 2024-10-08 (399d) — RTF pending [⚠]
+  ...
+
+DBI IS (18)
+  ...
+
+CPC Current Planning (29)
+  ...
+
+[Coverage diagnostics] (8 unplanned · 3 plan-only · 92 reconciled)
+```
+
+Clicking a row → Position Detail. Clicking "+ Add to plan" → opens
+Staffing Plan row pre-populated with this position's metadata.
+
+#### Excel export notes
+
+For parity with the workbook:
+
+- **Sheet `Vacancies and TEMP`.** Mirror the pivot's hierarchical layout
+  (Effective Division → Department → Manager → Position). KosPos emits a
+  live pivot from the underlying position table, not a paste-snapshot.
+- **Replace `"Update Formula"` with the actual division** sourced from
+  the citywide tree.
+- **Add a `Days Vacant` column** computed from `Vacant Date` + the
+  snapshot's PPE for one-glance aging.
+- **Slicer chips at row 1 → drop entirely.** The KosPos URL-encoded
+  filter set replaces them; the export reflects whatever filter was
+  active at export time.
+
+#### Open questions / TODO
+
+- [ ] **Verify the 6 slicer-chip definitions** against Alex's working
+      semantics. Best-guess definitions are in the "Explicit categorical
+      slicer semantics" KosPos improvement table above — confirm or
+      correct each.
+- [ ] **Confirm `Vacant Date` source.** Is it computed from a P&P Data
+      column natively, hand-entered per snapshot, or derived from the
+      vacancy-history snapshot chain? The current formula in CI was not
+      inspected; sampling showed values populated only for vacant rows.
+- [ ] **Confirm `Previous Employee2` vs `Previous Employee` semantics.**
+      The pivot uses field 19 (`Previous Employee`) but the column
+      header in this tab reads `Previous Employee2` — possibly the
+      "second-to-last" incumbent vs the most recent. Affects vice-history
+      reconstruction in KosPos.
+- [ ] **The 8 unplanned vacancies** (positions in this tab missing
+      from Staffing Plan) — Alex to walk through each at the
+      [Tab 24 § V Check](#tab-24--staffing-plan) follow-up. Likely
+      candidates for "intentional hold" classification or RTF data-integrity
+      issues per
+      [scenario-tests § Scenario 5](../audits/labor-report-scenario-tests.md#scenario-5--vacant-but-no-rtf).
+- [ ] **OVER FILLED / PARTIALLY FILLED semantics** — from
+      [Tab 27 Open Question #3](#open-questions--todo-7) (resolved
+      this session via Alex's Type taxonomy): OVER FILLED happens when a
+      position's `maxHeadcount > 1` and >1 incumbent currently filled
+      (pool positions, commissioners). PARTIALLY FILLED is the same
+      with <maxHeadcount filled. Updated in
+      [`staffing_plan_types.md` memory](#tab-24--staffing-plan).
 
 ---
 
 ### Tab 24 — Staffing Plan
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** **Very important.** The hiring plan — which vacant / temp positions to
-fill, when (in PP terms), at what cost. Feeds the cost ladder that Budget Summary uses.
+**Purpose:** **The hiring plan workspace** — the canonical record of
+which positions the department is moving toward filled (or letting
+become vacant), when, for what cost, and why. "Vacancy planning is a
+major function of KosPos" (per
+[`staffing_plan_types.md` memory](#tab-24--staffing-plan)): this tab is
+the workbook's incarnation of that function. Already cross-referenced
+from [Tab 20 Report Data § HIRING + SEPARATING blocks](#tab-20--report-data):
+those blocks pull `W` and `X` cost cells from here for the projection.
+Budget Summary ([Tab 25](#tab-25--budget-summary)) consumes the totals.
 
-**Data sources:** Vacancies + TEMP (tab 23), manually elaborated with fill-PP, fill-cost
-estimates, and hiring sequence. Pulls 14 fields from P&P Data via 1,844 XLOOKUPs on
-Position Number / Job Code — see [Tab 6 § How each downstream tab consumes P&P
-Data](#how-each-downstream-tab-consumes-pp-data).
+**Snapshot scope.** 95 rows × 25 cols. **5 sections in stacked-block
+layout**, one per row Type:
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough — major surface; reserve a session for this alone)_
+| Section | Rows | Type | Count | Total cells |
+|---|---|---|---|---|
+| 1 | 1–30 | Active | 27 data + Type header + Totals + Annualized | ~30 |
+| 2 | 32–41 | Separations | 7 data + Type header + Totals + Annualized | ~10 |
+| 3 | 43–67 | Pending | 22 data + Type header + Totals + Annualized | ~25 |
+| 4 | 69–85 | TEMP | 16 data + Type header (no Totals row — no cost projection) | ~17 |
+| 5 | 89–95 | Unfunded | 4 data + Type header + Totals + Annualized | ~7 |
+
+Each section repeats the same 25-col header row at its top (rows 1, 32,
+43, 69, 89), data rows below, and (for sections 1, 2, 3, 5) a 2-row
+footer with sum + annualized projection. **Type values come from the
+[`staffing_plan_types.md` memory](#tab-24--staffing-plan):** Active /
+Separations / Pending / TEMP / Unfunded — these are the canonical labels.
+
+#### Data sources
+
+- **Primary:** **manual entry by Alex.** Each row represents a planning
+  decision — which position to fill, when to expect the start date, what
+  hiring stage it's in, what the projected cost is. The cost (cols W, X)
+  comes from the [in-app Cost Calculator](../../app/src/modules/calculator/)
+  applied to the position's metadata (job class, step, MOU, FY) — Alex
+  computes externally and types the result here. Notes (col Y) carry
+  per-row context that explains the decision ("Backfill, Jimmy's,
+  offered Yanxian Chen" / "TPV to PCS" / "Transferring to CPC, hold
+  per CPC" / "Hold per Mary").
+- **Auto-populated lookups:** 14 fields per row pulled by XLOOKUP from
+  P&P Data on Position Number / Job Code (see formula map below). Total
+  ~1,300 XLOOKUPs across the tab.
+- **Cross-tab validation:** col V "Check" XLOOKUPs into
+  [Tab 23 Vacancies and TEMP](#tab-23--vacancies-and-temp) by Position
+  Number — flags any Staffing Plan row whose position is not currently
+  vacant or temp (potentially a stale plan row).
+- **Downstream consumers:**
+  - [Tab 20 Report Data HIRING rows 767–790](#tab-20--report-data) +
+    [SEPARATING rows 795–798](#tab-20--report-data): pulls `W` (annual
+    cost) per position to feed the per-position projection.
+  - [Tab 25 Budget Summary](#tab-25--budget-summary): reads `W29`
+    (Active hires total) + `W40` (Separations total) for the BY+1
+    surplus / deficit calc.
+  - [Tab 23 Vacancies and TEMP § CL](#tab-23--vacancies-and-temp): per-position
+    XLOOKUP into Staffing Plan's `B` column to flag positions present
+    here.
+  - [Tab 6 P&P Data § CL "Included In Staffing Plan"](#tab-6--pp-data):
+    same XLOOKUP duplicated on the P&P Data sheet.
+
+#### Per-row column map (all 5 sections share this 25-col schema)
+
+| Col | Header | Source | Notes |
+|---|---|---|---|
+| A | `Type` | Manual (Active / Separations / Pending / TEMP / Unfunded) | The classification driver. See [`staffing_plan_types.md` memory](#tab-24--staffing-plan). |
+| B | `Position Number` | Manual entry | The join key for all XLOOKUPs into P&P Data + Vacancies. **Single source of truth** for who/what the row is about. |
+| C | `Job Class` | Manual (or copied from incumbent's `Employee Job Code`) | The intended class to fill the position at. May differ from `P Budget Job Code` if the plan is to reclassify. |
+| D | `Job Description` | `=XLOOKUP(C, 'P&P Data'!C, 'P&P Data'!D)` | Auto-resolved from C. |
+| E | `Step / Range` | Manual | Expected step at hire for stepped classes (1–5) or range letter for MCCP (A/B/C). |
+| F | `Appointment Type` | Manual (PCS / PEX / TEX / Cat 16 / 17 / 18) | The hire's appointment type. |
+| G | `Exempt Category` | Manual (00 Not Exempt / 18 Special Proj - Limited Term / etc.) | The exempt-category description if applicable. |
+| H | `Roster Code` | Manual | Internal DBI roster code (e.g., `DBIS1`, `DBIAD`, `DBICS`) used to group hires by team/section. |
+| I | `Roster Description` | Manual (or XLOOKUP from Roster Code) | Plain-language roster label. |
+| J | `Combo Code` | Manual | Chartfield-string alias for cost posting. Usually inherited from the position's current chartfield. |
+| K | `Internal Approval` | Manual `Y` / blank | DBI internal approval done? |
+| L | `External Approval` | Manual `Y` / blank | DHR / CSC / Mayor's Budget Office approval done? |
+| M | `Status` | Manual | Hiring-stage state: `Not started / Posted / List / Exam / Interviews / Offer / Final / CSC hold / Finished` (Separations + Pending + Unfunded rows leave blank). |
+| N | `Start PP Ending` | Manual (date) | Projected start PPE. Drives the per-PP cost projection downstream. |
+| O | `Effective Employee Department` | `=XLOOKUP(B, 'P&P Data'!B, 'P&P Data'!CG)` | Auto-resolved. |
+| P | `Budget Job Code` | `=XLOOKUP(B, 'P&P Data'!B, 'P&P Data'!BP)` | Auto-resolved. Drives the V "Check" formula (TEMPM rows skip the check). |
+| Q | `Manager First Name` | `=XLOOKUP(B, 'P&P Data'!B, 'P&P Data'!AL)` | Auto-resolved. |
+| R | `Manager Last Name` | `=XLOOKUP(B, 'P&P Data'!B, 'P&P Data'!AM)` | Auto-resolved. |
+| S | `Incumbent` | `=IF(XLOOKUP(B, 'P&P Data'!B, 'P&P Data'!Z)="Unspecified", "", XLOOKUP(B, 'P&P Data'!B, 'P&P Data'!Z))` | Person name from P&P Data, blanked if vacant. |
+| T | `Vice` | `=XLOOKUP(B, 'P&P Data'!B, 'P&P Data'!T)` | Previous incumbent (the vice — vacancy-attribution field). |
+| U | `Vacancy Date` | `=IF(XLOOKUP(B, 'P&P Data'!B, 'P&P Data'!CI)=0, "", XLOOKUP(...))` | Date the position became vacant (from P&P `CI Vacant Date`), blank if not vacant. |
+| V | `Check` | `=IF(P="TEMPM", "", IF(ISERROR(XLOOKUP(B, 'Vacancies and TEMP'!G, 'Vacancies and TEMP'!G)), "Check", ""))` | Validation flag. Returns `"Check"` if the position is not in the Vacancies pivot AND not a TEMPM-budgeted position. TEMPM rows skip because they're temp positions not expected to be in the vacancy filter. |
+| W | `Cost (Use Calculator)` | **Manual** — the annual fully-loaded cost projection from the [Cost Calculator](../../app/src/modules/calculator/). Often **blank** for early-stage hires. | The headline cost number. Active rows: positive (cost of hire); Separations: negative (savings). |
+| X | `PP Cost (Use Calculator)` | **Manual** — same source, per-PP cost. | The per-PP cost number, used by the Annualized row to extrapolate. |
+| Y | `Notes` | Manual free-text | The "why" behind the plan decision. Critical context the data can't capture (per [`feedback_user_notes_per_position.md` memory](#tab-24--staffing-plan)). |
+
+#### Per-section footers (Totals + Annualized rows)
+
+**Active (rows 29–30):**
+
+```excel
+W29 = =SUM(W2:W28)               ← Total annual Active hire cost — read by Budget Summary B5
+X29 = =SUM(X2:X28)               ← Total per-PP Active hire cost
+X30 = =X29 * Calendar!$J$2       ← Annualized via pure-PP total (J2 = 26.1) — sanity check vs W29
+```
+
+**Separations (rows 40–41):**
+
+```excel
+W40 = =SUM(W33:W39)              ← Total annual Separation savings — read by Budget Summary B6
+X40 = =SUM(X33:X39)              ← Total per-PP Separation savings
+X41 = =X40 * Calendar!$J$2       ← Annualized
+```
+
+**Pending (rows 66–67):**
+
+```excel
+X66 = =SUM(X46:X65)              ← Only PP cost rolled up (Pending has no annual-cost rollup)
+X67 = =X66 * Calendar!$J$2       ← Annualized
+```
+
+**Unfunded (rows 94–95):**
+
+```excel
+X94 = =SUM(X90:X93)              ← Only PP cost rolled up
+X95 = =X94 * Calendar!$J$2       ← Annualized
+```
+
+**TEMP (rows 70–85):** no Totals row. TEMP positions are tracked for
+visibility but not separately projected (their cost rides in the dept's
+general labor projection).
+
+**Why `Active` + `Separations` have W rollup but `Pending` + `Unfunded`
+don't:** Active hires + Separations are the only Types with *expected*
+cost-impact this FY — Pending positions aren't planned to fill (so no
+fill cost), Unfunded positions don't have budget (so no funded cost),
+TEMP positions are absorbed by the dept's regular labor projection. The
+PP-cost rollups for Pending + Unfunded exist to project "what would the
+PP burden be if these positions did move forward" — used as a
+sensitivity reference, not a budget commitment.
+
+#### Status taxonomy (Active rows)
+
+The `M Status` column tracks hiring-stage progression. Observed values
+and their workflow meaning:
+
+| Status | Stage |
+|---|---|
+| `Not started` | No active recruiting; position identified but no action taken. Often `Cost` blank. |
+| `Posted` | Job posted publicly (DHR + dept site). Awaiting list / applications. |
+| `List` | Eligibility list ready; awaiting interviews. |
+| `Exam` | Exam scheduled / in progress. |
+| `Interviews` | Interviews underway. |
+| `Offer` | Offer extended; awaiting acceptance. |
+| `Final` | Acceptance received; awaiting start date. |
+| `CSC hold` | Civil Service Commission hold (procedural delay). |
+| `Finished` | Hire completed (or attempt closed — see `Notes` for context like "Noel Lostica (external) rejected, offering ..."). |
+
+These map to KosPos's Hiring Workflow state machine (Phase 4 territory).
+
+#### Cross-section position duplication — same position number in multiple sections
+
+A pattern that surfaces repeatedly: **one position number appears in
+multiple sections of the tab**, each representing a different planned
+action against that position. From the snapshot:
+
+| Position | Active | Separation | Pending | TEMP | Unfunded | Interpretation |
+|---|---|---|---|---|---|---|
+| 1115135 | R5 (CSC hold, $63k) | R33 (Promotion pending CPC, -$52k) | — | R75 (Pending CPC) | — | Current incumbent expected to separate (promotion); plan to backfill; current TEMP placeholder noted |
+| 1139882 | R2 (Not started, blank cost) | — | — | R72 (E2P) | — | Position has a temp on it; planning to convert exempt-to-permanent (E2P) |
+| 1146752 | R3 (Not started, blank cost) | — | — | R74 (E2P) | — | Same pattern |
+| 1054281 | R11 (Future vacancy) | R34 (Retirement, -$65k) | — | — | — | Incumbent retiring; backfill plan staged in Active |
+| 1124350 | — | R35 (Medical retirement) | R57 (Pending Ken) | — | — | Separation expected; reuse decision pending |
+| 1149546 | — | — | R46 (Transferring to CPC) | — | — | Position transferring DBI→CPC in the merger |
+
+**Interpretation rule:** the same Position Number across sections is
+*intentional* — Type encodes the *plan-time perspective*, not a
+position attribute. A position can have an Active fill plan AND be
+Separation-marked AND have a current TEMP placeholder all at the same
+moment in time, because each describes a different planned action
+against that one position over the FY.
+
+KosPos models this as `PlannedAction[]` per Position (not `Position.type`)
+— one position can carry multiple actions with their own dates + costs.
+
+#### DBI→CPC transfer-of-function visible in Pending + TEMP
+
+Several Pending rows carry notes like "Transferring to CPC, hold per
+CPC" or "Pending merge". These are the position-level manifestation of
+the **DBI→CPC mid-year transfer of function** decoded in
+[Tab 20 § MERGE row 753](#tab-20--report-data) and
+[`bva-reconciliation-suite.md` Test 1](../audits/bva-reconciliation-suite.md):
+the $2.05M Salaries chartfield-level KK budget journal that moved
+appropriation between DBI and CPC has corresponding *positions* moving
+between the two — captured here at the per-position level.
+
+The combination is the full reconciliation:
+
+- **Chartfield level** (BVA / Report Data MERGE row 753): the
+  appropriation moves.
+- **Position level** (this tab's Pending section): which positions in
+  particular are affected.
+
+KosPos's BVA reconciliation surfaces both the dollar-level KK movement
+and the per-position transition.
+
+#### What's manual / fragile
+
+1. **`W Cost` and `X PP Cost` are hand-typed from the Cost Calculator.**
+   Each filled cost cell is a snapshot of what the calculator returned
+   when Alex computed it — there's no live link back to the calculator
+   inputs. A mid-year MOU COLA shifts the calculator output but doesn't
+   update existing Staffing Plan cells until Alex re-runs. Same drift
+   pattern as any other "paste-value-once" cell.
+2. **Many `W/X` cells are blank for early-stage hires** (Status =
+   `Not started` / `List` / `Posted` typically blank). The Sum at W29
+   silently undercounts because not every Active row carries cost. The
+   reader has to mentally separate "Active rows with cost" from "Active
+   rows without cost" to know the true projection.
+3. **The cost is the *position*'s projected hire cost, not the
+   *incumbent*'s actual cost.** When the position actually fills, the
+   real cost diverges (real step vs planned step, real start PPE vs
+   projected, real MOU rate that's now COLA'd differently, etc.).
+   Nothing in the workbook reconciles "planned vs actual" once the hire
+   completes.
+4. **`Start PP Ending` is a *guess* with no calibration.** No tracking
+   of how often plan-time start PPEs match actual start PPEs. A
+   systemically optimistic estimator over-projects hire costs (too
+   many PPs costed); a pessimistic one under-projects.
+5. **The 5-section block layout is hardcoded.** Inserting a row to add
+   a new Active hire requires inserting at the right place (between
+   R28 and R29) and rebasing the `W29 = SUM(W2:W28)` formula. Same for
+   the other sections. Adding a row at the wrong place silently breaks
+   the rollup.
+6. **`V Check` only fires on Position Number mismatch.** If a Staffing
+   Plan position number is valid but the plan no longer makes sense
+   (the position was already filled, deleted, or reclassified), the
+   Check column stays blank — only the absence-from-Vacancies tab
+   triggers it.
+7. **`Notes` carry critical context but are unsearchable / un-typed.**
+   "Hold per Jimmy" means very different things from "Pending CPC" or
+   "TPV to PCS" — the categorical distinctions live in prose. KosPos
+   surfaces a `holdReason`-style enum on each row + free text
+   (per [`feedback_user_notes_per_position.md`
+   memory](#tab-24--staffing-plan)).
+8. **Position 1115135 appears as Active + Separation + TEMP**
+   simultaneously — the workbook offers no visual cue that these three
+   rows reference the same Position Number. A reader scanning each
+   section independently might double-count.
+9. **No date stamp on plan entries.** When was a row added to the plan?
+   When was a Status last updated? Lost.
+10. **No history of dropped rows.** A position planned-and-then-removed
+    is silently deleted from the sheet. KosPos's snapshot-diff captures
+    the drop.
+11. **Pending section's missing W rollup is intentional but easy to
+    miss.** `W66` is blank (Pending has no annual cost projection — only
+    `X66` PP-cost sum). A reader who expects all sections to have W
+    totals might wrongly assume the section was empty.
+12. **`Annualized` row uses pure-PP `Calendar!$J$2 = 26.1`** — same
+    pure-PP shortcut the workbook uses elsewhere. Per
+    [`feedback_projections_always_cola_aware.md` memory](#tab-24--staffing-plan):
+    KosPos's projections are always COLA-aware. The annualized number
+    here projects what the per-PP cost extrapolates to over a full FY,
+    which for percentage-of-base-salary cost components needs COLA
+    awareness (post-PP13 PPs cost more than pre-COLA PPs by the COLA
+    fraction).
+
+#### KosPos improvements
+
+##### 1. PlannedAction model — one position can carry many actions
+
+**Problem in the workbook.** Position 1115135 appears 3× (Active +
+Separation + TEMP). The `A Type` column tries to be both a row
+classifier AND a position-attribute, which forces the same position to
+be duplicated.
+
+**KosPos design.** Each Position carries a list of `PlannedAction`s, each
+with its own Type / Status / Start PPE / Cost / Notes / authorBy /
+authorAt:
+
+```ts
+type PlannedAction = {
+  id: string
+  positionId: PositionNumber
+  type: 'active-hire' | 'separation' | 'pending' | 'temp-tracking' | 'unfunded'
+  status: HiringStatus | null
+  startPpe: PPE | null
+  expectedCost: { annual: Money, perPp: Money, basis: CostCalcInput }
+  notes: string
+  holdReason?: 'awaiting-approval' | 'csc-hold' | 'awaiting-dhr' | ...
+  createdAt: Date
+  updatedBy: User
+  history: HistoryEntry[]
+}
+```
+
+A position with 3 actions shows up 3× in the action list view (one per
+action), but only 1× in the position list view. Snapshot-diffs track
+each action's lifecycle.
+
+##### 2. Cost projection runs live, not paste-once
+
+**Problem in the workbook.** `W` and `X` cells are pasted from the
+calculator at one point in time. COLAs / step changes / MOU updates
+don't propagate.
+
+**KosPos design.** Each PlannedAction's `expectedCost` is computed live
+from `lib/cost.ts` against the action's parameters. The cell shows the
+current projection; a "compare to plan" toggle shows what it would have
+projected at action-creation time (using the historical inputs). When
+something material changes (COLA, MOU update), the action's cost
+auto-updates and a "cost changed +$X" indicator appears with a one-click
+"acknowledge" to dismiss.
+
+##### 3. Hire-plan / actuals reconciliation post-fill
+
+**Problem in the workbook.** Once a hire completes (Status `Finished`),
+the planned cost stays in `W` forever — never compared to actual.
+
+**KosPos design.** When a PlannedAction's referenced Position transitions
+from VACANT → FILLED in a P&P snapshot, KosPos auto-creates a
+"reconciliation" record: `plannedCost` vs `actualCost` (from BI Payroll
+post-fill), shown on the action's detail view. A trend dashboard
+("hire-plan accuracy") aggregates these over time to calibrate Alex's
+future estimates.
+
+##### 4. Status workflow with explicit transitions + RBAC
+
+**Problem in the workbook.** The `M Status` column is free text.
+"Final" vs "Finished" vs "Offer" vs "CSC hold" are conventions, not
+rules. Anyone with edit access can set anything.
+
+**KosPos design.** Hiring Status is a state machine:
+
+```
+Not started → Posted → List → Exam → Interviews → Offer → Final → Finished
+                                                            ↓
+                                                       CSC Hold (any → CSC Hold; CSC Hold → Final)
+```
+
+Each transition can require approval (DHR / CSC / Mayor's Budget Office)
+per `K External Approval` rules. Audit log on every transition.
+
+##### 5. Cross-section duplicate position alert
+
+**Problem in the workbook.** Position 1115135 appearing in Active +
+Separation + TEMP isn't surfaced. A reader has to scan each section to
+notice.
+
+**KosPos design.** Position list view shows each position once with a
+badge "(3 actions)" when multiple. Position Detail view shows all
+actions on one timeline. Coverage diagnostic (per
+[Tab 23 § KosPos improvement #2](#kospos-improvements-7)) explicitly
+calls out "Position 1115135 has Active + Separation + TEMP all at once
+— is this intentional?"
+
+##### 6. Type / Status / Notes structured search
+
+**Problem in the workbook.** "Hold per Jimmy" / "Hold per Mary" / "Hold
+per Matt" / "Hold per David" — same conceptual hold reason, four
+different note strings. A filter like "show all positions on hold for
+HR-related reasons" requires grep, not query.
+
+**KosPos design.** Notes carry a structured `holdReason` enum
+(per [§ Manual/fragile #7](#whats-manual--fragile-7)) — categorical
+slice + free-text. The Vacancy Planning page filters by holdReason
+natively.
+
+##### 7. RTF integration: import RTF status into the plan
+
+**Problem in the workbook.** RTF state (Latest RTF ID, Status, Submitted
+Date, Expected Fill Date) lives on P&P Data but isn't surfaced on the
+Staffing Plan row. A planner can't see "this position has no RTF" or
+"the RTF says expected fill PP18 but plan says PP22" without
+cross-tabbing manually.
+
+**KosPos design.** Each Active PlannedAction shows the position's
+current RTF state inline: `RTF: Submitted 2025-09-02 · Approved · Expected fill PP18`.
+Plan vs RTF date mismatch surfaces as a warning chip. RTF
+data-integrity issues (per
+[`staffing_plan_types.md` memory](#tab-24--staffing-plan)) flag with
+a one-click "investigate prior-incumbent history" link.
+
+##### 8. Vice history cross-check for "intentional hold" classification
+
+**Problem in the workbook.** A vacant position with no RTF and no
+Pending plan looks identical whether (a) it's an intentional hold or
+(b) the RTF was once submitted but the field went stale. The 5
+vacant-no-RTF positions from
+[scenario-tests § Scenario 5](../audits/labor-report-scenario-tests.md#scenario-5--vacant-but-no-rtf)
+need this disambiguation.
+
+**KosPos design.** When marking a position as "intentional hold,"
+KosPos checks the position's vice history (per
+[Tab 23 § KosPos improvement #3](#kospos-improvements-7)). If a prior
+incumbent existed, surface "this position has been filled before
+(by [name] 2023-02 to 2024-08) — RTF data may have aged; consider
+'data integrity issue' classification rather than 'never filled'."
+
+##### 9. COLA-aware cost roll-ups
+
+**Problem in the workbook.** `X29 * Calendar!$J$2` annualizes per-PP
+cost across pure-PP count. For percentage-of-base salaries the
+post-COLA PPs cost more than pre-COLA PPs — pure-PP misses this.
+
+**KosPos design.** The annualized projection uses the COLA-weighted
+extension already designed for [Tab 18 Step T column](#tab-18--step):
+`annualized = sum(perPpCost_at_pp_n × n_pps)` across each PP's
+then-effective COLA. Same memory rule
+([`feedback_projections_always_cola_aware.md`](#tab-24--staffing-plan)).
+
+##### 10. Backfill vs new-growth distinction
+
+**Problem in the workbook.** Notes describe "Backfill, Jimmy's, offered
+Yanxian Chen" — but the Active row's data fields don't distinguish
+backfill (replacing a vacancy from a separation) from new growth (net
+add to FTE). The `T Vice` field tells you whether there was a prior
+incumbent, but not whether the *plan* treats this as backfill vs
+new-growth. Affects cost attribution: a backfill rides on existing
+budget; new growth requires new budget.
+
+**KosPos design.** PlannedAction carries an explicit `actionMode: 'backfill' |
+'new-growth' | 'temp-conversion' | 'transfer'`. Drives:
+
+- **Budget impact display**: backfill → "absorbed by existing budget";
+  new growth → "requires +$X budget"; temp-conversion → "shifts
+  $X from TEMPM to regular labor."
+- **Citywide rollup**: KosPos can aggregate "X% of planned hires are
+  backfills, Y% are new growth" — a department-health metric.
+
+##### 11. Separation projection: granularity (per-person date vs collective rate)
+
+**Problem in the workbook.** Separations are always per-person ("this
+employee on this date") — see R34 (Retirement) / R35 (Medical
+retirement) / R36 (Promotion). But for budget development at the
+dept-group level, the relevant question is sometimes "expect 1-2
+retirements in division X by year-end" — a collective rate, not a
+specific person.
+
+**KosPos design.** Two complementary projection modes:
+
+- **Per-person separations** (current model): named-employee, dated,
+  cost-quantified. The default for current-year planning.
+- **Statistical separations** (new): "expect K separations in division
+  D by EOY, drawn from probability distribution over the eligible
+  population." Used for budget development + multi-year planning where
+  specific people aren't yet identified. Doesn't show specific names;
+  shows expected dollar impact + confidence interval.
+
+The statistical mode integrates with Phase 4 budget development per
+[`budget-process.md`](budget-process.md).
+
+##### 12. Snapshot-diff for the Staffing Plan itself
+
+**Problem in the workbook.** When Alex updates a row (changes Status,
+adds Cost, edits Notes), there's no record of what changed or why.
+
+**KosPos design.** Every save creates a snapshot. The diff view shows
+per-row what changed: `Position 1127959 · Status: List → Offer (2026-05-21 by Alex)` /
+`Position 1148853 · Cost: blank → $42,430 (calc inputs: ...) (2026-05-22 by Alex)`.
+The full plan diff between any two dates feeds the bi-weekly
+hiring-plan-progress report Alex sends to leadership.
+
+#### KosPos UI sketch
+
+**Hiring Plan page** — the workspace incarnation of this tab.
+
+```
+Hiring Plan · DBI + CPC · as of PPE 2026-05-21
+┌──────────────────────────────────────────────────────────────────────────┐
+│  Active hires: 27 (12 with cost, 15 awaiting estimate)                  │
+│  Annual cost impact: +$522,300 [as of PP22; full-FY projection $1.4M]   │
+│                                                                          │
+│  Separations: 7 (5 with savings, 2 pending estimate)                    │
+│  Annual savings impact: −$206,700 [full-FY -$298,500]                   │
+│                                                                          │
+│  Pending: 22 holds  ·  TEMP: 16 tracked  ·  Unfunded: 4                 │
+│                                                                          │
+│  Net hiring-plan impact: +$315,600 against $YYY total budget            │
+└──────────────────────────────────────────────────────────────────────────┘
+
+[Sections]  Active (27) ↓   Separations (7)   Pending (22)   TEMP (16)   Unfunded (4)
+
+Active hires (27)              [Filter] All ✓  With cost  Awaiting estimate  Backfill ✓
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Status      Position         Job         Start    Cost ($/yr)  Notes    │
+│ ───────     ────────         ────        ─────    ─────────    ─────    │
+│ Offer       1127959 Backfill 5203 Asst E PP24     $42,430      CPC ok   │
+│ CSC hold    1115135 Backfill 5207 PR Sp  PP21     $63,649      ⚠ CSC   │
+│ Interviews  1089860 Backfill 5212 Civil  PP23     $45,154      Selected │
+│ ...                                                                      │
+│ Not started 1139882 E2P      1312 Comms  —        (awaiting)   E2P     │
+│ ...                                                                      │
+└──────────────────────────────────────────────────────────────────────────┘
+
+Reconciliation:
+  ✓ 92 of 95 plan rows verified against Vacancies (3 ⚠ Check flagged)
+  ⚠ 8 vacancies have no plan row (review)
+  ⚠ Position 1115135 has Active + Separation + TEMP — intentional?
+```
+
+Each row → action detail page (full PlannedAction view + cost
+calculator inputs + cost-vs-actual when filled).
+
+#### Excel export notes
+
+For parity:
+
+- **Sheet `Staffing Plan`.** Mirror the 5-section block layout (Active /
+  Separations / Pending / TEMP / Unfunded). Each section: 25-col header
+  + data rows + Totals + Annualized.
+- **Cost cells (W, X) emit the live calculator output**, not the
+  cached value. Reconciliation note in the cell comment showing
+  inputs ("Class 5203 / Step 3 / PPE 2026-06-05 / SEIU 1021 Misc FY26").
+- **`V Check` formula** kept for parity but rendered as a hidden
+  validation column (data-quality flags surface in the UI panel).
+- **Snapshot-diff section at the end**: an extra sheet `Staffing Plan
+  Diff` showing changes since the prior snapshot — supports the
+  bi-weekly progress report.
+
+#### Open questions / TODO
+
+- [ ] **Confirm `V Check` semantics for TEMPM-budgeted rows.** The
+      formula `IF(P="TEMPM", "", ...)` skips the check for TEMPM
+      positions. Reasoning: temp positions aren't expected to be in
+      the Vacancies pivot because they're filled by TEMP incumbents.
+      Confirm: should temp-on-TEMPM also be tracked in Vacancies if
+      it's planned for permanent conversion (E2P)?
+- [ ] **Cost basis** for the blank `W` cells. Should KosPos default to
+      "compute and show the estimated cost even before the hire is
+      probable" (Status = Not started), or follow the workbook's
+      pattern of leaving it blank? Default: compute always; let the
+      user toggle "show planned-only".
+- [ ] **Statistical separations** (per
+      [§ KosPos improvement #11](#)) — when does this mode kick in?
+      Default proposal: per-person for current FY + next FY (where
+      specific people are known); statistical for FY+2 and beyond.
+      Confirm with Alex.
+- [ ] **PlannedAction history retention** — keep diff records
+      indefinitely or roll up older than 18 months? Default: 18 months
+      with summary roll-up of older.
+- [ ] **DBI→CPC transfer-of-function** how does it propagate when
+      KosPos goes multi-dept? When a position moves from DBI to CPC
+      mid-year, does it stay on DBI's Staffing Plan until end of FY
+      (per current Pending notes "Hold per CPC"), or jump to CPC's
+      Staffing Plan immediately? Tied to BVA-driven chartfield
+      reconciliation in [Tab 20 § KosPos improvement #2](#kospos-improvements-6).
+- [ ] **The 5 vacant-no-RTF positions** from
+      [scenario-tests § Scenario 5](../audits/labor-report-scenario-tests.md#scenario-5--vacant-but-no-rtf)
+      — cross-check each against this Staffing Plan + the vice history
+      to classify each as "intentional hold" vs "RTF data integrity
+      issue" vs "real never-filled gap" (per
+      [`staffing_plan_types.md` memory](#tab-24--staffing-plan)).
+      Tab 24 walkthrough surfaced the need; per-position resolution
+      requires the vice-history cross-check.
+- [ ] **The 8 unplanned vacancies** (Vacancies positions missing from
+      Staffing Plan) — list and disposition each. Likely
+      mostly "intentional hold without note" — KosPos can prompt to
+      either add to plan or document hold reason.
+- [ ] **Reasonable-default call (this session):** Active rows with
+      blank `W`/`X` are excluded from W29 sum because they're literally
+      blank — the projection therefore under-counts true plan impact.
+      KosPos's design always computes a cost estimate; we show "Active
+      hires (12 with confirmed cost / 15 estimated)" with both numbers.
+      Confirm with Alex.
+- [ ] **Reasonable-default call (this session):** Annualized rows use
+      pure-PP (`Calendar!J2 = 26.1`). KosPos switches to COLA-aware
+      annualization (per
+      [`feedback_projections_always_cola_aware.md` memory](#tab-24--staffing-plan)).
+      For dollar-amount-fixed components (lump-sum severance) the
+      number is the same; for percentage-of-base components the
+      COLA-aware number differs from pure-PP. Confirm.
 
 ---
 
 ### Tab 25 — Budget Summary
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** Early-attempt rollup of what next-year's budget *could* look like given
-the Staffing Plan. Example logic Alex described: if you hire 100 people who all start
-in PP26, the cost for this year is tiny, but next year (full year) is ~26× that. Alex
-notes: rarely used in current form; the concept is right but the implementation never
-matured.
+**Purpose:** **A 7-line "if you take the Staffing Plan at face value,
+what's the year-end surplus/deficit?" rollup.** Combines the per-position
+projection (from OPS Summary's pivot of Report Data) with the hire +
+separation cost deltas from Staffing Plan and returns the net surplus
+or deficit. Conceptually a precursor to a richer BY+1 cost ladder that
+never matured in the workbook — Alex's verbal flag: "the concept is
+right but the implementation never matured."
 
-**Data sources:** Staffing Plan.
+**Snapshot scope.** 21 rows × 2 cols (col A label / col B formula).
+**The smallest functional tab in the workbook.** Only 7 rows actually
+carry math (B2–B7); the rest are blank or section padding. Consistent
+with Alex's [Tab 5 walkthrough](#tab-5--calendar) "low priority"
+designation cross-reference.
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough — frame as BY+1 projection from current-year hiring plan)_
+#### Data sources
+
+- **Primary inputs:**
+  1. [Tab 26 Operating Report Summary](#tab-26--operating-report-summary)
+     pivot's Grand Total — for `B2 Total Budget` + `B3 Projected
+     Existing Staff Spending`.
+  2. [Tab 24 Staffing Plan](#tab-24--staffing-plan) `W29` (Active hires
+     total cost) + `W40` (Separations total savings) — for `B5` and
+     `B6`.
+- **Refresh cadence:** auto-refreshes on every workbook recalculation
+  (formulas only, no manual inputs).
+- **Downstream consumers:** none in the workbook. The output is
+  read by Alex for internal sense-checking; no other tab references
+  Budget Summary.
+
+#### Per-row formula map
+
+```excel
+A2: 'Total Budget'
+B2: =GETPIVOTDATA("Sum of Total Budget", 'Operating Report Summary'!$A$1)
+                                                            ─────────────
+                                       Grand-total cell of the per-dept pivot
+                                       (sum across DBI + CPC)
+
+A3: 'Projected Existing Staff Spending'
+B3: =-GETPIVOTDATA("Sum of Projected Operating Actuals", 'Operating Report Summary'!$A$1)
+    ─                                                    ─────────────────────────────
+    Sign-flipped (the source returns                     Same Grand-total cell, different
+    expense-positive)                                    measure (projected, not budget)
+
+A4: 'Projected Existing Staff Surplus / (Deficit)'
+B4: =B2+B3
+    └─ Total Budget minus projected actuals (with B3 already sign-flipped, this is +)
+
+A5: 'Approved Hires Total Cost'
+B5: =-'Staffing Plan'!W29
+    └─ Total cost across all 27 Active hires (sign-flipped: Active hires reduce surplus)
+
+A6: 'Separations Total Savings'
+B6: =-'Staffing Plan'!W40
+    └─ Total savings across 7 Separations (sign-flipped: W40 is already negative,
+        sign-flip yields positive contribution to surplus)
+
+A7: 'Total Projected Surplus / (Deficit)'
+B7: =B4+SUM(B5:B6)
+    └─ B4 (existing-staff surplus) + B5 (hire cost — negative) + B6 (separation savings — positive)
+```
+
+**The 7-row arithmetic in words:**
+
+1. Start with `Total Budget` (B2) — what's been appropriated.
+2. Subtract projected operating actuals for existing staff (B3) — what
+   we'll spend if no hiring plan changes happen.
+3. The difference (B4) is the existing-staff surplus / deficit (positive
+   = unspent budget remains).
+4. Subtract the Active hires' total cost (B5) — what we plan to spend
+   on hiring beyond what's already projected.
+5. Add the Separations' total savings (B6) — what we expect to recover
+   from planned departures.
+6. The final (B7) is the net surplus/deficit *if the Staffing Plan plays
+   out as documented*.
+
+**Why this matters as a sanity check:** if `B7` is materially negative
+(deficit), the dept is over-spending against budget *based on the plan
+on file* — not because positions filled unexpectedly, but because the
+plan itself doesn't fit the budget. The check catches "we have plans
+to fill more positions than we can afford" before that becomes the
+6-month report's bad news.
+
+#### What's manual / fragile
+
+1. **The arithmetic assumes `W29` + `W40` capture every plan row's
+   cost.** Many Active rows leave `W` blank (Status = Not started /
+   List / Posted). The Sum at W29 under-counts the true plan impact.
+   Budget Summary's `B5` therefore under-projects the cost of the plan
+   — making the apparent surplus larger than it really is. **Same root
+   issue** as [Tab 24 § Manual / fragile #2](#whats-manual--fragile-7).
+2. **`B3` flips the sign on `Projected Operating Actuals`** because the
+   pivot returns expense-positive numbers (the convention in this
+   workbook). Budget Summary surfaces them as negative
+   (budget-reducing). A reader inspecting the cell sees `-X` and may
+   wonder why. **Sign convention not documented in the cell or
+   nearby.**
+3. **`Operating Report Summary!$A$1` is a static cell reference, not
+   a structured table reference.** If the OPS Summary pivot grows /
+   shrinks rows, the GETPIVOTDATA call still works because it queries
+   by measure name + page-filter context (not by row position) — but
+   if a future workbook variant renames the pivot or moves it off A1,
+   Budget Summary silently goes empty.
+4. **No BY+1 view.** The "concept is right but never matured" issue:
+   the tab's purpose hints at "what's BY+1's surplus given today's
+   hiring plan?" but the formulas are all FY-this. There's no
+   "annualized cost of mid-year hires extended forward into BY+1" math,
+   even though `Staffing Plan!X30` etc. expose per-PP cost numbers that
+   would support it.
+5. **Excludes Pending + TEMP + Unfunded entirely.** Budget Summary uses
+   only Active hires (W29) + Separations (W40). The 22 Pending
+   positions + 16 TEMP + 4 Unfunded are invisible here — even though
+   they represent real budget exposure (e.g., a Pending position
+   transferring to CPC has a budget-impact for the current FY).
+6. **Pivot label `"Sum of Total Budget"` and `"Sum of Projected
+   Operating Actuals"` are hardcoded strings.** If the pivot field
+   labels change in a future revision, the formulas silently break.
+   Same fragility cataloged for OPS Summary's GETPIVOTDATA calls.
+
+#### KosPos improvements
+
+##### 1. Full BY + BY+1 cost ladder
+
+**Problem in the workbook.** Budget Summary asks "given the Staffing
+Plan, what's the FY surplus?" but stops there. Alex's verbal vision:
+"if you hire 100 people who all start in PP26, the cost for this year
+is tiny, but next year (full year) is ~26× that" — the natural
+extension is a BY+1 cost ladder showing each hire's full-FY cost effect
+on next year. The current tab doesn't compute it.
+
+**KosPos design.** A two-column display:
+
+```
+                        FY26 impact    FY27 impact
+                       (this year)    (next year)
+Total budget               $X            $Y (projected from BY+1 eturn)
+Projected existing staff   $A            $B (CO LA-aware extrapolation)
+Existing surplus           $S₁           $S₂
+
+Plan impact:
+  Active hires             −$P₁          −$P₂ (full-FY annualization, COLA-aware)
+  Separations              +$Q₁          +$Q₂ (full-FY savings)
+  Pending (sensitivity)    −$R           −$R'
+  Unfunded (excluded)      —             —
+
+Net plan-adjusted surplus  $N₁           $N₂
+```
+
+The BY+1 column is what the workbook gestures at but doesn't compute.
+Sources from Staffing Plan's per-PP cost + COLA-aware annualization (see
+[Tab 24 § KosPos improvement #9](#kospos-improvements-8)) + the next-FY
+BFM eturn for the BY+1 total budget.
+
+##### 2. Hire-mix sensitivity scenarios
+
+**Problem in the workbook.** The "what if we don't hire X" or "what if
+PP15 instead of PP18" sensitivities require manually editing the
+Staffing Plan, recalculating, and reading Budget Summary. Slow.
+
+**KosPos design.** Budget Summary surfaces **scenario buttons**:
+
+- "Best case" — every Active hire delays 2 PPs; every Separation
+  happens on schedule.
+- "Worst case" — every Active hire starts on plan; every Separation
+  delays 2 PPs.
+- "Pause new growth" — exclude all new-growth Active hires (backfills
+  only).
+- "Statistical separations (1σ above expectation)" — add 1 stddev's
+  worth of unmodeled separations.
+
+Each shows the resulting surplus/deficit delta inline. No copy-paste.
+
+##### 3. Surface the under-count of blank-cost rows
+
+**Problem in the workbook.** B5 silently under-counts because Active
+rows with blank `W` get summed as zero. A reader looking at "$315k
+deficit" doesn't know that 15 of 27 Active hires have no cost yet —
+the real deficit could be substantially larger.
+
+**KosPos design.** Each line shows the count split:
+
+```
+Active hires:          −$522,300   (12 of 27 priced; 15 awaiting estimate ⚠)
+Separations:           +$206,700   (5 of 7 priced; 2 awaiting estimate ⚠)
+Existing surplus:       $640,000
+─────                  ─────────
+Net (12+5 priced):      $324,400
+Net (extrapolated to 27+7 priced, using avg cost): $X (range $Y–$Z)
+```
+
+A click on "27 / 12 awaiting" jumps to the un-costed rows in the
+Staffing Plan.
+
+##### 4. Per-(dept-group × special-class) decomposition
+
+**Problem in the workbook.** B7 collapses across both dept-groups +
+all labor types. A reader can't see "the DBI surplus offsets the CPC
+deficit" or "9993 attrition is over-projected by $X."
+
+**KosPos design.** Budget Summary expands to a 2D matrix (dept-group ×
+special-class) with the surplus / deficit decomposed per cell.
+Tooltips on each cell explain the drivers. Top-level totals still
+shown at the bottom.
+
+##### 5. Include Pending + Unfunded as sensitivity
+
+**Problem in the workbook.** Pending + Unfunded sections are entirely
+omitted from Budget Summary, even though they have real
+budget-exposure. A Pending position "Transferring to CPC, hold per
+CPC" represents budget that *will* move between dept-groups; an
+Unfunded position represents budget shortfall the dept needs to find.
+
+**KosPos design.** Add two ribbon items below the main rollup:
+
+```
+Sensitivity (not in Net):
+  Pending → if all activated      +$P_pending burden  
+  Unfunded → if all funded         +$U_unfunded burden
+  Transfer (DBI ↔ CPC)             ±$T net dept-group movement
+```
+
+These are decision-support numbers, not part of the headline surplus
+calc.
+
+#### KosPos UI sketch
+
+**Budget Summary panel** — a sidebar / drawer on the Vacancy Planning
+page (not a separate top-level page; the budget framing is consumed
+alongside the plan).
+
+```
+Plan → Budget impact · FY26 · as of PPE 2026-05-21
+┌──────────────────────────────────────────────────────────────────┐
+│ FY26 impact         FY27 impact (BY+1)                          │
+│ ───────────────    ───────────────────                          │
+│ Total budget        $XX,XXX,XXX    $XX,XXX,XXX                  │
+│ Existing-staff      −$XX,XXX,XXX   −$XX,XXX,XXX (COLA-aware)    │
+│   projection                                                    │
+│ Existing surplus     +$X,XXX,XXX    +$X,XXX,XXX                 │
+│                                                                  │
+│ Hires (Active)        −$522,300       −$1,400,000              │
+│   12 priced / 15 ⚠                                              │
+│ Separations           +$206,700       +$298,500                 │
+│   5 priced / 2 ⚠                                                │
+│                                                                  │
+│ Net plan-adjusted     +$XXX,XXX        +$XXX,XXX                │
+│ surplus / (deficit)                                              │
+│                                                                  │
+│ Sensitivity:                                                     │
+│   Pending if active   −$540,000       −$1,200,000              │
+│   Unfunded if funded  −$60,000        −$120,000                │
+│   DBI ↔ CPC transfer  −$2.05M DBI / +$1.98M CPC                │
+└──────────────────────────────────────────────────────────────────┘
+
+[Scenarios] Best · Worst · Pause new growth · 1σ stat. separations
+```
+
+#### Excel export notes
+
+For parity:
+
+- **Sheet `Budget Summary`.** 7-row arithmetic mirror with cell
+  formulas as documented. Add the BY+1 column as cols `C` / `D` for
+  the cost-ladder extension.
+- **GETPIVOTDATA references** use the same OPS Summary pivot anchor
+  as the workbook. The KosPos exporter regenerates the pivot under
+  the same name/anchor so downstream consumers' references hold (see
+  the "Department Group" pivot-label preservation discussion under
+  [Tab 26 KosPos improvements](#kospos-improvements-10)).
+- **Sign convention** documented inline as cell comments: "B3 stored
+  as negative because OPS Summary returns expense-positive; Budget
+  Summary uses budget-positive convention."
+
+#### Open questions / TODO
+
+- [ ] **BY+1 cost ladder math.** The cleanest BY+1 number is:
+      `next_FY_total_budget − (existing_staff_run_rate_through_EOY × 26/26.1 with FY27 COLA) − (hire_cost extended through full FY) + (separation_savings extended through full FY)`.
+      Confirm the formulation with Alex (Phase 4 cross-reference: this
+      is the labor-report side of the hire-plan-aware BY+1 number that
+      [`budget-process.md`](budget-process.md) describes).
+- [ ] **Pending + Unfunded inclusion.** Default: surface as
+      sensitivity, not as part of net. Confirm vs Alex's preference.
+- [ ] **Multi-snapshot Budget Summary history** — track surplus
+      projection over time so trend ("we used to project +$300k surplus,
+      we now project −$200k deficit") is visible at a glance. Worth
+      building? Default: yes, low cost, high value.
+- [ ] **Cross-link with Phase 4 budget-development numbers** (the BY+1
+      eturn). Budget Summary's BY+1 column should reconcile to
+      whatever Alex's BY+1 budget submission contains; mismatch is
+      itself a signal.
+- [ ] **Reasonable-default call (this session):** Budget Summary's
+      under-count (blank `W` cells in Staffing Plan summed as zero)
+      surfaces as a chip "12 of 27 priced / 15 awaiting estimate ⚠"
+      with one-click jump-to-fix. Confirm with Alex.
 
 ---
 
@@ -5061,7 +6305,7 @@ flagged on a fresh refresh: any line that moved >10% or >$100k. Saves
 auto-pin at every report milestone (6-month, 9-month, year-end). This
 is the **"what changed since the last report" feature** Alex flagged in
 the initial walkthrough description; it's the obvious win KosPos
-delivers over Excel. See also [Tab 27 § KosPos improvements](#kospos-improvements-8)
+delivers over Excel. See also [Tab 27 § KosPos improvements](#kospos-improvements-11)
 where the same primitive powers position-level drill-down.
 
 ##### 7. Reconcile per-dept pivot to per-class block — the closure check is automatic
@@ -5264,7 +6508,7 @@ Two operational use cases:
    flagged this as the obvious KosPos win. Today the workflow is:
    open last week's OPS Detail in a second window, eyeball-diff
    against this week's, find the changed rows. KosPos automates this
-   — see [§ KosPos improvements](#kospos-improvements-8).
+   — see [§ KosPos improvements](#kospos-improvements-11).
 
 #### Data sources
 
@@ -5389,7 +6633,7 @@ error-prone — Alex flagged this explicitly as the obvious KosPos win
 in the initial Tab 27 stub.
 
 **KosPos design.** Every page-state save (per [OPS Summary improvement
-#6](#kospos-improvements-7)) captures the full OPS Detail row set
+#6](#kospos-improvements-10)) captures the full OPS Detail row set
 keyed by `(Effective Dept, Position Number, Fill Status, Budget Job
 Code)`. The Detail view renders with a default-on **"Δ since
 `<prior_snapshot>`"** column toggle:
@@ -5595,8 +6839,138 @@ available).
 
 ## Phase 2.2 sub-phases (dependency order)
 
-_(Built at the end of the walkthrough — depends on which tabs Alex flags as core vs
-low priority.)_
+_(Built incrementally during the walkthrough. Re-enumerated at Phase 2.0i
+close. Each sub-phase ships as one PR with its own importer + view + tests;
+sub-phases depend on each other in the order listed here.)_
+
+The sub-phases divide into three buckets:
+
+1. **Cross-cutting infrastructure** — affects multiple per-tab modules;
+   ship first.
+2. **Per-tab modules** — one sub-phase per importable / view-bearing
+   labor-report tab.
+3. **Reconciliation & projection** — built on top of the per-tab modules.
+
+### 1. Cross-cutting infrastructure
+
+- **`lib/calendar/`** — pay-period calendar + COLA-aware projection
+  primitives (per
+  [`feedback_projections_always_cola_aware.md` memory](#tab-24--staffing-plan)).
+  Pulls from Controller's published pay calendar JSON.
+- **`lib/cola/`** (or part of `lib/dhr/`) — per-bargaining-unit COLA
+  schedule. Replaces Calendar tab's DBI-only single-COLA shortcut.
+- **`lib/reference/dept-tree/`** — citywide `Department Classification
+  Structure` lookup. Eliminates the DBI-only `CH Effective Employee
+  Division` "Update Formula" placeholder.
+- **`lib/reference/fund/`** — fund tree with the `Annual/Continuing`
+  flag. Drives the operating-fund-set derivation (replaces hardcoded
+  `Fund 10190 / 10000` filters).
+- **`lib/quality/`** — Data Issues catalog + per-flag detection logic.
+  Surfaces in every per-tab UI. Categories enumerated below. **Includes
+  the per-position free-text `userNotes` field** (per
+  [`feedback_user_notes_per_position.md` memory](#tab-24--staffing-plan))
+  — every Data Issue surface should pair the flag with an inline "add
+  note" affordance so users can document the human context the data
+  alone can't capture (e.g., "Cat 18 set up for 5-year IS project
+  despite 3-year max per DHR override letter" or "Cat 17 covering
+  [name] who is expected back PP20").
+- **`lib/changes/`** — change-mode primitive (per
+  [ADR-003](../DECISIONS.md)). Every edit anywhere is a proposed
+  change with audit log.
+
+### 2. Per-tab modules
+
+Each sub-phase ships as one PR with importer + model + view + tests.
+Tab dependencies noted in parentheses.
+
+- **`lib/importers/obi-payroll/`** — Tab 7 BI Payroll (depends on
+  Calendar). Foundation for every per-PP projection.
+- **`lib/importers/obi-pnp/`** — Tab 6 P&P Data (depends on
+  Calendar, dept-tree). Builds Position entities with userNotes
+  field.
+- **`lib/importers/bfm-eturn/`** — Tab 4 BFM 15.10.006 (BY-anchor).
+  Defaults to Board-adopted (`AZ`); preserves earlier-layer columns
+  (Technical Adjustment / Department / etc.) for variance views.
+- **`lib/importers/bfm-special-class/`** — Tab 4 BFM special-class
+  summary rows (the 100-row block hand-pasted into Report Data S649–748).
+- **`lib/importers/bva/`** — BVA report (chartfield-grain
+  reconciliation source). See
+  [`../data-sources/bva.md`](../data-sources/bva.md).
+- **`lib/views/calculator/`** — Tab 5 Calendar (reactive
+  constants); already shipped Phase 1.
+- **`lib/views/positions/`** — Tab 6 P&P Data surface (Position
+  Detail + list + Vacancy Planning).
+- **`lib/views/labor/`** — Tab 7 BI Payroll drill-down view.
+- **`lib/views/inactive/`** — Tab 13 Inactive — pure query, no
+  separate importer (per Data Sources Inventory row).
+- **`lib/views/vacancies/`** — Tab 23 Vacancies and TEMP (filtered
+  position list with cross-check against Staffing Plan).
+- **`lib/staffing-plan/`** — Tab 24 Staffing Plan workspace —
+  the primary forward-looking surface. PlannedAction model,
+  status workflow, cost calculator integration. **(Depends on
+  positions, BFM eturn for BY+1, BI Payroll for actuals reconciliation.)**
+- **`lib/views/budget-summary/`** — Tab 25 Budget Summary —
+  thin BY+1 cost ladder view consuming Staffing Plan totals + OPS
+  Summary pivot.
+- **`lib/views/ops/`** — Tabs 26 + 27 Operating Report Summary + Detail —
+  the headline projection page.
+- **`lib/views/reporting-tree/`** — Tab 21 Reporting Tree — feeds
+  Phase 7 org chart.
+- **`lib/views/temp-limits/`** — Tab 12 TEMP Limits — Cat 16/17/18
+  expiry tracker (depends on lib/quality).
+- **`lib/views/eligibility/`** — Tab 11 Eligibility Lists — DHR scrape
+  + lookup.
+
+### 3. Reconciliation & projection
+
+- **`lib/reconciliation/bva/`** — BVA-driven chartfield reconciliation
+  (KK + GL). Consumes BVA + BI Payroll + BFM eturn. Lives in the
+  Report Data surface.
+- **`lib/projections/`** — COLA-aware projection engine. Unified entry
+  point that every per-tab projection uses (PREMM / OVERM / RTPOM /
+  STEPM / 9994 / TEMPM / regular labor). Per
+  [`feedback_projections_always_cola_aware.md` memory](#tab-24--staffing-plan).
+- **`lib/snapshots/`** — snapshot history + diff primitive (powers
+  Tab 27 OPS Detail's per-row Δ chips, Staffing Plan diff,
+  Budget Summary trend).
+
+### Data Issues catalog (`lib/quality/` scope)
+
+The per-category flags enumerated across walkthroughs and the audit
+suite:
+
+| Category | Source | Severity |
+|---|---|---|
+| `reports-to-empty-non-commissioner` | [Scenario 1](../audits/labor-report-scenario-tests.md#scenario-1--reports-to-chain-integrity) | yellow |
+| `reports-to-cycle` | Scenario 1 (none in snapshot) | red |
+| `reports-to-dangling-ref` | Scenario 1 (none in snapshot) | red |
+| `reports-to-excessive-depth` | Scenario 1 (none in snapshot) | yellow |
+| `pool-position-detected` | [Scenario 1b](../audits/labor-report-scenario-tests.md#scenario-1b--pool-position-census-extending-task-b-test-5) | informational |
+| `cat-17-18-expired` | [Scenario 3](../audits/labor-report-scenario-tests.md#scenario-3--cat-1718-expiry-warning-already-expired-emphasized) | red |
+| `cat-17-18-expiring-soon` | Scenario 3 | yellow |
+| `cat-17-expiration-date-unreliable` | Scenario 3 (revised Session 20) | informational |
+| `cat-18-expiration-date-likely-wrong` | Scenario 3 (added Session 20) — `Expiration Date ≠ Appointment Date + 3 years` | yellow |
+| `high-cat-18-usage` | Scenario 3 (added Session 20) — dept with many Cat 18s per Charter §10.104-18 limited-term-funding rule | informational |
+| `cat-16-hours-cap-warning` | [Scenario 4](../audits/labor-report-scenario-tests.md#scenario-4--cat-16-hours-approaching-cap) (revised Session 20: **per Position Number, not per Employee ID**) | red (>100%) / yellow (80-100%) |
+| `appt-cat-mismatch` | Scenario 4 (drift between P&P appointment type and BI Payroll-implied type) | yellow |
+| `appt-cat-mismatch-pex-cat18` | [Scenario 6](../audits/labor-report-scenario-tests.md#scenario-6--pex-on-cat-18-enumeration) | yellow |
+| `vacant-no-rtf` | [Scenario 5](../audits/labor-report-scenario-tests.md#scenario-5--vacant-but-no-rtf) (cross-check against vice history per [`staffing_plan_types.md` memory](#tab-24--staffing-plan)) | yellow |
+| `rtf-data-integrity-suspected` | New (Session 20) — vacant position has prior incumbent but no RTF on record | yellow |
+| `sick-leave-bucket-size` | [Scenario 7](../audits/labor-report-scenario-tests.md#scenario-7--sick-leave-bucket-size) | informational |
+| `negative-balance-amount` | [Scenario 8](../audits/labor-report-scenario-tests.md#scenario-8--negative-or-zero-balance-amount-rows) | informational |
+| `earnings-code-undocumented` | [Scenario 9](../audits/labor-report-scenario-tests.md#scenario-9--earnings-code-orphans) | yellow |
+| `earnings-code-zero-routing` | Scenario 9 | yellow |
+| `premium-fringe-ratio-drift` | [Tab 16 § KosPos improvement #3](#kospos-improvements-2) | yellow |
+| `staffing-plan-orphan` | Tab 24 § V Check column | yellow |
+| `vacancy-unplanned` | Tab 23 § Coverage diagnostic | yellow |
+| `position-multi-action` | Tab 24 § Cross-section position duplication | informational |
+| `bva-kk-adjustment-detected` | BVA reconciliation (Task B) | informational |
+| `bva-gl-adjustment-detected` | BVA reconciliation (Task B) | informational |
+| `dbi-shortcut-active` | Catalog from cross-cutting concerns | informational (importer warning) |
+
+Every Data Issue is paired with an inline `userNotes` affordance per
+[`feedback_user_notes_per_position.md` memory](#tab-24--staffing-plan):
+the data flag is the trigger, the human note is the context.
 
 ## Cross-references
 
