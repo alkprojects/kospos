@@ -152,7 +152,7 @@ Catalog of DBI-only assumptions that need to be parameterized for citywide use:
 | Shortcut | Lives in | Generalization |
 |---|---|---|
 | Single COLA % applied to all DBI job classes | Calendar tab (hardcoded) | Per-MOU COLA schedule lookup, joined by job class → bargaining unit |
-| Fund 10190 filter | Many tabs | "All funds" default + per-tab fund filter |
+| Fund 10190 filter (DBI) and Fund 10000 filter (CPC) — mirror shortcuts applied to OPS Summary E36/E37 (DBI Premium/OT GETPIVOTDATA) and E45/E46 (CPC), Step's per-PP SUMIFS, and Report Data Y:AY operating grid | Many tabs | Dept-group → operating-fund set sourced from BFM `Fund Control = "FACCT"`; multi-fund-per-dept-group support |
 | TEMPM = COMMN:5380 only | Operating Report `E40` | Definition-aware temp filter (see [`definitions.md`](definitions.md)) |
 | 7.65% OT fringe hardcoded | Budget Master (cross-ref OVERM) | OASDI+Medicare derived constant with year-stamped wage cap |
 | `15.4 / 26.1` PP constants in OVERM `AW` | Budget Master | Pull live from Calendar `I2 / J2` |
@@ -172,6 +172,13 @@ Catalog of DBI-only assumptions that need to be parameterized for citywide use:
 | 6 hand-pasted INACTIVATED YTD actuals (Report Data U755:U760) copied from Inactive tab's pivot each refresh | Report Data INACTIVATED block | Live query: `positions WHERE in_bi_payroll AND NOT in_pnp_snapshot` — no separate paste |
 | MERGE row 753 + GL row 762 as ad-hoc placeholders for mid-year KK and GL journals (no systematic capture of chartfield-level adjustments) | Report Data rows 753 + 762 | Dedicated **BVA-driven reconciliation** view: per-chartfield budget delta (KK) + actuals delta (GL); excludes inactive positions |
 | Pool positions (multiple incumbents share one Position Number — commissioners, some temps/exempts) carried as duplicate rows in Report Data with COUNTIF-zeroed actuals/budget | Report Data per-position rows (e.g., position 1094089 = 14 rows) | Data Issues flag suggesting one-position-per-person; user decides per-position whether to split |
+| OPS Summary block-shape asymmetry (DBI = 6 special-class rows; CPC = 7 with extra MCCP Offset row). Adding/removing a class requires inserting a row + rebasing the residual SUM range (F36:F40 / F45:F50). | Operating Report Summary rows 36–42 + 45–52 | Special-class list driven by dept-group's position population; residual computed over "every class not explicitly named," no row-position dependencies |
+| OPS Summary prior-year actual attrition rate (H43 = `-0.15438` literal for DBI; H53 missing for CPC). Hand-keyed annually; methodology not documented; J43 note self-flags as "Questionable." | Operating Report Summary H43 + H53 | Derive from saved end-of-FY snapshot of prior FY; methodology rendered as tooltip |
+| OPS Summary G40 references hardcoded BFM rows `AZ1195+AZ1197+AZ1199+AZ1201` for DBI TEMPM Interns total budget. Row addresses shift when BFM republishes the eturn. | Operating Report Summary G40 | SUMIFS by `(dept-group, account-description = "Temporary - Misc")` against the BFM eturn, not row indices |
+| OPS Summary H40 hardcoded literal `0` (DBI TEMPM Interns projection) with J40 note "No interns planned at this time." Easy to forget to update when interns are planned mid-year. | Operating Report Summary H40 | "Expected interns this year" input on TEMPM card with COMMN:5380 YTD as baseline; default to "match YTD" not zero |
+| OPS Summary CPC E49 / E50 / H49 / H50 absent (MCCP Offset + TEMP have no YTD-actuals or projection; absorbed into 9993 residual). MCCP YTD spend invisible. | Operating Report Summary rows 49 + 50 | Every named special class gets explicit YTD + projection treatment; no implicit-residual absorption |
+| OPS Summary uses pure-PP pacing (`G/J2*I2`) in special-class D column while the per-dept rollup D column uses COLA-weighted from Report Data T. Same header ("YTD Operating Budget"), two different math. | Operating Report Summary D36–D51 (special-class) vs D2–D33 (pivot) | All YTD-budget pacing COLA-weighted universally (per memory `feedback_projections_always_cola_aware.md`); straight-line as an optional simplified-view side-note |
+| OPS Summary L23 / L32 / L33 ratio (`projected_balance / total_budget`) conceptually different from G42 / H42 attrition rate (`9993 / non-9993`). Both display as %, easy to confuse. | Operating Report Summary L column vs row 42/52 | Separate visual treatment with explicit "leftover %" vs "attrition rate %" labels; tooltips explain the math |
 
 ## Tab list — workbook order (`Labor Report 5.21.26.xlsx`)
 
@@ -206,8 +213,8 @@ artifacts — not part of the current-year labor workflow).
 | 23 | Vacancies and TEMP | pending | Vacancies + TEMP filter, feeds Staffing Plan |
 | 24 | Staffing Plan | pending | **Staffing Plan workspace** — hiring plan |
 | 25 | Budget Summary | pending | BY+1 cost rollup (low priority) |
-| 26 | Operating Report Summary | pending | **Headline projection page** |
-| 27 | Operating Report Detail | pending | Drill-down for projection variance review |
+| 26 | Operating Report Summary | **done 2026-05-25** | **Headline projection page** |
+| 27 | Operating Report Detail | **done 2026-05-25** | Drill-down for projection variance review |
 | – | New Department Org | **IGNORE** | Cross-org merger planning (out of scope) |
 | – | New Department Org - Long Term | **IGNORE** | Cross-org merger planning (out of scope) |
 
@@ -3190,32 +3197,955 @@ questions:** _(walkthrough — frame as BY+1 projection from current-year hiring
 
 ### Tab 26 — Operating Report Summary
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** **The main labor projection tab.** Budget vs actuals + special-class
-budget vs actuals. The number that feeds the 6-month and 9-month reports to CON / MYR.
+**Purpose:** **The headline labor projection page** — the single screen the
+department director reads when deciding whether the department is on track,
+and the source of the figures that ultimately roll up into the 6-month and
+9-month reports to CON / MYR. Two distinct regions on the same sheet, each
+answering a different question against the same underlying data
+([Tab 20 Report Data](#tab-20--report-data)):
 
-**Existing math reference:** [`special-class.md`](special-class.md) § "Operating
-Report Summary — DBI section reference" (rows 36–42 for the special-class block — PREMM,
-OVERM, RTPOM, STEPM, TEMPM, 9993). Walkthrough should fill in the non-special-class
-rows.
+1. **Per-dept rollup (rows 1–33)** — a live pivot of Report Data keyed by
+   Effective Employee Division → Department, aggregating eight measures
+   (YTD operating budget / actuals / balance + total budget + projected
+   operating actuals / balance + YTD continuing / projected continuing). Two
+   dept-group blocks (DBI rows 2–23, CPC rows 24–32) plus Grand Total. A
+   ratio column `L` shows projected operating balance as a percent of total
+   budget at the dept-group level.
+2. **Per-special-class block (rows 36–42 DBI, rows 45–52 CPC)** — a
+   hand-built ledger of the six (DBI) / seven (CPC) special classes
+   (PREMM, OVERM, RTPOM, STEPM, ±MCCP Offset, TEMPM, 9993 Attrition) at
+   the dept-group grain. **Attrition (9993) is computed as the residual** —
+   the dept-group total minus the sum of named special-class lines and
+   per-position lines — so the block always balances by construction.
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough — headline page)_
+The per-dept pivot and the special-class block are **two views of the same
+universe of dollars**. The pivot rolls Report Data up by dept; the
+special-class block rolls Report Data up by class. Both must reconcile to
+the same totals at the dept-group level — the attrition residual is the
+mathematical guarantee.
+
+**Existing math reference:** [`special-class.md`](special-class.md) §
+"Operating Report Summary — DBI section reference" already documents the
+DBI special-class block in detail (rows 36–42 — PREMM, OVERM, RTPOM, STEPM,
+TEMPM, 9993). This walkthrough fills in:
+
+- The **per-dept rollup region (rows 1–33)** — pivot structure, source
+  fields, the `L`-column ratio.
+- The **CPC special-class block (rows 45–52)** — same shape as DBI's but
+  with an extra MCCP Offset row, an undifferentiated TEMP row, and no
+  prior-year attrition rate reference. The DBI/CPC asymmetry catalog
+  drives several KosPos improvements.
+- The **attrition rate rows (42, 52)** and the **prior-year actual
+  attrition rate** (hardcoded literal at H43 for DBI; CPC equivalent
+  missing).
+
+#### Data sources
+
+- **Primary:** [Tab 20 Report Data](#tab-20--report-data) (the spine).
+  Both regions read from it:
+  - The pivot at A1:K33 caches Report Data and aggregates the per-position
+    + per-archetype rows (604 per-position + 18 OVERTIME + 18 PAYOUT + 100
+    SPECIAL + 6 INACTIVATED + … = 798 rows) by Effective Employee Division
+    / Department, summing columns S Total Budget, T YTD Operating Budget,
+    U YTD Operating Actuals, V YTD Operating Balance, W Projected Operating
+    Actuals, X Projected Operating Balance, AZ YTD Continuing Actuals, BA
+    Projected Continuing Actuals.
+  - The special-class block reads the SPECIAL sub-block of Report Data
+    (rows 649–748, 100 hand-pasted budget cells from BFM 15.10.006 FY26's
+    special-class summary rows). All six (DBI) / seven (CPC) `G` cells are
+    `SUMIFS('Report Data'!$S$649:$S$748, …)` keyed on `H` (Account
+    Description) and `K` (Dept Group).
+- **Secondary (YTD actuals for the special-class block):**
+  - Premium tab pivot (`Premium!$A$3`) — `GETPIVOTDATA(..., "Fund Code", 10190)` for DBI; `Fund Code, 10000` for CPC.
+  - Overtime tab pivot (`Overtime!$A$3`) — same pattern.
+  - Retirement Payout tab pivot (`Retirement Payout!$A$3`) — `GETPIVOTDATA(..., "Department Group Code", "DBI"/"CPC")`.
+  - Step tab columns `S` (YTD) and `T` (projection) — `SUM(Step!S:S) - SUMIFS(Step!S:S, Step!A:A, "Planning")` for DBI; the reverse SUMIFS-only form for CPC.
+  - BI Payroll directly (`'BI Payroll'!AL`) — DBI E40 only, filtered to `COMMN:5380` for TEMPM Interns.
+- **Tertiary (projection sources for the special-class block):**
+  - `Premium!P5 + Premium!P6` (DBI H36; salary + fringe rows for DBI).
+  - `Premium!P8 + Premium!P9` (CPC H45).
+  - `Overtime!BS15` (DBI H37 — see [special-class.md § OVERM](special-class.md#overm_e--overtime-misc--workbook-extracted-2026-05-24-autonomous-overnight)); `Overtime!BS18` (CPC H46).
+  - Retirement Payout `IF(K2=0, E, MAX(G, E))` rule applied to YTD actuals.
+  - Step columns `S`/`T` (filtered out / in "Planning" depending on DBI/CPC slot).
+  - BFM 15.10.006 FY26 directly (`AZ1195 + AZ1197 + AZ1199 + AZ1201` for DBI G40 TEMPM total budget — **hardcoded row addresses**; cited as fragile in [special-class.md § TEMPM](special-class.md#tempm_e--temporary-misc--pending-walkthrough)).
+- **Quaternary (Calendar):**
+  - `Calendar!I2` (pure PPs elapsed), `Calendar!J2` (total PPs), `Calendar!K2` (remaining) — drive the YTD pacing on every D column. **All special-class pacing uses pure-PP, not COLA-weighted** (D36 = `G36/J2*I2`). This matches the workbook's existing pattern for OT/Premium/RPO but conflicts with KosPos's COLA-aware default — see [Calendar § KosPos improvements](#tab-5--calendar) and the memory entry `feedback_projections_always_cola_aware.md`.
+
+No external file is read directly by OPS Summary — every input comes from
+another workbook tab. This makes OPS Summary a **derived view**, not a data
+source. **KosPos consequence:** OPS Summary doesn't need its own importer;
+it's a presentation layer over the rest of the labor report.
+
+#### Snapshot scope (this workbook, as of 2026-05-08)
+
+| Region | Cell range | Rows | Cols | Notes |
+|---|---|---|---|---|
+| Per-dept pivot (live) | A1:K33 | 33 | 11 | 7 DBI dept rows + 1 DBI Total + 7 CPC dept rows + 1 CPC Total + 1 Grand Total + 3 division-subtotal rows + 1 header. Pivot cache `cacheId=935` (workbook-internal — same cache as Tab 27). |
+| Ratio column (live) | L23, L32, L33 | 3 | 1 | `=GETPIVOTDATA("Sum of Projected Operating Balance", ...) / GETPIVOTDATA("Sum of Total Budget", ...)` — projected balance as a % of total budget at the dept-group level. DBI = 7.78%, CPC = 12.39%, Grand Total = 9.62% at this snapshot. |
+| DBI special-class block | A36:J43 | 8 | 10 | Rows 36–41 = 6 special classes (PREMM, OVERM, RTPOM, STEPM, TEMPM, 9993). Row 42 = attrition rate. Row 43 = prior-year attrition rate (hardcoded literal). |
+| CPC special-class block | A45:J53 | 9 | 10 | Rows 45–51 = 7 special classes (PREMM, OVERM, RTPOM, STEPM, MCCP Offset, TEMP, 9993). Row 52 = attrition rate. Row 53 = prior-year attrition rate label only — **value missing** (DBI/CPC asymmetry, see Manual/fragile). |
+
+Total live rows = 33 (pivot) + 8 (DBI block) + 9 (CPC block) = 50; tab's
+`max_row` is 53.
+
+#### Formulas — per-dept rollup pivot (A1:K33)
+
+The pivot at A1:K33 sources from Report Data via pivot cache 935 (sheet
+range `'Report Data'!A1:CB1048576`). Three row fields, eight data fields:
+
+| Pivot axis | Cache field | Report Data col | Meaning |
+|---|---|---|---|
+| Row Level 1 | `[80] Effective Employee Division2` | — (pivot-grouped field) | Dept-group rollup: groups `Effective Employee Division` values into `DBI` / `CPC` parent labels. **Not a Report Data column** — a user-created pivot group. |
+| Row Level 2 | `[0] Effective Employee Division` | A `Effective Employee Division` | Mid-level division (e.g., `DBI AdminIstration`, `DBI Inspection Services`, `DBI Permit Services`, `Planning`). |
+| Row Level 3 | `[1] Effective Employee Department` | B `Effective Employee Department` | Granular department (e.g., `DBI ADM Administration-Gen`). |
+| Data field 1 (col D) | `[19] YTD Operating Budget` | T `YTD Operating Budget` | `S/N2*M2` per-row (COLA-paced YTD budget) summed by Effective Dept. |
+| Data field 2 (col E) | `[20] YTD Operating Actuals` | U `YTD Operating Actuals` | `SUM(Y:AY)` per-row (operating-fund per-PP grid) summed by Effective Dept. |
+| Data field 3 (col F) | `[21] YTD Operating Balance` | V `YTD Operating Balance` | `T-U` per-row, summed. |
+| Data field 4 (col G) | `[18] Total Budget` | S `Total Budget` | `SUMIFS(BFM!AX, BFM!D, D2)` per-row (per-position budget) **plus** the 100 hand-pasted SPECIAL block rows (S649:S748). Summed by Effective Dept. **Read** [Tab 20 § Manual/fragile](#whats-manual--fragile-20): the `BFM!AX` Technical Adjustment reference is stale; should be `BFM!AZ` Board. |
+| Data field 5 (col H) | `[22] Projected Operating Actuals` | W `Projected Operating Actuals` | COLA-aware two-mode projection per-row, summed. |
+| Data field 6 (col I) | `[23] Projected Operating Balance` | X `Projected Operating Balance` | `S-W` per-row, summed. |
+| Data field 7 (col J) | `[51] YTD Continuing Actuals` | AZ `YTD Continuing Actuals` | `SUM(BB:CB)` per-row (continuing-fund per-PP grid) summed. |
+| Data field 8 (col K) | `[52] Projected Continuing Actuals` | BA `Projected Continuing Actuals` | Continuing-fund projection per-row, summed. |
+
+**Key insight: this is a pivot, not a SUMIFS-array.** The eight measures are
+re-computed on every refresh from the Report Data per-position rows
+(including SPECIAL / OVERTIME / PAYOUT / INACTIVATED / MERGE / GL /
+HIRING / SEPARATING archetypes). The dept totals at rows 9, 17, 22, 31, 23,
+32 are pivot-subtotal rows, not formula cells.
+
+**Cell `L23` — DBI projected attrition rate (as a % of total budget):**
+
+```excel
+=GETPIVOTDATA("Sum of Projected Operating Balance", $A$1, "Department Group", "DBI")
+ / GETPIVOTDATA("Sum of Total Budget", $A$1, "Department Group", "DBI")
+```
+
+Resolves to `4,834,133 / 62,100,574 = 7.78%` at this snapshot. Same pattern
+at L32 (CPC: `12.39%`) and L33 (Grand Total: `9.62%`). **Note:** this is
+the projected-balance-as-percent-of-budget — a "how much will be left
+unspent at year end" ratio, **not** the attrition rate the special-class
+block computes (which is 9993 over non-9993 labor). Same conceptual
+direction; different denominator. See L vs G42/H42 comparison in
+Manual/fragile.
+
+#### Formulas — DBI special-class block (rows 36–42)
+
+Already documented in detail in
+[special-class.md § Operating Report Summary — DBI section reference](special-class.md#operating-report-summary--dbi-section-reference).
+Quick re-statement of the structural pattern for cross-tab readers, with
+this snapshot's resolved numbers:
+
+| Row | Class | D YTD Op Budget (pace) | E YTD Op Actuals | F YTD Op Balance | G Total Budget | H Projected Op Actuals | I Projected Op Balance |
+|---|---|---|---|---|---|---|---|
+| 36 | PREMM | `G36/J2*I2` = $1,022,641 | `GETPIVOTDATA(Premium, fund 10190)` = $879,090 | $143,551 | `SUMIFS(Report Data SPECIAL, "Premium Pay - Misc", "DBI")` = $1,191,559 | `Premium!P5+P6` = $1,024,297 | $167,262 |
+| 37 | OVERM | $326,130 | `GETPIVOTDATA(Overtime, fund 10190)` = $438,786 | -$112,656 | $380,000 | `Overtime!BS15` = $555,485 | -$175,485 |
+| 38 | RTPOM | $214,558 | `GETPIVOTDATA(RPO, dept-group DBI)` = $359,014 | -$144,456 | $249,998 | `IF(K2=0, E38, MAX(G38, E38))` = $359,014 | -$109,016 |
+| 39 | STEPM | -$503,178 | `SUM(Step!S) - SUMIFS(Step!S, "Planning")` = -$884,974 | $381,796 | -$586,292 | `SUM(Step!T) - SUMIFS(Step!T, "Planning")` = -$939,939 | $353,647 |
+| 40 | TEMPM | $154,853 | `SUMIFS('BI Payroll'!AL, AE, "COMMN:5380")` = $0 | $154,853 | `BFM!AZ1195+AZ1197+AZ1199+AZ1201` = $180,431 | **`0` literal** (manual override; J40 note: "No interns planned at this time") | $180,431 |
+| 41 | 9993 Attrition | -$6,237,580 | -$10,007,197 (computed residual: `D41-F41`) | `GETPIVOTDATA(DBI YTD bal) - SUM(F36:F40)` = $3,769,617 | `SUMIFS(SPECIAL, "Attrition Savings - Misc", "DBI") + SUMIFS(SPECIAL, "Temporary - Misc", "DBI") - G40` = -$7,267,894 | -$11,685,189 (computed residual: `G41-I41`) | `GETPIVOTDATA(DBI proj bal) - SUM(I36:I40)` = $4,417,295 |
+| 42 | Attrition Rate | — | — | — | `G41/(GETPIVOTDATA(DBI total budget) - G41)` = -10.49% | `H41/(GETPIVOTDATA(DBI total budget) - H41)` = -16.83% | — |
+| 43 | Prior-Year Actual Attrition Rate | — | — | — | — | **`-0.15438` (hardcoded literal)** | — |
+
+Key structural notes carried over from [special-class.md](special-class.md):
+
+- **D column = COLA-unaware straight-line pacing.** All `D` cells use
+  `G36/Calendar!J2*Calendar!I2` (pure-PP), not the COLA-weighted
+  `M2/N2` ratio. Workbook shortcut consistent across the special-class
+  block — fine for OT/Premium/RPO but wrong for STEP/PREMM in a strict
+  sense (the budget side carries no COLA component, but the YTD-pace
+  metaphor implicitly does). KosPos default = COLA-aware everywhere.
+- **F41 + I41 = computed-as-residual.** This is the 9993 reconciliation
+  closure: dept total - sum of named classes = 9993 by construction.
+- **G41 = SUMIFS combined.** DBI Attrition row's Total Budget combines the
+  named `"Attrition Savings - Miscellaneous"` rows from Report Data SPECIAL
+  with the `"Temporary - Miscellaneous"` rows and subtracts G40 (TEMPM
+  Interns). Decoded:
+  - `+ SUMIFS(SPECIAL, "Attrition Savings - Misc", "DBI")` — the explicit
+    9993 budget from BFM.
+  - `+ SUMIFS(SPECIAL, "Temporary - Misc", "DBI")` — DBI's vacant-permanent-as-TEMP
+    budget (temp work done via vacant permanent positions, not via the
+    `COMMN:5380` summer intern code).
+  - `− G40` — subtracts the intern total to avoid double-counting (G40
+    captures the same TEMPM dollars from BFM rows 1195/1197/1199/1201).
+- **H40 = literal `0`.** Alex hand-overrides the projection when no interns
+  are planned. J40 note: `"No interns planned at this time"`. KosPos:
+  configurable "expected interns this year" input on the TEMPM card,
+  defaulting to zero with the user able to confirm/override.
+- **H43 = literal `-0.15438`** (`-15.44%`). Last year's actual DBI attrition
+  rate, hand-keyed for comparison. **J43 says "Calculated, Questionable"**
+  — Alex's own caveat that the prior-year computation method may not match
+  the current one. KosPos: derive prior-year rate from the prior-FY's saved
+  end-of-year snapshot, with the methodology documented.
+
+#### Formulas — CPC special-class block (rows 45–52)
+
+Structurally similar to the DBI block (rows 36–42) but with three
+asymmetries that matter for KosPos:
+
+| Row | Class | D YTD Op Budget (pace) | E YTD Op Actuals | F YTD Op Balance | G Total Budget | H Projected Op Actuals | I Projected Op Balance |
+|---|---|---|---|---|---|---|---|
+| 45 | PREMM | `G45/J2*I2` = $5,140 | `GETPIVOTDATA(Premium, fund 10000)` = $39,017 | -$33,877 | `SUMIFS(SPECIAL, "Premium Pay - Misc", "CPC")` = $5,989 | `Premium!P8+P9` = $45,462 | -$39,473 |
+| 46 | OVERM | `G46/J2*I2` = $0 | `GETPIVOTDATA(Overtime, fund 10000)` = $3,944 | -$3,944 | `SUMIFS(SPECIAL, "Overtime - Misc", "CPC")` = $0 | `Overtime!BS18` = $4,993 | -$4,993 |
+| 47 | RTPOM | $0 | `GETPIVOTDATA(RPO, dept-group CPC)` = $362,514 | -$362,514 | $0 | `IF(K2=0, E47, MAX(G47, E47))` = $362,514 | -$362,514 |
+| 48 | STEPM | -$373,332 | `SUMIFS(Step!S, "Planning")` = $5,247 | -$378,579 | -$434,998 | `SUMIFS(Step!T, "Planning")` = $5,247 | -$440,245 |
+| **49** | **MCCP Offset** | $56,799 | _**(empty — no formula)**_ | $56,799 | `SUMIFS(SPECIAL, "MCCP Offset - Misc", "CPC")` = $66,181 | _**(empty)**_ | $66,181 |
+| **50** | **TEMP** | $826,866 | _**(empty)**_ | $826,866 | `SUMIFS(SPECIAL, "Temporary - Misc", "CPC")` = $963,446 | _**(empty)**_ | $963,446 |
+| 51 | 9993 Attrition | -$2,042,296 | -$6,552,167 (residual) | `GETPIVOTDATA(CPC YTD bal) - SUM(F45:F50)` = $4,509,872 | `SUMIFS(SPECIAL, "Attrition Savings - Misc", "CPC")` = -$2,379,639 | -$7,313,310 (residual) | `GETPIVOTDATA(CPC proj bal) - SUM(I45:I50)` = $4,933,671 |
+| 52 | Attrition Rate | — | — | — | `G51/(GETPIVOTDATA(CPC total budget) - G51)` = -5.45% | `H51/(GETPIVOTDATA(CPC total budget) - H51)` = -16.81% | — |
+| **53** | **Prior-Year Actual Attrition Rate** | — | — | — | — | _**(empty — value missing!)**_ | — |
+
+**Three CPC asymmetries vs DBI** (catalog these for KosPos):
+
+1. **Extra MCCP Offset row (49).** CPC has MCCP positions; DBI doesn't.
+   Adds a class line and shifts the attrition residual row down by one.
+   In KosPos: a special-class line list per dept-group, with classes
+   driven by which positions the dept has (PCS with steps → STEPM
+   visible; PCS in MCCP ranges → MCCP visible; etc.) rather than a
+   fixed block of rows.
+2. **TEMP row (50) is undifferentiated.** Note J50: `"TEMP not
+   differentiated"`. CPC doesn't have a TEMPM-Interns equivalent of
+   `COMMN:5380`; CPC's TEMP is just rolled into the regular labor
+   budget via the SPECIAL block, with no separate YTD-actuals or
+   projection source. The attrition residual (row 51) absorbs all of
+   it. KosPos: TEMP is just another special class — surface it the same
+   way as PREMM/OVERM, parameterize the YTD-actuals source per dept
+   rather than hardcoding `COMMN:5380`.
+3. **Row 53 prior-year actual attrition rate is empty.** Only J53 has
+   the label; H53 has no value. So CPC has no historical baseline at
+   all. KosPos: prior-year rates always derive from saved snapshots —
+   no per-dept-group hand-keyed values to forget.
+
+**Two structural notes on the CPC block:**
+
+- **MCCP Offset row 49 and TEMP row 50 have NO `E` or `H` formulas.**
+  Only `D`, `G`, and computed `F` / `I` (which both reduce to the
+  budget side when E and H are blank). The dollars are absorbed into
+  9993 Attrition (row 51) via the residual computation. This works
+  arithmetically (residual = bucket of everything not explicitly
+  named) but masks the dept-group's actual MCCP Offset spend pattern.
+  KosPos: every named special class gets full YTD-actuals + projection
+  treatment, no "absorbed into 9993" shortcuts.
+- **CPC G46 OVERM = $0** because CPC has no overtime budgeted (the SPECIAL
+  block has zero `"Overtime - Miscellaneous"` rows for CPC). The YTD
+  actuals (E46 = $3,944) show CPC posted a tiny amount of OT anyway —
+  manual reclass or one-off. Reconciled into 9993 via the residual.
+
+#### Formulas — fund-code shortcut: DBI uses 10190, CPC uses 10000
+
+The DBI block's E36/E37 `GETPIVOTDATA(..., "Fund Code", 10190)` and the
+CPC block's E45/E46 `GETPIVOTDATA(..., "Fund Code", 10000)` are not the
+same shortcut. **DBI's operating fund is 10190; CPC's is 10000.** Each
+dept-group's special-class actuals only filter to its own fund-of-record:
+
+- DBI Premium / Overtime / RPO YTD actuals = fund 10190 only.
+- CPC Premium / Overtime YTD actuals = fund 10000 only. (RPO uses dept
+  group code instead of fund.)
+
+This is operationally fine while each dept-group lives entirely in one
+fund. As soon as a dept-group operates across multiple funds (CPC capital
+projects, DBI's BIF-Continuing, future inter-fund OT), the filter
+under-counts. **The catalog of DBI shortcuts already lists "Fund 10190
+filter" as a generalization target; CPC's `Fund 10000` is the mirror
+shortcut.** Both belong in the
+[cross-cutting concerns table](#multi-dept-generalization-caveats-dbi-shortcuts-to-undo).
+
+#### What's manual / fragile
+
+1. **DBI/CPC block-shape asymmetry is hand-coded.** Adding a class to one
+   dept-group (e.g., MCCP for DBI, or a fire-specific row for SFFD) means
+   inserting a row and shifting the residual row's offset. The attrition
+   formula at F41 / F51 is `GETPIVOTDATA(dept_group total) - SUM(F36:F40)`
+   — the `F36:F40` range is hardcoded to the current 5-row block layout.
+   Insert a row at position 39 and the formula either picks it up
+   automatically (if Excel adjusts the range, which it usually does) or
+   silently breaks (if the row is added below the SUM range). KosPos:
+   classes per dept-group come from a list, residual is computed over
+   "every class not explicitly named," no row-position dependencies.
+2. **H40 hardcoded `0` (TEMPM Interns projection).** Alex overrides when
+   no interns are planned (J40 note). Easy to forget to update when interns
+   are planned mid-year. KosPos: "expected interns this year" input on
+   the TEMPM card with the COMMN:5380 YTD as the baseline; default to
+   "match YTD" rather than zero.
+3. **H43 hardcoded `-0.15438` (DBI prior-year actual attrition rate).**
+   Hand-keyed annually. Methodology not documented in the workbook (J43
+   says "Calculated, Questionable" — Alex's own caveat). KosPos: derives
+   from saved end-of-year snapshot of the prior FY; methodology lives in
+   code with the rate display.
+4. **H53 empty (CPC prior-year attrition rate).** No reference baseline
+   for CPC at all. KosPos: same automatic derivation eliminates the
+   asymmetry.
+5. **Fund-code hardcode per dept-group** (DBI=10190, CPC=10000). See
+   above. Needs to come from a dept-group → operating-fund-set lookup
+   sourced from BFM fund-control = `FACCT` (per [Tab 20 cross-cutting
+   concerns](#cross-cutting-the-dual-per-pp-grid-yay-operating-bbcb-continuing)).
+6. **CPC E49 / E50 / H49 / H50 absent.** MCCP Offset and TEMP have no
+   YTD-actuals or projection. The residual at F51 / I51 absorbs them
+   silently. **You won't see the MCCP Offset YTD spend pattern unless
+   you drill into Step!A:A or Report Data SPECIAL rows directly.** KosPos
+   surfaces every named class with full math, no implicit-residual
+   absorption.
+7. **G40 hardcoded BFM cell addresses** (`AZ1195+AZ1197+AZ1199+AZ1201`).
+   The four BFM rows shift if BFM adds/removes rows above. Already
+   flagged in [special-class.md § TEMPM](special-class.md#tempm_e--temporary-misc--pending-walkthrough). KosPos: SUMIFS by
+   `(dept-group, account-description)` against the BFM eturn, not row
+   indices.
+8. **G36/G37/G38/G39/G45/G46/G47/G48/G49/G50/G51 hardcoded `Report
+   Data!$S$649:$S$748` range.** If the SPECIAL block in Report Data is
+   ever resized (e.g., DBI/CPC roll-in adds dept-groups, or new
+   special-classes are added), the SUMIFS range must be widened. **Tab 20
+   already lists this as a manual/fragile item;** OPS Summary inherits
+   the fragility.
+9. **All `D` cells use pure-PP pacing** (`G/J2*I2`), not COLA-weighted.
+   Consistent across the special-class block but in tension with
+   KosPos's COLA-aware default. The straight-line pacing is "close
+   enough" for the special-class lines where COLA doesn't apply
+   directly to the special-class total (OT and Premium dollars don't
+   inherit the per-PP COLA, but the budget shadow they trace might).
+10. **`L` column ratio is conceptually different from G42/H42 attrition
+    rates.** L23 = `projected_balance / total_budget` = "leftover after
+    spending". G42/H42 = `9993_amount / non-9993_labor` = the canonical
+    attrition rate. Both are %, both look similar, easy to confuse in a
+    presentation. KosPos: separate the two metrics with different visual
+    treatment and tooltips explaining what each represents.
+11. **CPC G46 OVERM = $0 but E46 = $3,944.** Tiny OT-without-budget event
+    silently absorbed into 9993. In a department with material OT, this
+    pattern would mask overspend. KosPos: flag as "actuals posted to a
+    line with zero budget."
+12. **Pivot range reference `$A$1` in every GETPIVOTDATA.** The DBI block
+    references the dept-group rollup by `Department Group` (a pivot
+    label not present in Report Data — it's the grouped field
+    `Effective Employee Division2`). If the pivot is ever rebuilt with a
+    different top-level grouping name, every GETPIVOTDATA in rows 41,
+    42, 51, 52 breaks. KosPos: structured queries rather than pivot
+    GETPIVOTDATA strings.
+
+#### KosPos improvements
+
+##### 1. Headline page split into dept-group cards, not two regions on one sheet
+
+**Problem in the workbook.** OPS Summary stacks two distinct views — the
+per-dept rollup pivot at the top and the per-class block at the bottom —
+on one sheet. They look related (both have G = Total Budget, both end at
+attrition) but they answer different questions (where is the money? vs.
+which class is the money?). The pivot also doesn't show special classes
+broken out; the special-class block doesn't show per-dept distribution.
+A reader has to mentally cross-reference.
+
+**KosPos design.** One **headline page per dept-group** (DBI card, CPC
+card, future SFFD card, etc.), each with two side-by-side panels:
+
+- **Left: per-dept rollup table.** One row per dept under the group,
+  showing YTD budget / YTD actual / YTD balance / total budget /
+  projected actual / projected balance / projected balance % of budget.
+  Click any dept row to drill into [Tab 27 Operating Report Detail](#tab-27--operating-report-detail) (which becomes a side panel, not a separate page).
+- **Right: per-special-class card stack.** One card per class
+  (PREMM, OVERM, RTPOM, STEPM, MCCP, TEMPM, 9993). Each card shows YTD
+  budget pace / YTD actual / projected total / variance, with a 1-line
+  "what's driving this" callout (e.g., for OVERM: "$555k projected vs
+  $380k budget — 87% of overrun from 2 depts: Building Inspection,
+  Plumbing Inspection"). 9993 always shows the attrition rate
+  prominently with a prior-year comparison.
+
+Above both panels: a single dept-group attrition-rate gauge with
+prior-year, current, and projected values. The "is this department on
+track" answer is at the top of the page.
+
+##### 2. Compute 9993 attrition rate consistently and document it
+
+**Problem in the workbook.** Three different things called "attrition rate":
+
+- **G42 / H42**: `9993_amount / (total_budget − 9993_amount)`. The
+  canonical formulation. Denominator is non-9993 labor budget.
+- **L23 / L32**: `projected_balance / total_budget`. Different
+  numerator (full projected balance, not just 9993) and different
+  denominator (total budget, not labor minus 9993).
+- **H43 prior-year**: hand-keyed; methodology unclear (J43: "Calculated,
+  Questionable").
+
+A reader looking at three "rates" on the same page can't tell which is
+canonical.
+
+**KosPos design.** One canonical definition per the special-class system:
+
+```
+attrition_rate(dept_group) =
+  (9993_dollars + 9994_dollars) / (total_labor − 9993_dollars − 9994_dollars)
+```
+
+Computed identically for YTD-budget-pace / YTD-actual / projection /
+prior-year-actual. **Prior-year-actual derived from the saved end-of-FY
+snapshot, not hand-keyed.** Methodology rendered as a tooltip on every
+rate display so a new analyst doesn't have to dig.
+
+##### 3. Drop the COLA-unaware D column; use COLA-aware pacing everywhere
+
+**Problem in the workbook.** Every D cell in the special-class block uses
+`G/Calendar!J2*Calendar!I2` (pure-PP). The per-dept pivot D column uses
+Report Data's T column, which is `S/N2*M2` (COLA-weighted). Same column
+header ("YTD Operating Budget"), two different math. Reader can't tell
+without inspecting the formula.
+
+**KosPos design.** All YTD-budget pacing uses the COLA-weighted ratio
+universally (per [Calendar § Improvement #2](#tab-5--calendar) and memory
+`feedback_projections_always_cola_aware.md`). The straight-line view is
+optionally available as a "simplified pace" check, never the headline
+figure. The same `project()` function used everywhere else in KosPos
+returns both modes; the page displays only the COLA-aware result by
+default.
+
+##### 4. Surface every named special class with explicit YTD + projection
+
+**Problem in the workbook.** CPC MCCP Offset (row 49) and CPC TEMP (row 50)
+have no E (YTD actuals) and no H (projection). Their YTD spend pattern is
+invisible — absorbed into the 9993 residual. For a dept-group running a
+material MCCP population (Planning has many MCCP positions), not seeing
+MCCP YTD-vs-budget is a blind spot.
+
+**KosPos design.** For every named special class with a non-zero budget
+in the dept-group, surface:
+- YTD actuals (sourced from the per-class tab's pivot or Step!S range).
+- Projected actuals (from the per-class tab's projection cell or formula).
+- Variance to budget.
+
+The 9993 residual still closes the math, but it closes a smaller gap
+because every other class is explicitly accounted.
+
+##### 5. Configurable fund-code-per-dept-group, not hardcoded 10190 / 10000
+
+**Problem in the workbook.** DBI E36/E37 filter to fund 10190; CPC
+E45/E46 filter to fund 10000. Both are hardcoded literals. A dept that
+spends premium pay across two funds (e.g., DBI BIF-Continuing + Annual)
+would have actuals scattered. Adding a third dept-group means a third
+fund constant to remember.
+
+**KosPos design.** Each dept-group carries an `operating_funds: Set<FundCode>`
+attribute, sourced from BFM's `Fund Control = "FACCT"` filter (annual
+fund control = operating fund). Premium / Overtime / RPO YTD-actuals
+queries filter by `FundCode IN dept_group.operating_funds`. New
+dept-group on-boarding fills the set from BFM, not from a hand-key. The
+existing DBI shortcut catalog entry covers this; this is the
+"specifically the OPS-summary GETPIVOTDATA call" application.
+
+##### 6. Snapshot the page state; show what changed vs the prior snapshot
+
+**Problem in the workbook.** When OPS Summary updates run-to-run (every
+PP), Alex eyeballs the diffs. The big mover ("projection up $400k since
+last week") is visible only if you remember last week's numbers. Early
+in the FY when projections swing materially, this is where mistakes
+happen.
+
+**KosPos design.** Every page-state save records:
+
+```ts
+{
+  fy: number,
+  asOfDate: Date,
+  snapshotId: string,
+  perDeptRollup: { ...8 measures per dept }[],
+  perClassBlock: { dept_group, class, ytd_budget, ytd_actual, total_budget, projected_actual, projected_balance }[],
+  attritionRate: { dept_group, ytd_actual_rate, projected_rate, prior_year_rate }[],
+}
+```
+
+The headline page shows a "Δ since `<prior snapshot date>`" column next
+to each metric, color-coded by direction and magnitude. The first item
+flagged on a fresh refresh: any line that moved >10% or >$100k. Saves
+auto-pin at every report milestone (6-month, 9-month, year-end). This
+is the **"what changed since the last report" feature** Alex flagged in
+the initial walkthrough description; it's the obvious win KosPos
+delivers over Excel. See also [Tab 27 § KosPos improvements](#kospos-improvements-27)
+where the same primitive powers position-level drill-down.
+
+##### 7. Reconcile per-dept pivot to per-class block — the closure check is automatic
+
+**Problem in the workbook.** The two regions must reconcile (sum of per-class
+9993 + named classes + per-position regular labor = dept-group total).
+They do, by construction (the residual at F41/I41/F51/I51 enforces
+closure). But there's no display of *that* reconciliation — a small typo
+in a SPECIAL block paste or a NEWP row could change F41 silently because
+the residual absorbs the difference.
+
+**KosPos design.** Display the reconciliation explicitly:
+
+```
+DBI dept-group balance
+  Total budget                $62,100,574
+  Per-dept rollup (pivot)     $62,100,574  ✓ matches
+  Per-class breakdown
+    PREMM       $1,191,559
+    OVERM         $380,000
+    RTPOM         $249,998
+    STEPM        -$586,292
+    TEMPM         $180,431
+    9993        -$7,267,894
+    Per-position regular labor (residual)  $67,952,772
+  Sum                         $62,100,574  ✓ matches
+```
+
+When the closure fails (a hand-paste error in SPECIAL, or a
+double-counted NEWP row), the user sees a red "reconciliation off by
+$X" callout instead of a silent residual absorption. This is the
+quality-flag application of the closure invariant.
+
+##### 8. Don't filter Premium / Overtime / RPO actuals by fund at all; sum across the dept-group's funds
+
+**Problem in the workbook.** Premium and Overtime pivots are filtered by
+`Fund Code = 10190` (DBI) or `10000` (CPC). Even within DBI, OT could
+legitimately post to fund 11000 (BIF-Continuing) when the work was
+billable. The current filter under-counts that.
+
+**KosPos design.** Sum across all funds the dept-group operates in (per
+improvement #5). Show a fund breakdown drilldown for users who need to
+see "is some OT posting to the wrong fund."
+
+#### KosPos UI sketch
+
+The **Operating Report headline** page is the home page of the
+current-year workspace. One screen per dept-group; a sidebar lists the
+dept-groups the user has access to.
+
+**Top of page** — three big numbers in a row, the dept-group health
+indicators:
+
+```
+DBI · FY26 · as of PP 22 of 26.1
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│ Total Budget    │ │ YTD Actuals     │ │ Projected       │
+│ $62.10M         │ │ $49.03M (79%)   │ │ $57.27M  (92%)  │
+│  vs prior snap  │ │ vs prior snap   │ │ vs prior snap   │
+│  +$120k         │ │  +$1.85M (PP+1) │ │  +$430k         │
+└─────────────────┘ └─────────────────┘ └─────────────────┘
+
+Attrition rate
+  YTD actuals   -16.83%     ← red below -10% (over budget)
+  Projected     -16.83%     ← green if within ±2% of prior
+  Prior year    -15.44%
+```
+
+**Middle of page** — two side-by-side panels:
+
+- **Left panel: per-dept rollup table.** Columns = YTD Budget / Actuals
+  / Balance / Total Budget / Projected Actuals / Projected Balance /
+  Projected % of Budget. Rows = dept-group rollup, dept-group division
+  rollup, individual dept. Sortable, filterable. Click a dept row to
+  open a side panel mirroring [Tab 27 Operating Report Detail](#tab-27--operating-report-detail) filtered to that dept.
+- **Right panel: per-class card stack.** One card per class with the
+  six-stat header (YTD budget / actual / variance / total budget /
+  projected actual / projected balance). Each card has a "what's
+  driving this" callout. Click → opens the per-class tab's UI
+  (Premium / Overtime / RPO / Step etc.).
+
+**Bottom of page** — reconciliation strip (per improvement #7):
+
+```
+Reconciliation: per-dept total matches per-class total  ✓
+  Total budget               $62,100,574
+  Per-dept rollup            $62,100,574    ✓
+  Per-class breakdown        $62,100,574    ✓
+```
+
+When the closure breaks (e.g., SPECIAL block out of sync), this strip
+goes red with a "fix this" callout pointing to the Data Issues panel.
+
+**Floating "Snapshot Δ" panel** (collapsible, top-right):
+
+```
+Δ since 2026-05-01 snapshot
+  Big movers
+    DBI ADM MIS YTD balance     +$120k   ⚠ (review)
+    DBI projected attrition     +$430k
+    DBI 9993 projected          -$430k
+  All others within ±$10k
+```
+
+#### Excel export notes
+
+The corresponding sheet in the KosPos-emitted `.xlsx` mirrors the
+workbook layout for parity-checking but adds an explicit reconciliation
+block:
+
+- **Sheet `Operating Report Summary`.** A1:K33 = same per-dept pivot
+  shape. Rows 36–53 = same per-special-class block shape. Plus rows
+  55+ = the per-snapshot Δ table.
+- **Named ranges:** `DBI_TotalBudget`, `DBI_AttritionRate`, etc., so
+  downstream consumers (the report PDF generator, the CON/MYR
+  submission template) reference by name rather than cell address.
+- **Reconciliation strip** at row 56–60 — explicit per-dept-group
+  closure with green "matches" / red "off by $X" indicator.
+- **Prior-snapshot column** added to the per-dept pivot (M:T) with Δ
+  values + color-coded conditional formatting.
+
+The block-shape asymmetry (DBI 6 classes / CPC 7 classes) goes away in
+the export — every dept-group gets the same 7-class block with empty
+cells where a class doesn't apply. Layout consistency over compactness.
+
+#### Open questions / TODO
+
+- [ ] **DBI special-class block uses pure-PP pacing in D column; per-dept
+      pivot D column uses COLA-weighted from Report Data T.** Two
+      different YTD-pace metrics live on the same page under the same
+      header. KosPos resolves by making everything COLA-weighted — but
+      worth confirming with Alex that "YTD Operating Budget pace" should
+      always be COLA-aware on the special-class side too. Reasonable
+      default per memory `feedback_projections_always_cola_aware.md`.
+- [ ] **L23/L32 ratio definition vs G42/H42 definition.** Both display as
+      % at the dept-group level but use different math. Confirm which
+      one Alex considers "the attrition rate that goes in the report."
+      Reasonable default: G42/H42 is canonical (9993 / non-9993), L23/L32
+      is "leftover after spending" and gets a different label in KosPos.
+- [ ] **CPC's prior-year attrition rate (H53) is empty.** Was it ever
+      computed and dropped, or did CPC just never have a baseline? KosPos
+      derives from saved snapshots automatically; confirm whether the
+      FY25 CPC end-of-year snapshot is preserved somewhere (probably
+      the FY25 Labor Report workbook).
+- [ ] **CPC MCCP Offset (row 49) and CPC TEMP (row 50) have no E or H
+      formulas.** Reasonable call: these were skipped because CPC's
+      MCCP-Offset YTD isn't readily available in the existing per-class
+      tab structure (Step doesn't break out MCCP cleanly per Alex's
+      walkthrough note). KosPos: split MCCP into its own tab (separate
+      from Step) per [special-class.md § STEPM](special-class.md#stepm_c--step-adjustments-misc--pending-walkthrough).
+- [ ] **"Department Group" pivot label vs Report Data column.** OPS
+      Summary's GETPIVOTDATA calls use `"Department Group"` as the
+      lookup label, but Report Data has no column with that exact name —
+      the pivot's row-axis-grouped field `Effective Employee Division2`
+      is rendered as "Department Group" in the pivot output. If the
+      pivot is ever rebuilt with a different top-level grouping label,
+      every GETPIVOTDATA in rows 41, 42, 51, 52 breaks. Already in
+      Manual/fragile; surfacing for Alex to confirm whether the pivot
+      grouping is intentional and whether to preserve the "Department
+      Group" name during the KosPos rebuild for downstream-formula
+      compatibility.
+- [ ] **TEMPM Interns G40 references BFM rows 1195/1197/1199/1201.**
+      Cross-reference [Task B reconciliation suite](audits/bva-reconciliation-suite.md) — does
+      BVA see this $180k in DBI's Salaries chartfield, or has it
+      already been disposed via KK?
+- [ ] **Reconciliation closure (improvement #7) detects SPECIAL block
+      paste errors only at the dept-group total level.** Per-class
+      validation needs the BFM eturn join — i.e., did the user paste
+      the right `S` value for `(class, dept)` from the eturn's
+      special-class summary rows? KosPos's importer can do this on
+      upload; the workbook can't.
 
 ---
 
 ### Tab 27 — Operating Report Detail
 
-**Status:** walkthrough — pending
+**Status:** walkthrough — done 2026-05-25
 
-**Purpose:** Drill-down view of Operating Report Summary. Used when investigating
-**what changed between two report runs** — early in the FY, projections can swing
-materially run-to-run. Alex flagged "what changed since the last report" as a clear
-improvement area for KosPos.
+**Purpose:** **Drill-down companion to OPS Summary.** Same pivot cache as
+[Tab 26 OPS Summary](#tab-26--operating-report-summary) (both source from
+Report Data via pivot cache `935`), but with **14 additional row fields**
+extending the rollup all the way to the position level. Where OPS Summary
+collapses to 33 dept-rollup rows, OPS Detail expands to 813 per-position
++ per-archetype rows.
 
-**Formulas / Manual-fragile / KosPos improvements / UI sketch / Excel export / Open
-questions:** _(walkthrough — KosPos snapshot-diff feature is the obvious win)_
+Two operational use cases:
+
+1. **Variance investigation.** OPS Summary shows DBI ADM MIS has a
+   $2.13M YTD balance (huge underspend). OPS Detail lets you walk
+   row-by-row through the dept to see which positions / archetypes
+   contribute. The 18 row fields collectively pin down the line:
+   "filled positions show $391k YTD actuals; the underspend is on
+   vacant positions and SPECIAL-class budget that hasn't drawn down
+   yet."
+2. **"What changed since the last report" forensic.** Alex explicitly
+   flagged this as the obvious KosPos win. Today the workflow is:
+   open last week's OPS Detail in a second window, eyeball-diff
+   against this week's, find the changed rows. KosPos automates this
+   — see [§ KosPos improvements](#kospos-improvements-27).
+
+#### Data sources
+
+- **Sole source:** [Tab 20 Report Data](#tab-20--report-data) via pivot
+  cache `935`. Same cache as OPS Summary — the two tabs are two views of
+  the same data, at different rollup grains.
+- No external file. Tab 27 is **a derived view, not a data source.**
+
+#### Snapshot scope (this workbook, as of 2026-05-08)
+
+| Dimension | Count |
+|---|---|
+| Total rows (A:Z, including header) | 813 |
+| Columns | 26 (`A` Eff Div2 … `Z` Sum of Projected Continuing Actuals) |
+| Pivot row fields (17 = 3 from OPS Summary + 14 added) | 17 |
+| Pivot data fields (8, same as OPS Summary) | 8 |
+| Distinct Position Fill Status values (incl. SPECIAL archetypes) | 14 |
+| Per-position rows (FILLED / VACANT / OVER FILLED / PARTIALLY FILLED + null-status drill-down rows) | ~600 |
+| SPECIAL-block rows | 23 |
+| OVERTIME / PAYOUT catcher rows | 36 |
+| HIRING / SEPARATING / INACTIVATED / GL / MERGE / NEWPxxxxx archetypes | 20 |
+| Grand Total row | 1 (row 813) |
+
+The 813 rows aren't 1:1 with Report Data's 798 rows — the pivot
+introduces subtotal / division-rollup rows and may collapse blank
+separators. Detail rows ≈ 793 + ~20 layout rows ≈ 813.
+
+#### Formulas — pivot row-axis fields (17 of 81 cache fields)
+
+OPS Detail extends the 3 row-axis fields used by OPS Summary with 14
+more, all sourced from Report Data columns. Listed in axis order (this
+is the rollup hierarchy):
+
+| # | Pivot axis label | Cache field idx | Report Data col | Meaning |
+|---|---|---|---|---|
+| 1 | Effective Employee Division2 | `[80]` | — (pivot-grouped) | Dept-group (DBI/CPC). |
+| 2 | Effective Employee Division | `[0]` | A | Mid-level division. |
+| 3 | Effective Employee Department | `[1]` | B | Granular dept. |
+| 4 | Position Fill Status | `[4]` | E | FILLED / VACANT / OVERTIME / PAYOUT / SPECIAL / HIRING / SEPARATING / INACTIVATED / OVER FILLED / PARTIALLY FILLED / MERGE / GL / NEWPxxxxx / blank (per [Tab 20 archetypes](#tab-20--report-data)). |
+| 5 | Position Number | `[3]` | D | Per-position PK from PS HCM. |
+| 6 | Employee Job Code | `[5]` | F | 4-digit SF job code at incumbent's class. |
+| 7 | Employee Appointment Type | `[6]` | G | PCS / PEX / TEX / etc. |
+| 8 | Budget Job Code | `[7]` | H | Either a job code (per-position rows) or a special-class label string (`Attrition Savings - Misc`, `Temporary - Misc`, `Premium Pay - Misc`, …) on SPECIAL rows. |
+| 9 | Employee First Name | `[8]` | I | Incumbent. |
+| 10 | Employee Last Name | `[9]` | J | Incumbent. |
+| 11 | Employee Name Vice 1 | `[10]` | K | Acting / "in place of" linkage. |
+| 12 | Manager First Name | `[11]` | L | Reports-to. |
+| 13 | Manager Last Name | `[12]` | M | Reports-to. |
+| 14 | Roster Code | `[13]` | N | Roster classification. |
+| 15 | Roster Code Description | `[14]` | O | Human-readable roster label. |
+| 16 | Budgeted Department | `[15]` | P | The dept the position is budgeted under (vs `Effective Dept` = where the employee is charging today). |
+| 17 | Charge Override Department | `[16]` | Q | Combo-code-derived charge override. |
+| 18 | Exclude | `[17]` | R | The COUNTIF-based dedup flag from Tab 20 — `Y` on the duplicate pool-position rows that should be zeroed. |
+
+Same eight **data fields** as OPS Summary (cols S–Z in OPS Detail =
+cache fields `[19], [20], [21], [18], [22], [23], [51], [52]`): YTD
+Operating Budget / Actuals / Balance + Total Budget + Projected Operating
+Actuals / Balance + YTD Continuing Actuals + Projected Continuing
+Actuals.
+
+**No formulas on this sheet.** Every cell is a pivot output. Recompute on
+pivot refresh.
+
+#### What this view reveals that OPS Summary hides
+
+- **Per-archetype distribution within a dept.** Drill into DBI ADM MIS
+  and you see: 5 FILLED positions ($391k YTD), 1 VACANT position
+  ($0 YTD), 3 SPECIAL rows (PREMM / OVERM / RTPOM / STEPM / 9993
+  contributions to that dept), 2 OVERTIME catcher rows (DBI ADM MIS
+  OT line items), 1 PAYOUT catcher row.
+- **Per-position fill-status changes.** A position that was FILLED at
+  the prior snapshot and is now VACANT shows up by name when the
+  diff is computed (per improvement #1 below).
+- **Manager assignments.** Cols L/M (Manager First/Last) are not
+  visible in OPS Summary; useful for "who's the next-level manager
+  responsible for this overspend."
+- **Charge-override departments (col Q).** Where a position's
+  budgeted dept differs from the dept it's actually charging to (a
+  combo-code reassignment), col Q surfaces the difference. OPS
+  Summary aggregates by Effective Dept and loses this visibility.
+
+#### What's manual / fragile
+
+OPS Detail's fragility is **almost entirely inherited from
+[Tab 20 Report Data](#whats-manual--fragile-20)**. The pivot adds no
+formulas or hand-keyed values, so no new sources of error are
+introduced here. The relevant items from Report Data that surface
+prominently in OPS Detail:
+
+1. **Pool-position duplicates** (e.g., position 1094089 with 14 rows).
+   They appear as 14 separate rows in OPS Detail, all with `R Exclude
+   = Y` and zeroed data. Cluttered.
+2. **NEWP placeholder rows** (e.g., NEWP315641 in this snapshot — the
+   one row in OPS Detail with Fill Status = `NEWPxxxxx`) display the
+   placeholder as the fill-status value. Visually conspicuous; would
+   distract a non-budget-expert reader.
+3. **MERGE / GL / INACTIVATED rows** carry the dept group code in col K
+   instead of an Effective Employee Department — they show up under a
+   different rollup level than the dept they conceptually belong to.
+4. **OVERTIME / PAYOUT catcher rows are DBI-only.** 18 of each, all
+   under DBI divisions; CPC has no catcher rows even though it posts
+   real OT actuals (per OPS Summary E46 = $3,944). Same DBI-only
+   oversight noted in Tab 20.
+5. **Pivot subtotals can be confused for per-position rows.** A
+   subtotal row at "DBI AdminIstration Total" looks like another data
+   row with no name/job/etc. Visually distinguishable in Excel by
+   formatting; harder to filter against programmatically.
+6. **Eight data-field cells per row are 0 / blank on archetype-zero
+   rows.** A SPECIAL row with positive `Total Budget` (col V) but
+   zero `YTD Operating Actuals` (col T) is normal (SPECIAL rows have
+   only budget); but a FILLED position with zero YTD Actuals is a
+   data issue worth surfacing. Same cell shape, different meaning —
+   the discrimination logic is in the Fill Status column.
+
+#### KosPos improvements
+
+##### 1. Snapshot-diff is the headline feature
+
+**Problem in the workbook.** Today's workflow: open last PP's OPS Detail
+in one window, this PP's in another, eyeball-diff. Time-consuming and
+error-prone — Alex flagged this explicitly as the obvious KosPos win
+in the initial Tab 27 stub.
+
+**KosPos design.** Every page-state save (per [OPS Summary improvement
+#6](#kospos-improvements-26)) captures the full OPS Detail row set
+keyed by `(Effective Dept, Position Number, Fill Status, Budget Job
+Code)`. The Detail view renders with a default-on **"Δ since
+`<prior_snapshot>`"** column toggle:
+
+- Rows that appeared since the prior snapshot show a green `NEW` chip.
+- Rows that disappeared (e.g., a SEPARATING row that posted, or an
+  inactivated position) show a red `REMOVED` chip on a faint row.
+- Rows whose Fill Status changed (FILLED → VACANT, VACANT → FILLED via
+  hire-completion, FILLED → INACTIVATED) show a yellow `STATUS Δ` chip
+  with the prior and current values side by side.
+- Rows whose YTD Actuals or Projected Actuals moved by more than a
+  threshold ($1k or 5%, configurable per audience) show a blue `$ Δ`
+  chip with the dollar delta.
+
+A **summary callout above the table** condenses the diff to one line
+per category: "3 new HIRING rows, 1 SEPARATING completed, 2 FILLED
+positions now VACANT, 17 rows with >$1k actuals movement."
+
+##### 2. Hide pool-position duplicates by default
+
+**Problem in the workbook.** Position 1094089 (Commissioners) shows 14
+rows in OPS Detail, all zeroed via `R Exclude = Y`. The duplicates make
+the dept look more populated than it is, and a non-expert reader doesn't
+know they should be filtered out.
+
+**KosPos design.** Default view shows one row per `Position Number` with
+a `(N more incumbents)` badge for pool positions. Click the badge to
+expand into per-incumbent rows. The dept's "position count" header
+reflects unique positions, not row count.
+
+##### 3. Catcher rows render as a dept-level summary, not as separate rows
+
+**Problem in the workbook.** OPS Detail intersperses per-position rows
+with OVERTIME / PAYOUT catcher rows for the same dept. Reader has to
+mentally re-group: "the dept's overtime line is row 32, the
+plumbing-position rows are 250–263." On the screen, they're not visually
+linked.
+
+**KosPos design.** Per-dept section header shows the dept's
+special-class totals (OT, RPO, Premium, Step, etc.) as a small
+summary band at the top of the dept's per-position list. The catcher
+rows themselves still exist in the underlying data but render as part
+of the section header, not as separate scrollable rows.
+
+##### 4. Charge-override / combo-code drift gets a Data Issues flag
+
+**Problem in the workbook.** Col Q (Charge Override Department) shows
+positions whose budget dept differs from effective dept. Today it's a
+column you have to look at. A material drift (e.g., 12 positions
+budgeted to DBI ADM Finance but charging to DBI IS Building Inspection)
+is silently a data issue — it changes who owns the spend.
+
+**KosPos design.** Any row where `Budgeted Department ≠ Charge Override
+Department ≠ Effective Department` triggers a Data Issues flag.
+Resolution UI: "approve the reassignment" (updates the Position record)
+or "flag for combo-code correction" (creates a change request).
+
+##### 5. Fill-status mix as a department health vital
+
+**Problem in the workbook.** A dept's fill-status mix (how many FILLED
+vs VACANT vs OVER FILLED vs PARTIALLY FILLED) is implicit in the
+per-position rows. To answer "what's the vacancy rate?" you have to
+filter and count.
+
+**KosPos design.** Each dept section header surfaces the mix as a
+stacked bar:
+
+```
+DBI IS Building Inspection  |████████ 32 FILLED |▒▒ 4 VACANT |░ 1 OVER FILLED |
+  Vacancy rate: 10.8%  ·  RTF coverage: 75% (3 of 4 VACANT have an active RTF)
+```
+
+The RTF-coverage cross-reference comes from P&P Data's `Latest RTF ID`
+column (Tab 6).
+
+##### 6. Cross-link every row to the position's full record
+
+**Problem in the workbook.** OPS Detail shows 18 attributes per row. To
+see the position's full record (138-column P&P Data + 80-column Report
+Data formulas + per-PP BI Payroll detail), you XLOOKUP from the
+position number.
+
+**KosPos design.** Every per-position row is a hyperlink to the Position
+Detail page (per [Tab 6 KosPos UI sketch](#kospos-ui-sketch-6)). The
+side panel render shows the position's full P&P record, the per-PP
+operating + continuing grid, the per-PP earnings-code breakdown, and
+the projection components.
+
+#### KosPos UI sketch
+
+**OPS Detail is a side panel of the OPS Summary headline page**, not a
+top-level navigation surface. Clicking a dept row in OPS Summary's
+per-dept rollup table opens the Detail panel filtered to that dept.
+Clicking outside the panel returns to the headline page.
+
+**Default panel state** — filtered to the clicked dept, default-on
+"Δ since prior snapshot" toggle, default-on "hide pool duplicates"
+toggle. Sections:
+
+```
+DBI IS Building Inspection  · 32 positions · YTD $5.84M (90%) · Projected $6.89M
+└─ Section header: fill-status bar + special-class summary band
+└─ Per-position rows
+    1059020  Murphy, Caroline   FILLED   PCS  6248  $191k YTD  $223k projected
+       Δ since 2026-05-08:  +1 PP of actuals ($8.5k), no other changes
+    1124821  NEW (RTF active)   VACANT   PCS  6321  $0 YTD  $19k projected (hire-cost)
+       NEW since 2026-05-08:  status RTF→active 2026-05-22
+    ...
+    1094089  Commissioners pool ·  14 incumbents (expand)  ·  $0 YTD
+```
+
+**Filter chips above the panel:** Fill Status (multi-select), Appointment
+Type, Roster Code, Budget Job Code. Search box for position
+number / employee name.
+
+**Bulk export** of the visible filtered set to CSV / XLSX with the
+Excel-export naming below.
+
+#### Excel export notes
+
+The KosPos-emitted `.xlsx` includes both the headline and the detail in
+parallel sheets:
+
+- **Sheet `OPS Summary`** — per [Tab 26 § Excel export](#excel-export-notes-26).
+- **Sheet `OPS Detail`** — 26 columns matching the workbook layout (A:Z)
+  plus three more added for KosPos value:
+  - `AA` Prior-snapshot YTD Operating Actuals (for at-a-glance Δ).
+  - `AB` Snapshot Δ flag — `NEW` / `REMOVED` / `STATUS_Δ` / `$_Δ` / empty.
+  - `AC` Data Issues — comma-separated list (`pool-duplicate`,
+    `charge-override-drift`, `vacancy-no-rtf`, etc.).
+- Pivot reconstruction in Excel: include a pivot definition so the user
+  can re-pivot if they prefer the Excel rollup view. KosPos's emitted
+  pivot grouping (Effective Employee Division2) preserves the
+  DBI/CPC top-level rollup for downstream-formula compatibility.
+
+#### Open questions / TODO
+
+- [ ] **Snapshot-diff granularity.** Diff by `Position Number` is
+      obvious. But what about a SPECIAL row whose `Total Budget` (col
+      V) changes because BFM republished the eturn? The diff is
+      keyed on `(Effective Dept, Position Number, Fill Status, Budget
+      Job Code)`, which for SPECIAL rows means `(Eff Dept, blank,
+      SPECIAL, "Attrition Savings - Misc")` — a stable key, so the
+      diff would surface the dollar change. Confirm with Alex that
+      this granularity is right.
+- [ ] **"Δ since" reference snapshot.** Should the default reference
+      be "prior PP" (every-2-weeks), "prior milestone" (6-month,
+      9-month), or user-selectable? Reasonable default: prior PP,
+      with a dropdown to switch to a saved milestone. Phase 2.4
+      decision.
+- [ ] **OVER FILLED / PARTIALLY FILLED positions** (2 + 1 in this
+      snapshot). What does each status mean operationally? Tab 20
+      mentions them but doesn't decode the semantics. Confirm with
+      Alex during the Vacancies and TEMP walkthrough — they should
+      drive Staffing Plan entries.
+- [ ] **Charge-override behavior.** Col Q `Charge Override
+      Department` is `(blank)` for most positions but populated for
+      some. Confirm the population rule (combo-code → effective dept,
+      vs. an explicit override).
+- [ ] **The 14 row-axis fields in OPS Detail vs the 18 from the
+      pivot config.** PivotTable22.xml lists 17 row fields, not 18.
+      Cross-check: the `[2] Budget Department Code 1` field is in
+      the cache (Report Data col C) but **not** in the OPS Detail
+      pivot's row axis. KosPos: include it in the equivalent detail
+      view since it cross-references the budgeted dept for
+      reconciliation against BFM directly.
 
 ---
 
