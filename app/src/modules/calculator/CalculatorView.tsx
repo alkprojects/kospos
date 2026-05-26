@@ -10,8 +10,8 @@ import { useState, useMemo, useId } from 'react'
 import { calcEmployeeCost, CostCalcError } from '../../lib/cost'
 import type { CostResult } from '../../lib/cost'
 import {
-  STEP_CODES, RANGE_CODES, ALL_CODE_STRINGS, RET_CODES, PP_OPTIONS,
-  detectSalaryType,
+  STEP_CODES, RANGE_CODES, ALL_CODES, RET_CODES, PP_OPTIONS,
+  detectSalaryType, extractCode, makeCodeLabel, getJobTitle,
 } from '../../lib/calc-opts'
 import './CalculatorView.css'
 
@@ -42,6 +42,8 @@ function pctLabel(pct: number): string | null {
 export function CalculatorView() {
   // Form state
   const [code, setCode] = useState('')
+  /** The raw text in the job-code input — may be "code" or "code — title". */
+  const [codeInput, setCodeInput] = useState('')
   const [setid, setSetid] = useState('')
   const [retCode, setRetCode] = useState('')
   const [ppStartDate, setPpStartDate] = useState('')
@@ -68,22 +70,26 @@ export function CalculatorView() {
     return RANGE_CODES[code]?.setids ?? []
   }, [code, salaryType])
 
-  const availableSteps = useMemo((): string[] => {
-    if (salaryType !== 'step' || !setid) return []
-    return STEP_CODES[code]?.stepsPerSetid[setid] ?? []
-  }, [code, salaryType, setid])
-
-  const availableRanges = useMemo((): string[] => {
-    if (salaryType !== 'range' || !setid) return []
-    return RANGE_CODES[code]?.rangesPerSetid[setid] ?? []
-  }, [code, salaryType, setid])
-
-  // Auto-select setid when only one exists
+  // Auto-select setid when only one exists. Computed BEFORE the
+  // step/range memos so they can depend on it — without this, a class
+  // with only one setid (most MCCP classes) would render the setId
+  // button as highlighted but the Step/Range section would stay hidden
+  // until the user clicked the already-highlighted button.
   const effectiveSetid = useMemo(() => {
     if (setid && availableSetids.includes(setid)) return setid
     if (availableSetids.length === 1) return availableSetids[0]
     return ''
   }, [setid, availableSetids])
+
+  const availableSteps = useMemo((): string[] => {
+    if (salaryType !== 'step' || !effectiveSetid) return []
+    return STEP_CODES[code]?.stepsPerSetid[effectiveSetid] ?? []
+  }, [code, salaryType, effectiveSetid])
+
+  const availableRanges = useMemo((): string[] => {
+    if (salaryType !== 'range' || !effectiveSetid) return []
+    return RANGE_CODES[code]?.rangesPerSetid[effectiveSetid] ?? []
+  }, [code, salaryType, effectiveSetid])
 
   // Form readiness
   const canSubmit = useMemo(() => {
@@ -101,11 +107,22 @@ export function CalculatorView() {
   // ---------------------------------------------------------------------------
 
   function handleCodeChange(val: string) {
-    setCode(val)
+    setCodeInput(val)
+    setCode(extractCode(val))
     setSetid('')
     setStepOrRange('')
     setResult(null)
     setError(null)
+  }
+
+  /**
+   * On blur, normalize the input text to the canonical "code — title" form
+   * if the extracted code is a known class. Lets users type just "881" and
+   * have the field tidy up to "881 — Mayoral Staff I" when they leave it.
+   */
+  function handleCodeBlur() {
+    const c = extractCode(codeInput)
+    if (c && detectSalaryType(c)) setCodeInput(makeCodeLabel(c))
   }
 
   function handleSetidChange(val: string) {
@@ -185,23 +202,34 @@ export function CalculatorView() {
       >
         {/* Job Code */}
         <div className="form-section">
-          <label className="form-label" htmlFor="input-code">Job Code</label>
+          <label className="form-label" htmlFor="input-code">Job Code &mdash; Title</label>
           <input
             id="input-code"
             className="form-input"
             type="text"
             list={datalistId}
-            value={code}
-            onChange={e => handleCodeChange(e.target.value.trim())}
-            placeholder="e.g. 881"
+            value={codeInput}
+            onChange={e => handleCodeChange(e.target.value)}
+            onBlur={handleCodeBlur}
+            placeholder="e.g. 881 or Inspector"
             autoComplete="off"
           />
+          {/* Each option's `value` is the full "code — title" so datalist
+              matches on either substring. The math layer extracts the
+              leading code via extractCode(). */}
           <datalist id={datalistId}>
-            {ALL_CODE_STRINGS.map(c => <option key={c} value={c} />)}
+            {ALL_CODES.map(c => <option key={c.code} value={c.label} />)}
           </datalist>
-          {salaryType && (
+          {salaryType ? (
             <span style={{ fontSize: '0.78rem', color: '#666', marginTop: '2px' }}>
               {salaryType === 'step' ? 'Step-based class' : 'Range-based class (MCCP)'}
+              {getJobTitle(code) && (
+                <> &middot; {getJobTitle(code)}</>
+              )}
+            </span>
+          ) : codeInput && (
+            <span style={{ fontSize: '0.78rem', color: '#b35a00', marginTop: '2px' }}>
+              Unknown class &mdash; check the spelling, or pick one from the dropdown.
             </span>
           )}
         </div>

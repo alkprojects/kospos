@@ -404,9 +404,17 @@ export function getBiweeklyRate(
   const preBounds = preRanges.entries[code]?.[setid]?.ranges[rangeLetter];
   if (!preBounds) return null;
   const postBounds = postRanges.entries[code]?.[setid]?.ranges[rangeLetter] ?? preBounds;
+  // Range values in dhr-ranges.json are *hourly* rates (same convention as
+  // step rates), despite a misleading "biweekly" comment in the JSON. Verified
+  // against careers.sf.gov/classifications/ — e.g., class 0922 Manager I Range
+  // A post-COLA is "$136,604 annual", which equals 65.68 hourly × 80 × 26 PPs.
+  // Multiply by 80 to convert hourly → biweekly, matching the step branch.
+  const preVal = preBounds[rangePos];
+  const postVal = postBounds[rangePos];
+  if (preVal == null || postVal == null) return null;
   return {
-    pre: preBounds[rangePos],
-    post: postBounds[rangePos],
+    pre: preVal * 80,
+    post: postVal * 80,
   };
 }
 

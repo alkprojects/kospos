@@ -8,6 +8,10 @@ import stepsFileRaw from '../data/dhr-steps.json'
 import rangesFileRaw from '../data/dhr-ranges.json'
 import retirementFileRaw from '../data/retirement.json'
 import calendarFy2026Raw from '../data/calendar-fy2026.json'
+import titlesFileRaw from '../data/job-class-titles.json'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const TITLES: Record<string, string> = (titlesFileRaw as any).titles ?? {}
 
 // Cast through unknown to match the same pattern as cost.ts
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -79,6 +83,9 @@ for (const [code, setidMap] of Object.entries(rangesSnap.entries)) {
 export interface CodeEntry {
   code: string
   type: 'step' | 'range'
+  title: string
+  /** "code — title" when title is known, just "code" otherwise. */
+  label: string
 }
 
 function numericCodeSort(a: string, b: string): number {
@@ -88,8 +95,23 @@ function numericCodeSort(a: string, b: string): number {
   return a.localeCompare(b)
 }
 
-const stepEntries: CodeEntry[] = Object.keys(STEP_CODES).map(c => ({ code: c, type: 'step' }))
-const rangeEntries: CodeEntry[] = Object.keys(RANGE_CODES).map(c => ({ code: c, type: 'range' }))
+/** Look up the DHR-published title for a job code; empty string when unknown. */
+export function getJobTitle(code: string): string {
+  return TITLES[code] ?? ''
+}
+
+/** Compose the display label: "code — title" or just "code" when no title. */
+export function makeCodeLabel(code: string): string {
+  const t = TITLES[code]
+  return t ? `${code} — ${t}` : code
+}
+
+const stepEntries: CodeEntry[] = Object.keys(STEP_CODES).map(c => ({
+  code: c, type: 'step', title: TITLES[c] ?? '', label: makeCodeLabel(c),
+}))
+const rangeEntries: CodeEntry[] = Object.keys(RANGE_CODES).map(c => ({
+  code: c, type: 'range', title: TITLES[c] ?? '', label: makeCodeLabel(c),
+}))
 
 export const ALL_CODES: CodeEntry[] = [
   ...stepEntries,
@@ -97,6 +119,19 @@ export const ALL_CODES: CodeEntry[] = [
 ].sort((a, b) => numericCodeSort(a.code, b.code))
 
 export const ALL_CODE_STRINGS: string[] = ALL_CODES.map(e => e.code)
+
+/**
+ * Extract the job-code from a free-form input that may be either a bare code
+ * ("881") or a "code — title" string ("881 — Mayoral Staff I"). Returns the
+ * leading code token (alphanumeric run) so the math layer doesn't need to know
+ * about labels.
+ */
+export function extractCode(input: string): string {
+  const trimmed = input.trim()
+  if (!trimmed) return ''
+  const m = trimmed.match(/^([A-Za-z0-9]+)/)
+  return m ? m[1] : trimmed
+}
 
 // ---------------------------------------------------------------------------
 // Retirement codes
