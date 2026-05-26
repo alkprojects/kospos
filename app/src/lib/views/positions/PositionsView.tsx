@@ -87,7 +87,11 @@ function FilterGroup({
 type FillFilter = 'all' | 'filled' | 'vacant' | 'partial' | 'over';
 type DeptGroupFilter = 'all' | string;
 
-export function PositionsView() {
+export function PositionsView({ onViewPayroll }: {
+  /** Fires after "View payroll" sets the labor scope, so the App shell can
+   *  switch tabs. The scope is already set by PositionDetail before this fires. */
+  onViewPayroll?: () => void;
+} = {}) {
   const loadedRows = useAppStore(s => s.loadedRows);
   const userNotes = usePositionNotes(s => s.notes);
 
@@ -208,6 +212,7 @@ export function PositionsView() {
           ytdActuals={selectedYtd}
           ytdAsOfDate={latestPayroll?.asOfDate}
           onClose={() => setSelectedId(null)}
+          onViewPayroll={() => { setSelectedId(null); onViewPayroll?.(); }}
         />
       )}
 
