@@ -14,6 +14,7 @@ import type { Position } from '../../positions';
 import { hasDeptMismatch, usePositionNotes } from '../../positions';
 import type { ResolvedChartfields } from '../../chartfields/types';
 import type { PositionYtdActuals } from '../../payroll';
+import { useLaborScope } from '../labor';
 
 function fmtMoney(n: number): string {
   return n.toLocaleString('en-US', {
@@ -215,9 +216,13 @@ function Cat1718Card({ position }: { position: Position }) {
   );
 }
 
-function YtdPayrollCard({ actuals, asOfDate }: {
+function YtdPayrollCard({ actuals, asOfDate, onViewPayroll }: {
   actuals: PositionYtdActuals;
   asOfDate: string;
+  /** When omitted (e.g. Labor tab not yet promoted to non-dev), the
+   *  "View payroll →" button is hidden so a user can't end up navigating
+   *  to a tab that isn't currently visible. */
+  onViewPayroll?: () => void;
 }) {
   const rows: Array<[string, number]> = [
     ['Regular labor',    actuals.regular],
@@ -260,6 +265,19 @@ function YtdPayrollCard({ actuals, asOfDate }: {
           </tr>
         </tbody>
       </table>
+      {onViewPayroll && (
+        <button
+          onClick={onViewPayroll}
+          style={{
+            marginTop: 8, fontSize: 11, padding: '4px 12px',
+            border: '1px solid var(--accent)', borderRadius: 12,
+            background: 'var(--accent-soft)', color: 'var(--accent)',
+            cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+          }}
+        >
+          View payroll →
+        </button>
+      )}
     </section>
   );
 }
@@ -270,14 +288,22 @@ export function PositionDetail({
   ytdActuals,
   ytdAsOfDate,
   onClose,
+  onViewPayroll,
 }: {
   position: Position;
   chartfields?: ResolvedChartfields | null;
   ytdActuals?: PositionYtdActuals | null;
   ytdAsOfDate?: string;
   onClose: () => void;
+  onViewPayroll?: () => void;
 }) {
+  const setLaborScope = useLaborScope(s => s.setScope);
   const mismatch = hasDeptMismatch(position);
+
+  function viewPayroll(): void {
+    setLaborScope(position.id);
+    onViewPayroll?.();
+  }
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 100,
@@ -524,7 +550,11 @@ export function PositionDetail({
 
         {/* YTD Payroll — only if BI Payroll is loaded for this position */}
         {ytdActuals ? (
-          <YtdPayrollCard actuals={ytdActuals} asOfDate={ytdAsOfDate ?? ''} />
+          <YtdPayrollCard
+            actuals={ytdActuals}
+            asOfDate={ytdAsOfDate ?? ''}
+            onViewPayroll={onViewPayroll ? viewPayroll : undefined}
+          />
         ) : (
           <section style={{ marginBottom: 18 }}>
             <div style={{

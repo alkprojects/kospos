@@ -3,17 +3,19 @@ import './App.css';
 import { CalculatorView } from './modules/calculator/CalculatorView';
 import { ImporterView } from './modules/importer/ImporterView';
 import { PositionsView } from './lib/views/positions';
+import { LaborView } from './lib/views/labor';
 import { SpecialClassView } from './modules/special-class/SpecialClassView';
 import { useAppStore } from './lib/store';
 import { resolveDevMode, disableDevMode } from './lib/dev-mode';
 
-type Tab = 'calculator' | 'importer' | 'positions' | 'special-class';
+type Tab = 'calculator' | 'importer' | 'positions' | 'labor' | 'special-class';
 
 type TabDef = { id: Tab; label: string; devOnly?: boolean };
 
 const ALL_TABS: TabDef[] = [
   { id: 'calculator',    label: 'Job Class Calculator' },
   { id: 'positions',     label: 'Positions' },
+  { id: 'labor',         label: 'Labor',                 devOnly: true },
   { id: 'importer',      label: 'Load Reports',          devOnly: true },
   { id: 'special-class', label: 'Special Class',         devOnly: true },
 ];
@@ -125,7 +127,10 @@ export default function App() {
       <main className="main" style={{ padding: 0 }}>
         {tab === 'calculator'    && <CalculatorView />}
         {tab === 'importer'      && <ImporterView />}
-        {tab === 'positions'     && <PositionsView />}
+        {tab === 'positions'     && (
+          <PositionsView onViewPayroll={() => setTab('labor')} />
+        )}
+        {tab === 'labor'         && <LaborView />}
         {tab === 'special-class' && <SpecialClassView />}
       </main>
 
