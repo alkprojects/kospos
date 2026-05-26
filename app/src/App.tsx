@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import './App.css';
 import { CalculatorView } from './modules/calculator/CalculatorView';
 import { ImporterView } from './modules/importer/ImporterView';
-import { PositionsView } from './modules/positions/PositionsView';
+import { PositionsView } from './lib/views/positions';
 import { SpecialClassView } from './modules/special-class/SpecialClassView';
 import { useAppStore } from './lib/store';
 import { resolveDevMode, disableDevMode } from './lib/dev-mode';
@@ -13,8 +13,8 @@ type TabDef = { id: Tab; label: string; devOnly?: boolean };
 
 const ALL_TABS: TabDef[] = [
   { id: 'calculator',    label: 'Job Class Calculator' },
+  { id: 'positions',     label: 'Positions' },
   { id: 'importer',      label: 'Load Reports',          devOnly: true },
-  { id: 'positions',     label: 'Positions',             devOnly: true },
   { id: 'special-class', label: 'Special Class',         devOnly: true },
 ];
 

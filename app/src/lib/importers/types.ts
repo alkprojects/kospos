@@ -78,27 +78,62 @@ export interface BfmNonPositionRow {
 
 export interface PsHcmPpRow {
   _source: 'ps-hcm-pp';
-  snapshotDate: string;         // "Snapshot Date"
-  positionNumber: string;
-  jobCode: string;              // "Position Job Code"
-  jobCodeDescription: string;   // "Position Description"
-  departmentCode: string;       // "Position Department ID"
-  departmentName: string;       // "Position Department Description"
-  positionStatus: string;       // "Position Status" — "Approved", "Frozen", etc.
-  fillStatus: string;           // "Position Fill Status" — "FILLED", "VACANT", etc.
-  emplId: string;               // "Current Employee ID" — blank if vacant
-  employeeName: string;         // "Person Full Name"
-  appointmentType: string;      // "Employee Appointment Type" — PCS, PEX, TEX, ELC…
-  salaryStep: string;           // "Employee Step"
-  hourlyRate: number;           // "Employee Hourly Rate"
-  reportsToPosition: string;    // "Position Reports To"
-  rosterCode: string;           // "Roster Code" (replaces prior "Union Code" assumption)
-  rosterDescription: string;    // "Roster Code Description"
-  rtfStatus: string;
-  rtfExpectedFillDate: string;  // "RTF Expected Fill date" (lowercase d in source)
-  fte: number;                  // "Budget Position Total FTE"
-  comboCode: string;            // "Combo Code"
-  employeeJobCode: string;      // "Employee Job Code" — may differ when acting
+  snapshotDate: string;         // A  "Snapshot Date"
+  positionNumber: string;       // B  primary key
+  jobCode: string;              // C  "Position Job Code"
+  jobCodeDescription: string;   // D  "Position Description"
+  positionDivision: string;     // F  "Position Division" (DBI-only text label)
+  /**
+   * Effective department code (from P&P col G "Position Department ID"). This
+   * is the *effective* / where-the-employee-works dept, distinct from the
+   * budgeted dept (`budgetDepartmentCode`) and the combo dept
+   * (`comboDepartmentCode`). See labor-report.md § Department-code semantics.
+   */
+  departmentCode: string;
+  departmentName: string;       // H  "Position Department Description"
+  positionMaxHeadcount: number; // I  >1 means a pool position
+  positionStatus: string;       // E  "Approved" / "Proposed" / "Frozen"
+  fillStatus: string;           // N  "FILLED" / "VACANT" / "PARTIALLY FILLED" / "OVER FILLED"
+  vice1EmplId: string;          // P
+  vice1Name: string;            // Q
+  previousEmployee: string;     // T  "Previous Employee" — last known incumbent
+  emplId: string;               // W  "Current Employee ID" — blank if vacant
+  employeeName: string;         // Z  "Person Full Name"
+  employeeStatus: string;       // Y  "A" / "L" leave / blank
+  appointmentType: string;      // AF "Employee Appointment Type" — PCS, PEX, TEX, ELC, TPV
+  exemptCategory: string;       // AG "EE Exempt Category Description" — Charter §10.104 subsection
+  salaryStep: string;           // AH "Employee Step"
+  hourlyRate: number;           // AI "Employee Hourly Rate"
+  meritIncreaseDate: string;    // AJ "Employee Merit Increase Date"
+  reportsToPosition: string;    // AK "Position Reports To" (position number, not name)
+  managerFirstName: string;     // AL
+  managerLastName: string;      // AM
+  cat1718AppointmentDate: string; // AV "CAT_17_18 Appointment Date"
+  cat1718ExemptCode: string;    // AW "CAT_17_18 Exempt Code" — "17" / "18" / blank
+  cat1718ExemptMonths: number;  // AX "CAT_17_18 Exempt Months"
+  cat1718TxExpiredDate: string; // AY "CAT_17_18 Exempt TX Expired Date"
+  rosterCode: string;           // AZ "Roster Code"
+  rosterDescription: string;    // BA "Roster Code Description"
+  /** Combo Code from col BB. When set, redirects payroll posting. */
+  comboCode: string;
+  /** Combo-code department (col BD). */
+  comboDepartmentCode: string;
+  comboDepartmentName: string;  // BE
+  rtfId: string;                // BI "Latest RTF ID"
+  rtfStatus: string;            // BL
+  rtfSubmittedDate: string;     // BK
+  rtfExpectedFillDate: string;  // BN "RTF Expected Fill date" (lowercase d in source)
+  /**
+   * Budgeted department code (col CB "Budget Department Code 1"). Locked at
+   * budget adoption; cannot change mid-year. See labor-report.md §
+   * Department-code semantics.
+   */
+  budgetDepartmentCode: string;
+  budgetDepartmentName: string; // CC
+  budgetJobCode: string;        // BU "Budget Job Code 1"
+  fte: number;                  // BR "Budget Position Total FTE"
+  employeeJobCode: string;      // AD "Employee Job Code" — may differ when acting
+  vacantDate: string;           // CI "Vacant Date"
   _row: number;
 }
 
