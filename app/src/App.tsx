@@ -1,31 +1,83 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import './App.css';
 import { CalculatorView } from './modules/calculator/CalculatorView';
 import { ImporterView } from './modules/importer/ImporterView';
 import { PositionsView } from './modules/positions/PositionsView';
 import { SpecialClassView } from './modules/special-class/SpecialClassView';
 import { useAppStore } from './lib/store';
+import { resolveDevMode, disableDevMode } from './lib/dev-mode';
 
 type Tab = 'calculator' | 'importer' | 'positions' | 'special-class';
 
-const TABS: { id: Tab; label: string }[] = [
+type TabDef = { id: Tab; label: string; devOnly?: boolean };
+
+const ALL_TABS: TabDef[] = [
   { id: 'calculator',    label: 'Job Class Calculator' },
-  { id: 'importer',      label: 'Load Reports' },
-  { id: 'positions',     label: 'Positions' },
-  { id: 'special-class', label: 'Special Class' },
+  { id: 'importer',      label: 'Load Reports',          devOnly: true },
+  { id: 'positions',     label: 'Positions',             devOnly: true },
+  { id: 'special-class', label: 'Special Class',         devOnly: true },
 ];
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('calculator');
+  const [devMode, setDevMode] = useState<boolean>(() => resolveDevMode());
+  const visibleTabs = useMemo(
+    () => (devMode ? ALL_TABS : ALL_TABS.filter(t => !t.devOnly)),
+    [devMode],
+  );
+  const [tab, setTab] = useState<Tab>(visibleTabs[0].id);
   const issueCount = useAppStore(s => s.issues.length);
+
+  function handleDisableDevMode(): void {
+    disableDevMode();
+    setDevMode(false);
+    setTab('calculator');
+  }
+
+  const devOnlyCount = ALL_TABS.filter(t => t.devOnly).length;
 
   return (
     <div className="app">
+      {devMode && (
+        <div
+          role="status"
+          style={{
+            background: '#fff8e1',
+            borderBottom: '1px solid #f0c020',
+            color: '#5b4500',
+            fontSize: 12,
+            padding: '6px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+          }}
+        >
+          <span>
+            <strong>Dev mode</strong> — {devOnlyCount} extra tabs visible
+          </span>
+          <button
+            onClick={handleDisableDevMode}
+            style={{
+              fontSize: 11,
+              padding: '2px 10px',
+              border: '1px solid #d4a017',
+              borderRadius: 12,
+              background: '#fff',
+              color: '#5b4500',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Disable dev mode
+          </button>
+        </div>
+      )}
+
       <header className="site-header">
         <div className="header-inner">
           <div className="logo">KosPos</div>
           <nav style={{ display: 'flex', gap: 4 }}>
-            {TABS.map(t => (
+            {visibleTabs.map(t => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
