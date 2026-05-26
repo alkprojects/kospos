@@ -12,6 +12,7 @@ resolve to?"*
 
 | File | Scope | Feeds |
 |---|---|---|
+| [`phase-2-1-close-audit.md`](phase-2-1-close-audit.md) | Session 24 — Phase 2.1 close audit. Small scope (route-guard PR #59 spot-check + Phase 2.0i carry-forward status + new-drift scan). | Second phase-close trigger under audit cadence; in-PR docs sync (ROADMAP `?budget=1` → `?dev=1`); 2 drifted-further carry-forwards (worktrees 3 → 5; SESSION_LOG.md past trim trigger) |
 | [`phase-2-0i-close-audit.md`](phase-2-0i-close-audit.md) | Session 22 — Phase 2.0 close audit. Refresh of (a) Session 19 internal-setup audit Areas A–G and (b) Session 17 Task D walkthrough audit (anchor verifier, cross-doc consistency, Data Issues catalog drift). | First phase-close trigger under the [WORKFLOW.md § Audit cadence](../WORKFLOW.md) rule; 6 items surfaced for Alex |
 | [`internal-claude-setup-audit.md`](internal-claude-setup-audit.md) | Session 19 audit of memory, canonical docs, hooks/settings, session log, repo organization, workflow patterns | Periodic-audit cadence (per WORKFLOW.md § Audit cadence); ADR-010 through ADR-015 surfaced from this audit's Area B (landed in PR #54) |
 | [`labor-report-walkthrough-audit.md`](labor-report-walkthrough-audit.md) | Session 17 Task D — anchor-link compliance across labor-report.md, open-question triage, cross-tab consistency | github-slugger anchor convention (ADR-014); 13 broken anchors fixed in PR #45 |

@@ -59,8 +59,10 @@ improved `.xlsx` that the old workflow can consume.
   ideas. Output: a structured doc + a backlog of importable data sources + a backlog of
   UI sub-phases. **No code in this sub-phase.**
 - **2.1 — Hide budget-dev UI.** Route-guard `SpecialClassView` so it doesn't show in
-  the app shell. Keep the code + tests intact. Add a `?budget=1` query escape hatch for
-  developer access.
+  the app shell. Keep the code + tests intact. Add a `?dev=1` query escape hatch for
+  developer access (persists via `localStorage['kospos:dev-mode']`; `?dev=0` or the
+  in-app "Disable dev mode" button clears it). Shipped in
+  [PR #59](https://github.com/alkprojects/kospos/pull/59).
 - **2.2 — Per-tab UI sub-phases.** One sub-phase per labor-report tab, in dependency
   order (calendar → BI Payroll → Operating Report Summary → per-class detail tabs).
   Each sub-phase ships with parity tests against the source workbook for the dept(s)
