@@ -2380,3 +2380,66 @@ This session was mostly model-driven — Alex's direct input was the AskUserQues
 - **Scope discipline:** ✅ Audit PR and spine PR kept separate per the constraint. The spine PR bundled 3 sub-phases as documented + justified. No scope creep into Tier-5 (reconciliation / projections / snapshots).
 - **Verification habits:** ✅ The handoff required `npm test` + dev-server walkthrough; both happened (196 tests + 9 distinct UI paths verified + screenshots).
 - **Gap surfaced:** None this session. The 3-step prompt + 2 AskUserQuestion confirmations + 2 separate PRs is the cleanest pattern of any Phase 2 session.
+
+---
+
+## Session 25 — Phase 2.2.b: obi-payroll full + lib/payroll/ rollup cube (2026-05-26)
+
+**Worktree:** `vibrant-margulis-960939`
+**Model:** Opus 4.7 medium (per S24 handoff recommendation)
+**Branch:** `feat/obi-payroll-full`
+**PR:** [#66](https://github.com/alkprojects/kospos/pull/66) — squash-merged, Pages deployed.
+
+### Prompts
+
+**[start of session — Session 25 prompt from S24 handoff]**
+> This session asks Alex to pick the next Phase 2.2 sub-phase (2.2.b), then ships it. […]
+
+**[AskUserQuestion answer]**
+> Option A — `2.2.11` obi-payroll full (recommended)
+
+### Milestones
+
+| What | Where |
+|---|---|
+| Expanded `ObiPayrollRow` from ~18 → 39 fields | [app/src/lib/importers/types.ts](../app/src/lib/importers/types.ts) |
+| `importObiPayroll` reads the full 39-column export + splits `COMMN:` prefix + stamps `_asOfDate = MAX(earningPeriodEnd)` | [app/src/lib/importers/obi-payroll.ts](../app/src/lib/importers/obi-payroll.ts) |
+| New `lib/payroll/` — `PayrollSnapshot` + `PositionYtdActuals` + `buildPayrollSnapshots` + `pickLatestSnapshot` | [app/src/lib/payroll/](../app/src/lib/payroll/) |
+| 5-bucket math: regular / overtime / RPO / premium / temp LSP (matches Tab 7 Step + Report Data exclusion SUMIFS) | [build.ts](../app/src/lib/payroll/build.ts) |
+| Position Detail YTD Payroll section | [PositionDetail.tsx](../app/src/lib/views/positions/PositionDetail.tsx) |
+| `PositionsView` wires the latest snapshot into the modal | [PositionsView.tsx](../app/src/lib/views/positions/PositionsView.tsx) |
+| Tests: 189 → 202 (+13: 8 payroll cube tests + 5 obi-payroll importer additions) | — |
+
+### Verification
+
+- `npm test` 202/202 ✓
+- `npm run build` clean ✓
+- Preview MCP walkthrough with synthetic data via `useAppStore.addRows()`:
+  - Position Detail YTD Payroll renders `$65,000 / $3,200 / $1,800 / $950 → $70,950 total` with `asOf 2026-05-08` ✓
+  - Empty-bucket rows (Temp LSP at $0) correctly hidden ✓
+  - Fallback hint renders when no BI Payroll loaded ✓
+  - Sources line shows `joined with hcm + obi` ↔ `hcm` correctly based on what's loaded ✓
+  - No console errors ✓
+
+### Out of scope (intentionally deferred)
+
+- **True idempotent re-import.** Same file uploaded twice still doubles the math (existing `loadedRows` flat-append behavior). Full dedupe + idempotency lives in `2.2.33 snapshots/` with IndexedDB persistence; this PR's snapshot model is the right shape for it but doesn't enforce uniqueness yet. Inline TODO documented in `build.ts`.
+- **Multi-FY explicit selector.** The "latest snapshot" picker uses MAX(asOfDate) across all loaded snapshots — fine for the single-in-flight-FY case Alex has; multi-FY UI is downstream.
+- **Account-description rename guard** (Tab 7 improvement #7) — surfaces an unrecognized account-desc as a Data Issue. Belongs in `2.2.2 quality/` with the rest of the catalog detectors.
+- **Per-PP drill-down** in Position Detail (Tab 7 improvement § UI sketch #2). The 5-bucket totals are now exposed; the per-PP table comes with `2.2.17 views/labor/`.
+- **ADR-007 amendment** for the now-confirmed 39-column transactional shape. Phase 2.4.
+
+### Lessons / improvements for next phase
+
+- **Stamping `_asOfDate` on each row at import time is a clean alternative to upload-batch tracking.** The store stays flat; the cube reconstructs snapshot boundaries from row metadata. Generalizes to other importers that need snapshot history (P&P, BFM Position).
+- **Test-helper drift came back.** `chartfields.test.ts` + `quality.test.ts` factories needed 20+ new fields filled in. Same pattern as S24 — confirms the queued "shared row-factory module" follow-up is worth doing. Still not blocking, but cost is now twice-noticed.
+- **Preview MCP module-import trick (`/kospos/src/lib/store.ts`) is repeatable.** Used in S24 and S25; should document in the `docs/WORKFLOW.md` "verifying view changes" section when capacity allows.
+
+### Brief audit (Alex's collaboration this session)
+
+Mostly model-driven session — Alex picked Option A via AskUserQuestion, the rest was scope from the S24 handoff. Narrow audit:
+
+- **Prompt quality (S24 handoff prompt that drove S25):** ✅ The branched scope (A vs B) with full per-option scope spelled out meant zero re-clarification after Alex picked. The "What we are NOT doing" section blocked scope creep cleanly.
+- **Scope discipline:** ✅ Strict one-PR-per-sub-phase honored. Did not bundle `2.2.17 views/labor/` (which would have been tempting since the cube is ready for it) — that's the next sub-phase's pick.
+- **Verification habits:** ✅ Tests + build + preview MCP walkthrough + screenshots. Same pattern as S24.
+- **Gap surfaced:** None this session. Pattern is stable.

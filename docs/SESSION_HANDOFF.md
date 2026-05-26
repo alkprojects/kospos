@@ -4,14 +4,37 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
-## Current status (end of Session 24 — Phase 2.1 audit + Phase 2.2.a spine bundle + calculator fixes, 2026-05-25)
+## Current status (end of Session 25 — Phase 2.2.b obi-payroll full, 2026-05-26)
 
-**Phase:** Phase 2.2.a — **Position spine bundle shipped.** Production `/kospos/` now shows **2 tabs** (Job Class Calculator + Positions); `?dev=1` adds Load Reports + Special Class. Phase 2.1 close audit + Job Class Calculator bug-fix PR also shipped this session.
-**Last main commit:** `61f69a0` ([PR #64](https://github.com/alkprojects/kospos/pull/64) — calculator fixes) → `a1adc73` ([PR #63](https://github.com/alkprojects/kospos/pull/63) — Session 24 handoff) → `c7e1e84` ([PR #62](https://github.com/alkprojects/kospos/pull/62) — Phase 2.2.a spine bundle) → `bb7b2e9` ([PR #61](https://github.com/alkprojects/kospos/pull/61) — Phase 2.1 close audit)
-**Tests:** 189 / 189 passing (152 baseline + 11 dept-tree + 17 positions + 1 importer spine field + 8 cost.test — 196 in the prior version of this doc was a tally error)
+**Phase:** Phase 2.2.b — **obi-payroll full importer + lib/payroll/ rollup cube shipped.** Production `/kospos/` Positions tab now shows YTD actuals split into 5 special-class buckets (regular / overtime / retirement payout / premium / temp lump-sum) when BI Payroll is loaded.
+**Last main commit:** `c91815c` ([PR #66](https://github.com/alkprojects/kospos/pull/66) — Phase 2.2.b obi-payroll full) → `be58105` ([PR #65](https://github.com/alkprojects/kospos/pull/65) — Session 24 handoff sync) → `61f69a0` ([PR #64](https://github.com/alkprojects/kospos/pull/64) — calculator fixes) → `c7e1e84` ([PR #62](https://github.com/alkprojects/kospos/pull/62) — Phase 2.2.a spine bundle) → `bb7b2e9` ([PR #61](https://github.com/alkprojects/kospos/pull/61) — Phase 2.1 close audit)
+**Tests:** 202 / 202 passing (189 baseline + 5 obi-payroll importer additions + 8 payroll cube tests)
 **Branches in flight:** none
 
-### What landed this session — four PRs
+### What landed this session — one PR
+
+#### [PR #66](https://github.com/alkprojects/kospos/pull/66) — Phase 2.2.b obi-payroll full + lib/payroll/ rollup cube
+
+Single-sub-phase PR per the "strict one-PR-per-sub-phase" rule established in the S24 handoff. 11 files changed (+874 / −102).
+
+| What | Where |
+|---|---|
+| **Importer expansion (sub-phase 2.2.11)** — `ObiPayrollRow` now carries the full 39 columns of the real OBI export (was ~18). Critical additions: `Department Group Code`, `Account Description` (col V — drives the 5-bucket math), the fund / project / activity / authority hierarchies, `Roster Code`, `Earning Hours`, `Is FTE Hours`, `Assignment Number`. The `COMMN:` job-code prefix is split into `jobCode = "5380"` + `jobCodeSet = "COMMN"` per [labor-report.md § Tab 7 improvement #5](docs/domain/labor-report.md#tab-7--bi-payroll). | [app/src/lib/importers/types.ts](../app/src/lib/importers/types.ts) + [obi-payroll.ts](../app/src/lib/importers/obi-payroll.ts) |
+| **`lib/payroll/` entity layer** — `PayrollSnapshot` keyed by `(fiscalYear, asOfDate)` with a per-position rollup cube splitting YTD actuals into the 5 special-class buckets that mirror the workbook's Step + Report Data exclusion SUMIFS literally. | [app/src/lib/payroll/](../app/src/lib/payroll/) |
+| **Snapshot history (the minimum-viable shape)** — importer stamps `_asOfDate = MAX(earningPeriodEnd)` per import call so uploads from different OBI runs naturally split into separate snapshots without an explicit upload-batch tracker. Full idempotent re-import + diff UI is deferred to `2.2.33 snapshots/` with IndexedDB persistence. | [build.ts](../app/src/lib/payroll/build.ts) |
+| **Position Detail wired** — new "YTD Payroll" section shows the 5-bucket breakdown + asOfDate when BI Payroll is loaded; falls back to a "Load a BI Payroll export…" hint otherwise. Existing BFM-chartfields panel untouched. The redundant `ytdActuals` row from the chartfields panel was removed (the breakdown supersedes it). | [PositionDetail.tsx](../app/src/lib/views/positions/PositionDetail.tsx) + [PositionsView.tsx](../app/src/lib/views/positions/PositionsView.tsx) |
+
+**Verification:** 202/202 tests at merge; `npm run build` clean; preview-MCP walkthrough with synthetic data showed `$65k regular / $3.2k OT / $1.8k RPO / $950 premium → $70,950 total asOf 2026-05-08`. Empty-bucket rows (Temp LSP at $0) hidden as designed. Fallback hint renders cleanly when no BI Payroll is loaded. Sources line correctly shows `joined with hcm + obi` ↔ `hcm` based on what's loaded. No console errors.
+
+### Pre-Session 25 status archived below — see § Session 24 closeout
+
+---
+
+### What landed in prior sessions (rolling)
+
+Original Session 24 closeout content below for reference.
+
+### What landed in Session 24 — four PRs
 
 #### [PR #61](https://github.com/alkprojects/kospos/pull/61) — Phase 2.1 close audit (small)
 
@@ -153,9 +176,9 @@ C. **Migrate the 25× memory-file citation anti-pattern in `labor-report.md`.** 
 
 D. **Defer the `labor-report.md` split until Phase 2.4.** File still 8,518 lines (unchanged); no action this cycle.
 
-E. **Phase 2.2 first sub-phase pick — RESOLVED.** Position spine bundle shipped this session ([PR #62](https://github.com/alkprojects/kospos/pull/62)). No longer carry-forward.
+E. **Phase 2.2 first sub-phase pick — RESOLVED in S24.** Position spine bundle shipped in [PR #62](https://github.com/alkprojects/kospos/pull/62). No longer carry-forward.
 
-F. **Audit cadence working.** Phase 2.1 close audit fired correctly this session. Next audit fires at Phase 2.2.b close.
+F. **Audit cadence — Phase 2.2.b close audit owed.** Per [WORKFLOW.md § Audit cadence](WORKFLOW.md) ("event-based — every phase close"), Phase 2.2.b's close (this session) triggers an audit. **It was not run this session** — surfaced here for Session 26 to fire as Step 0 of next session. The Phase 2.1 close audit was a 270-line doc for a 3-file PR; Phase 2.2.b is larger (11 files) so expect a slightly larger doc. Items A (worktree sweep) and B (SESSION_LOG.md trim — now ~2,540 lines, further past trigger) almost certainly drifted further; the audit will quantify.
 
 ### Top 3 findings to surface for Alex this session
 
@@ -180,92 +203,100 @@ F. **Audit cadence working.** Phase 2.1 close audit fired correctly this session
 | 2.0i | DSI final + Phase 2.2 sub-phase enumeration final + Phase 2.0 close audit | done 2026-05-25 |
 | 2.1 | Hide budget-dev UI (route guard) — `?dev=1` + localStorage + banner | done 2026-05-25 |
 | 2.1 close audit | small audit per cadence; ROADMAP `?budget=1` → `?dev=1` reconciled | done 2026-05-25 |
-| **2.2.a** | **Position spine bundle** — `2.2.4` `dept-tree/` + `2.2.12` `obi-pnp/` (full) + `2.2.16` `views/positions/` shipped together; Positions tab promoted to production | **done 2026-05-25** |
-| **2.2.b** | **Next sub-phase** — Alex's pick (recommended: `2.2.11` `obi-payroll/` full, or `2.2.19` `views/temp-limits/`) | **NEXT** |
-| 2.2.c-n | Remaining Tier-3/Tier-4 sub-phases per dependency graph | pending |
+| **2.2.a** | **Position spine bundle** — `2.2.4` `dept-tree/` + `2.2.12` `obi-pnp/` (full) + `2.2.16` `views/positions/` shipped together; Positions tab promoted to production | done 2026-05-25 |
+| **2.2.b** | **`2.2.11` `obi-payroll/` full** — full 39-column importer + `lib/payroll/` rollup cube + Position Detail YTD breakdown | **done 2026-05-26** |
+| **2.2.c** | **Next sub-phase** — Alex's pick. Recommended: `2.2.17` `views/labor/` (drill-down view on top of the cube, small win), `2.2.19` `views/temp-limits/` (Tab 12 TEMP Limits + TX entity), or `2.2.23` `views/ops/` (the headline projection page; bigger). | **NEXT** |
+| 2.2.d-n | Remaining Tier-3/Tier-4 sub-phases per dependency graph | pending |
 | 2.3 | Excel export | pending |
 | 2.4 | Importer wiring (incl. ADR amendments per the 6 proposed ADRs — though 5 of 6 landed in PR #54 ADRs 010-015; only ADR-007 amendment for BVA-as-distinct-source remains) | pending |
 
 ## Blockers for Alex
 
-None landing-related. Live site: <https://alkprojects.github.io/kospos/>. Spot-check on the live site once the deploy completes:
+None landing-related. Live site: <https://alkprojects.github.io/kospos/>. Spot-check once the deploy completes:
 
-- **Production `/kospos/` should now show 2 tabs:** Job Class Calculator + Positions. The Positions tab opens to the empty-state hint ("No data loaded. Enable dev mode...") because no real labor-report data is in the production app.
-- **Try it with data:** `/kospos/?dev=1` → Load Reports → import a P&P file. The Positions tab will populate with stats, filters, the table, and clickable rows that open the detail modal. The detail modal shows the three-dept distinction (Effective vs Budgeted vs Combo).
-- **Inline user notes** work — click any position, click "Add note" in the User Notes section, save. The Notes column in the table will show ● for rows with notes. Heads-up: notes persist for the browser session only; IndexedDB persistence is queued as a small follow-up.
+- **Production `/kospos/` Positions tab now shows YTD payroll actuals.** Load a P&P file + a BI Payroll export via `?dev=1` → Load Reports, then return to Positions. Click any row — Position Detail shows the "YTD Payroll" section with 5 buckets (regular / overtime / retirement payout / premium / temp lump-sum) + an `asOf <date>` based on `MAX(earningPeriodEnd)` from the loaded BI Payroll. Without BI Payroll loaded, the section shows a "Load a BI Payroll export…" hint.
+- **The bucket math mirrors the workbook's Step + Report Data exclusion SUMIFS literally.** Regular labor = everything except the 4 special-class account-description literals; the 4 specials each get their own line. Total at the bottom sums all 5. Zero-buckets are hidden to keep the panel tight.
+- **Inline user notes** still work as in 2.2.a (browser-session only; IndexedDB persistence queued).
 
-**One decision pending — pick the next Phase 2.2 sub-phase (2.2.b).** Two recommended options below; see Recommendations.
+**One decision pending — pick the next Phase 2.2 sub-phase (2.2.c).** Three recommended options below; see Recommendations.
 
-### Recommendation for Phase 2.2.b
+### Recommendation for Phase 2.2.c
 
-Two options worth surfacing this session, with trade-offs:
+Three options worth surfacing, with trade-offs:
 
-**Option A (recommended) — `2.2.11` `lib/importers/obi-payroll/` (full).** Lift the BI Payroll stub to a full importer with rollup cube + snapshot history model. **Pros:** unblocks 5 downstream sub-phases (`2.2.17 views/labor/`, `2.2.20 views/inactive/`, `2.2.23 views/ops/`, `2.2.31 reconciliation/bva/`, `2.2.33 snapshots/`); makes Position Detail show YTD actuals immediately (right now the chartfields panel hints "Load BFM…" but a load-BI-payroll path would show actual dollars per position); foundation for every per-PP projection. **Cons:** less immediately user-visible than the spine bundle was (the win is showing up in an existing surface, not a new tab).
+**Option A (recommended) — `2.2.17` `lib/views/labor/`.** The Tab 7 BI Payroll drill-down view. The rollup cube exists; this sub-phase adds a per-position per-PP table (PPE × earnings code × account × balance) with filters + the quick-aggregates header from Tab 7 § KosPos UI sketch #2. **Pros:** small focused sub-phase (no new importer); immediately visible win — clicking "View payroll" from Position Detail opens a tab with the full per-PP picture; only Phase 2.2.b's cube is needed (no further upstream prerequisites); unblocks the "trace to source" affordance on every projection. **Cons:** doesn't unblock as many downstream sub-phases as `2.2.23 views/ops/`.
 
-**Option B — `2.2.19` `lib/views/temp-limits/` (Tab 12).** Build the TEMP Limits view + the typed `TemporaryExchange` entity from S21. **Pros:** builds on the spine just landed (Cat 17/18 already modeled); small focused sub-phase; surfaces the 4 TX TODOs from Restated Q #5 in a concrete UI; visible win — user sees "your Cat 17/18s are expiring on X" right after dropping the file. **Cons:** doesn't unblock other sub-phases as broadly as Option A; the 4 TX TODOs need Alex confirmation before the typed entity can ship.
+**Option B — `2.2.19` `lib/views/temp-limits/` (Tab 12).** Build the TEMP Limits view + the typed `TemporaryExchange` entity from S21. **Pros:** builds on the spine + cube (Cat 17/18 already modeled; the cube's `earningHours` field exposed in 2.2.b enables the 1040-hour gauge math); small focused sub-phase; surfaces the 4 TX TODOs from Restated Q #5 in a concrete UI; visible win — user sees "your Cat 17/18s are expiring on X" + "hours remaining" per temp. **Cons:** the 4 TX TODOs need Alex confirmation before the typed entity can ship; opening the modal and clicking through a per-PP drill-down (Option A) would let Alex see the cube he just built faster.
 
-**My pick: Option A** because the spine just shipped is now the foundation for many views, and the actuals layer (obi-payroll) is the next-most-leverage piece — every projection and reconciliation depends on it. Option B is a great Phase 2.2.c after that.
+**Option C — `2.2.23` `lib/views/ops/` (Tabs 26 + 27).** The headline projection page — Operating Report Summary + Detail. **Pros:** biggest user-visible payoff; consumes the cube + the BFM eturn (already imported) directly. **Cons:** depends on `2.2.13 bfm-eturn/` full (the BFM Position eturn importer is stub-level; full version needed); also depends on `2.2.33 snapshots/` for the OPS Detail "what changed" feature; bigger sub-phase than 2.2.b was. Right answer eventually but probably 2.2.d or 2.2.e, not the immediate next pick.
 
-## Next session prompt — Phase 2.2.b (Alex picks A or B)
+**My pick: Option A** because Phase 2.2.b just shipped the rollup cube and the drill-down view is the most natural "make the cube visible" next step; small enough to ship without bundling, big enough to feel like progress. Option B is the strong second if Alex would rather close the TX TODOs first.
 
-Paste this verbatim to start Session 25:
+## Next session prompt — Phase 2.2.c (Alex picks A, B, or C)
+
+Paste this verbatim to start Session 26:
 
 ````
-This session asks Alex to pick the next Phase 2.2 sub-phase (2.2.b),
-then ships it. Position spine bundle landed in 2.2.a (PR #62) — the
-Positions tab is live in production. Phase 2.1 close audit also landed
-(PR #61) on the previous session.
+This session asks Alex to pick the next Phase 2.2 sub-phase (2.2.c),
+then ships it. Phase 2.2.b landed in PR #66 — the BI Payroll importer
+is now full + lib/payroll/ exposes a per-position rollup cube split
+into the 5 special-class buckets; Position Detail shows YTD actuals.
 
 Read first, in order:
   docs/CLAUDE.md
   docs/SESSION_HANDOFF.md (this file — has the recommendation + carry-forwards)
-  docs/SESSION_LOG.md (Session 24 entry — Phase 2.1 audit + 2.2.a spine bundle)
+  docs/SESSION_LOG.md (Session 25 entry — Phase 2.2.b obi-payroll full)
   memory/MEMORY.md + the 9 memory files
-  docs/audits/phase-2-1-close-audit.md (still has the live carry-forward A-F)
+  docs/audits/phase-2-1-close-audit.md (still has the live carry-forward A-F;
+    A and B drifted further this session — see "Audit-surfaced items" below)
   docs/domain/labor-report.md § "Phase 2.2 sub-phases" — dependency graph
-  app/src/lib/positions/ + app/src/lib/views/positions/ + app/src/lib/reference/dept-tree/
-    (the spine bundle that just landed)
+  app/src/lib/payroll/ + app/src/lib/importers/obi-payroll.ts
+    (the obi-payroll bundle that just landed)
 
 Confirm state on main:
   git log --oneline origin/main -5
 
 ==============================================================================
-STEP 1 — Ask Alex to pick Phase 2.2.b
+STEP 1 — Ask Alex to pick Phase 2.2.c
 ==============================================================================
-Use AskUserQuestion. Two recommended options with trade-offs are in
-SESSION_HANDOFF.md § "Recommendation for Phase 2.2.b":
+Use AskUserQuestion. Three recommended options with trade-offs are in
+SESSION_HANDOFF.md § "Recommendation for Phase 2.2.c":
 
-  A. (recommended) 2.2.11 lib/importers/obi-payroll/ full
-     — rollup cube + snapshot history. Unblocks 5 downstream sub-phases.
-     Makes Position Detail show YTD actuals.
+  A. (recommended) 2.2.17 lib/views/labor/
+     — per-position per-PP drill-down view on top of the new cube.
+     Small focused sub-phase; immediately visible win.
 
   B. 2.2.19 lib/views/temp-limits/ + TemporaryExchange typed entity
-     — small focused sub-phase. Surfaces Cat 17/18 expiry alerts in
-     a dedicated tab. The 4 TX TODOs (Restated Q #5) need Alex's
-     confirmation before the typed entity ships.
+     — surfaces Cat 17/18 expiry alerts + 1040-hour gauges. The 4 TX
+     TODOs (Restated Q #5) need Alex confirmation before the typed
+     entity ships.
 
-  C. Other — Alex names a different sub-phase from the dependency
-     graph (rare; available as an escape hatch).
+  C. 2.2.23 lib/views/ops/  (Tabs 26 + 27 — headline projection page)
+     — bigger win but ALSO requires 2.2.13 bfm-eturn full + 2.2.33
+     snapshots/. Better as 2.2.d or 2.2.e.
+
+  (Escape hatch: Alex names something else from the dependency graph.)
 
 ==============================================================================
-STEP 2 — Start Phase 2.2.b (the picked sub-phase)
+STEP 2 — Start Phase 2.2.c (the picked sub-phase)
 ==============================================================================
 Branch + scope depend on the pick.
 
-If A — obi-payroll full:
-  Branch: feat/obi-payroll-full
+If A — views/labor/:
+  Branch: feat/views-labor
   Scope:
-    - Expand the existing app/src/lib/importers/obi-payroll.ts stub
-      to capture more columns (per labor-report.md § Tab 7 BI Payroll)
-    - New lib/payroll/ entity layer: PayrollSnapshot + per-position
-      rollup cube (sum balance_amount per position × earnings code ×
-      pay period range)
-    - Wire into the spine view: Position Detail chartfields panel
-      shows YTD actuals from BI Payroll when loaded (replacing the
-      "Load BFM" hint that's there now for the BFM-only case)
-    - Snapshot history model — multiple PP exports preserve their
-      effective dates so per-PP diffs work
-    - Parity tests against synthetic BI Payroll data
+    - Add lib/views/labor/ — per-position per-PP table (PPE × earnings
+      code × account × hours × balance) with filters (earnings code,
+      account, PP range)
+    - Quick-aggregates header per labor-report.md § Tab 7 § KosPos UI
+      sketch #2 — YTD regular / OT / RPO / Premium / Temp LSP (already
+      in the cube via PositionYtdActuals)
+    - "Trace to source" affordance: row click highlights the original
+      BI Payroll snapshot row
+    - Add a "View payroll" button to Position Detail that opens the
+      labor view scoped to that position
+    - Add the tab to App.tsx (devOnly initially; promote when stable)
+    - Tests: filter math, position-scoped view, empty state
 
 If B — views/temp-limits/:
   Branch: feat/temp-limits-view
@@ -275,22 +306,24 @@ If B — views/temp-limits/:
     - Add lib/temp-exchange/ typed entity (per memory
       temporary_exchange_tx.md schema)
     - Build lib/views/temp-limits/ — Tab 12 TEMP Limits surface
+      (1040-hour gauge per temp using the cube's earningHours, expiry
+      alerts via the existing cat1718 model)
     - Surface temp-tx-expiration-imminent + temp-tx-expired flags
       from lib/quality/
     - Add the tab to App.tsx (devOnly until ready, then promoted)
-    - Parity tests
+    - Tests
 
-If C — other: scope per the labor-report.md dependency graph.
+If C — views/ops/: NOT recommended for 2.2.c (heavy prereqs). If
+chosen anyway: scope per the labor-report.md dependency graph +
+plan on TWO sub-phases of upstream work first (2.2.13 + 2.2.33).
 
 ==============================================================================
 Hard constraints
 ==============================================================================
 
   - Branch from main, single-purpose name.
-  - **Strict one-sub-phase-per-PR this time.** The spine-bundle
-    bundling was justified by shared end-user surface; 2.2.b doesn't
-    have that constraint.
-  - **`npm test` stays green** (currently 189 / 189).
+  - **Strict one-sub-phase-per-PR** (continued from 2.2.b).
+  - **`npm test` stays green** (currently 202 / 202).
   - One PR per logical change; merge after CI passes; fast-forward main:
     `git -C "C:\Users\ALK\Desktop\Claude Projects\kospos" pull --ff-only origin main`
   - Commit messages end with the Co-Authored-By line per CLAUDE.md.
@@ -299,11 +332,10 @@ Hard constraints
 What we are NOT doing
 ==============================================================================
 
-  - **No bundling.** The 2.2.a bundle was a one-time exception per the
-    shared-end-user-surface argument. 2.2.b returns to strict
-    one-PR-per-sub-phase.
+  - **No bundling.** Strict one-PR-per-sub-phase.
   - **No tab walkthroughs.** Phase 2.0 is closed.
-  - **No ADR amendments.** Phase 2.4.
+  - **No ADR amendments.** Phase 2.4 (the ADR-007 amendment for the
+    confirmed 39-column BI Payroll shape is queued there).
   - **No tool / setting / hook changes** unless surfaced by audit.
 
 ==============================================================================
@@ -311,34 +343,46 @@ Session-end checklist
 ==============================================================================
 
 Before ending, update SESSION_HANDOFF.md with:
-  - Phase 2.2.b status + next-session prompt for Phase 2.2.c.
+  - Phase 2.2.c status + next-session prompt for Phase 2.2.d.
   - Re-ask the 5 restated questions + 12 reasonable-default calls (#5-16)
     + 1 open action item (#17). DROP items Alex acknowledges this
     session (per memory feedback_dont_reremind.md).
-  - Carry-forward update on items A-F (E already resolved; A and B
-    still pending).
+  - Carry-forward update on items A-F (E resolved in S24, F working
+    as designed, D unchanged; A and B keep drifting — sweep them
+    if capacity allows).
+
+**Audit trigger — TWO close audits owed at the start of Session 26:**
+  - **Phase 2.2.b close audit** (was owed last session, deferred per the
+    handoff disclosure under § Audit-surfaced items / F)
+  - **Phase 2.2.c close audit** (this session's close)
+
+Per WORKFLOW.md § Audit cadence ("event-based — every phase close"),
+both should fire BEFORE Phase 2.2.d work starts. They can be bundled
+into one combined audit doc to save context — Phase 2.1 close audit
+established the format; mirror it. Items A (worktree sweep), B
+(SESSION_LOG.md trim — now >2,540 lines), and C (memory citation
+anti-pattern in labor-report.md) all carry forward unchanged.
 
 If a Phase 2.2 sub-phase reveals an architectural question that needs
 ADR treatment, elevate during the session rather than carrying forward
 (per CLAUDE.md non-negotiable #7).
 
-Recommended model: claude-sonnet-4-6 — Phase 2.2.b is one focused
-sub-phase regardless of A or B pick, smaller than the spine bundle.
-Use claude-opus-4-7 if Alex picks something cross-source-heavy
-(unlikely for 2.2.b options).
+Recommended model: claude-sonnet-4-6 — Phase 2.2.c is one focused
+sub-phase regardless of A or B pick. Use claude-opus-4-7 if Alex
+picks C (cross-source-heavy).
 Effort: medium.
 ````
 
-### Recommended model (Phase 2.2.b)
+### Recommended model (Phase 2.2.c)
 
-`claude-sonnet-4-6` — Phase 2.2.b is one focused sub-phase (smaller
-than the spine bundle). Opus only if a cross-source-heavy alternative
-emerges.
+`claude-sonnet-4-6` — Phase 2.2.c is one focused sub-phase (smaller
+than 2.2.b's importer-plus-entity-layer). Opus only if Alex picks
+Option C (heavy prereqs).
 
-### Recommended effort (Phase 2.2.b)
+### Recommended effort (Phase 2.2.c)
 
-`medium` — one importer + one entity layer (Option A) OR one view +
-one typed entity (Option B). Each is a single-package change.
+`medium` — one view + one wire-in to Position Detail (Option A) OR
+one view + one typed entity + 4 TODOs to resolve (Option B).
 
 ---
 
