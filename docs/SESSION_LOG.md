@@ -2570,3 +2570,61 @@ Fully model-driven session — Alex was away for the full window. Narrow audit:
 - **UX polish discipline:** ✅ Three clear-cut wins shipped in a separate PR (#76) rather than bundled into PR #75. B-tier and C-tier ideas surfaced in the handoff for Alex's review rather than auto-shipped — judgment-call items deserve user input.
 - **Audit cadence:** ✅ Fourth event-based trigger on time. Item A empirically resolved. Item F (audit cadence itself) now self-reinforcing.
 - **Gap surfaced:** when Alex returns, he should review the B-tier polish proposals (phase-lens switcher, mobile layout, snapshot date strip, Positions list footer) and choose which to ship as a small polish PR. Surfaced under "Surfaced UX/UI proposals from this session" in the handoff.
+
+---
+
+## Session 28 — Phase 2.2.e: lib/staffing-plan/ entity + Hiring Plan workspace surface + UI fix (2026-05-26)
+
+**Session model:** `claude-opus-4-7` (Opus 4.7).
+**Session mode:** semi-autonomous — Alex stated 8-hour away window + simple-questions-only phone access. Surfaced one AskUserQuestion (A/B/C pick for Phase 2.2.e); Alex answered **A — Staffing Plan (large)**. Then shipped 3 PRs without further user input.
+
+### Prompt summary
+
+> Pick + ship Phase 2.2.e. S27 handoff recommended Option A (2.2.21 lib/staffing-plan/) — comparable in size to 2.2.d, may justify a 2-PR split. Also: "show payroll button" missing on some positions (live-site bug); Labor tab should be renamed to "Payroll".
+
+### Milestones
+
+| What | Where |
+|---|---|
+| **PR #78** UI fix: Labor → Payroll rename + always-show "View payroll →" button. Tab label changed in `App.tsx` (internal `LaborView` / `lib/views/labor/` names stay). Extracted `ViewPayrollButton` from `YtdPayrollCard`; reused in the "no rows for this position" hint branch so the drill-in affordance is universal when Payroll tab is available + OBI is loaded. Hint copy updated to mention the drill-down explicitly. | [App.tsx](../app/src/App.tsx) + [PositionDetail.tsx](../app/src/lib/views/positions/PositionDetail.tsx) |
+| **PR #79** `lib/staffing-plan/` entity layer — PlannedAction typed entity per Tab 24 § Improvement #1 + 5 enums (PlannedActionType / HiringStatus / ActionMode / SeparationConfidence + StaffingPlanRollup). Cost integration: `computeExpectedCost` wraps `calcEmployeeCost` (already COLA-aware via per-PP loop), applies type-keyed sign (separations negate; others positive), returns null on unpriced or CostCalcError. `rollupByType` groups + sums per section; `actionsForPosition` filters with double-normalized key (Marco Jacobo TX pattern). Zustand store with add/update/delete + history audit log diffs every patch field. | [app/src/lib/staffing-plan/](../app/src/lib/staffing-plan/) |
+| **PR #79** Tests: 27 cases — id uniqueness; cost sign convention across all 5 types using real reference data (class 922 Range A min); CostCalcError → null; perPp × ppCount = annual; rollupByType bucket math; Marco Jacobo multi-action pattern; pricing diagnostic; net cost impact; store CRUD + history append-only (no-op equality check; unknown-id no-op; clearAll; positionId normalization on add). | [staffing-plan.test.ts](../app/src/lib/staffing-plan/staffing-plan.test.ts) |
+| **PR #80** `lib/views/staffing-plan/` Hiring Plan workspace surface — new `Hiring Plan` tab (devOnly). Summary header: 5 type counts + net cost impact + "X priced · Y unpriced" hint. Inline `AddActionForm`: pick position from datalist of P&P spine + Type select + Notes (cost basis editor deferred to v2 detail page). 5 section blocks (Active / Separations / Pending / TEMP / Unfunded) with per-section "X of Y priced ⚠" diagnostic + per-section cost rollup. Delete button per row. Multi-action positions disclosure surfaces the Marco Jacobo TX pattern explicitly. Live COLA-aware cost projection per row via `computeExpectedCost`. | [StaffingPlanView.tsx](../app/src/lib/views/staffing-plan/StaffingPlanView.tsx) + [App.tsx](../app/src/App.tsx) |
+| **PR #80** Tests: 9 React-render cases — empty-position state; summary header counts; "X of Y priced ⚠" chip; unpriced-cell rendering; add-form happy path; add-form unknown-position error; delete; Marco Jacobo TX 3-section pattern. | [staffing-plan-view.test.tsx](../app/src/lib/views/staffing-plan/staffing-plan-view.test.tsx) |
+| **PR (this docs PR)** Phase 2.2.e close audit + S28 handoff + S28 SESSION_LOG entry. Carry-forward Item A **stays dropped** (8 consecutive PRs auto-archived). | [phase-2-2-e-close-audit.md](audits/phase-2-2-e-close-audit.md) + this file |
+
+### Verification
+
+- `npm test` 263/263 (227 → 254 from PR 1's +27 cases, → 263 from PR 2's +9 cases) ✓
+- `npm run build` clean ✓
+- Preview MCP walkthrough (PR #78 UI fix): loaded 2 P&P rows (50001 has matching OBI; 50002 doesn't) → "View payroll →" button appears in both modal states ✓; click on 50002's button switches to Payroll tab, banner reads `Scoped to: 50002 · 1234 Test Position B (no OBI)`, table shows `No rows match the current filters` / `0 of 1 in snapshot` ✓
+- Preview MCP walkthrough (PR #80 surface): loaded 4 P&P rows → added Marco Jacobo TX pattern (3 actions on position 1115135) + 1 Pending on 50001 → summary header `Actions 4 / 0 priced · 4 unpriced / Active 1 / Separations 1 / Pending 1 / TEMP 1 / Unfunded 0` ✓; multi-action disclosure surfaces `Position 1115135 · 3 actions: Active + Separations + TEMP` ✓
+- Console: no errors/warnings on any tab ✓
+
+### Out of scope (intentionally deferred to PR 3+ or future phases)
+
+- **Per-action detail editor** with full `CostInput` exposure (Tab 24 § Improvement #2) — current v1 actions start unpriced; the "X of Y priced ⚠" chip surfaces the gap. v2 detail page lets the user fill in basis and the row flips to priced + live-COLA-aware cost.
+- **Status workflow state machine + RBAC** (Tab 24 § Improvement #4) — the HiringStatus enum exists on the type; transitions + approval gates are the v2 add. v1 lets the user set status only at add-time via the form (defaults to `not-started` for active-hire, null for others).
+- **`holdReason` enum narrowing** (Tab 24 § Improvement #6) — carried as free string in v1. Needs Alex's curated list of distinct values (Hold per Jimmy / Hold per Mary / Pending CPC / TPV to PCS / etc.) before the enum can be locked.
+- **Plan-vs-actuals reconciliation** (Tab 24 § Improvement #3) — needs the spine + payroll join overlay; design deferred.
+- **Snapshot diff surface** (Tab 24 § Improvement #12) — needs Phase 2.2.33 `snapshots/` IndexedDB persistence first.
+- **`window.__kospos.staffingPlan` dev hook** — preview-MCP walkthrough used the inline form rather than direct store access. The dev hook could expose `useStaffingPlan` for ad-hoc seeding; deferred.
+- **ADR documenting the no-upstream-source pattern** — `lib/staffing-plan/` is the first entity with no upstream import file (KosPos's spec is the source). Queued for Phase 2.4's ADR docs PR alongside ADR-007 amendment + BFM eturn ADR.
+
+### Lessons / improvements for next phase
+
+- **Entity layer sign conventions belong at the entity layer.** Per Tab 24 § Per-section footers: Active = positive, Separations = negative. Putting the negation in `computeExpectedCost` (rather than the rollup or the surface) means any downstream consumer gets the right sign automatically — and the rule has a single point of authority. Pattern generalizes: any future entity with type-keyed sign conventions (e.g., Step variance: gains positive, losses negative) should encode the rule at the entity layer's compute function.
+- **Multi-action keyed by action id, not position id, is the right pattern.** Tab 24's 5-section block layout is a presentation choice, not a data model — the underlying data is "N actions tied to one or more positions." Keying by action id makes the Marco Jacobo case (3 actions on one position) a normal case rather than a special case. The position-scoped lens (`actionsForPosition`) is the join, not the primary key.
+- **In-memory v1 is fine when the persistence boundary is clearly drawn.** The store layer mirrors `usePositionNotes` — same Map-backed shape, same "persistence deferred" pattern. The footer hint on the surface ("Actions are in-memory; persistence to IndexedDB lands in Phase 2.2.33") sets expectations honestly. Re-using the proven pattern from notes is what made the new store a one-file addition rather than a fresh design problem.
+- **Preview-MCP form interaction has React-state quirks.** Direct `el.value = X; el.dispatchEvent(new Event('change'))` works for `<select>` but not for React's controlled `<input>` (needs the value-setter prototype trick `Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, X)` then `input` event). `mcp__Claude_Preview__preview_fill` handles this internally; reach for it first.
+- **Simple AskUserQuestion + autonomous default is a viable pattern for short away-windows.** Alex's 8-hour away note + "simple questions only" worked well with one A/B/C pick at the start. Got the answer in time to ship the recommended path. Same pattern as S27's autonomous mode but with one explicit decision point.
+
+### Brief audit (Alex's collaboration this session)
+
+Semi-autonomous session. One A/B/C question answered; no other user input.
+
+- **Prompt quality (S27 handoff prompt that drove S28):** ✅ The Step-0 audit trigger fired on schedule (5th event-based trigger). A/B/C pick was well-scoped (clear trade-offs; Option A defaulted recommendation; escape hatch for "other"). The two extra UI items Alex injected ("rename Labor → Payroll" + "show payroll button missing") were handled in a separate small PR before the main phase work — clean PR split rather than bundling.
+- **Scope discipline:** ✅ Strict one-PR-per-sub-phase honored, with the 2-PR split for Option A explicitly authorized by the prompt. PR #78 (UI fix) + PR #79 (entity) + PR #80 (surface) + PR (audit) = 4 separate PRs. UI fix didn't bleed into the entity-layer PR even though both touched the React tree.
+- **Verification habits:** ✅ Tests + build + preview-MCP walkthrough + screenshots on each PR. The UI fix PR exercised the bug case end-to-end (position with no matching OBI → drill in → see scoped view with 0 rows) rather than just verifying the button renders.
+- **Audit cadence:** ✅ Fifth event-based trigger on time. Item A stays dropped (8 consecutive PRs auto-archived).
+- **Gap surfaced:** the `holdReason` enum will need Alex's input before v2 surface ships. Free-string holdover OK for now; narrowing the enum should land before the v2 detail editor PR.
