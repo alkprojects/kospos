@@ -452,8 +452,9 @@ export function PositionDetail({
           </section>
         )}
 
-        {/* RTF */}
-        {position.rtf && (position.rtf.id || position.rtf.status) && (
+        {/* RTF — render for vacant positions (so a missing RTF is visibly
+            noted) and for filled positions only when RTF data is present. */}
+        {(position.fillStatus === 'VACANT' || (position.rtf && (position.rtf.id || position.rtf.status))) && (
           <section style={{ marginBottom: 18 }}>
             <div style={{
               fontSize: 11, fontWeight: 600, color: 'var(--muted)',
@@ -461,21 +462,30 @@ export function PositionDetail({
             }}>
               Request to Fill
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <tbody>
-                {[
-                  ['RTF ID',          position.rtf.id || '—'],
-                  ['Status',          position.rtf.status || '—'],
-                  ['Submitted',       fmtDate(position.rtf.submittedDate)],
-                  ['Expected fill',   fmtDate(position.rtf.expectedFillDate)],
-                ].map(([label, value]) => (
-                  <tr key={label} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '5px 0', color: 'var(--muted)', width: 140 }}>{label}</td>
-                    <td style={{ padding: '5px 0' }}>{value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {position.rtf && (position.rtf.id || position.rtf.status ||
+              position.rtf.submittedDate || position.rtf.expectedFillDate) ? (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <tbody>
+                  {[
+                    ['RTF ID',          position.rtf.id || '—'],
+                    ['Status',          position.rtf.status || '—'],
+                    ['Submitted',       fmtDate(position.rtf.submittedDate)],
+                    ['Expected fill',   fmtDate(position.rtf.expectedFillDate)],
+                  ].map(([label, value]) => (
+                    <tr key={label} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '5px 0', color: 'var(--muted)', width: 140 }}>{label}</td>
+                      <td style={{ padding: '5px 0' }}>{value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+                No RTF data on this position in the snapshot. The Controller's source
+                doesn't always carry RTF status for vacancies — this is a CON data
+                limitation, not a missing departmental action.
+              </div>
+            )}
           </section>
         )}
 

@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import type { ImportedRow } from '../importers/types';
 import type { BfmPositionRow, PsHcmPpRow, ObiPayrollRow } from '../importers/types';
 import { positionInBfmNotHcm } from './rules/position-in-bfm-not-hcm';
-import { vacantNoRtf } from './rules/vacant-no-rtf';
 import { payrollExceedsBudget } from './rules/payroll-exceeds-budget';
 import { hcmFteBfmMismatch } from './rules/hcm-fte-bfm-mismatch';
 import { positionInHcmNotBfm } from './rules/position-in-hcm-not-bfm';
@@ -159,33 +158,6 @@ describe('QR-001 positionInBfmNotHcm', () => {
   it('does not fire when HCM data is not loaded', () => {
     const records: ImportedRow[] = [bfmPos()];
     expect(positionInBfmNotHcm.check(records)).toHaveLength(0);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// QR-002: vacant no RTF
-// ---------------------------------------------------------------------------
-
-describe('QR-002 vacantNoRtf', () => {
-  it('fires on a vacant position with no RTF info', () => {
-    const records: ImportedRow[] = [
-      hcmPos({ emplId: '', fillStatus: 'VACANT', rtfStatus: '', rtfExpectedFillDate: '' }),
-    ];
-    const issues = vacantNoRtf.check(records);
-    expect(issues).toHaveLength(1);
-    expect(issues[0].ruleId).toBe('QR-002');
-  });
-
-  it('does not fire when RTF status is present', () => {
-    const records: ImportedRow[] = [
-      hcmPos({ emplId: '', fillStatus: 'VACANT', rtfStatus: 'Open', rtfExpectedFillDate: '2026-09-01' }),
-    ];
-    expect(vacantNoRtf.check(records)).toHaveLength(0);
-  });
-
-  it('does not fire for a filled position', () => {
-    const records: ImportedRow[] = [hcmPos()]; // fillStatus FILLED, has emplId
-    expect(vacantNoRtf.check(records)).toHaveLength(0);
   });
 });
 
