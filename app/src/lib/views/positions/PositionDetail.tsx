@@ -14,6 +14,8 @@ import type { Position } from '../../positions';
 import { hasDeptMismatch, usePositionNotes } from '../../positions';
 import type { ResolvedChartfields } from '../../chartfields/types';
 import type { PositionYtdActuals } from '../../payroll';
+import type { PositionBudget, BfmBudgetPhase } from '../../budget';
+import { computeBudgetVsActual } from '../../budget';
 import { useLaborScope } from '../labor';
 
 function fmtMoney(n: number): string {
@@ -22,9 +24,25 @@ function fmtMoney(n: number): string {
   });
 }
 
+function fmtSignedMoney(n: number): string {
+  const sign = n > 0 ? '+' : n < 0 ? '−' : '';
+  return sign + fmtMoney(Math.abs(n));
+}
+
+function fmtPercent(pct: number): string {
+  const sign = pct > 0 ? '+' : pct < 0 ? '−' : '';
+  return sign + (Math.abs(pct) * 100).toFixed(1) + '%';
+}
+
 function fmtDate(s: string): string {
   if (!s) return '—';
   return s;
+}
+
+/** Display label for a BFM budget phase (UI-friendly). */
+function phaseLabel(phase: BfmBudgetPhase): string {
+  if (phase === 'TechnicalAdjustment') return 'Technical Adjustment';
+  return phase;
 }
 
 function badge(label: string, color: string, bg: string) {
@@ -216,6 +234,157 @@ function Cat1718Card({ position }: { position: Position }) {
   );
 }
 
+/**
+ * "Budget vs Actual" mini-card. Shown when both a BFM budget row + an OBI
+ * YTD actuals row are joined to this position. Renders three values
+ * side-by-side (Budget / YTD actual / Variance) with the variance row
+ * colored by direction. The pencil-level chartfields strip (Fund /
+ * Authority / Project / Activity) shows beneath as secondary info.
+ */
+function BudgetVsActualCard({
+  budget,
+  actuals,
+  budgetAsOfDate,
+  ytdAsOfDate,
+}: {
+  budget: PositionBudget;
+  actuals: PositionYtdActuals | null;
+  budgetAsOfDate: string;
+  ytdAsOfDate: string;
+}) {
+  const hasActuals = actuals !== null;
+  const actualAmount = actuals?.total ?? 0;
+  const v = computeBudgetVsActual(budget.positionId, budget.budgetedSalary, actualAmount);
+
+  // Color the variance row by direction. Greens for under-budget (positive
+  // remaining), yellow for on-track, red for over-budget. When there are no
+  // actuals to compare against, use a neutral gray so the visual doesn't
+  // mislead the eye into "this position is under budget."
+  const varColor =
+    !hasActuals               ? { fg: 'var(--muted)', bg: '#fafbfc' } :
+    v.direction === 'over'    ? { fg: '#7f1d1d',      bg: '#fecaca' } :
+    v.direction === 'under'   ? { fg: '#1a7a3c',      bg: '#d4f4e3' } :
+                                { fg: '#7a4b1a',      bg: '#fde68a' };
+
+  // Arrow glyph (matches direction); used in the variance amount cell. No
+  // arrow when actuals aren't available — the variance is undefined.
+  const arrow = !hasActuals                ? ''  :
+                v.direction === 'over'     ? '▲' :
+                v.direction === 'under'    ? '▼' :
+                                             '◆';
+
+  return (
+    <section style={{ marginBottom: 18 }}>
+      <div style={{
+        fontSize: 11, fontWeight: 600, color: 'var(--muted)',
+        textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <span>
+          Budget vs Actual
+          <span style={{
+            marginLeft: 8, fontSize: 10, fontWeight: 500, textTransform: 'none',
+            letterSpacing: 0, color: 'var(--muted)',
+          }}>
+            {budget.resolvedPhase ? `${phaseLabel(budget.resolvedPhase)} layer` : ''}
+          </span>
+        </span>
+        {budgetAsOfDate && (
+          <span style={{ fontSize: 10, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+            BFM asOf {budgetAsOfDate}
+          </span>
+        )}
+      </div>
+
+      {/* Three-stat row */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 0,
+        border: '1px solid var(--border)',
+        borderRadius: 6,
+        overflow: 'hidden',
+      }}>
+        <div style={{ padding: '10px 12px', borderRight: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Budget
+          </div>
+          <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 16, marginTop: 2 }}>
+            {fmtMoney(budget.budgetedSalary)}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+            FTE {budget.fte.toFixed(2)}
+          </div>
+        </div>
+        <div style={{ padding: '10px 12px', borderRight: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            YTD Actual
+          </div>
+          <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 16, marginTop: 2 }}>
+            {actuals ? fmtMoney(actualAmount) : '—'}
+          </div>
+          {ytdAsOfDate && actuals && (
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+              OBI asOf {ytdAsOfDate}
+            </div>
+          )}
+        </div>
+        <div style={{ padding: '10px 12px', background: varColor.bg, color: varColor.fg }}>
+          <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, opacity: 0.8 }}>
+            Variance
+          </div>
+          <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 16, marginTop: 2 }}>
+            <span style={{ marginRight: 4 }}>{arrow}</span>
+            {actuals ? fmtSignedMoney(v.variance) : '—'}
+          </div>
+          {v.variancePct !== null && actuals && (
+            <div style={{ fontSize: 10, marginTop: 2, opacity: 0.85 }}>
+              {fmtPercent(v.variancePct)}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Chartfield strip — secondary info */}
+      <div style={{
+        marginTop: 8,
+        padding: '6px 10px',
+        background: '#fafbfc',
+        border: '1px solid var(--border)',
+        borderRadius: 6,
+        fontSize: 11,
+        color: 'var(--muted)',
+        display: 'flex', flexWrap: 'wrap', gap: 14,
+      }}>
+        <ChartfieldChip label="Fund"      code={budget.fund}      title={budget.fundTitle} />
+        <ChartfieldChip label="Authority" code={budget.authority} title={budget.authorityTitle} />
+        <ChartfieldChip label="Project"   code={budget.project}   title={budget.projectTitle} />
+        <ChartfieldChip label="Activity"  code={budget.activity}  title={budget.activityTitle} />
+      </div>
+    </section>
+  );
+}
+
+function ChartfieldChip({ label, code, title }: { label: string; code: string; title?: string }) {
+  if (!code) {
+    return (
+      <span>
+        <span style={{ marginRight: 4 }}>{label}:</span>
+        <span style={{ color: 'var(--muted)' }}>—</span>
+      </span>
+    );
+  }
+  return (
+    <span title={title || ''}>
+      <span style={{ marginRight: 4 }}>{label}:</span>
+      <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--text)' }}>{code}</span>
+      {title && (
+        <span style={{ marginLeft: 4, opacity: 0.7 }}>— {title}</span>
+      )}
+    </span>
+  );
+}
+
 function YtdPayrollCard({ actuals, asOfDate, onViewPayroll }: {
   actuals: PositionYtdActuals;
   asOfDate: string;
@@ -287,6 +456,8 @@ export function PositionDetail({
   chartfields,
   ytdActuals,
   ytdAsOfDate,
+  budget,
+  budgetAsOfDate,
   obiLoaded,
   bfmLoaded,
   onClose,
@@ -296,12 +467,19 @@ export function PositionDetail({
   chartfields?: ResolvedChartfields | null;
   ytdActuals?: PositionYtdActuals | null;
   ytdAsOfDate?: string;
+  /** Per-position budget detail (FTE + budget + chartfields + phase set)
+   *  from the latest BudgetSnapshot. When omitted but `bfmLoaded` is true,
+   *  the Budget vs Actual section shows a "no row matched this position"
+   *  hint instead of "Load BFM…". */
+  budget?: PositionBudget | null;
+  /** asOfDate stamped on the BudgetSnapshot at import time. */
+  budgetAsOfDate?: string;
   /** Global "is BI Payroll loaded anywhere?" flag. When true but ytdActuals
    *  is null, the hint should say "no rows for this position" instead of
    *  "Load a BI Payroll export…". */
   obiLoaded?: boolean;
   /** Global "is a BFM Position eturn loaded anywhere?" flag. Same logic
-   *  as obiLoaded but for the Posting Chartfields panel. */
+   *  as obiLoaded but for the Budget vs Actual panel. */
   bfmLoaded?: boolean;
   onClose: () => void;
   onViewPayroll?: () => void;
@@ -524,46 +702,42 @@ export function PositionDetail({
           </section>
         )}
 
-        {/* Posting chartfields (only if BFM is loaded) */}
-        <section style={{ marginBottom: 18 }}>
-          <div style={{
-            fontSize: 11, fontWeight: 600, color: 'var(--muted)',
-            textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8,
-          }}>
-            Posting Chartfields
-          </div>
-          {chartfields && chartfields.dataSources.includes('bfm') ? (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <tbody>
-                {[
-                  ['Fund',      chartfields.fund],
-                  ['Authority', chartfields.authority],
-                  ['Project',   chartfields.project],
-                  ['Activity',  chartfields.activity],
-                ].map(([label, value]) => (
-                  <tr key={label} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '5px 0', color: 'var(--muted)', width: 100 }}>{label}</td>
-                    <td style={{ padding: '5px 0', fontFamily: 'monospace', fontWeight: 600 }}>
-                      {value || <span style={{ color: 'var(--muted)' }}>—</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : bfmLoaded ? (
-            <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
-              No BFM Position eturn row matched this position. The loaded BFM
-              eturn doesn't carry chartfields for position{' '}
-              <span style={{ fontFamily: 'monospace' }}>{position.displayNumber}</span> —
-              either the position was added after the eturn was generated, or
-              the position number changed between the BFM and HCM snapshots.
+        {/* Budget vs Actual — three states:
+            (a) BFM joined to this position → show variance card + chartfield strip;
+            (b) BFM loaded but no row for this position → "no row matched" hint;
+            (c) BFM not loaded → "Load BFM…" hint. */}
+        {budget ? (
+          <BudgetVsActualCard
+            budget={budget}
+            actuals={ytdActuals ?? null}
+            budgetAsOfDate={budgetAsOfDate ?? ''}
+            ytdAsOfDate={ytdAsOfDate ?? ''}
+          />
+        ) : (
+          <section style={{ marginBottom: 18 }}>
+            <div style={{
+              fontSize: 11, fontWeight: 600, color: 'var(--muted)',
+              textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8,
+            }}>
+              Budget vs Actual
             </div>
-          ) : (
-            <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
-              Load a BFM Position eturn to see posting Fund / Authority / Project / Activity.
-            </div>
-          )}
-        </section>
+            {bfmLoaded ? (
+              <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+                No BFM Position eturn row matched position{' '}
+                <span style={{ fontFamily: 'monospace' }}>{position.displayNumber}</span> in
+                the loaded snapshot. Either the position was added after the eturn was
+                generated, or the position number changed between the BFM and HCM snapshots.
+                Posting chartfields and budget anchor will reappear once a matching eturn
+                loads.
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+                Load a BFM Position eturn to see budgeted FTE / salary,
+                YTD variance, and posting Fund / Authority / Project / Activity.
+              </div>
+            )}
+          </section>
+        )}
 
         {/* YTD Payroll — three states: (a) actuals present → breakdown card;
             (b) BI Payroll loaded but no rows for this position → explanatory

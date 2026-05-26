@@ -18,8 +18,9 @@ import { buildPositions, hasDeptMismatch, usePositionNotes } from '../../positio
 import type { Position } from '../../positions';
 import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import { resolvePositionChartfields, normalizePositionKey } from '../../chartfields/resolve';
-import type { ObiPayrollRow, PsHcmPpRow } from '../../importers/types';
+import type { BfmPositionRow, ObiPayrollRow, PsHcmPpRow } from '../../importers/types';
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
+import { buildBudgetSnapshot } from '../../budget';
 import { PositionDetail } from './PositionDetail';
 
 function badge(label: string, color: string, bg: string) {
@@ -130,15 +131,25 @@ export function PositionsView({ onViewPayroll }: {
     return pickLatestSnapshot(buildPayrollSnapshots(obiRows));
   }, [loadedRows]);
 
+  // Latest BudgetSnapshot — used to surface Budget vs Actual on Position
+  // Detail. BFM eturns don't stamp an asOf date on their rows themselves,
+  // so we read the date from the app store's lastBfmImportAt field (set by
+  // the upload pipeline) and fall back to "" when not present.
+  const lastBfmImportAt = useAppStore(s => s.lastBfmImportAt);
+  const latestBudget = useMemo(() => {
+    const bfmRows = loadedRows.filter(
+      (r): r is BfmPositionRow => r._source === 'bfm-position',
+    );
+    if (bfmRows.length === 0) return null;
+    return buildBudgetSnapshot(bfmRows, { asOfDate: lastBfmImportAt ?? '' });
+  }, [loadedRows, lastBfmImportAt]);
+
   // Global "is this data source loaded anywhere?" flags. Distinct from the
   // per-position resolution above — needed so Position Detail can tell the
   // difference between "no BI Payroll loaded" and "BI Payroll loaded but this
   // position has no rows in it" (e.g., a brand-new vacancy). Same for BFM.
   const obiLoaded = latestPayroll !== null;
-  const bfmLoaded = useMemo(
-    () => loadedRows.some(r => r._source === 'bfm-position'),
-    [loadedRows],
-  );
+  const bfmLoaded = latestBudget !== null;
 
   const deptGroups = useMemo(() => {
     const set = new Set<string>();
@@ -212,6 +223,9 @@ export function PositionsView({ onViewPayroll }: {
   const selectedYtd = selected && latestPayroll
     ? latestPayroll.byPosition.get(selected.id) ?? null
     : null;
+  const selectedBudget = selected && latestBudget
+    ? latestBudget.byPosition.get(selected.id) ?? null
+    : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -221,6 +235,8 @@ export function PositionsView({ onViewPayroll }: {
           chartfields={selectedChartfields}
           ytdActuals={selectedYtd}
           ytdAsOfDate={latestPayroll?.asOfDate}
+          budget={selectedBudget}
+          budgetAsOfDate={latestBudget?.asOfDate}
           obiLoaded={obiLoaded}
           bfmLoaded={bfmLoaded}
           onClose={() => setSelectedId(null)}

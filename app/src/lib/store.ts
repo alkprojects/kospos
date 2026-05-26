@@ -12,6 +12,14 @@ interface AppState {
   loadedRows: ImportedRow[];
   /** Computed quality issues across all loaded data. Updated on every load. */
   issues: Issue[];
+  /**
+   * Last date a BFM Position eturn was imported. ISO yyyy-mm-dd. BFM eturns
+   * don't carry a natural "as-of" timestamp on their rows the way OBI rows
+   * do (via _asOfDate = MAX earningPeriodEnd), so the store stamps the
+   * import wall-clock instead. Cleared by `clearAll`. Empty string when no
+   * BFM has loaded yet.
+   */
+  lastBfmImportAt: string;
   addRows: (rows: ImportedRow[]) => void;
   clearAll: () => void;
 }
@@ -20,13 +28,25 @@ function runRules(rows: ImportedRow[]): Issue[] {
   return ALL_RULES.flatMap(rule => rule.check(rows));
 }
 
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export const useAppStore = create<AppState>((set) => ({
   loadedRows: [],
   issues: [],
+  lastBfmImportAt: '',
   addRows: (newRows) =>
     set(state => {
       const loadedRows = [...state.loadedRows, ...newRows];
-      return { loadedRows, issues: runRules(loadedRows) };
+      // If any newly-added rows are BFM Position, stamp the import time so
+      // BudgetSnapshot can surface a meaningful asOf.
+      const hasBfm = newRows.some(r => r._source === 'bfm-position');
+      return {
+        loadedRows,
+        issues: runRules(loadedRows),
+        lastBfmImportAt: hasBfm ? todayISO() : state.lastBfmImportAt,
+      };
     }),
-  clearAll: () => set({ loadedRows: [], issues: [] }),
+  clearAll: () => set({ loadedRows: [], issues: [], lastBfmImportAt: '' }),
 }));

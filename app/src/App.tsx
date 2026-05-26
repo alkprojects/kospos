@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import './App.css';
 import { CalculatorView } from './modules/calculator/CalculatorView';
 import { ImporterView } from './modules/importer/ImporterView';
@@ -20,6 +20,19 @@ const ALL_TABS: TabDef[] = [
   { id: 'special-class', label: 'Special Class',         devOnly: true },
 ];
 
+// Dev-only escape hatch — exposes the Zustand store on `window.__kospos`
+// when dev mode is on. Used by preview-MCP test harnesses + ad-hoc browser
+// console debugging. NEVER referenced from runtime code; treat as removable.
+declare global {
+  interface Window {
+    __kospos?: {
+      store: typeof useAppStore;
+      addRows: (rows: unknown[]) => void;
+      clearAll: () => void;
+    };
+  }
+}
+
 export default function App() {
   const [devMode, setDevMode] = useState<boolean>(() => resolveDevMode());
   const visibleTabs = useMemo(
@@ -28,6 +41,20 @@ export default function App() {
   );
   const [tab, setTab] = useState<Tab>(visibleTabs[0].id);
   const issueCount = useAppStore(s => s.issues.length);
+
+  // Expose / unexpose the dev hook in lockstep with devMode.
+  useEffect(() => {
+    if (devMode) {
+      window.__kospos = {
+        store: useAppStore,
+        addRows: (rows) => useAppStore.getState().addRows(rows as never),
+        clearAll: () => useAppStore.getState().clearAll(),
+      };
+    } else {
+      delete window.__kospos;
+    }
+    return () => { delete window.__kospos; };
+  }, [devMode]);
 
   function handleDisableDevMode(): void {
     disableDevMode();
