@@ -2134,3 +2134,162 @@ refresh + next audit (both internal-setup refresh + walkthrough audit).
   refresh + audit took roughly half a typical Phase-2.0 session
   budget. Phase 2.1 (route guard) should comfortably fit in a fresh
   small-effort session.
+
+---
+
+## Session 23 — Phase 2.1: route guard for budget-dev tabs (2026-05-25)
+
+**Worktree:** `dazzling-mendel-e6e137`
+**Model:** Opus 4.7 (handoff recommended Sonnet 4.6; ran on Opus because the gate-mechanism decision turned out to need a small architectural call — see Prompt 1 notes)
+**Mode:** Auto-mode
+**PRs:** [#59](https://github.com/alkprojects/kospos/pull/59) — `feat(app): Phase 2.1 — hide budget-dev tabs behind ?dev=1 route guard` (merged `94b844e`)
+**Tests:** 152 / 152 passing (146 + 6 new dev-mode tests)
+
+### Prompts
+
+**[~ start]** Session 23 Phase 2.1 prompt (per SESSION_HANDOFF.md PR
+#58). One deliverable: hide the budget-dev / importer / positions tabs
+behind a route guard so the production `/kospos/` surface is clean
+before Phase 2.2 sub-phases ship real user-visible pages. Confirm gate
+mechanism with Alex before implementing.
+
+**[mid]** AskUserQuestion → Alex picked **(b) query-string +
+localStorage** for the gate and **yes** to the dev-mode banner. The
+handoff prompt had recommended (a) URL prefix, but I flipped to (b)
+because the app has no router today (adding one or wiring a 404.html
+SPA redirect just for this gate is heavier than the task justifies),
+and (b) matches the original `?budget=1` intent already in
+ROADMAP.md § Phase 2.1.
+
+### Workflow
+
+1. Read briefing docs (CLAUDE.md, SESSION_HANDOFF.md, SESSION_LOG.md
+   Session 22, all 9 memory files, phase-2-0i-close-audit.md,
+   ROADMAP.md, App.tsx + importers + 3 module Views).
+2. Confirmed state on main = `1773ee2` (Phase 2.0i merged).
+3. Inventoried dev-only surfaces in App.tsx — 4 tabs, 1 user-facing
+   (calculator), 3 dev-only (importer / positions / special-class).
+4. Asked Alex to confirm gate mechanism + banner via AskUserQuestion.
+5. Branched `feat/budget-dev-route-guard` from main.
+6. **Implementation.**
+   - New module `app/src/lib/dev-mode.ts` (28 lines net):
+     `resolveDevMode()` reads `?dev=1`/`?dev=0`/localStorage in priority
+     order; `disableDevMode()` clears storage + strips the query.
+   - New tests `app/src/lib/dev-mode.test.ts` (6 cases): default off,
+     URL-on persists, URL-off clears, storage fallback, disable strips
+     URL + storage, non-1/0 falls through.
+   - App.tsx (+59 / -7): tabs gain a `devOnly` flag; nav filters to
+     visible tabs; slim yellow banner renders at the top in dev mode
+     with a "Disable dev mode" button; default selected tab always
+     resolves to first visible tab so toggling off can't strand the
+     user on a hidden tab.
+7. **Verification (`npm run dev` via preview MCP):**
+   - `/kospos/` (no flag, empty storage) → 1 tab (Job Class Calculator),
+     no banner.
+   - `/kospos/?dev=1` → 4 tabs + banner; `localStorage['kospos:dev-mode']`
+     set to `'1'`.
+   - Reload to `/kospos/` (storage set) → dev mode persists.
+   - Click "Disable dev mode" → 1 tab, banner gone, storage cleared.
+   - `/kospos/?dev=0` (with storage set) → 1 tab, banner gone, storage
+     cleared.
+   - No console errors / warnings.
+8. `npm test` → 152 / 152 passing.
+9. Committed, pushed, opened PR #59, CI passed (13s), merged via
+   `gh api PUT .../merge` (worktree-safe per S22 handoff note).
+10. Fast-forwarded main worktree.
+11. Updated SESSION_HANDOFF.md with Phase 2.1 status + Phase 2.2
+    next-session prompt (audit item E pending Alex's pick).
+
+### Milestones
+
+- **Phase 2.1 delivered in one small PR.** Production `/kospos/` is now
+  clean — only Job Class Calculator visible. Dev workflow preserved
+  intact via `?dev=1` + persisted localStorage flag.
+- **First app-code change since Phase 2.0a (calendar-tab walkthrough).**
+  Phase 2.0b-i were all docs-only. Phase 2.1 is the first sub-phase
+  that touched `app/src/`.
+- **`?dev=1` chosen over URL prefix.** Documented in PR #59 body; matches
+  the original ROADMAP.md § Phase 2.1 intent. The handoff's recommended
+  approach (URL prefix) was reconsidered after inventorying the app —
+  no router today, so query-string is the smallest diff that fits.
+- **`disableDevMode()` strips the URL query** so a user who shared a
+  `?dev=1` link with a teammate can hand them a "click this to turn it
+  off" path that doesn't require a fresh paste.
+- **Audit-cadence rule fires next session.** Phase 2.1 close = trigger
+  per WORKFLOW.md § Audit cadence. Session 24 opens with the audit.
+
+### What changed for KosPos's understanding
+
+| Theme | Before this session | After this session |
+|---|---|---|
+| Production app surface | 4 tabs (3 budget-dev + 1 user-facing) shown to every visitor | 1 tab (user-facing only); dev tabs gated behind `?dev=1` |
+| Dev access pattern | None — everything was visible | `?dev=1` toggles on + persists; `?dev=0` or in-app button toggles off + clears storage |
+| Routing | None (just `useState<Tab>`) | Still none — gate uses URLSearchParams + localStorage; no router added |
+| Tests | 146 (post-S22) | 152 (+6 dev-mode tests) |
+| `app/src/lib/` modules | Existing math libraries | + `dev-mode.ts` (28 lines net of logic) |
+
+### Out of scope (intentionally deferred)
+
+- The 5 restated questions + 12 reasonable-default calls + 1 open
+  action item — carried forward in handoff (still awaiting Alex
+  response).
+- 6 audit-surfaced items A-F from Phase 2.0i close audit:
+  - A (worktree sweep), B (SESSION_LOG trim), C (memory-citation
+    anti-pattern migration), D (labor-report.md split — defer to
+    Phase 2.4), F (continue audit cadence — automatic).
+  - **E (first-sub-phase pick) is the gating decision for Session 25+.**
+    Position spine bundle remains the recommended option.
+- Phase 2.2 sub-phase work — by design; this PR is route-guard only.
+- Phase 2.1 close audit — fires next session per cadence rule.
+- ADR amendments — Phase 2.4.
+
+### Lessons / improvements for next phase
+
+- **The handoff's gate recommendation was wrong but caught via
+  AskUserQuestion.** The handoff said "(a) URL prefix recommended" —
+  but the app has no router, so URL prefix would have meant adding
+  routing infrastructure for a single-purpose gate. Recommendation
+  flipped to (b) after the inventory step, confirmed with Alex before
+  implementing. Worth noting: re-validate handoff recommendations
+  against the current codebase before treating them as decisions.
+- **Preview MCP verification worked cleanly for a small UI change.**
+  Started the dev server once, ran 5 distinct gate-path tests via
+  preview_eval + preview_snapshot, took 2 screenshots, all under 60s
+  of preview time. No need for "click through manually" instructions.
+- **`disableDevMode()` design choice — strip URL + clear storage —
+  prevents a footgun.** Without stripping the URL, clicking Disable
+  would clear storage but a refresh would re-set it from the query
+  string (still in the URL). Symmetric design: turning on writes
+  storage, turning off clears it AND removes the trigger.
+- **`feedback_dont_reremind.md` filter continues to work.** 4
+  acknowledged items stay dropped from the handoff; the 17 + 1 new TX
+  block from S22 are still actively pending, no re-acknowledgments
+  this session.
+
+### Brief audit (Alex's collaboration this session)
+
+This session was almost entirely model-driven — Alex's only direct
+input was the AskUserQuestion answer (gate mechanism + banner). So the
+audit dimensions that apply are narrow:
+
+- **Prompt quality (S23 handoff prompt):** ✅ Concrete, well-scoped,
+  named the inventory step explicitly, listed 4 gate options with
+  trade-offs, and required Alex confirmation before implementing.
+  This is the cleanest small-task prompt pattern of the project so far.
+- **Decision-making under trade-offs:** ✅ Alex picked the recommended
+  options on both questions (b + yes) without negotiation. The
+  handoff-vs-current-inventory disagreement (URL prefix vs
+  query-string) was flagged in the question itself with the
+  re-analysis, so the recommendation flip was transparent.
+- **Scope discipline:** ✅ Single-purpose PR, no scope creep, no
+  bundling. Task #2 of the handoff explicitly says "no bundling the
+  route guard with the Position spine bundle even if both are small"
+  and that constraint held.
+- **Verification habits:** ✅ The handoff required visual verification +
+  test pass; both happened (5 gate paths + 152 tests + screenshots).
+- **Gap surfaced:** None this session. Phase 2.1 was small enough that
+  Alex's role reduced to "approve the choice and let the model run."
+  That's an appropriate scope for a route-guard task — but worth
+  noting that Sessions 21-22 had Alex more in the driver's seat
+  (walking through tabs, surfacing TX, picking the first sub-phase).
+  Phase 2.2 will likely return to that pattern.
