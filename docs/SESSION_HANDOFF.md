@@ -4,22 +4,36 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
-## Current status (end of Session 22 — Phase 2.0i DSI final + audit, 2026-05-25)
+## Current status (end of Session 23 — Phase 2.1 route guard, 2026-05-25)
 
-**Phase:** Phase 2.0 — Labor Report deep-dive walkthrough. **COMPLETE end-to-end** (Phase 2.0a–i shipped). **Phase 2.1 next.**
-**Last main commit (pre-merge):** `17b4fad` (PR #57 — Phase 2.0h) → `<this PR>` (Session 22 Phase 2.0i)
-**Tests:** 146 / 146 passing (no app-code changes this session)
+**Phase:** Phase 2.1 — Hide budget-dev UI behind a route guard. **COMPLETE.** Production `/kospos/` now shows only Job Class Calculator. **Phase 2.2.1 (first sub-phase) next, gated on Alex's pick for audit item E.**
+**Last main commit:** `94b844e` ([PR #59](https://github.com/alkprojects/kospos/pull/59) — Phase 2.1) → previous: `1773ee2` (PR #58 — Phase 2.0i)
+**Tests:** 152 / 152 passing (146 + 6 new dev-mode tests)
 **Branches in flight:** none after this PR merges
 
-### What landed this session — Phase 2.0i
+### What landed this session — Phase 2.1
 
-[**PR #_TBD_**](https://github.com/alkprojects/kospos/pulls) — `docs(labor-report): Phase 2.0i — DSI final (Snowflake + v1 readiness cols, +1 DHR MOU row) + Phase 2.2 sub-phase enumeration final (33 sub-phases in 5 tiers + dependency graph + first-sub-phase recommendation) + Phase 2.0 close audit`. Three deliverables:
+[**PR #59**](https://github.com/alkprojects/kospos/pull/59) — `feat(app): Phase 2.1 — hide budget-dev tabs behind ?dev=1 route guard`. Three files changed, ~165 lines added net.
 
-1. **Data Sources Inventory final** — added 2 columns (Snowflake availability ✓/◐/✗/n/a; v1 readiness ✅/⚙/❌/n/a) and 1 new row (DHR MOU PDFs, splitting them from the derived per-BU COLA schedule). Roll-up table at the bottom: **3 shipped / 5 stub / 11 not built**. 19 sources total.
-2. **Phase 2.2 sub-phase enumeration final** — re-structured into 5 tiers (Foundation primitives / Reference data / Importers / Per-tab views / Reconciliation & cross-cutting) with stable `2.2.N` IDs (`2.2.1` through `2.2.33`; Phase-1-shipped `lib/views/calculator/` excluded). Dependency graph as a markdown table showing direct prerequisites + direct unblockers per sub-phase. **First-sub-phase recommendation: Position spine bundle** = `2.2.4` `dept-tree/` + `2.2.12` `obi-pnp/` + `2.2.16` `views/positions/` shipped together as one cohesive PR. Presented with 5 options + trade-offs per Alex's preference.
-3. **Phase 2.0 close audit** ([`docs/audits/phase-2-0i-close-audit.md`](audits/phase-2-0i-close-audit.md)) — combined refresh of the Session 19 internal-setup audit Areas A–G + the Session 17 walkthrough audit (anchor verifier, cross-doc consistency, Data Issues catalog drift). Anchor verifier rebuilt in `.scratch/verify_anchors.py` + `.scratch/verify_anchors_full.py`; **261/267 anchor refs OK** across `labor-report.md` + every doc that references it, 6 broken are all pre-existing patterns (none introduced by 2.0i). Audit doc added to [`docs/audits/README.md`](audits/README.md) index.
+**Inventory of dev-only surfaces (now gated):**
 
-Cumulative file size: `labor-report.md` grew from 8,350 → 8,518 lines (~170 lines added by 2.0i; the DSI + sub-phase refresh + anchor migration). `SESSION_LOG.md` will land at ~2,160 lines after the Session 22 entry.
+| Tab | Visible at `/kospos/`? | Reason |
+|---|---|---|
+| Job Class Calculator | **yes** | Phase 1 finished — the one production-ready user-facing surface |
+| Load Reports (importer + DataIssuesPanel) | hidden behind `?dev=1` | Budget-dev workflow only until Phase 2.2 sub-phases consume the data |
+| Positions (pre-spine half-built view) | hidden behind `?dev=1` | Superseded by Phase 2.2.1 Position spine bundle |
+| Special Class (RPO + OVERM) | hidden behind `?dev=1` | Explicit roadmap call: code preserved, UI hidden until Phase 6 |
+
+**Gate mechanism — `?dev=1` query flag + localStorage persistence**
+
+- `/?dev=1` → turns on; stores `localStorage['kospos:dev-mode'] = '1'`
+- `/?dev=0` → turns off; clears storage
+- no flag → falls back to localStorage (so gate survives reloads once enabled)
+- In-app "Disable dev mode" banner button → clears storage AND strips `?dev=` from the URL
+
+**Why this over URL prefix:** the app has no router today, so a URL prefix would require either `react-router-dom` or a `404.html` SPA-redirect trick for GitHub Pages — heavier than a single-purpose gate justifies. The query-string approach also matches the original `?budget=1` intent in [ROADMAP.md § Phase 2.1](ROADMAP.md). Confirmed with Alex via AskUserQuestion before implementing.
+
+**New code:** `app/src/lib/dev-mode.ts` + `app/src/lib/dev-mode.test.ts` (6 tests) + `app/src/App.tsx` (devOnly tab flag + banner). Verified 5 gate paths in `npm run dev` via preview MCP (production, URL-on, persistence, Disable button, URL-off explicit) — no console errors.
 
 ### Items surfaced for Alex's review (carry forward)
 
@@ -133,11 +147,11 @@ F. **Continue audit cadence at every phase close.** Phase 2.1 close fires the ne
 
 ### Top 3 findings to surface for Alex this session
 
-1. **Phase 2.0 is fully closed.** All 27 walkable tabs walked + DSI finalized + sub-phase enumeration final + audit complete. The labor-report walkthrough is a stable reference document going forward. **Next phase: Phase 2.1 = hide budget-dev UI behind a route guard** (small focused PR), then Phase 2.2.1 = Position spine bundle.
+1. **Phase 2.1 shipped.** [PR #59](https://github.com/alkprojects/kospos/pull/59) — production `/kospos/` now shows only Job Class Calculator. The three budget-dev tabs (Load Reports, Positions, Special Class) are gated behind `?dev=1`. Banner + Disable button per Alex's confirmation. **Next: Phase 2.2.1 = Position spine bundle** (recommended; audit item E is the gating decision).
 
-2. **Phase 2.2 first sub-phase recommendation is up to Alex.** I recommended the **Position spine bundle** (`2.2.4` + `2.2.12` + `2.2.16` = dept-tree + full obi-pnp importer + views/positions/) because Position is the spine every Tier-4 view joins through, and the bundle ends in the first user-visible production page since Phase 1. 4 alternatives documented with trade-offs. **Awaiting Alex's pick.**
+2. **Gate mechanism flipped from URL prefix to query-string.** The S22 handoff recommended (a) URL prefix. After inventorying the app, I flipped the recommendation to (b) query-string because the app has no router today — adding routing for a single-purpose gate would have been heavier than the task justified. Confirmed with Alex via AskUserQuestion before implementing. Also matches the original `?budget=1` intent in [ROADMAP.md § Phase 2.1](ROADMAP.md).
 
-3. **The Phase 2.0i close audit surfaced 6 items, none blocking.** Worktree sweep (30 sec), SESSION_LOG trim (~1 hour cleanup PR), memory-file citation anti-pattern migration (~30 min cleanup PR), labor-report.md split decision (defer to Phase 2.4), Phase 2.2 first sub-phase pick (Alex), continued audit cadence (works as designed). All non-blocking; the cleanup PRs can land in any order before Phase 2.1.
+3. **Phase 2.1 close fires the next audit per cadence rule.** Session 24 opens with a small Phase 2.1 close audit before any Phase 2.2 work. Should be quick — Phase 2.1 is 3 files + a query-string gate. After the audit, Phase 2.2 starts with audit item E (first-sub-phase pick), then Phase 2.2.1.
 
 ### Cumulative state of the labor-report walkthrough
 
@@ -151,140 +165,167 @@ F. **Continue audit cadence at every phase close.** Phase 2.1 close fires the ne
 | 2.0f | 16 Premium + 17 Overtime + 18 Step + 19 Retirement Payout | done 2026-05-25 |
 | 2.0g | 23 Vacancies and TEMP + 24 Staffing Plan + 25 Budget Summary | done 2026-05-25 |
 | 2.0h | 14 tabs: 1 Data, 2 Departments, 3 Combo, 4 BFM, 8 Roster Approvers, 9 EE Additional Pay, 10 Probation, 11 Eligibility Lists, 12 TEMP Limits, 13 Inactive, 14 Separations, 15 Succession, 21 Reporting Tree, 22 Pos by Dept | done 2026-05-25 |
-| 2.0i | **DSI final + Phase 2.2 sub-phase enumeration final + Phase 2.0 close audit** | **done 2026-05-25** |
-| **2.1** | **Hide budget-dev UI (route guard)** | **NEXT** |
-| 2.2 | Per-tab UI sub-phases (33 sub-phases enumerated in 5 tiers; first sub-phase = Position spine bundle, recommended) | pending |
+| 2.0i | DSI final + Phase 2.2 sub-phase enumeration final + Phase 2.0 close audit | done 2026-05-25 |
+| 2.1 | Hide budget-dev UI (route guard) — `?dev=1` + localStorage + banner | **done 2026-05-25** |
+| **2.2** | **Per-tab UI sub-phases** (33 sub-phases enumerated in 5 tiers; first sub-phase = Position spine bundle, recommended — **pending Alex's pick on audit item E**) | **NEXT** |
 | 2.3 | Excel export | pending |
 | 2.4 | Importer wiring (incl. ADR amendments per the 6 proposed ADRs — though 5 of 6 landed in PR #54 ADRs 010-015; only ADR-007 amendment for BVA-as-distinct-source remains) | pending |
 
 ## Blockers for Alex
 
 None landing-related. Live site:
-<https://alkprojects.github.io/kospos/>. Spot-check the new sections
-on the live site when convenient:
+<https://alkprojects.github.io/kospos/>. Spot-check on the live site
+when convenient:
 
-- [docs/domain/labor-report.md § Data sources inventory](domain/labor-report.md#data-sources-inventory-built-during-walkthrough) — 19-row final inventory with Snowflake + v1 readiness columns and roll-up.
-- [docs/domain/labor-report.md § Phase 2.2 sub-phases](domain/labor-report.md#phase-22-sub-phases-dependency-order) — 33 sub-phases in 5 tiers + dependency graph + first-sub-phase recommendation.
-- [docs/audits/phase-2-0i-close-audit.md](audits/phase-2-0i-close-audit.md) — Phase 2.0 close audit with 6 items surfaced.
+- The production `/kospos/` surface should now show only **Job Class Calculator**. If you see Load Reports / Positions / Special Class, the deploy hasn't finished yet.
+- `/kospos/?dev=1` brings them back + shows a yellow dev-mode banner with a "Disable dev mode" button.
+- `/kospos/?dev=0` (or the Disable button) returns to the production surface and clears the persisted flag.
 
-## Next session prompt — Phase 2.1 (hide budget-dev UI behind a route guard)
+**One decision pending: audit item E** — which Phase 2.2 sub-phase to start with. Recommended option: the Position spine bundle (`2.2.4` + `2.2.12` + `2.2.16`). Four alternatives documented in [labor-report.md § Recommended Phase 2.2 first sub-phase](domain/labor-report.md#phase-22-sub-phases-dependency-order). Session 24 opens with the Phase 2.1 close audit, then asks Alex to pick before starting code work.
 
-Paste this verbatim to start Session 23:
+## Next session prompt — Phase 2.1 close audit + Phase 2.2 first sub-phase pick
+
+Paste this verbatim to start Session 24:
 
 ````
-This session starts Phase 2.1 — the small focused task that hides the
-budget-dev / importer UI behind a route guard before any Phase 2.2
-sub-phase ships a real user-visible page. Phase 2.0 is fully closed
-(27 walkable tabs walked + DSI finalized + Phase 2.2 sub-phase
-enumeration final + Phase 2.0 close audit complete).
+This session opens with the Phase 2.1 close audit (per WORKFLOW.md
+§ Audit cadence), then asks Alex to pick the Phase 2.2 first
+sub-phase (audit item E from the Phase 2.0i close audit), then
+starts the picked sub-phase. Phase 2.1 is closed — `/kospos/` shows
+only Job Class Calculator; budget-dev tabs gated behind `?dev=1`
+(PR #59, merged `94b844e`).
 
 Read first, in order:
   docs/CLAUDE.md
   docs/SESSION_HANDOFF.md (this file)
-  docs/SESSION_LOG.md (Session 22 entry — Phase 2.0i closeout)
+  docs/SESSION_LOG.md (Session 23 entry — Phase 2.1 closeout)
   memory/MEMORY.md + the 9 memory files
-  docs/audits/phase-2-0i-close-audit.md — the close audit
-  docs/ROADMAP.md (re-confirm Phase 2.1 scope)
-  app/src/lib/importers/ + app/src/App.tsx (current entry points)
+  docs/audits/phase-2-0i-close-audit.md — has item E + audit cadence rule
+  docs/domain/labor-report.md § "Phase 2.2 sub-phases" — 33 sub-phases,
+    5 tiers, dependency graph, first-sub-phase recommendation with 5
+    options and trade-offs
+  docs/ROADMAP.md (re-confirm Phase 2.2 scope)
+  app/src/App.tsx + app/src/lib/dev-mode.ts (Phase 2.1 landed code)
 
 Confirm state on main:
   git log --oneline origin/main -5
 
 ==============================================================================
-TASK — Phase 2.1: route guard for budget-dev / importer UI
+STEP 1 — Phase 2.1 close audit (small)
 ==============================================================================
-Branch: feat/budget-dev-route-guard
-Scope: Hide the budget-dev / importer UI behind a route guard so the
-       production app surface is clean before Phase 2.2 sub-phases
-       start landing user-visible pages.
+Per the audit-cadence rule (every phase close → audit before any new
+work). Phase 2.1 was tiny (3 files, +165 lines net, 6 new tests).
+Expect this audit to also be tiny.
 
-  1. **Inventory the current dev-only surfaces.** Walk through
-     `app/src/` and identify everything that's currently exposed at
-     `/kospos/...` that's intended only for budget-dev use (importer
-     UI, calculator dev panel, etc.). Document the inventory in the
-     PR description.
+Write `docs/audits/phase-2-1-close-audit.md` covering:
 
-  2. **Decide the gate mechanism.** Options to present with trade-offs:
-     - **(a) URL prefix** (`/kospos/dev/...`) — clean, unbookmarkable
-       by accident, but visible in routing.
-     - **(b) Query-string flag** (`?dev=1`) — bookmarkable, dismissable.
-     - **(c) localStorage / IDB flag** + admin toggle — most robust,
-       most code to maintain.
-     - **(d) Env-var build-time gate** — strongest hide (dev surfaces
-       not in the bundle at all), but requires separate build configs.
-     Recommendation: (a) URL prefix, paired with a tiny "Dev mode"
-     banner when the prefix is active. **Confirm with Alex before
-     implementing.**
+  - Anything in the Phase 2.1 PR (#59) that warrants a workflow / docs
+    follow-up. Spot-check: dev-mode docs in ROADMAP.md Phase 2.1 say
+    "?budget=1 query escape hatch" — the actual gate uses `?dev=1`.
+    Either reconcile ROADMAP.md to match the implementation, or note
+    the discrepancy for Alex to choose. (Recommend reconciling — it's
+    a docs sync, ~5 min.)
+  - Status of the 6 items A-F from the Phase 2.0i close audit. Most
+    likely unchanged (A/B/C cleanup PRs deferred, D = defer to 2.4,
+    E pending Alex's pick this session, F = fired correctly this
+    cycle). Brief status update only.
+  - Any new drift surfaced (memory file freshness, tool sprawl, etc.).
+    Likely none — only 1 session elapsed since the last audit.
+  - Add the new audit doc to `docs/audits/README.md` index.
 
-  3. **Implement the chosen gate.** One PR, scoped to the route guard.
-     No new pages, no new importers, no other changes.
+Single-purpose docs PR: `docs(audits): Phase 2.1 close audit`.
 
-  4. **Verify visually.** Run `npm run dev`, confirm:
-     - Production `/kospos/` shows only the user-facing surface.
-     - `/kospos/dev/` (or chosen path) still exposes the budget-dev
-       UI for ongoing work.
-     - Screenshot before/after for the PR description.
+==============================================================================
+STEP 2 — Ask Alex to pick the Phase 2.2 first sub-phase
+==============================================================================
+Audit item E from the Phase 2.0i close audit is the gating decision.
+Use AskUserQuestion. The recommended option:
 
-  5. **Test pass.** `npm test` stays green.
+  **Position spine bundle** = `2.2.4` `dept-tree/` + `2.2.12` `obi-pnp/`
+  + `2.2.16` `views/positions/` shipped as one cohesive PR.
 
-  6. **Update SESSION_HANDOFF.md** with Phase 2.2.1 next-session prompt
-     (the Position spine bundle, or whichever option Alex picked from
-     audit item E).
+The 4 alternatives are documented in `docs/domain/labor-report.md`
+§ "Recommended Phase 2.2 first sub-phase". Present them with the
+trade-offs from that section.
+
+==============================================================================
+STEP 3 — Start Phase 2.2.<N> (the picked sub-phase)
+==============================================================================
+Branch + scope depend on the pick. If Position spine bundle:
+  Branch: feat/position-spine-bundle
+  Scope:
+    - Build `lib/dept-tree/` (Tier 1 foundation primitive)
+    - Build `lib/importers/obi-pnp/` (Tier 3 importer — full version,
+      not the current stub)
+    - Build `lib/views/positions/` (Tier 4 per-tab view) — promote
+      to a non-dev tab once it's ready
+    - Remove the `devOnly` flag from the Positions tab in App.tsx
+      once the spine view is the real user-facing surface
+    - Parity tests against the source workbook for the dept(s) Alex
+      confirms
+
+If a different option is picked, scope adjusts accordingly per the
+labor-report.md § first-sub-phase doc.
 
 ==============================================================================
 Hard constraints
 ==============================================================================
 
-  - Branch from main, single-purpose name.
-  - **One PR only.** No bundling the route guard with the Position
-    spine bundle even if both are small.
-  - **`npm test` stays green.**
-  - One PR; merge after CI passes; fast-forward main:
+  - Branch from main, single-purpose names.
+  - **Audit PR and sub-phase PR are separate.** Don't bundle.
+  - **`npm test` stays green** (currently 152 / 152).
+  - One PR per logical change; merge after CI passes; fast-forward main:
     `git -C "C:\Users\ALK\Desktop\Claude Projects\kospos" pull --ff-only origin main`
-  - Commit message ends with the Co-Authored-By line per CLAUDE.md.
+  - Commit messages end with the Co-Authored-By line per CLAUDE.md.
 
 ==============================================================================
 What we are NOT doing
 ==============================================================================
 
-  - **No Phase 2.2 sub-phase work this session.** Route guard is a
-    Phase 2.1 prerequisite; sub-phases land after.
+  - **No mixing the audit PR with the sub-phase PR.** Two separate PRs.
   - **No tab walkthroughs.** Phase 2.0 is closed.
-  - **No new audit.** Next audit fires at Phase 2.1 close.
   - **No ADR amendments.** Phase 2.4.
-  - **No tool / setting / hook changes** (cleanup PRs from audit
-    items A/B/C are separate single-purpose PRs that can land before
-    or after Phase 2.1).
+  - **No removing the dev gate.** Phase 2.1 is good; selective
+    promotion of individual tabs happens as the sub-phase ships
+    each one.
+  - **No tool / setting / hook changes** unless surfaced by the audit.
 
 ==============================================================================
 Session-end checklist
 ==============================================================================
 
 Before ending, update SESSION_HANDOFF.md with:
-  - Phase 2.1 status (gate landed; production surface clean).
-  - Phase 2.2.1 next-session prompt (Position spine bundle or
-    Alex-chosen alternative).
+  - Phase 2.1 close audit status + new audit doc link.
+  - Phase 2.2.<N> status (which sub-phase Alex picked + progress).
+  - Phase 2.2.<N+1> next-session prompt (or continuation of the
+    bundle if Alex picked the Position spine bundle and it took the
+    whole session).
   - Re-ask the 5 restated questions + 12 reasonable-default calls (#5-16)
     + 1 open action item (#17). DROP the 4 items Alex acknowledged
     in S21 (per [memory `feedback_dont_reremind.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_dont_reremind.md)).
+  - Carry-forward update on the 6 audit-surfaced items A-F.
 
-If the route guard reveals architectural questions that need ADR
-treatment (unlikely — it's a small focused change), elevate during
-the session rather than carrying forward.
+If a Phase 2.2 sub-phase reveals an architectural question that needs
+ADR treatment, elevate during the session rather than carrying forward
+(per CLAUDE.md non-negotiable #7).
 
-Recommended model: claude-sonnet-4-6 (small focused app-code change;
-no deep synthesis required). Fallback to claude-opus-4-7 only if the
-gate mechanism decision turns out to be architecturally significant.
-Effort: small to medium.
+Recommended model: claude-opus-4-7 — the Position spine bundle is the
+largest Phase 2 sub-phase by code volume + cross-source joins (BFM + OBI
++ PS HCM) and the audit step adds synthesis. Fallback to claude-sonnet-4-6
+if Alex picks a smaller sub-phase.
+Effort: large for Position spine bundle; medium for a smaller pick.
 ````
 
-### Recommended model (Phase 2.1)
+### Recommended model (Phase 2.2.<N>)
 
-`claude-sonnet-4-6` — focused app-code change; no synthesis required.
+`claude-opus-4-7` if Position spine bundle (large, cross-source joins,
+synthesis-heavy). `claude-sonnet-4-6` if a smaller single-source
+sub-phase like `2.2.2` `pay-period-calendar/` or `2.2.3` `bi-payroll/`.
 
-### Recommended effort (Phase 2.1)
+### Recommended effort (Phase 2.2.<N>)
 
-`small to medium` — one PR, scoped tightly.
+`large` for Position spine bundle (3 packages); `medium` for a single
+package sub-phase.
 
 ---
 
