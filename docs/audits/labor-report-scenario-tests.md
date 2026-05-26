@@ -361,10 +361,20 @@ AND Exclude != 'Y'`.
 2. **The 5 distribute 3 CPC + 2 DBI** — consistent with CPC's general
    higher-vacancy posture post-merger.
 
-**KosPos surfaces this as:** _Data Issue category_ —
-**`vacant-no-rtf`**. Yellow flag per position with options: (a) add
-RTF, (b) mark as "intentional hold" with reason, (c) consider
-de-funding (if held > 6 months without RTF).
+**KosPos surfaces this as:** Position Detail always renders a
+"Request to Fill" section for vacant positions. When the snapshot
+carries RTF columns, the populated table renders; when they're empty,
+an explanatory hint renders ("No RTF data on this position in the
+snapshot. The Controller's source doesn't always carry RTF status
+for vacancies — this is a CON data limitation, not a missing
+departmental action."). The earlier `vacant-no-rtf` Data Issue
+category was dropped in [PR #68](https://github.com/alkprojects/kospos/pull/68)
+because flagging every CON-empty row produced false positives
+indistinguishable from real departmental gaps. The "vice-history
+cross-check" insight is preserved as the `rtf-data-integrity-suspected`
+flag in [`labor-report.md § Data Issues catalog`](../domain/labor-report.md#data-issues-catalog-libquality-scope)
+(scoped to positions with a prior incumbent but no RTF on record —
+those are unambiguously a data bug, not a CON limitation).
 
 ## Scenario 6 — PEX-on-Cat-18 enumeration
 
