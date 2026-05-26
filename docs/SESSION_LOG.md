@@ -1975,3 +1975,162 @@ all carry-forwards rather than file pointers.
   before fatigue / consistency drift. Future Phase 2.0i + the
   audit work should fit comfortably in a single session at
   medium effort.
+
+---
+
+## Session 22 — Phase 2.0i: DSI final + Phase 2.2 sub-phase enumeration final + Phase 2.0 close audit (2026-05-25)
+
+**Worktree:** `pensive-visvesvaraya-8d6c9e`
+**Model:** Opus 4.7 (medium effort per S21 handoff recommendation)
+**Mode:** Auto-mode
+**PRs:** [#_TBD_] (this PR — `docs(labor-report): Phase 2.0i — DSI final + Phase 2.2 sub-phase enumeration final + Phase 2.0 close audit`)
+**Tests:** 146 / 146 passing (no app code touched)
+
+### Prompts
+
+**[~ start]** Session 22 Phase 2.0i prompt (per SESSION_HANDOFF.md PR
+#57). Three deliverables: DSI final + Phase 2.2 sub-phase enumeration
+refresh + next audit (both internal-setup refresh + walkthrough audit).
+
+### Workflow
+
+1. Read briefing docs (CLAUDE.md, SESSION_HANDOFF.md PR #57's content,
+   SESSION_LOG.md Session 21 entry, all 9 memory files incl. new TX +
+   don't-re-remind, all 4 audit files + README, WORKFLOW.md § Audit
+   cadence, labor-report.md DSI + sub-phase + tab-list sections).
+2. Branched `docs/phase-2-0i-dsi-final-and-audit` from main.
+3. **Deliverable 1 — Data Sources Inventory final.** Added two new
+   columns ("Snowflake" availability ✓/◐/✗/n/a and "v1 readiness"
+   ✅/⚙/❌/n/a). Added 1 new row (DHR MOU PDFs, separating the upstream
+   PDF source from the derived per-BU COLA schedule per the Phase 2.0i
+   prompt). Confirmed v1 mechanism + v2 plan accuracy per the
+   walkthroughs and the actual code state in `app/src/lib/importers/`
+   and `app/src/data/`. Added roll-up table (3 ✅ shipped / 5 ⚙ stub /
+   11 ❌ not built). Final DSI = 19 rows.
+4. **Deliverable 2 — Phase 2.2 sub-phase enumeration final.** Replaced
+   the flat 3-bucket structure with a 5-tier dependency-ordered
+   structure (Foundation → Reference → Importers → Per-tab views →
+   Reconciliation + projection) with stable `2.2.N` IDs (`2.2.1`
+   through `2.2.33`; Phase-1-shipped `lib/views/calculator/` excluded).
+   Added a dependency graph as a markdown table listing direct
+   prerequisites + direct unblockers per sub-phase. Picked the
+   canonical first sub-phase recommendation — **Position spine bundle**
+   (`2.2.4` `dept-tree/` + `2.2.12` `obi-pnp/` + `2.2.16` `views/positions/`
+   shipped together) — with 4 alternatives + trade-offs per Alex's
+   preference for "present the choice as a recommendation with
+   trade-offs, not a fait accompli."
+5. **Anchor migration.** The Phase 2.2 tier rename broke 12 in-doc
+   refs to `(#1-cross-cutting-infrastructure)` and `(#2-per-tab-modules)`.
+   Migrated all 12 to the stable parent section anchor
+   `(#phase-22-sub-phases-dependency-order)` — chosen for stability
+   against future tier renumbering rather than pointing into the new
+   tier headings.
+6. **Deliverable 3 — Phase 2.0 close audit.** Wrote
+   `docs/audits/phase-2-0i-close-audit.md` combining:
+   - **Part 1: Internal Claude setup audit refresh (Areas A-G)** —
+     diffed against the Session 19 baseline. Findings: ADRs 010-015
+     landed (S19 recommendation applied); settings.local.json
+     well-formed (S19 fix applied); WORKFLOW.md step 11 + audit
+     cadence rule landed (PR #55); SESSION_LOG.md at 1,977 lines
+     (just under the 2,000-line trim trigger S19 set);
+     labor-report.md at 8,518 lines (past S19's 7,500-line splitting
+     threshold but with strong rationale to defer); 3 stale worktrees
+     (S19 recommended sweeping 4; only 1 was swept and 2 new ones
+     accumulated).
+   - **Part 2: Labor-report walkthrough audit refresh** — re-ran
+     the anchor verifier (rebuilt in `.scratch/verify_anchors.py`
+     + `.scratch/verify_anchors_full.py`). **261/267 anchor refs OK**
+     across labor-report.md + every doc that references it; 6 broken
+     are all pre-existing patterns documented in the audit. Cross-tab
+     spot-checks pass. 44-flag Data Issues catalog — every category
+     sourced. DSI complete + consistent. Phase 2.2 enumeration
+     internally consistent.
+7. **`docs/audits/README.md` updated** to list the new audit doc
+   ahead of the Session 19 audit (newest-first).
+8. **Anchor verifier rebuilt.** `.scratch/verify_anchors.py` is
+   intra-file only (139 OK / 141 total in labor-report.md);
+   `.scratch/verify_anchors_full.py` is the comprehensive version
+   (indexes every `docs/**/*.md` and checks intra + cross-doc).
+   Both are gitignored. Reusable for future heading-level edits.
+9. **Updated SESSION_HANDOFF.md** with Phase 2.0i close + Phase 2.1
+   next-session prompt (route guard for budget-dev UI) + the 5
+   restated questions (4 carry-forward + 1 new TX block) + 12
+   reasonable-default calls + 1 open action item + the 6
+   audit-surfaced items A-F. Archived the Session 21 status below.
+10. **One in-audit-doc anchor false-positive surfaced + fixed.** The
+    audit doc's Area E section included an inline-backtick example
+    of the memory-file citation anti-pattern, which my verifier
+    flagged as a broken link (the doc's intra-file scope doesn't
+    contain a Tab 24 anchor). Fixed by moving the example into a
+    fenced code block.
+
+### Milestones
+
+- **Phase 2.0i delivered.** All three deliverables landed in one PR:
+  DSI final (19 rows, +2 cols, +1 row), Phase 2.2 sub-phase
+  enumeration final (33 sub-phases in 5 tiers with dependency graph
+  + first-sub-phase recommendation with 5 options), and Phase 2.0
+  close audit (combined internal-setup refresh + walkthrough audit).
+- **Phase 2.0 is fully closed.** All 27 walkable tabs walked + DSI
+  finalized + sub-phase enumeration final + audit complete. The
+  labor-report walkthrough is now a stable reference document.
+- **Anchor verifier rebuilt** as a reusable Phase 2.4 readiness check.
+  No new breaks introduced by 2.0i — confirmed by both verifiers.
+- **Audit-cadence rule (from PR #55) fires correctly.** The Phase 2.0i
+  close trigger fired this session, exactly as the Session 19 audit
+  predicted. Next audit at Phase 2.1 close.
+- **Carry-forward set filtered correctly.** Per
+  `feedback_dont_reremind.md`, dropped 4 acknowledged items; restated
+  17 items + 1 new TX block in plain English.
+
+### What changed for KosPos's understanding
+
+| Theme | Before this session | After this session |
+|---|---|---|
+| Data Sources Inventory | 13–18 rows in a 5-column table; v2-readiness implicit | 19 rows in a 7-column table; Snowflake availability + v1 readiness explicit; roll-up table; DHR MOU PDFs separated from derived COLA |
+| Phase 2.2 sub-phase enumeration | Flat list across 3 buckets; sub-phases enumerated informally | 5-tier dependency-ordered enumeration with stable `2.2.N` IDs (33 sub-phases); dependency graph; recommended first sub-phase with 5-option trade-off |
+| Phase 2.0 audit cadence | Set up in PR #55 (event-based per phase close) | First phase-close trigger fired; cadence rule works as designed |
+| labor-report.md size | 8,350 lines (post-2.0h) | 8,518 lines; deferred split until Phase 2.4 |
+| `app/src/lib/importers/` stub status | Implicit | Documented per-source in DSI v1-readiness col (obi-payroll, ps-hcm-pp, bfm-position, bfm-non-position are all stubs; everything else not built) |
+| Memory state | 9 files / ~290 lines | unchanged (no new memory files this session — no Alex prompts surfaced new corrections in this audit-focused session) |
+| Worktree count | 4 active (1 main + 3 stale post-merge + this one) | unchanged; sweep deferred to next user-driven session |
+
+### Out of scope (intentionally deferred)
+
+- The 5 restated questions + 12 reasonable-default calls + 1 open
+  action item — carried forward in handoff for Alex's response.
+- 6 audit-surfaced items A-F (worktree sweep / SESSION_LOG trim /
+  memory-citation anti-pattern migration / labor-report split
+  deferral / Phase 2.2 first-sub-phase pick / continued cadence) —
+  surfaced for Alex's decision.
+- No new walkthroughs (Phase 2.0 closed).
+- No BVA importer build (Phase 2.4).
+- No ADR amendments — the audit confirmed no new ADR-worthy
+  decisions surfaced since ADR-015.
+- No app/src/ code changes (Phase 2.0i is docs-only).
+- Tool / setting / hook changes (none warranted by this audit).
+
+### Lessons / improvements for next phase
+
+- **The "stable parent anchor for sub-phase refs" pattern works.**
+  When the Phase 2.2 tier rename broke 12 refs, pointing them at the
+  parent section's stable anchor (`#phase-22-sub-phases-dependency-order`)
+  instead of into the tier headings means future tier renumbering
+  won't re-break them. Apply this pattern when restructuring any
+  major section.
+- **Inline-backtick patterns can trip the verifier.** A code-block
+  fence (` ```text ... ``` `) is the safest way to embed an example
+  link pattern in audit docs. Inline backticks (`` ` ``) don't
+  prevent the link regex from matching. Worth noting for future
+  audit docs that quote link patterns as examples.
+- **`feedback_dont_reremind.md` filter is doing its job.** This
+  session dropped 4 acknowledged items from the handoff per the
+  memory. Restated the remaining 17 + 1 new TX block in plain English.
+  The memory-driven filter saves Alex's review time as designed.
+- **Combined audits (internal-setup + walkthrough) fit in one
+  session at medium effort.** Saved a session by not splitting into
+  two separate audit PRs.
+- **Phase 2.0i ran ~30 min faster than estimated.** The DSI + sub-phase
+  refresh + audit took roughly half a typical Phase-2.0 session
+  budget. Phase 2.1 (route guard) should comfortably fit in a fresh
+  small-effort session.

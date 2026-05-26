@@ -343,7 +343,7 @@ too. The fact that rows 2+ leave the group code blank also means
 downstream consumers can't pivot purely on `Department Group Code`
 without forward-fill logic.
 
-**KosPos design.** [`lib/reference/dept-tree/`](#1-cross-cutting-infrastructure)
+**KosPos design.** [`lib/reference/dept-tree/`](#phase-22-sub-phases-dependency-order)
 imports the full 14,240-row citywide tree once, versioned by effective
 date. Position records reference `position_department_id`; the dept-tree
 module returns the full chain (`Department Group Code → Description →
@@ -436,7 +436,7 @@ is "open the workbook, scroll to Combo, ctrl-F." Filtering by department
 + fund + authority is what the pivots are for, but they're still inside
 Excel.
 
-**KosPos design.** [`lib/reference/combo/`](#2-per-tab-modules) loads
+**KosPos design.** [`lib/reference/combo/`](#phase-22-sub-phases-dependency-order) loads
 the citywide combo dataset (full 3,697 rows, all chartfield components
 including `Project` + `Activity`); a Combo Lookup page lets users search
 by combo code → returns full chartfield string + active status + history.
@@ -568,7 +568,7 @@ tabs index into by row number, layer name (col letter), and account.
 Layer choice is inconsistent. Per-position reconciliation requires the
 reader to know which col the consuming formula picked.
 
-**KosPos design.** [`lib/importers/bfm-eturn/`](#2-per-tab-modules)
+**KosPos design.** [`lib/importers/bfm-eturn/`](#phase-22-sub-phases-dependency-order)
 loads the eturn into a typed store keyed on
 `(fiscal_year, snapshot_date, dept, position_code, layer)`. Default
 layer = Board (`AZ` for FY-this, `BL` for BY+1); earlier layers (Original /
@@ -587,7 +587,7 @@ formula edits.
 The 100-row special-class block hand-pasted into Tab 20 (rows 649–748)
 is the same BFM eturn's special-class summary rows. Importer extracts
 both per-position rows AND special-class summary rows in one pass;
-[`lib/importers/bfm-special-class/`](#2-per-tab-modules) feeds Tab 20's
+[`lib/importers/bfm-special-class/`](#phase-22-sub-phases-dependency-order) feeds Tab 20's
 SPECIAL block directly from the typed store. Eliminates the hand-paste.
 
 #### 3. Snapshot-aware mid-cycle republish handling
@@ -2392,7 +2392,7 @@ position routing). The approver list and the roster-to-position mapping
 live in two different places. Editing a roster (renaming, splitting,
 reassigning approvers) is a multi-tab manual operation.
 
-**KosPos design.** [`lib/views/roster-approvers/`](#2-per-tab-modules)
+**KosPos design.** [`lib/views/roster-approvers/`](#phase-22-sub-phases-dependency-order)
 imports the PS HCM `MTL0170` query into a typed `Roster` entity with:
 
 - `roster_code` (the GROUP_ID, normalized to plain text)
@@ -2569,7 +2569,7 @@ table, with the dual-entry-cross-check happening only when Alex runs
 this workbook tab. Mid-cycle changes (employee starts acting on PP15
 but PS HCM dual-entry was forgotten) are invisible until next refresh.
 
-**KosPos design.** [`lib/views/ee-additional-pay/`](#2-per-tab-modules)
+**KosPos design.** [`lib/views/ee-additional-pay/`](#phase-22-sub-phases-dependency-order)
 imports `MRG_HR_EE_ADDL_PAY` into a typed `AdditionalPay` entity:
 
 - `employee_id`, `position_id` (the position being acted in, NOT the
@@ -2590,7 +2590,7 @@ Issue that the importer raises immediately.
 math (SEIU 1021 Misc). Other BUs have different rules (IFPTE 21 has a
 2-step differential rather than %; MEA has range-not-step).
 
-**KosPos design.** [`lib/views/ee-additional-pay/`](#2-per-tab-modules)
+**KosPos design.** [`lib/views/ee-additional-pay/`](#phase-22-sub-phases-dependency-order)
 holds a `SupervisoryDifferentialRule` table keyed on bargaining unit,
 sourced from each MOU's relevant article (with citation). The
 `rep_to_pay_above` computation uses the manager's BU's rule. Multi-BU
@@ -2903,14 +2903,14 @@ different math (months-remaining vs hours-remaining) and different
 fields (Exempt Code vs Exempt Category Description). The user must
 mentally switch between blocks.
 
-**KosPos design.** [`lib/views/temp-limits/`](#2-per-tab-modules) is a
+**KosPos design.** [`lib/views/temp-limits/`](#phase-22-sub-phases-dependency-order) is a
 single Temp Status surface — one row per `(Position, Employee,
 appointment_type)` with the appointment-type-appropriate countdown
 (Cat 16 = % of 1,040 hours used; Cat 17/18 = months to TX expiration
 + Charter cite tooltip). Color coding uniform across cats (amber
 80% → red 100%). Filters by cat, dept, expiration window. Each row
 gets the appropriate Data Issue flag from
-[`lib/quality/`](#1-cross-cutting-infrastructure)
+[`lib/quality/`](#phase-22-sub-phases-dependency-order)
 (`cat-16-hours-cap-warning`, `cat-17-18-expiring-soon`, `cat-17-18-expired`,
 `cat-17-expiration-date-unreliable`, `cat-18-expiration-date-likely-wrong`,
 `high-cat-18-usage`).
@@ -3074,7 +3074,7 @@ flow exists because P&P Data and BI Payroll are two snapshot files;
 the workbook can't compute "in BI Payroll but not in P&P" without a
 manual cross-reference.
 
-**KosPos design.** [`lib/views/inactive/`](#2-per-tab-modules) is a
+**KosPos design.** [`lib/views/inactive/`](#phase-22-sub-phases-dependency-order) is a
 pure query against the same datastore: `positions WHERE in_bi_payroll
 AND NOT in_pnp_snapshot` (no separate importer). Report Data's
 INACTIVATED block goes away — the unified Positions list shows
@@ -5791,7 +5791,7 @@ commissioner` / `reports-to-cycle` / `reports-to-dangling-ref` /
 `reports-to-excessive-depth`). They exist in the catalog but are not
 yet computed — Tab 21 today is the manual-eyeball process.
 
-**KosPos design.** [`lib/views/reporting-tree/`](#2-per-tab-modules)
+**KosPos design.** [`lib/views/reporting-tree/`](#phase-22-sub-phases-dependency-order)
 on import runs the four categorical checks (already enumerated in
 the [Data Issues catalog](#data-issues-catalog-libquality-scope))
 and raises flags inline. The org-chart UI shows broken-chain nodes
@@ -5826,7 +5826,7 @@ the next import sync.
 **Problem.** Tab 21 is the closest thing to an org-chart Alex has
 today, but it's a flat pivot, not a visual tree.
 
-**KosPos design.** [`lib/views/reporting-tree/`](#2-per-tab-modules)
+**KosPos design.** [`lib/views/reporting-tree/`](#phase-22-sub-phases-dependency-order)
 is the Phase 2 lite org-chart preview (list-shaped, like the pivot
 today but with computed Data Issues). The full Phase 7 org chart
 (`@xyflow/react` + `dagre` per ADR-001) consumes the same data and
@@ -8135,154 +8135,322 @@ workspace.
 ## Data sources inventory (built during walkthrough)
 
 A flat list of every upstream file/query the labor report consumes. For each, capture
-the v1 mechanism (manual upload? scrape?) and the eventual v2 plan (Snowflake when
-available).
+the v1 mechanism (manual upload? scrape?), the eventual v2 plan (Snowflake when
+available), the Snowflake-availability status (where the SF data platform exposes
+the source today), and the v1-readiness status (what's actually built in
+`app/src/lib/` today). Finalized at Phase 2.0i close (Session 22) — 19 rows.
 
-| Source | Used by tab(s) | v1 mechanism | v2 plan | KosPos importer path |
-|---|---|---|---|---|
-| Controller's pay calendar (PPE dates) | Calendar | Manual rebuild of Calendar tab annually (~30 min) | Generated from published Controller calendar (JSON / scraped PDF) | `lib/calendar/` — one JSON per FY |
-| Per-BU MOU COLA schedule | Calendar (col E), implicitly Step, Report Data | Hardcoded single % in Calendar!E (DBI shortcut) | Per-bargaining-unit lookup sourced from DHR MOUs | `lib/cola/` (or part of `lib/dhr/`); also referenced by [`budget-process.md`](budget-process.md) |
-| OBI `BI Payroll` report (transactional, 39 cols, ~110k rows for DBI+CPC FYTD) | **BI Payroll** (raw stage), Calendar (`H2`), Premium / Overtime / Retirement Payout (pivots), Step + Report Data (per-PP SUMIFS), TEMP Limits (hours math), Inactive (cross-ref vs P&P), Budget Summary (`MAX(X)` for as-of PP), Operating Report Summary (rows 36–41) | Manual OBI re-run every payday Tuesday (every two weeks); **full FYTD re-pull** because prior-PP adjustments leak in retroactively | Snowflake direct query when SF data platform exposes it; preserve full-replace import model | `lib/importers/obi-payroll/` — header-driven fingerprint, full-replace per `(fiscal_year, as_of_date)` with snapshot history retained; rollup cube precomputed on import (see Tab 7 § KosPos improvements #3) |
-| OBI `P&P Data` report (position-and-personnel, 88 OBI cols, 604 rows for DBI+CPC at this snapshot) | **P&P Data** (raw stage), Report Data (XLOOKUP + pivot), Inactive (XLOOKUP), Staffing Plan (XLOOKUP), Step / Pos by Dept / Vacancies and TEMP / TEMP Limits / Reporting Tree / EE Additional Pay (pivots) | Manual OBI re-run; full snapshot replacing prior export; `Snapshot Date` recorded in col A of the data itself | Snowflake direct query when available; preserve full-replace + snapshot-history import model | `lib/importers/obi-pnp/` — header-driven fingerprint, full-replace per `(fiscal_year, snapshot_date)`, builds Position entities with three explicit dept fields (budgeted / effective / combo) and lazy hierarchy walk (see Tab 6 § KosPos improvements) |
-| Citywide `Department Classification Structure` CSV (dept tree, 14,240 rows, 64 dept groups citywide) | P&P Data importer (fixes `CH Effective Employee Division` "Update Formula" placeholder); future modules that need any dept-tree-level rollup (Division / Section / Unit / Sub-Unit) | Manually downloaded from same OBI folder as the other chartfield trees; refreshed periodically as new dept codes are added | Snowflake direct query when available | `lib/reference/dept-tree/` — versioned by effective date; Position importer joins `Position Department ID` against the active tree to derive hierarchy attributes |
-| Other chartfield trees in the same OBI folder (Account 16×6,723 / Account Budget Control 13×2,971 / Activity 9×81,905 / Agency Use 3×3,724 / Authority 9×14,307 / Department Budget Control 16×1,512 / Fund 16×1,951 / Project 13×43,012 / TRIO 3×3,677 / WBS 17×390,470) | _(future)_ — each becomes reference data when its consuming KosPos module surfaces. **Fund tree carries the `Annual/Continuing` flag** that powers the operating-fund-set derivation in [cross-cutting concerns](#multi-dept-generalization-caveats-dbi-shortcuts-to-undo). Full file inventory in [`../data-sources/reports-folder-inventory.md`](../data-sources/reports-folder-inventory.md). | Manual download from OBI; refresh periodically | Snowflake direct query | `lib/reference/<tree-name>/` — same pattern as dept tree; documented per-module as walkthroughs land |
-| BFM 5-report bundle (`15.10.001` non-position eturn 1,016×49 / `15.10.006` position eturn 1,931×64 / `15.15.002` benefit rates 54+1,621 rows / `15.15.014` job-class rates + COLA 1,314+5 rows / `15.15.016` FTE cost 1,174×13 — being retired) | All consumed during budget formulation; `15.10.006` is the primary current-year input. Concrete inventory in [`../data-sources/reports-folder-inventory.md`](../data-sources/reports-folder-inventory.md). | Manual download from BFM portal; weekly during budget season, rare otherwise | Snowflake direct query (when available) | `lib/importers/bfm-*/` — one per report ID |
-| PS HCM exports (`MRG_COMBO_CD_DEPT` 14×3,697 / `MRG_HR_EE_ADDL_PAY` 18×~thousands / `MRG_TL_TASK_PROFILE_BY_TASKGRP` 20×~hundreds / `MTL0170` roster approvers 9×866) | Tabs 3 (Combo), 9 (EE Additional Pay), 8 (Roster Approvers); Task Profiles for Phase 3 chartfields. Concrete inventory in [`../data-sources/reports-folder-inventory.md`](../data-sources/reports-folder-inventory.md). | Manual PS HCM Query Manager re-run; cadence varies | Snowflake direct query when available | `lib/importers/ps-hcm-*/` |
-| DHR Hourly Rates of Pay (`Hourly-Rates-of-Pay-by-Classification-and-Step-FY{NN}-{NN+1}.xlsx`) 29×17,116 (Steps) + 20×124 (Ranges) | Reference data for class × step rate lookups; underpins Step / RTPOM / OVERM math. Documented in [`../data-sources/dhr.md`](../data-sources/dhr.md). | DHR website download; annual after MOU ratification | Snowflake (if exposed) | `lib/reference/dhr-steps/` + `lib/reference/dhr-ranges/` |
-| OBI Payroll Detail (older variant of BI Payroll; 38×42,949 in 11.8.23 sample) | Older schema (38 cols) preserved for backward-compat testing of the BI Payroll importer. Same source as today's BI Payroll; column count grew to 39 in current snapshot. | Manual OBI re-run | Snowflake direct query | Same path as BI Payroll (`lib/importers/obi-payroll/`) with header-driven schema detection |
-| BFM 15.10.006 FY26 eturn (per-position + per-special-class summary rows; ~30 cols incl. FY26 Original / Base / Department / Mayor / Committee / Technical Adjustment / Board layers) | **Report Data** (S Total Budget SUMIFS on column `AX FY 2025-26 Technical Adjustment` — stale, should be `AZ Board`; SPECIAL block hand-paste from per-class summary rows), **Operating Report Summary** (TEMPM E40 from `AZ1195+AZ1197+AZ1199+AZ1201`), **Overtime** tab (FY26 OT budget anchor `BN6 / BN8`), Premium / Step / others as BY-anchor source | Manual download from BFM; refresh annually (Board-adopted) + periodically when Technical Adjustments hit; per-position rows + summary rows in same file | Snowflake direct query when available | `lib/importers/bfm-eturn/` — header-driven fingerprint, full-replace per `(fiscal_year, snapshot_date)`; uses Board-adopted (`AZ`) as default budget anchor with Technical-Adjustment / Department / etc. preserved for variance views; documented in [`../data-sources/bfm.md`](../data-sources/bfm.md) and ADR-004 |
-| `BVA` report (Budget vs Actuals, per PS Financials via OBI) — 68 cols × 2,710 rows for DBI+CPC FY26 sample; full schema in [`../data-sources/bva.md`](../data-sources/bva.md) | _(planned)_ **Report Data** chartfield-level reconciliation (BVA budget vs eturn = KK adjustments; BVA actuals vs BI Payroll = GL adjustments — see [Tab 20 § KosPos improvements #1–#2](#kospos-improvements-18)) | _(planned)_ Manual OBI re-pull each PP, **Wednesday-or-later after payday Tuesday** (see [§ Refresh-order timing](#refresh-order-timing--obi-1-day-lag--payroll-to-gl-gap--bva-wed-or-later)); full-replace per `(fiscal_year, snapshot_date)` | Snowflake direct query when available | `lib/importers/bva/` — header-driven fingerprint; chartfield-keyed; pre-computes reconciliation cube on import; snapshot date sourced from file mtime (filename version date is the report-definition version, NOT the data snapshot) |
-| Inactive tab `Sum of Balance Amount` (computed inside the workbook from BI Payroll's pivot cache; not a separate upstream file) | Report Data INACTIVATED block (rows 755–760) — **hand-pasted** each PP refresh into U column | Workbook-internal pivot; copy-paste-as-values into Report Data | Live query in KosPos: `positions WHERE in_bi_payroll AND NOT in_pnp_snapshot` → drives Inactive view directly | `lib/views/inactive/` — pure query, no separate import; INACTIVATED block in Report Data goes away |
-| Staffing Plan (workbook-internal; will be its own importable surface in Phase 2) | Report Data HIRING (24 rows) + SEPARATING (4 rows) — direct cell refs into `'Staffing Plan'!{col}{n}` for B/D/F/G/H/K/L/M/N/O/W | Workbook tab; Alex edits directly | KosPos Staffing Plan workspace (Tab 24 surface) — first-class data store; Report Data view joins to it | `lib/staffing-plan/` — Phase 2.2 sub-phase enumeration target |
-| Probation tracker (workbook-internal Tab 10) | Probation tab only | Hand-maintained spreadsheet (Alex's; no PS HCM source for probation at DBI today) | KosPos = system of record; surfaces inline on Position Detail | `lib/views/probation/` — typed entity with status workflow + end-date auto-computation |
-| Pending-separations tracker (workbook-internal Tab 14) | Separations tab only | Hand-maintained (rumored / pending separations; not from a system) | KosPos = typed `PendingSeparation` entity, cross-linked to Staffing Plan § Separations rows | `lib/views/separations/` — typed entity with status workflow |
-| Succession draft (workbook-internal Tab 15) | Succession tab only | Hand-maintained draft | KosPos = `SuccessionPlan` per Position (priority TBD per Alex) | `lib/views/succession/` — typed entity |
-| DHR Eligibility Lists (workbook-internal Tab 11 hand-scrape) | Eligibility Lists tab; Vacancy Planning + Job Class Detail (planned) | Hand-compiled from <https://sfdhr.org/examination-results>; 40 DBI classes | Periodic scrape of `sfdhr.org/examination-results` keyed on job class; documented in [`../data-sources/dhr.md`](../data-sources/dhr.md) | `lib/reference/dhr-eligibility/` — versioned by scrape date |
+**v1 readiness legend** (re-derived at Phase 2.0i close from
+`app/src/data/` + `app/src/lib/importers/`):
+
+- ✅ **shipped** — visible in the production app today (calculator + pre-baked JSON).
+- ⚙ **stub** — importer code lives in `app/src/lib/importers/`, vitest suite
+  green (146 tests), but UI is hidden behind the Phase 2.1 dev-route gate.
+- ❌ **not built** — no v1 code; lands as a Phase 2.2 sub-phase.
+- **n/a** — KosPos is itself the system of record; no upstream importer needed.
+
+**Snowflake column legend** (best knowledge as of 2026-05-25; tighten as the
+SF data-platform onboarding catalogue advances):
+
+- ✓ **available** — already exposed by SF data platform; query directly.
+- ◐ **planned** — likely to land in SF; v2 plan can assume direct query.
+- ✗ **not in SF** — PDF, web scrape, or local workbook source; will stay
+  manual or scrape-driven in v2.
+- **n/a** — no upstream (workbook-internal, KosPos-owned).
+
+| Source | Used by tab(s) | v1 mechanism | v2 plan | KosPos importer path | Snowflake | v1 readiness |
+|---|---|---|---|---|---|---|
+| Controller's pay calendar (PPE dates) | Calendar | Manual rebuild of Calendar tab annually (~30 min) | Generated from published Controller calendar (JSON / scraped PDF) | `lib/calendar/` — one JSON per FY | ◐ | ✅ `app/src/data/calendar-fy2026.json` (single-FY pre-bake) |
+| DHR MOU PDFs (one per bargaining unit; carry COLA schedule + step rules + premium-pay rates + work-period definitions) | Source-of-record for the per-BU MOU COLA schedule row below; also feeds future Premium / Step / per-BU work-rule modules | DHR PDF download per union; manual extraction of the relevant clauses | Indexed library of MOU PDFs keyed by `(bargaining_unit, effective_date)`; per-section parsers extract COLA / step / premium-pay tables into structured JSON | `lib/reference/dhr-mou/` — versioned by effective date; companion to `lib/cola/` (and future `lib/premium-rules/`, `lib/step-rules/`) | ✗ (PDF source) | ❌ |
+| Per-BU MOU COLA schedule (derived from DHR MOU PDFs above) | Calendar (col E), implicitly Step, Report Data | Hardcoded single % in Calendar!E (DBI shortcut) | Per-bargaining-unit lookup derived from the DHR MOU PDF library | `lib/cola/` (or part of `lib/dhr/`); also referenced by [`budget-process.md`](budget-process.md) | ✗ (derived from PDF source) | ✅ `app/src/data/cola-fy2026.json` (DBI-only pre-bake; multi-BU pending) |
+| OBI `BI Payroll` report (transactional, 39 cols, ~110k rows for DBI+CPC FYTD) | **BI Payroll** (raw stage), Calendar (`H2`), Premium / Overtime / Retirement Payout (pivots), Step + Report Data (per-PP SUMIFS), TEMP Limits (hours math), Inactive (cross-ref vs P&P), Budget Summary (`MAX(X)` for as-of PP), Operating Report Summary (rows 36–41) | Manual OBI re-run every payday Tuesday (every two weeks); **full FYTD re-pull** because prior-PP adjustments leak in retroactively | Snowflake direct query when SF data platform exposes it; preserve full-replace import model | `lib/importers/obi-payroll/` — header-driven fingerprint, full-replace per `(fiscal_year, as_of_date)` with snapshot history retained; rollup cube precomputed on import (see Tab 7 § KosPos improvements #3) | ◐ | ⚙ `app/src/lib/importers/obi-payroll.ts` (parsing stub; rollup cube + snapshot model not built) |
+| OBI `P&P Data` report (position-and-personnel, 88 OBI cols, 604 rows for DBI+CPC at this snapshot) | **P&P Data** (raw stage), Report Data (XLOOKUP + pivot), Inactive (XLOOKUP), Staffing Plan (XLOOKUP), Step / Pos by Dept / Vacancies and TEMP / TEMP Limits / Reporting Tree / EE Additional Pay (pivots) | Manual OBI re-run; full snapshot replacing prior export; `Snapshot Date` recorded in col A of the data itself | Snowflake direct query when available; preserve full-replace + snapshot-history import model | `lib/importers/obi-pnp/` — header-driven fingerprint, full-replace per `(fiscal_year, snapshot_date)`, builds Position entities with three explicit dept fields (budgeted / effective / combo) and lazy hierarchy walk (see Tab 6 § KosPos improvements) | ◐ | ⚙ `app/src/lib/importers/ps-hcm-pp.ts` (parsing stub; Position entity + dept-tree join + userNotes field not built) |
+| Citywide `Department Classification Structure` CSV (dept tree, 14,240 rows, 64 dept groups citywide) | P&P Data importer (fixes `CH Effective Employee Division` "Update Formula" placeholder); future modules that need any dept-tree-level rollup (Division / Section / Unit / Sub-Unit) | Manually downloaded from same OBI folder as the other chartfield trees; refreshed periodically as new dept codes are added | Snowflake direct query when available | `lib/reference/dept-tree/` — versioned by effective date; Position importer joins `Position Department ID` against the active tree to derive hierarchy attributes | ◐ | ❌ |
+| Other chartfield trees in the same OBI folder (Account 16×6,723 / Account Budget Control 13×2,971 / Activity 9×81,905 / Agency Use 3×3,724 / Authority 9×14,307 / Department Budget Control 16×1,512 / Fund 16×1,951 / Project 13×43,012 / TRIO 3×3,677 / WBS 17×390,470) | _(future)_ — each becomes reference data when its consuming KosPos module surfaces. **Fund tree carries the `Annual/Continuing` flag** that powers the operating-fund-set derivation in [cross-cutting concerns](#multi-dept-generalization-caveats-dbi-shortcuts-to-undo). Full file inventory in [`../data-sources/reports-folder-inventory.md`](../data-sources/reports-folder-inventory.md). | Manual download from OBI; refresh periodically | Snowflake direct query | `lib/reference/<tree-name>/` — same pattern as dept tree; documented per-module as walkthroughs land | ◐ | ❌ (Fund tree is the priority — drives operating-fund-set) |
+| BFM 5-report bundle (`15.10.001` non-position eturn 1,016×49 / `15.10.006` position eturn 1,931×64 / `15.15.002` benefit rates 54+1,621 rows / `15.15.014` job-class rates + COLA 1,314+5 rows / `15.15.016` FTE cost 1,174×13 — being retired) | All consumed during budget formulation; `15.10.006` is the primary current-year input. Concrete inventory in [`../data-sources/reports-folder-inventory.md`](../data-sources/reports-folder-inventory.md). | Manual download from BFM portal; weekly during budget season, rare otherwise | Snowflake direct query (when available) | `lib/importers/bfm-*/` — one per report ID | ◐ | ⚙ `app/src/lib/importers/bfm-non-position.ts` (15.10.001 stub); `bfm-position.ts` (15.10.006 stub) — 15.15.* not built |
+| PS HCM exports (`MRG_COMBO_CD_DEPT` 14×3,697 / `MRG_HR_EE_ADDL_PAY` 18×~thousands / `MRG_TL_TASK_PROFILE_BY_TASKGRP` 20×~hundreds / `MTL0170` roster approvers 9×866) | Tabs 3 (Combo), 9 (EE Additional Pay), 8 (Roster Approvers); Task Profiles for Phase 3 chartfields. Concrete inventory in [`../data-sources/reports-folder-inventory.md`](../data-sources/reports-folder-inventory.md). | Manual PS HCM Query Manager re-run; cadence varies | Snowflake direct query when available | `lib/importers/ps-hcm-*/` | ◐ | ❌ |
+| DHR Hourly Rates of Pay (`Hourly-Rates-of-Pay-by-Classification-and-Step-FY{NN}-{NN+1}.xlsx`) 29×17,116 (Steps) + 20×124 (Ranges) | Reference data for class × step rate lookups; underpins Step / RTPOM / OVERM math. Documented in [`../data-sources/dhr.md`](../data-sources/dhr.md). | DHR website download; annual after MOU ratification | Snowflake (if exposed) | `lib/reference/dhr-steps/` + `lib/reference/dhr-ranges/` | ✗ (DHR website download) | ✅ `app/src/data/dhr-steps.json` + `app/src/data/dhr-ranges.json` (single-FY pre-bake; multi-FY versioning pending) |
+| OBI Payroll Detail (older variant of BI Payroll; 38×42,949 in 11.8.23 sample) | Older schema (38 cols) preserved for backward-compat testing of the BI Payroll importer. Same source as today's BI Payroll; column count grew to 39 in current snapshot. | Manual OBI re-run | Snowflake direct query | Same path as BI Payroll (`lib/importers/obi-payroll/`) with header-driven schema detection | ◐ | ⚙ (covered by `obi-payroll.ts` header-driven schema detection) |
+| BFM 15.10.006 FY26 eturn (per-position + per-special-class summary rows; ~30 cols incl. FY26 Original / Base / Department / Mayor / Committee / Technical Adjustment / Board layers) | **Report Data** (S Total Budget SUMIFS on column `AX FY 2025-26 Technical Adjustment` — stale, should be `AZ Board`; SPECIAL block hand-paste from per-class summary rows), **Operating Report Summary** (TEMPM E40 from `AZ1195+AZ1197+AZ1199+AZ1201`), **Overtime** tab (FY26 OT budget anchor `BN6 / BN8`), Premium / Step / others as BY-anchor source | Manual download from BFM; refresh annually (Board-adopted) + periodically when Technical Adjustments hit; per-position rows + summary rows in same file | Snowflake direct query when available | `lib/importers/bfm-eturn/` — header-driven fingerprint, full-replace per `(fiscal_year, snapshot_date)`; uses Board-adopted (`AZ`) as default budget anchor with Technical-Adjustment / Department / etc. preserved for variance views; documented in [`../data-sources/bfm.md`](../data-sources/bfm.md) and ADR-004 | ◐ | ⚙ `app/src/lib/importers/bfm-position.ts` (per-position rows stub; special-class summary block not split out) |
+| `BVA` report (Budget vs Actuals, per PS Financials via OBI) — 68 cols × 2,710 rows for DBI+CPC FY26 sample; full schema in [`../data-sources/bva.md`](../data-sources/bva.md) | _(planned)_ **Report Data** chartfield-level reconciliation (BVA budget vs eturn = KK adjustments; BVA actuals vs BI Payroll = GL adjustments — see [Tab 20 § KosPos improvements #1–#2](#kospos-improvements-18)) | _(planned)_ Manual OBI re-pull each PP, **Wednesday-or-later after payday Tuesday** (see [§ Refresh-order timing](#refresh-order-timing--obi-1-day-lag--payroll-to-gl-gap--bva-wed-or-later)); full-replace per `(fiscal_year, snapshot_date)` | Snowflake direct query when available | `lib/importers/bva/` — header-driven fingerprint; chartfield-keyed; pre-computes reconciliation cube on import; snapshot date sourced from file mtime (filename version date is the report-definition version, NOT the data snapshot) | ◐ | ❌ |
+| Inactive tab `Sum of Balance Amount` (computed inside the workbook from BI Payroll's pivot cache; not a separate upstream file) | Report Data INACTIVATED block (rows 755–760) — **hand-pasted** each PP refresh into U column | Workbook-internal pivot; copy-paste-as-values into Report Data | Live query in KosPos: `positions WHERE in_bi_payroll AND NOT in_pnp_snapshot` → drives Inactive view directly | `lib/views/inactive/` — pure query, no separate import; INACTIVATED block in Report Data goes away | n/a | ❌ (depends on `obi-payroll` + `obi-pnp`) |
+| Staffing Plan (workbook-internal; will be its own importable surface in Phase 2) | Report Data HIRING (24 rows) + SEPARATING (4 rows) — direct cell refs into `'Staffing Plan'!{col}{n}` for B/D/F/G/H/K/L/M/N/O/W | Workbook tab; Alex edits directly | KosPos Staffing Plan workspace (Tab 24 surface) — first-class data store; Report Data view joins to it | `lib/staffing-plan/` — Phase 2.2 sub-phase enumeration target | n/a (KosPos = system of record) | ❌ |
+| Probation tracker (workbook-internal Tab 10 — no PS HCM source for probation at DBI today) | Probation tab only | Hand-maintained spreadsheet (Alex's; PS HCM does not expose probation status for DBI's use case, so the workbook tab IS the source today) | KosPos = system of record (no upstream feed expected); surfaces inline on Position Detail. If PS HCM ever exposes probation, becomes a one-time backfill + ongoing reconciliation, not a continuous import. | `lib/views/probation/` — typed entity with status workflow + end-date auto-computation | n/a (KosPos = system of record; **no PS HCM source exists**) | ❌ |
+| Pending-separations tracker (workbook-internal Tab 14) | Separations tab only | Hand-maintained (rumored / pending separations; not from a system) | KosPos = typed `PendingSeparation` entity, cross-linked to Staffing Plan § Separations rows | `lib/views/separations/` — typed entity with status workflow | n/a (KosPos = system of record) | ❌ |
+| Succession draft (workbook-internal Tab 15) | Succession tab only | Hand-maintained draft | KosPos = `SuccessionPlan` per Position (priority TBD per Alex) | `lib/views/succession/` — typed entity | n/a (KosPos = system of record) | ❌ |
+| DHR Eligibility Lists (workbook-internal Tab 11 hand-scrape) | Eligibility Lists tab; Vacancy Planning + Job Class Detail (planned) | Hand-compiled from <https://sfdhr.org/examination-results>; 40 DBI classes | Periodic scrape of `sfdhr.org/examination-results` keyed on job class; documented in [`../data-sources/dhr.md`](../data-sources/dhr.md) | `lib/reference/dhr-eligibility/` — versioned by scrape date | ✗ (DHR public web; not in SF) | ❌ |
+
+**Sources rolled up by readiness (Phase 2.0i close):**
+
+| v1 readiness | Count | Sources |
+|---|---|---|
+| ✅ shipped | 3 | Controller's pay calendar; Per-BU MOU COLA schedule (DBI-only); DHR Hourly Rates of Pay |
+| ⚙ stub (covered by importer suite) | 5 | OBI BI Payroll; OBI P&P Data; OBI Payroll Detail (legacy schema, same path); BFM 5-report bundle (15.10.001 + 15.10.006 only); BFM 15.10.006 FY26 eturn (per-position rows) |
+| ❌ not built | 11 | DHR MOU PDFs; Dept Classification Structure CSV; Other chartfield trees (Fund priority); PS HCM exports; BVA; Inactive Sum of Balance (derived); Staffing Plan; Probation tracker; Pending-separations; Succession draft; DHR Eligibility Lists |
+
+**Snowflake exposure pattern:** the OBI-fed sources (BI Payroll, P&P Data,
+chartfield trees, BFM, BVA, PS HCM) all land at ◐ — likely SF exposure
+when the data-platform catalogue advances, currently manual OBI re-pulls.
+The DHR-website sources (MOU PDFs, Hourly Rates, Eligibility Lists) sit
+at ✗ — DHR doesn't push to SF, so v2 stays at scrape / PDF-parse.
+Workbook-internal trackers (Probation / Separations / Succession /
+Staffing Plan / Inactive) are n/a — KosPos becomes the system of record.
 
 ## Phase 2.2 sub-phases (dependency order)
 
-_(Built incrementally during the walkthrough. Re-enumerated at Phase 2.0i
-close. Each sub-phase ships as one PR with its own importer + view + tests;
-sub-phases depend on each other in the order listed here.)_
+_(Built incrementally during the walkthrough. Final enumeration at Phase
+2.0i close — Session 22, 2026-05-25. Each sub-phase ships as one PR with
+its own importer + view + tests; sub-phases depend on each other in the
+order listed here. Sub-phase IDs `2.2.N` are stable referenceable handles.)_
 
-The sub-phases divide into three buckets:
+The sub-phases divide into **five tiers** in dependency order:
 
-1. **Cross-cutting infrastructure** — affects multiple per-tab modules;
-   ship first.
-2. **Per-tab modules** — one sub-phase per importable / view-bearing
-   labor-report tab.
-3. **Reconciliation & projection** — built on top of the per-tab modules.
+1. **Tier 1 — Foundation primitives** (no upstream sub-phase deps).
+2. **Tier 2 — Reference data** (depends on Tier 1).
+3. **Tier 3 — Importers** (depends on Tier 1 + 2).
+4. **Tier 4 — Per-tab views** (depends on Tier 3; the user-visible surfaces).
+5. **Tier 5 — Reconciliation & cross-cutting projection** (sits on top of Tier 4).
 
-### 1. Cross-cutting infrastructure
+**Total: 31 sub-phases** (Phase-1-shipped `lib/views/calculator/` excluded).
+[Sub-phase status legend](#data-sources-inventory-built-during-walkthrough)
+is the v1-readiness column from the Data Sources Inventory above:
+✅ shipped · ⚙ stub built · ❌ not built.
 
-- **`lib/calendar/`** — pay-period calendar + COLA-aware projection
-  primitives (per
-  [`feedback_projections_always_cola_aware.md` memory](#tab-24--staffing-plan)).
-  Pulls from Controller's published pay calendar JSON.
-- **`lib/cola/`** (or part of `lib/dhr/`) — per-bargaining-unit COLA
-  schedule. Replaces Calendar tab's DBI-only single-COLA shortcut.
-- **`lib/reference/dept-tree/`** — citywide `Department Classification
-  Structure` lookup. Eliminates the DBI-only `CH Effective Employee
-  Division` "Update Formula" placeholder.
-- **`lib/reference/fund/`** — fund tree with the `Annual/Continuing`
-  flag. Drives the operating-fund-set derivation (replaces hardcoded
-  `Fund 10190 / 10000` filters).
-- **`lib/quality/`** — Data Issues catalog + per-flag detection logic.
-  Surfaces in every per-tab UI. Categories enumerated below. **Includes
-  the per-position free-text `userNotes` field** (per
-  [`feedback_user_notes_per_position.md` memory](#tab-24--staffing-plan))
-  — every Data Issue surface should pair the flag with an inline "add
-  note" affordance so users can document the human context the data
-  alone can't capture (e.g., "Cat 18 set up for 5-year IS project
-  despite 3-year max per DHR override letter" or "Cat 17 covering
-  [name] who is expected back PP20").
-- **`lib/changes/`** — change-mode primitive (per
-  [ADR-003](../DECISIONS.md)). Every edit anywhere is a proposed
-  change with audit log.
+### Tier 1 — Foundation primitives
 
-### 2. Per-tab modules
+- **`2.2.1` `lib/calendar/`** — pay-period calendar + COLA-aware
+  projection primitives (per [memory
+  `feedback_projections_always_cola_aware.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_projections_always_cola_aware.md)).
+  Pulls from Controller's published pay calendar JSON. **Status:** ✅
+  pre-baked JSON (Phase 1); this sub-phase lifts it to a per-FY
+  versioned reference module with effective-date lookup.
+- **`2.2.2` `lib/quality/`** — Data Issues catalog primitive (44 flags
+  enumerated below) + per-flag detection logic registry + per-position
+  free-text `userNotes` field (per [memory `feedback_user_notes_per_position.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_user_notes_per_position.md)).
+  Surfaces in every per-tab view. **Flag detectors land incrementally
+  with each per-tab view sub-phase**, but the primitive (catalog
+  registry, severity model, userNotes affordance) ships here.
+  **Status:** ⚙ stub (`app/src/lib/quality/`).
+- **`2.2.3` `lib/changes/`** — Change Mode primitive (per
+  [ADR-003](../DECISIONS.md)). Every edit anywhere is a typed proposed
+  change with author / reviewer / status / audit log.
+  **Status:** ⚙ stub (`app/src/lib/changes/`).
 
-Each sub-phase ships as one PR with importer + model + view + tests.
-Tab dependencies noted in parentheses.
+### Tier 2 — Reference data
 
-- **`lib/importers/obi-payroll/`** — Tab 7 BI Payroll (depends on
-  Calendar). Foundation for every per-PP projection.
-- **`lib/importers/obi-pnp/`** — Tab 6 P&P Data (depends on
-  Calendar, dept-tree). Builds Position entities with userNotes
-  field.
-- **`lib/importers/bfm-eturn/`** — Tab 4 BFM 15.10.006 (BY-anchor).
-  Defaults to Board-adopted (`AZ`); preserves earlier-layer columns
-  (Technical Adjustment / Department / etc.) for variance views.
-- **`lib/importers/bfm-special-class/`** — Tab 4 BFM special-class
-  summary rows (the 100-row block hand-pasted into Report Data S649–748).
-- **`lib/importers/bva/`** — BVA report (chartfield-grain
+- **`2.2.4` `lib/reference/dept-tree/`** — citywide `Department
+  Classification Structure` lookup, versioned by effective date.
+  Eliminates the DBI-only `CH Effective Employee Division` "Update
+  Formula" placeholder. **Status:** ❌. **Direct blocker on:** `2.2.10`
+  `obi-pnp/`, `2.2.14` `views/positions/`, `2.2.18` `views/reporting-tree/`.
+- **`2.2.5` `lib/reference/fund/`** — fund tree with the
+  `Annual/Continuing` flag. Drives the operating-fund-set derivation
+  (replaces hardcoded `Fund 10190 / 10000` DBI shortcuts).
+  **Status:** ❌. **Direct blocker on:** every fund-filter consumer
+  (4+ rows in cross-cutting concerns at once).
+- **`2.2.6` `lib/reference/dhr-mou/`** — MOU PDF library keyed by
+  `(bargaining_unit, effective_date)`. Per-section parsers extract
+  COLA, step, premium-pay tables into structured JSON. **Status:** ❌.
+  **Direct blocker on:** `2.2.7` `lib/cola/` (multi-BU), future
+  premium-rule / step-rule modules.
+- **`2.2.7` `lib/cola/`** — per-bargaining-unit COLA schedule.
+  Replaces Calendar tab's DBI-only single-COLA shortcut. **Status:**
+  ✅ pre-baked DBI-only JSON (Phase 1); this sub-phase expands to all
+  BUs via `dhr-mou`.
+- **`2.2.8` `lib/reference/dhr-steps/`** + **`lib/reference/dhr-ranges/`**
+  — multi-FY versioning + scrape automation for the DHR Hourly Rates of
+  Pay file. **Status:** ✅ single-FY pre-bake (Phase 1).
+- **`2.2.9` `lib/reference/combo/`** — chartfield-string aliases
+  (Tab 3 Combo). Full citywide combo dataset incl. Project + Activity;
+  supports Combo Lookup page + autocomplete on Acting / Additional
+  Pay forms. **Status:** ❌.
+- **`2.2.10` `lib/reference/dhr-eligibility/`** — Tab 11 source;
+  periodic scrape of `sfdhr.org/examination-results` keyed on job
+  class; versioned by scrape date. **Status:** ❌.
+
+### Tier 3 — Importers
+
+- **`2.2.11` `lib/importers/obi-payroll/`** — Tab 7 BI Payroll.
+  Foundation for every per-PP projection. Adds rollup cube + snapshot
+  history model to the existing stub. **Status:** ⚙ stub
+  (`app/src/lib/importers/obi-payroll.ts`). **Depends on:** `2.2.1`.
+- **`2.2.12` `lib/importers/obi-pnp/`** — Tab 6 P&P Data. Builds
+  Position entities with three explicit dept fields (budgeted /
+  effective / combo) + lazy hierarchy walk + userNotes field.
+  **Status:** ⚙ stub (`app/src/lib/importers/ps-hcm-pp.ts`). **Depends
+  on:** `2.2.1`, `2.2.2`, `2.2.4`.
+- **`2.2.13` `lib/importers/bfm-eturn/`** — Tab 4 BFM 15.10.006
+  (per-position rows). Defaults to Board-adopted (`AZ`); preserves
+  earlier-layer columns for variance views. **Status:** ⚙ stub
+  (`app/src/lib/importers/bfm-position.ts`). **Depends on:** (loose)
+  chartfield trees for KK reconciliation.
+- **`2.2.14` `lib/importers/bfm-special-class/`** — Tab 4 BFM
+  special-class summary rows (the 100-row block hand-pasted into
+  Report Data S649–748). **Status:** ❌. **Depends on:** `2.2.13`.
+- **`2.2.15` `lib/importers/bva/`** — BVA report (chartfield-grain
   reconciliation source). See
-  [`../data-sources/bva.md`](../data-sources/bva.md).
-- **`lib/views/calculator/`** — Tab 5 Calendar (reactive
-  constants); already shipped Phase 1.
-- **`lib/views/positions/`** — Tab 6 P&P Data surface (Position
-  Detail + list + Vacancy Planning).
-- **`lib/views/labor/`** — Tab 7 BI Payroll drill-down view.
-- **`lib/views/inactive/`** — Tab 13 Inactive — pure query, no
-  separate importer (per Data Sources Inventory row).
-- **`lib/views/vacancies/`** — Tab 23 Vacancies and TEMP (filtered
-  position list with cross-check against Staffing Plan).
-- **`lib/staffing-plan/`** — Tab 24 Staffing Plan workspace —
-  the primary forward-looking surface. PlannedAction model,
-  status workflow, cost calculator integration. **(Depends on
-  positions, BFM eturn for BY+1, BI Payroll for actuals reconciliation.)**
-- **`lib/views/budget-summary/`** — Tab 25 Budget Summary —
+  [`../data-sources/bva.md`](../data-sources/bva.md). **Status:** ❌.
+  **Depends on:** `2.2.5` (fund tree for chartfield resolution).
+
+### Tier 4 — Per-tab views
+
+(In rough dependency order — Position-spine views first, then
+non-position-spine views.)
+
+- **`2.2.16` `lib/views/positions/`** — Tab 6 P&P Data surface
+  (Position Detail + list + Vacancy Planning). **The spine.** Every
+  Tier-4 view in the rest of this tier joins through Position.
+  **Depends on:** `2.2.2`, `2.2.3`, `2.2.4`, `2.2.12`.
+- **`2.2.17` `lib/views/labor/`** — Tab 7 BI Payroll drill-down view.
+  **Depends on:** `2.2.11`, `2.2.16`.
+- **`2.2.18` `lib/views/reporting-tree/`** — Tab 21 Reporting Tree
+  (org-chart preview + data-quality flags + change-proposal cols → KosPos
+  Change Mode precursor). Feeds Phase 7 org chart. **Depends on:**
+  `2.2.3`, `2.2.4`, `2.2.16`.
+- **`2.2.19` `lib/views/temp-limits/`** — Tab 12 TEMP Limits (Cat
+  16/17/18 expiry tracker). **Also models TX (Temporary Exchange)**
+  as a typed entity per [memory `temporary_exchange_tx.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/temporary_exchange_tx.md)
+  and [Tab 12 § KosPos improvement #2](#kospos-improvements-10).
+  **Depends on:** `2.2.2`, `2.2.3`, `2.2.16`.
+- **`2.2.20` `lib/views/inactive/`** — Tab 13 Inactive — pure query,
+  no separate importer (per [DSI](#data-sources-inventory-built-during-walkthrough) row).
+  **Depends on:** `2.2.11`, `2.2.12`.
+- **`2.2.21` `lib/staffing-plan/`** — Tab 24 Staffing Plan workspace —
+  the primary forward-looking surface. PlannedAction model with TX
+  cases (per Marco Jacobo worked example), status workflow, cost
+  calculator integration, multi-action-per-position pattern.
+  Architecturally the most significant Tier-4 sub-phase. **Depends
+  on:** `2.2.2`, `2.2.3`, `2.2.13`, `2.2.16`.
+- **`2.2.22` `lib/views/vacancies/`** — Tab 23 Vacancies and TEMP
+  (filtered position list with cross-check against Staffing Plan).
+  **Depends on:** `2.2.16`, `2.2.21`.
+- **`2.2.23` `lib/views/ops/`** — Tabs 26 + 27 Operating Report
+  Summary + Detail — the headline projection page. **Depends on:**
+  `2.2.11`, `2.2.13`, `2.2.16`.
+- **`2.2.24` `lib/views/budget-summary/`** — Tab 25 Budget Summary —
   thin BY+1 cost ladder view consuming Staffing Plan totals + OPS
-  Summary pivot.
-- **`lib/views/ops/`** — Tabs 26 + 27 Operating Report Summary + Detail —
-  the headline projection page.
-- **`lib/views/reporting-tree/`** — Tab 21 Reporting Tree — feeds
-  Phase 7 org chart.
-- **`lib/views/temp-limits/`** — Tab 12 TEMP Limits — Cat 16/17/18
-  expiry tracker (depends on lib/quality). **Also models TX
-  (Temporary Exchange)** as a typed entity per [Tab 12 § KosPos
-  improvement #2](#kospos-improvements-10).
-- **`lib/views/eligibility/`** — Tab 11 Eligibility Lists — DHR scrape
-  + lookup.
-- **`lib/reference/dhr-eligibility/`** — Tab 11 source — periodic
-  scrape of `sfdhr.org/examination-results` keyed on job class;
-  versioned by scrape date.
-- **`lib/reference/combo/`** — Tab 3 Combo — chartfield-string aliases
-  reference (full citywide combo dataset, all chartfield components
-  incl. Project + Activity); supports Combo Lookup page + autocomplete
-  on Acting / Additional Pay forms.
-- **`lib/views/roster-approvers/`** — Tab 8 Roster Approvers — typed
-  `Roster` entity (replaces text-coerced PS HCM strings); roster Data
-  Issues (`roster-no-approver`, `roster-approver-inactive`,
-  `roster-orphan`, `position-no-roster`).
-- **`lib/views/ee-additional-pay/`** — Tab 9 EE Additional Pay —
-  acting / supervisory pay tracker. Importer runs the dual-entry check
-  on every import + per-BU `SupervisoryDifferentialRule` table for
-  the supervisory-owed computation.
-- **`lib/views/probation/`** — Tab 10 Probation — typed entity with
-  status workflow (Open → Approaching → Extended → Cleared / Failed /
-  Resigned); end-date auto-computation; "approaching end" Data Issue.
-  System of record going forward.
-- **`lib/views/separations/`** — Tab 14 Separations — typed
+  Summary pivot. **Depends on:** `2.2.21`, `2.2.23`.
+- **`2.2.25` `lib/views/probation/`** — Tab 10 Probation — typed
+  entity with status workflow (Open → Approaching → Extended →
+  Cleared / Failed / Resigned); end-date auto-computation; system of
+  record going forward (no PS HCM source for DBI). **Depends on:**
+  `2.2.2`, `2.2.16`.
+- **`2.2.26` `lib/views/separations/`** — Tab 14 Separations — typed
   `PendingSeparation` entity (status: `rumored` / `confirmed` /
-  `paperwork-filed` / `cleared`); cross-link to Staffing Plan §
-  Separations rows.
-- **`lib/views/succession/`** — Tab 15 Succession — `SuccessionPlan`
-  per Position; surfaces on Position Detail for leadership / strategic
-  class set; review-cadence prompt. (Priority TBD.)
+  `paperwork-filed` / `cleared`); cross-link to Staffing Plan
+  Separations rows. **Depends on:** `2.2.16`, `2.2.21`.
+- **`2.2.27` `lib/views/succession/`** — Tab 15 Succession —
+  `SuccessionPlan` per Position; surfaces on Position Detail for
+  leadership / strategic class set; review-cadence prompt. **(Priority
+  TBD with Alex.)** **Depends on:** `2.2.16`.
+- **`2.2.28` `lib/views/eligibility/`** — Tab 11 Eligibility Lists —
+  DHR scrape + lookup. **Depends on:** `2.2.10`, `2.2.16`.
+- **`2.2.29` `lib/views/roster-approvers/`** — Tab 8 Roster Approvers —
+  typed `Roster` entity (replaces text-coerced PS HCM strings); 4
+  roster Data Issues. **Depends on:** `2.2.16`, future PS HCM
+  `MTL0170` importer.
+- **`2.2.30` `lib/views/ee-additional-pay/`** — Tab 9 EE Additional
+  Pay — acting / supervisory pay tracker. Importer runs the
+  dual-entry check on every import + per-BU
+  `SupervisoryDifferentialRule` table for the supervisory-owed
+  computation. **Depends on:** `2.2.6` (DHR MOU PDFs for per-BU
+  rules), `2.2.16`, future PS HCM `MRG_HR_EE_ADDL_PAY` importer.
 
-### 3. Reconciliation & projection
+### Tier 5 — Reconciliation & cross-cutting projection
 
-- **`lib/reconciliation/bva/`** — BVA-driven chartfield reconciliation
-  (KK + GL). Consumes BVA + BI Payroll + BFM eturn. Lives in the
-  Report Data surface.
-- **`lib/projections/`** — COLA-aware projection engine. Unified entry
-  point that every per-tab projection uses (PREMM / OVERM / RTPOM /
-  STEPM / 9994 / TEMPM / regular labor). Per
-  [`feedback_projections_always_cola_aware.md` memory](#tab-24--staffing-plan).
-- **`lib/snapshots/`** — snapshot history + diff primitive (powers
-  Tab 27 OPS Detail's per-row Δ chips, Staffing Plan diff,
-  Budget Summary trend).
+- **`2.2.31` `lib/reconciliation/bva/`** — BVA-driven chartfield
+  reconciliation (KK + GL). Consumes BVA + BI Payroll + BFM eturn.
+  Lives in the Report Data surface. **Depends on:** `2.2.11`,
+  `2.2.13`, `2.2.15`.
+- **`2.2.32` `lib/projections/`** — COLA-aware projection engine.
+  Unified entry point that every per-tab projection uses (PREMM /
+  OVERM / RTPOM / STEPM / 9994 / TEMPM / regular labor) per
+  [memory `feedback_projections_always_cola_aware.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_projections_always_cola_aware.md).
+  **Depends on:** `2.2.1`, `2.2.7`, plus the per-tab projection
+  math modules.
+- **`2.2.33` `lib/snapshots/`** — snapshot history + diff primitive
+  (powers Tab 27 OPS Detail's per-row Δ chips, Staffing Plan diff,
+  Budget Summary trend). **Depends on:** every importer (`2.2.11–15`).
+
+### Dependency graph (direct prerequisites only)
+
+Read top-down — a sub-phase is unblocked when every prereq has shipped.
+Transitive deps not shown; use the per-sub-phase lists above.
+
+| Sub-phase | Direct prerequisites | Direct unblocks |
+|---|---|---|
+| `2.2.1` `calendar/` | — | `2.2.7`, `2.2.11`, `2.2.12`, `2.2.32` |
+| `2.2.2` `quality/` | — | every Tier-4 view |
+| `2.2.3` `changes/` | — | every edit-bearing Tier-4 view |
+| `2.2.4` `reference/dept-tree/` | — | `2.2.12`, `2.2.16`, `2.2.18` |
+| `2.2.5` `reference/fund/` | — | `2.2.15`, fund-filter consumers |
+| `2.2.6` `reference/dhr-mou/` | — | `2.2.7`, `2.2.30` |
+| `2.2.7` `cola/` (multi-BU) | `2.2.6` | `2.2.32` |
+| `2.2.8` `reference/dhr-steps/` (multi-FY) | — | (calculator scope expansion) |
+| `2.2.9` `reference/combo/` | — | chartfield-resolve, Combo Lookup page |
+| `2.2.10` `reference/dhr-eligibility/` | — | `2.2.28` |
+| `2.2.11` `importers/obi-payroll/` (full) | `2.2.1` | `2.2.17`, `2.2.20`, `2.2.23`, `2.2.31`, `2.2.33` |
+| `2.2.12` `importers/obi-pnp/` (full) | `2.2.1`, `2.2.2`, `2.2.4` | `2.2.16`, `2.2.20`, `2.2.33` |
+| `2.2.13` `importers/bfm-eturn/` (full) | (loose) `2.2.5` | `2.2.14`, `2.2.21`, `2.2.23`, `2.2.31`, `2.2.33` |
+| `2.2.14` `importers/bfm-special-class/` | `2.2.13` | `2.2.23` (special-class block) |
+| `2.2.15` `importers/bva/` | `2.2.5` | `2.2.31`, `2.2.33` |
+| `2.2.16` `views/positions/` | `2.2.2`, `2.2.3`, `2.2.4`, `2.2.12` | every position-using Tier-4 view (`2.2.17`–`2.2.30` minus pure-query rows) |
+| `2.2.17` `views/labor/` | `2.2.11`, `2.2.16` | — |
+| `2.2.18` `views/reporting-tree/` | `2.2.3`, `2.2.4`, `2.2.16` | Phase 7 org chart |
+| `2.2.19` `views/temp-limits/` | `2.2.2`, `2.2.3`, `2.2.16` | — |
+| `2.2.20` `views/inactive/` | `2.2.11`, `2.2.12` | — |
+| `2.2.21` `staffing-plan/` | `2.2.2`, `2.2.3`, `2.2.13`, `2.2.16` | `2.2.22`, `2.2.24`, `2.2.26` |
+| `2.2.22` `views/vacancies/` | `2.2.16`, `2.2.21` | — |
+| `2.2.23` `views/ops/` | `2.2.11`, `2.2.13`, `2.2.16` | `2.2.24`, `2.2.33` |
+| `2.2.24` `views/budget-summary/` | `2.2.21`, `2.2.23` | — |
+| `2.2.25` `views/probation/` | `2.2.2`, `2.2.16` | — |
+| `2.2.26` `views/separations/` | `2.2.16`, `2.2.21` | — |
+| `2.2.27` `views/succession/` | `2.2.16` | — |
+| `2.2.28` `views/eligibility/` | `2.2.10`, `2.2.16` | (future eligibility×vacancy cross-check) |
+| `2.2.29` `views/roster-approvers/` | `2.2.16`, future `ps-hcm/MTL0170` importer | — |
+| `2.2.30` `views/ee-additional-pay/` | `2.2.6`, `2.2.16`, future `ps-hcm/MRG_HR_EE_ADDL_PAY` importer | — |
+| `2.2.31` `reconciliation/bva/` | `2.2.11`, `2.2.13`, `2.2.15` | — |
+| `2.2.32` `projections/` | `2.2.1`, `2.2.7` + per-tab math | — |
+| `2.2.33` `snapshots/` | `2.2.11`–`2.2.15` | OPS Δ chips, Staffing Plan diff |
+
+### Recommended Phase 2.2 first sub-phase (Phase 2.0i recommendation)
+
+The first new sub-phase is the **foundation that unblocks the most
+downstream work**. The cleanest choice is the **Position spine bundle**
+— `2.2.4` `dept-tree/` + `2.2.12` `obi-pnp/` + `2.2.16` `views/positions/`
+shipped together as one cohesive PR (Phase 2.2.a). Rationale:
+
+- Position is the spine of every other view. Until `views/positions/`
+  exists, no other Tier-4 sub-phase can show real data.
+- `dept-tree` is tiny (CSV → typed reference module + effective-date
+  version).
+- `obi-pnp` stub already exists (`app/src/lib/importers/ps-hcm-pp.ts`);
+  the work is wiring it to the dept-tree join + Position entity
+  schema + userNotes field.
+- A small Position list view at the end of this sub-phase yields the
+  first user-visible production page since Phase 1.
+
+**Trade-offs vs alternatives:**
+
+| Option | Pros | Cons |
+|---|---|---|
+| **A. Position spine bundle** (`2.2.4` + `2.2.12` + `2.2.16`) — **recommended** | First user-visible page; unblocks the most downstream work; small individual pieces but cohesive end-to-end deliverable | Bundles 3 sub-phases into one PR (mild violation of "one change per branch" — but justified because they share an end-user surface and no individual piece is testable on its own) |
+| **B. `2.2.11` `obi-payroll/` full** (rollup cube + snapshot history) | Unblocks `views/labor/`, `views/ops/`, `reconciliation/bva/`; no dependency on dept-tree | Less immediately user-visible than positions; needs `views/positions/` later anyway for any joined view |
+| **C. `2.2.7` `cola/` multi-BU** | Removes a DBI shortcut; aligns with COLA-everywhere principle ([ADR-010](../DECISIONS.md)) | Requires `dhr-mou/` library upstream OR another hand-maintained per-BU JSON; doesn't unblock a user-visible view directly |
+| **D. `2.2.2` `quality/` catalog primitive** | Cross-cutting infrastructure every view will consume | No flag detectors land until per-tab views exist; the primitive alone has no user-visible effect |
+| **E. Strict one-PR-per-sub-phase** (ship `2.2.4` → `2.2.12` → `2.2.16` separately) | Clean PR-per-change hygiene; each piece testable in isolation | 3 PRs with no user-visible deliverable until the third; risk of intermediate-state stale code |
+
+**My pick: A.** It's the smallest cohesive bundle that ends in a
+user-visible production page. **Confirm with Alex before starting.**
+
+### Out-of-Phase-2.2 sub-phases (where the rest land)
+
+- **Phase 2.3** — Excel export (`labor-report-shaped .xlsx` for
+  downstream consumers; per Restated Question #2 in [SESSION_HANDOFF.md](../SESSION_HANDOFF.md),
+  the "Department Group" pivot label preservation question lives here).
+- **Phase 2.4** — Importer wiring + ADR amendments (specifically:
+  ADR-007 amendment for BVA-as-distinct-source per [Session 19 audit Area B](../audits/internal-claude-setup-audit.md#area-b--rules--canonical-docs)).
+- **Phase 7** — Org chart (depends on `2.2.18` `views/reporting-tree/`).
 
 ### Data Issues catalog (`lib/quality/` scope)
 
