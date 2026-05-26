@@ -245,6 +245,72 @@ describe('importPsHcmPp', () => {
     ]);
     expect(importPsHcmPp(ws)).toHaveLength(1);
   });
+
+  it('extracts the spine fields (Cat 17/18 + 3 dept concepts + vice + manager)', () => {
+    const HEADERS_FULL = [
+      'Snapshot Date', 'Position Number', 'Position Job Code', 'Position Description',
+      'Position Division',
+      'Position Department ID', 'Position Department Description',
+      'Position Max Headcount',
+      'Position Status', 'Position Fill Status',
+      'Employee ID Vice 1', 'Employee Name Vice 1',
+      'Previous Employee',
+      'Current Employee ID', 'Employee Status', 'Person Full Name',
+      'Employee Job Code', 'Employee Appointment Type',
+      'EE Exempt Category Description',
+      'Employee Step', 'Employee Hourly Rate', 'Employee Merit Increase Date',
+      'Position Reports To', 'Manager First Name', 'Manager Last Name',
+      'CAT_17_18 Appointment Date', 'CAT_17_18 Exempt Code',
+      'CAT_17_18 Exempt Months', 'CAT_17_18 Exempt TX Expired Date',
+      'Roster Code', 'Roster Code Description',
+      'Combo Code', 'Combo CD DEPTID', 'Combo CD DEPT Description',
+      'Latest RTF ID', 'RTF Submitted Date', 'RTF Status', 'RTF Expected Fill date',
+      'Budget Position Total FTE', 'Budget Job Code 1',
+      'Budget Department Code 1', 'Budget Department Description 1',
+      'Vacant Date',
+    ];
+    const ws = makeSheet([
+      HEADERS_FULL,
+      [
+        '2026-05-20', '10001', '5380', 'Planner III',
+        'CPC Current Planning',
+        '229235', 'CPC Current Planning',
+        1,
+        'Approved', 'FILLED',
+        '', '',
+        '',
+        'E99999', 'A', 'Lopez, Maria',
+        '5380', 'TEX',
+        '18 Special Proj - Limited Term',
+        '5', 75.20, '2026-09-01',
+        '20000', 'Karen', 'Park',
+        '2024-01-15', '18',
+        36, '2027-01-15',
+        '21', 'SEIU 1021',
+        'CPCT1', '229240', 'CPC Citywide Planning',
+        'RTF0120903', '2026-04-01', 'APPROVED', '2026-08-15',
+        1, '5380',
+        '229000', 'Department of City Planning',
+        '',
+      ],
+    ]);
+    const rows = importPsHcmPp(ws);
+    expect(rows).toHaveLength(1);
+    const r = rows[0];
+    expect(r.departmentCode).toBe('229235');         // effective
+    expect(r.budgetDepartmentCode).toBe('229000');   // budgeted
+    expect(r.comboDepartmentCode).toBe('229240');    // combo
+    expect(r.exemptCategory).toBe('18 Special Proj - Limited Term');
+    expect(r.cat1718ExemptCode).toBe('18');
+    expect(r.cat1718ExemptMonths).toBe(36);
+    expect(r.cat1718TxExpiredDate).toBe('2027-01-15');
+    expect(r.managerFirstName).toBe('Karen');
+    expect(r.managerLastName).toBe('Park');
+    expect(r.rtfId).toBe('RTF0120903');
+    expect(r.budgetJobCode).toBe('5380');
+    expect(r.positionDivision).toBe('CPC Current Planning');
+    expect(r.positionMaxHeadcount).toBe(1);
+  });
 });
 
 // ---------------------------------------------------------------------------
