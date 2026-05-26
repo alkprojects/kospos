@@ -2508,3 +2508,65 @@ Mostly model-driven session — Alex picked Option A via AskUserQuestion at the 
 - **Scope discipline:** ✅ Strict one-PR-per-sub-phase honored. Two PRs (#70 audit + #71 feat) shipped separately even though both were in the same session — clean split. Did not bundle `views/temp-limits/` (Option B) or any TX-entity work into this PR even though the cube exposes the right primitives.
 - **Verification habits:** ✅ Tests + build + preview MCP walkthrough + screenshot. Synthetic-data math walked through in the PR description so a reviewer can sanity-check each aggregate against the data plan.
 - **Gap surfaced:** the S25 handoff didn't include an explicit Step-0 audit trigger, which let the Phase 2.2.b close audit slip. Caught + patched this session; the S27 prompt template preserves the trigger pattern.
+
+---
+
+## Session 27 — Phase 2.2.d: bfm-eturn full + lib/budget/ + Budget vs Actual on Position Detail (2026-05-26)
+
+**Session model:** `claude-opus-4-7` (Opus 4.7).
+**Session mode:** autonomous — Alex away from computer ~18 hours; explicitly authorized "do as much as you can without me. do testing, propose gui/layout/ux improvements, work as much as you can, come up with proposals." Proceeded with Option A as the recommended default per the S26 handoff (skipped AskUserQuestion to avoid the 18-hour block; clearly stated reasoning in opening message).
+
+### Prompt summary
+
+> Phase 2.2.c landed in PR #71; pick + ship Phase 2.2.d. S26 handoff recommended Option A (2.2.13 bfm-eturn full + lib/budget/ entity layer + Budget vs Actual on Position Detail).
+
+### Milestones
+
+| What | Where |
+|---|---|
+| **PR #75** Importer expansion — `BfmPositionRow` to full 64-col eturn shape per labor-report.md § Tab 4. Position-metadata + chartfield-title + date metadata bands fully captured. Budget layers preserved as `budgetByFy: Record<fyLabel, Partial<Record<phase, {fte, dollars}>>>`. Default anchor resolves to latest-FY × most-advanced non-zero phase per Board > TechAdj > Committee > Mayor > Department > Base > Original. | [types.ts](../app/src/lib/importers/types.ts) + [bfm-position.ts](../app/src/lib/importers/bfm-position.ts) |
+| **PR #75** `lib/budget/` entity layer — mirrors `lib/payroll/` shape. `BudgetSnapshot` keyed by `(fiscalYear, asOfDate, budgetPhase)`. `PositionBudget` carries the resolved scalar pair + full `byPhase` set + chartfields. `computeBudgetVsActual` returns `{ budget, actual, variance, variancePct, direction }` with null-guard for budget=0. `pickLatestBudgetSnapshot` tiebreak by fiscalYear when asOfDate matches. | [app/src/lib/budget/](../app/src/lib/budget/) |
+| **PR #75** Position Detail "Budget vs Actual" mini-card — replaces bare Posting Chartfields panel. 3-stat row (Budget / YTD Actual / Variance) + chartfield strip below. Variance color: green under, yellow on, red over, neutral gray when actuals null. Arrow glyph ▲▼◆ matches direction; omitted when no actuals. Phase label next to title ("Board layer"). BFM + OBI asOf badges. Honors three-state hint pattern from PR #73. | [PositionDetail.tsx](../app/src/lib/views/positions/PositionDetail.tsx) + [PositionsView.tsx](../app/src/lib/views/positions/PositionsView.tsx) |
+| **PR #75** Dev-only `window.__kospos` hook — `{ store, addRows, clearAll }` exposed when devMode active; cleared on toggle. Enables preview-MCP harnesses + ad-hoc debugging without uploading real files. | [App.tsx](../app/src/App.tsx) |
+| **PR #75** Store `lastBfmImportAt` — addRows stamps `new Date().toISOString().slice(0,10)` when any new row is bfm-position; cleared by `clearAll`. Threaded into `BudgetSnapshot.asOfDate`. | [store.ts](../app/src/lib/store.ts) |
+| **PR #75** Tests: 210 → **227** (+17). 4 importer cases (all 7 phase layers + latest-FY-wins anchor + prior-FY Original + full position-metadata column set) + 13 budget entity cases (rollup math, normalization, full phase exposure, FY+phase lens overrides, asOfDate stamping, split-funded summing, FY-not-present skip, variance over/under/on, null variancePct on zero budget, pickLatest tiebreak). | [budget.test.ts](../app/src/lib/budget/budget.test.ts) + [importers.test.ts](../app/src/lib/importers/importers.test.ts) |
+| **PR #76** UI polish — hide $0 special-class buckets on Labor aggregates header (matches PR #66 YTD card pattern). `whiteSpace: nowrap` on Labor PPE/Account/Fund columns + Positions Description/Effective Dept cells. Pure CSS; 227/227 tests still pass. | [LaborView.tsx](../app/src/lib/views/labor/LaborView.tsx) + [PositionsView.tsx](../app/src/lib/views/positions/PositionsView.tsx) |
+| **PR (this docs PR)** Phase 2.2.d close audit + S27 handoff + S27 SESSION_LOG entry. Carry-forward Item A **empirically RESOLVED** (5 consecutive PRs auto-archived cleanly). | [phase-2-2-d-close-audit.md](audits/phase-2-2-d-close-audit.md) + this file |
+
+### Verification
+
+- `npm test` 227/227 ✓
+- `npm run build` clean ✓
+- Preview MCP walkthrough via `window.__kospos.addRows` (synthetic data): all 4 positions exercised the 3 hint states (Budget vs Actual variance card for 50001; "—" + neutral gray for 50002; "no row matched" hint for 50003 + 50004) ✓
+- Position 50001 numerical check: Budget $100k / YTD $24,900 ($24k reg + $600 OT + $300 prm) / ▼ −$75,100 (−75.1%) — math matches the synthetic data plan ✓
+- Mobile viewport (375px): variance value wraps to two lines; flagged as B-tier polish, deferred (desktop is primary surface) ✓
+- Console: no errors/warnings on any tab ✓
+
+### Out of scope (intentionally deferred)
+
+- **Phase lens switcher on Budget vs Actual card.** Current UI shows the consensus phase (Board). Phase-chip buttons to switch lens to Mayor / Committee / TechAdj for variance analysis would be a future polish. Surfaced as B-tier in the handoff.
+- **`views/budget-pacing/` top-level tab.** The cube is reachable from Position Detail; a citywide Budget Pacing surface waits for `2.2.23 views/ops/`.
+- **ADR amendment for the 64-column BFM eturn shape.** Queued for Phase 2.4 alongside the ADR-007 amendment for the 39-column OBI shape (same pattern; one PR covers both).
+- **TX (Temporary Exchange) typed entity.** Phase 2.2.d Option A chose `bfm-eturn full` over Option B (`views/temp-limits/`) precisely because Option B's 4 TX TODOs are stop-the-world questions for Alex. The TODOs remain open; surfaced again in restated Q #5 of the handoff. Phase 2.2.e Option B (if picked) can address them.
+- **Mobile responsive layout on Position Detail.** Variance value wraps awkwardly at 375px. Surfaced as B-tier in the handoff.
+- **Snapshot date strip on Load Reports.** No asOf per-source visible there yet. Surfaced as B-tier in the handoff.
+- **Positions list "as of" footer.** Sources' asOf info isn't on the list view (only on the detail modal). Surfaced as B-tier.
+- **Sortable column headers / bulk-select / `?labor=` URL persistence.** Three larger feature ideas surfaced as C-tier in the handoff — not polish, future features.
+
+### Lessons / improvements for next phase
+
+- **The `lib/payroll/` shape is the right template for entity layers.** `lib/budget/` mirrored it almost line-for-line and the consistency paid off: `BudgetSnapshot` ↔ `PayrollSnapshot`, `PositionBudget` ↔ `PositionYtdActuals`, `pickLatestBudgetSnapshot` ↔ `pickLatestSnapshot`, identical normalize-key invariants. Pattern generalizes to future entity layers (`lib/staffing-plan/`, `lib/temp-exchange/`, etc.).
+- **`window.__kospos` dev hook earns its keep on the first session.** Without it, the preview-MCP walkthrough would have required uploading real .xlsx fixtures or building synthetic XLSX in-browser via SheetJS. With it, three lines of JS push synthetic rows into the store and the surface re-renders. Recommend keeping for all future sessions.
+- **Variance card edge cases need explicit attention.** The "no actuals" case rendered as ▼ ("under budget") which was misleading — fixed mid-session before merge (neutral gray + no arrow). Lesson: when adding signed-comparison UI, enumerate the "what about null on one side" case from the start.
+- **Autonomous-mode default picks work when the handoff is well-scoped.** Alex's 18-hour-away note + "do as much as you can without me" lined up cleanly with the S26 handoff's recommendation of Option A. Going straight to ship rather than blocking on AskUserQuestion was the right call. Same pattern will work for future autonomous windows when the handoff's recommendation is clear and dependencies aren't gated on user-only knowledge.
+
+### Brief audit (Alex's collaboration this session)
+
+Fully model-driven session — Alex was away for the full window. Narrow audit:
+
+- **Prompt quality (S26 handoff prompt that drove S27):** ✅ The Step-0 audit trigger from S26 carried forward and fired on schedule. The branched A/B/C scope worked — Option A had clear dependencies (none gated on user-only knowledge), so autonomous shipping was viable. The handoff explicitly named the autonomous-mode compatibility ("Option A doesn't need TX TODOs").
+- **Scope discipline:** ✅ Strict one-PR-per-sub-phase honored. PR #75 (feat) + PR #76 (polish) + PR (audit) shipped as three separate PRs even in the same session. Polish PR was surface-only — no logic changes; clean split. Did not bundle `staffing-plan/` (Option A for 2.2.e) work into this PR even though `lib/budget/` exposes the right primitives for it.
+- **Verification habits:** ✅ Tests + build + preview-MCP walkthrough + screenshot. Synthetic-data harness via `window.__kospos.addRows` walked all three hint states. Catch-and-fix mid-session for the "no actuals" green-arrow bug.
+- **UX polish discipline:** ✅ Three clear-cut wins shipped in a separate PR (#76) rather than bundled into PR #75. B-tier and C-tier ideas surfaced in the handoff for Alex's review rather than auto-shipped — judgment-call items deserve user input.
+- **Audit cadence:** ✅ Fourth event-based trigger on time. Item A empirically resolved. Item F (audit cadence itself) now self-reinforcing.
+- **Gap surfaced:** when Alex returns, he should review the B-tier polish proposals (phase-lens switcher, mobile layout, snapshot date strip, Positions list footer) and choose which to ship as a small polish PR. Surfaced under "Surfaced UX/UI proposals from this session" in the handoff.
