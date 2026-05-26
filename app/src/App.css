@@ -39,6 +39,12 @@ body,
 .site-header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+  /* Stick to the top of the viewport while scrolling so the tab nav is
+     always reachable. The dev-mode banner above sits in normal flow and
+     scrolls away naturally — once it's past, the header docks at top: 0. */
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .header-inner {
