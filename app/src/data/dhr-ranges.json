@@ -1,5 +1,5 @@
 {
-  "$comment": "DHR range-based (MCCP) biweekly rates. Two snapshots: jul (pre-COLA) and jan (post-COLA). entries[jobCode][setID] = { unionCode, ranges }.",
+  "$comment": "DHR range-based (MCCP) HOURLY rates. Two snapshots: jul (pre-COLA) and jan (post-COLA). entries[jobCode][setID] = { unionCode, ranges }. Values are hourly (multiply by 80 for biweekly) — same convention as dhr-steps.json. Verified against careers.sf.gov/classifications/ (class 0922 Manager I post-COLA Range A = $136,604 annual = 65.68 hourly × 80 × 26).",
   "snapshots": [
     {
       "effectiveFrom": "2025-07-01",
