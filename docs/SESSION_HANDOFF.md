@@ -6,12 +6,13 @@ Updated at the end of every session. The next session reads this before doing an
 
 ## Current status (end of Session 25 — Phase 2.2.b obi-payroll full, 2026-05-26)
 
-**Phase:** Phase 2.2.b — **obi-payroll full importer + lib/payroll/ rollup cube shipped.** Production `/kospos/` Positions tab now shows YTD actuals split into 5 special-class buckets (regular / overtime / retirement payout / premium / temp lump-sum) when BI Payroll is loaded.
-**Last main commit:** `c91815c` ([PR #66](https://github.com/alkprojects/kospos/pull/66) — Phase 2.2.b obi-payroll full) → `be58105` ([PR #65](https://github.com/alkprojects/kospos/pull/65) — Session 24 handoff sync) → `61f69a0` ([PR #64](https://github.com/alkprojects/kospos/pull/64) — calculator fixes) → `c7e1e84` ([PR #62](https://github.com/alkprojects/kospos/pull/62) — Phase 2.2.a spine bundle) → `bb7b2e9` ([PR #61](https://github.com/alkprojects/kospos/pull/61) — Phase 2.1 close audit)
-**Tests:** 202 / 202 passing (189 baseline + 5 obi-payroll importer additions + 8 payroll cube tests)
+**Phase:** Phase 2.2.b — **obi-payroll full importer + lib/payroll/ rollup cube shipped.** Production `/kospos/` Positions tab now shows YTD actuals split into 5 special-class buckets (regular / overtime / retirement payout / premium / temp lump-sum) when BI Payroll is loaded. Mid-session follow-up (PR #68) dropped QR-002 vacant-no-rtf and added a CON-limitation hint to the Position Detail RTF section.
+**Last main commit:** `24c7f57` ([PR #68](https://github.com/alkprojects/kospos/pull/68) — drop QR-002 + RTF hint) → `bd60433` ([PR #67](https://github.com/alkprojects/kospos/pull/67) — S25 handoff) → `c91815c` ([PR #66](https://github.com/alkprojects/kospos/pull/66) — Phase 2.2.b obi-payroll full) → `be58105` ([PR #65](https://github.com/alkprojects/kospos/pull/65) — S24 handoff sync) → `61f69a0` ([PR #64](https://github.com/alkprojects/kospos/pull/64) — calculator fixes)
+**Tests:** 199 / 199 passing (189 baseline + 5 obi-payroll importer additions + 8 payroll cube tests; −3 from QR-002 removal)
 **Branches in flight:** none
+**Worktree hygiene:** 6 stale post-merge worktrees cleared end of S25; Cowork "Auto-archive on PR close" preference now enabled (item A resolved permanently).
 
-### What landed this session — one PR
+### What landed this session — three PRs
 
 #### [PR #66](https://github.com/alkprojects/kospos/pull/66) — Phase 2.2.b obi-payroll full + lib/payroll/ rollup cube
 
@@ -25,6 +26,20 @@ Single-sub-phase PR per the "strict one-PR-per-sub-phase" rule established in th
 | **Position Detail wired** — new "YTD Payroll" section shows the 5-bucket breakdown + asOfDate when BI Payroll is loaded; falls back to a "Load a BI Payroll export…" hint otherwise. Existing BFM-chartfields panel untouched. The redundant `ytdActuals` row from the chartfields panel was removed (the breakdown supersedes it). | [PositionDetail.tsx](../app/src/lib/views/positions/PositionDetail.tsx) + [PositionsView.tsx](../app/src/lib/views/positions/PositionsView.tsx) |
 
 **Verification:** 202/202 tests at merge; `npm run build` clean; preview-MCP walkthrough with synthetic data showed `$65k regular / $3.2k OT / $1.8k RPO / $950 premium → $70,950 total asOf 2026-05-08`. Empty-bucket rows (Temp LSP at $0) hidden as designed. Fallback hint renders cleanly when no BI Payroll is loaded. Sources line correctly shows `joined with hcm + obi` ↔ `hcm` based on what's loaded. No console errors.
+
+#### [PR #67](https://github.com/alkprojects/kospos/pull/67) — Session 25 handoff (docs only, mid-session)
+
+Initial closeout doc reflecting PR #66; superseded by this update.
+
+#### [PR #68](https://github.com/alkprojects/kospos/pull/68) — Drop QR-002 vacant-no-rtf + note CON limitation
+
+Late-session follow-up after Alex flagged the Data Issues panel surfacing a vacant-no-RTF warning. The RTF status fields on Tab 6 P&P Data are CON-sourced and not always populated for vacancies — that's a CON data-pipeline limitation, not a missing departmental action.
+
+- Delete `app/src/lib/quality/rules/vacant-no-rtf.ts` + its test block; remove from `ALL_RULES`
+- Position Detail now always renders a "Request to Fill" section for VACANT positions with one of: the populated RTF table, OR a plain-text hint ("No RTF data on this position in the snapshot. The Controller's source doesn't always carry RTF status for vacancies — this is a CON data limitation, not a missing departmental action.")
+- Filled positions still hide the RTF section unless RTF fields happen to be present
+- Tests: 202 → **199** / 199 (−3 from removed QR-002 cases)
+- Preview-MCP walkthrough verified all three RTF states (vacant-no-RTF, vacant-with-RTF, filled-no-RTF)
 
 ### Pre-Session 25 status archived below — see § Session 24 closeout
 
@@ -144,19 +159,7 @@ These were drafted as reasonable-default calls deferred for Alex's confirmation.
 
 From [Phase 2.0i close audit](audits/phase-2-0i-close-audit.md) + [Phase 2.1 close audit](audits/phase-2-1-close-audit.md):
 
-A. **Sweep 6 stale post-merge worktrees.** Grew from 3 → 5 → 6 across the last two audits. 30-second cleanup:
-
-   ```powershell
-   git worktree remove "C:\Users\ALK\Desktop\Claude Projects\kospos\.claude\worktrees\funny-cannon-ff06d7"
-   git worktree remove "C:\Users\ALK\Desktop\Claude Projects\kospos\.claude\worktrees\nervous-noether-2e2f42"
-   git worktree remove "C:\Users\ALK\Desktop\Claude Projects\kospos\.claude\worktrees\nostalgic-chaplygin-08a313"
-   git worktree remove "C:\Users\ALK\Desktop\Claude Projects\kospos\.claude\worktrees\pensive-visvesvaraya-8d6c9e"
-   git worktree remove "C:\Users\ALK\Desktop\Claude Projects\kospos\.claude\worktrees\dazzling-mendel-e6e137"
-   git worktree remove "C:\Users\ALK\Desktop\Claude Projects\kospos\.claude\worktrees\hopeful-banzai-e172f7"
-   git worktree prune
-   ```
-
-   Consider enabling the Cowork "Auto-archive on PR close" preference to stop the per-session accumulation (recommended in S19 + Phase 2.0i + Phase 2.1 audits).
+A. **Stale post-merge worktrees — RESOLVED end of S25.** All 6 stale worktrees swept manually (1 directory needed a reboot to clear a Windows file lock; cleared post-reboot). Alex also enabled the Cowork **"Auto-archive on PR close"** preference end of S25, which automates this cleanup going forward — no manual sweep should be needed in future sessions. If a stale worktree does appear in `git worktree list`, treat it as a regression and surface it.
 
 B. **Trim `SESSION_LOG.md` Sessions 1–16 to one-paragraph digests.** File grew 1,977 → 2,295 lines in 2 sessions; **past the 2,000-line trim trigger** per Phase 2.1 audit. Sessions 1–16 are pre-Phase-2; their per-prompt detail isn't actively consulted. ~1,000 lines removed estimate. Single-purpose docs PR, ~1 hour. **Priority bumped** from "evaluate" to "schedule when capacity allows."
 
@@ -178,7 +181,7 @@ D. **Defer the `labor-report.md` split until Phase 2.4.** File still 8,518 lines
 
 E. **Phase 2.2 first sub-phase pick — RESOLVED in S24.** Position spine bundle shipped in [PR #62](https://github.com/alkprojects/kospos/pull/62). No longer carry-forward.
 
-F. **Audit cadence — Phase 2.2.b close audit owed.** Per [WORKFLOW.md § Audit cadence](WORKFLOW.md) ("event-based — every phase close"), Phase 2.2.b's close (this session) triggers an audit. **It was not run this session** — surfaced here for Session 26 to fire as Step 0 of next session. The Phase 2.1 close audit was a 270-line doc for a 3-file PR; Phase 2.2.b is larger (11 files) so expect a slightly larger doc. Items A (worktree sweep) and B (SESSION_LOG.md trim — now ~2,540 lines, further past trigger) almost certainly drifted further; the audit will quantify.
+F. **Audit cadence — Phase 2.2.b close audit owed.** Per [WORKFLOW.md § Audit cadence](WORKFLOW.md) ("event-based — every phase close"), Phase 2.2.b's close (S25) triggered an audit. **It was not run in S25** — surfaced here for Session 26 to fire as Step 0. The Phase 2.1 close audit was a 270-line doc for a 3-file PR; Phase 2.2.b is larger (11 files in PR #66 + 4 in PR #68) so expect a slightly larger doc. Item A (worktrees) is now resolved end of S25; item B (SESSION_LOG.md trim — now ~2,540+ lines) drifted further; the audit will quantify both.
 
 ### Top 3 findings to surface for Alex this session
 
@@ -323,7 +326,7 @@ Hard constraints
 
   - Branch from main, single-purpose name.
   - **Strict one-sub-phase-per-PR** (continued from 2.2.b).
-  - **`npm test` stays green** (currently 202 / 202).
+  - **`npm test` stays green** (currently 199 / 199).
   - One PR per logical change; merge after CI passes; fast-forward main:
     `git -C "C:\Users\ALK\Desktop\Claude Projects\kospos" pull --ff-only origin main`
   - Commit messages end with the Co-Authored-By line per CLAUDE.md.
