@@ -2293,3 +2293,90 @@ audit dimensions that apply are narrow:
   noting that Sessions 21-22 had Alex more in the driver's seat
   (walking through tabs, surfacing TX, picking the first sub-phase).
   Phase 2.2 will likely return to that pattern.
+
+---
+
+## Session 24 — Phase 2.1 close audit + Phase 2.2.a Position spine bundle (2026-05-25)
+
+**Worktree:** `hopeful-banzai-e172f7`
+**Model:** Opus 4.7 (per handoff recommendation — large session, cross-source synthesis)
+**Mode:** Auto-mode
+**PRs:** [#61](https://github.com/alkprojects/kospos/pull/61) — `docs(audits): Phase 2.1 close audit` (merged `bb7b2e9`); [#62](https://github.com/alkprojects/kospos/pull/62) — `feat(app): Phase 2.2.a — Position spine bundle (dept-tree + obi-pnp + views/positions)` (merged `c7e1e84`)
+**Tests:** 152 → 196 passing (+44 new across dept-tree.test, positions.test, importers.test spine field)
+
+### Prompts
+
+**[~ start]** Session 24 prompt per SESSION_HANDOFF.md PR #60. Three-step session: (1) Phase 2.1 close audit, (2) Ask Alex to pick Phase 2.2 first sub-phase, (3) Start the picked sub-phase. Handoff explicitly noted the audit would be small (Phase 2.1 was 3 files net).
+
+**[mid]** AskUserQuestion → Alex picked **A (Position spine bundle) + Start now**. The recommended pace + recommended option, no overrides. The spine bundle = `2.2.4 dept-tree/` + `2.2.12 obi-pnp/` + `2.2.16 views/positions/` shipped as one cohesive PR.
+
+### Workflow
+
+1. Read briefing docs (CLAUDE.md, SESSION_HANDOFF.md, SESSION_LOG.md Session 23, all 9 memory files, phase-2-0i-close-audit.md, ROADMAP.md, App.tsx + lib/dev-mode.ts, plus labor-report.md § Phase 2.2 sub-phases + § Recommended Phase 2.2 first sub-phase + § Tab 6 P&P Data).
+2. Confirmed state on main = `330d689` (Phase 2.1 closeout handoff). Worktree on `claude/hopeful-banzai-e172f7`.
+3. **Step 1 — Phase 2.1 close audit.** Confirmed test baseline (152/152). Wrote `docs/audits/phase-2-1-close-audit.md` (250 lines) covering: PR #59 follow-ups (ROADMAP `?budget=1` → `?dev=1` drift surfaced + reconciled in-PR), Phase 2.0i carry-forward A-F status update (A worktrees 3 → 5, B SESSION_LOG.md 1,977 → 2,295 lines past trim trigger, C unchanged, D defer-stable, E pending this session, F audit cadence working), new-drift scan (no drift). Updated `docs/audits/README.md` index + reconciled ROADMAP.md line 62. Committed, opened PR #61, CI passed (18s), merged via `gh api PUT`. Synced main worktree.
+4. **Step 2 — Ask Alex to pick Phase 2.2 first sub-phase.** AskUserQuestion with 4 options (A Position spine bundle / B obi-payroll full / C cola multi-BU / D quality catalog) + 3-option pace question. Alex picked A + Start now. Marked chapter "Position spine bundle (2.2.a)".
+5. **Step 3 — Build the spine bundle.** Branched `feat/position-spine-bundle` from latest main (`bb7b2e9` post-audit merge).
+   - **`lib/reference/dept-tree/`** (4 files + tests): `DepartmentNode` type, `SEED_DEPARTMENT_TREE` data (12 DBI + CPC nodes), `DeptTree` class with `lookup`/`hierarchy`/`deptGroup`/`allCodes`, default singleton, 11 unit tests.
+   - **`lib/positions/`** (4 files + tests): `Position`/`Appointment`/`Cat1718Tracking`/`ComboOverride`/`ReportsTo`/`RtfStatus`/`DepartmentRef` types; `buildPositions(rows, tree, opts)` joins PsHcmPpRow + DeptTree → Position[] with normalized-id dedup, manager-name resolution from parent row, sort by display number; `hasDeptMismatch(position)` predicate; `usePositionNotes` zustand slice (in-memory, IndexedDB persistence TODO); 17 unit tests.
+   - **`lib/importers/ps-hcm-pp.ts`** (expand): PsHcmPpRow grew from ~20 → ~40 fields covering Tab 6 OBI columns A:CJ subset (positionDivision, positionMaxHeadcount, vice1, previousEmployee, employeeStatus, exemptCategory, meritIncreaseDate, manager{First,Last}Name, cat1718{AppointmentDate,ExemptCode,ExemptMonths,TxExpiredDate}, comboDepartment{Code,Name}, rtfId, rtfSubmittedDate, budgetDepartment{Code,Name}, budgetJobCode, vacantDate). Importer extracts each via header-name match. +1 importer test for the spine field coverage.
+   - **`lib/views/positions/`** (3 files): `PositionsView.tsx` (list with stats + filters + table), `PositionDetail.tsx` (modal with three-dept breakdown + mismatch warning + Cat 17/18 tracking card + reports-to + RTF + chartfields panel + inline userNotes editor), `index.ts`.
+   - **`App.tsx`**: import PositionsView from new location; drop `devOnly` from Positions tab; reorder Positions to position 2.
+   - **Removed**: superseded `app/src/modules/positions/PositionsView.tsx`.
+   - **Existing test helpers**: `chartfields.test.ts` and `quality.test.ts` `hcmPos`/`makeHcmRow` factories updated with the new required PsHcmPpRow fields (empty-string defaults — old behavior unchanged).
+6. **Verification.**
+   - `npm test` → 196 / 196 passing.
+   - `npm run build` → clean (vite + tsc -b; 927 KB bundle).
+   - Preview MCP: started dev server, walked the production surface (`?dev=0` → 2 tabs), populated state (injected 4 synthetic rows via dev console), clicked Positions tab → spine table with stats (4/4/3/1/1/2) + filters (search, Fill, Dept group CPC+DBI auto-discovered, Cat 17/18 only) + 4 rows with badges (Filled / Vacant / Cat 18 / Dept ≠), clicked position 10001 → detail modal with all 7 sections (Departments + mismatch warning, Position Info, Incumbent, Cat 18 Tracking, Reports To, RTF, Posting Chartfields with "Load BFM" hint, User Notes editor), clicked Add note → wrote "Cat 18 set up for 5-yr IS project per DHR override letter 2024-01-10" → Save → note shown read-mode + row Notes column shows ● dot. No console errors throughout.
+7. Committed, pushed `feat/position-spine-bundle`, opened PR #62 with detailed test plan + before/after rationale, CI passed (~30s), merged via `gh api PUT`. Synced main worktree.
+8. Updated SESSION_HANDOFF.md with Session 24 closeout + Phase 2.2.b options for next session.
+
+### Milestones
+
+- **First user-visible production page since Phase 1.** Positions tab is live at `/kospos/` without `?dev=1` — the empty-state hint guides users to dev mode + Load Reports. Once a P&P file is loaded, the full spine surface populates.
+- **The three-department distinction is modeled and surfaced.** Labor-report.md § Tab 6 P&P Data described 3 conflated dept concepts (Budgeted / Effective / Combo). The spine view shows all three explicitly in Position Detail, and yellow-warns when they disagree without a combo override (the "employee moved but no combo code added" scenario).
+- **Position entity is the spine.** Every Tier-4 view from here joins through Position. 12 downstream Tier-4 sub-phases unblocked per the dependency graph in labor-report.md.
+- **Inline user-notes editor works.** The `feedback_user_notes_per_position.md` rule (KosPos must offer free-text notes per Position) is now physical. Persistence is in-memory only (IndexedDB queued as a small follow-up); schema is stable so the persistence swap-in is additive.
+- **Cat 17/18 tracking is modeled at the entity level.** The Cat1718Tracking sub-record on Appointment captures appointmentDate / months / expiredDate. Position Detail renders the tracking card with expiry alerts (red for past, amber for within 90 days, neutral otherwise). This is the foundation for `2.2.19 views/temp-limits/` (Tab 12) which can now consume the entity directly.
+- **Two PRs in one session, audit + feature.** The audit (#61) was the second event-based trigger to fire under the WORKFLOW.md audit-cadence rule; the spine bundle (#62) was the feature. Both shipped + merged in one session.
+
+### What changed for KosPos's understanding
+
+| Theme | Before this session | After this session |
+|---|---|---|
+| Production surface | 1 tab (Calculator only) | 2 tabs (Calculator + Positions); ?dev=1 adds Load Reports + Special Class |
+| Position model | Chartfield-centric (`ResolvedChartfields`) | Spine entity (`Position`) joining P&P + dept-tree + userNotes; chartfields are an attribute |
+| Dept modeling | One field per position (`departmentCode`) | Three explicit fields (effective / budgeted / combo) with mismatch detection |
+| P&P importer | ~20 columns extracted | ~40 columns including Cat 17/18 / vice / manager / RTF / 3 dept variants |
+| User notes | Not modeled | Free-text notes per Position with inline edit; persisted in zustand (IndexedDB TODO) |
+| Reference data | No reference modules | `lib/reference/dept-tree/` with `DeptTree` class + effective-date variants |
+| Tests | 152 | 196 (+44) |
+| `lib/positions/`, `lib/views/`, `lib/reference/` | Did not exist | Three new directories |
+
+### Out of scope (intentionally deferred)
+
+- IndexedDB persistence for userNotes (in-memory zustand for now; schema stable so swap-in is additive)
+- Full citywide dept-tree CSV importer (Phase 2.4 — seeded data is enough for DBI/CPC parity)
+- Snapshot history model on P&P (Phase 2.2.33 `snapshots/`)
+- BFM Position eturn integration with the spine (already works via existing `resolvePositionChartfields` — Position Detail shows the "load BFM" hint until BFM is loaded)
+- Phase 2.2.b sub-phase pick (deferred to Session 25 — two recommended options + escape hatch documented in SESSION_HANDOFF.md)
+- Tab walkthroughs — Phase 2.0 is closed.
+- ADR amendments — Phase 2.4.
+
+### Lessons / improvements for next phase
+
+- **Bundling 3 sub-phases worked because they shared an end-user surface.** The "mild one-change-per-branch violation" was the right call: shipping `dept-tree/` alone (no consumer), `obi-pnp/` alone (no UI), or `views/positions/` alone (no data) would each have been incomplete. Phase 2.2.b returns to strict one-PR-per-sub-phase since the dependency-chain pressure isn't the same shape.
+- **The pre-spine `PositionsView.tsx` was a quasi-spine surface.** It joined BFM + HCM + OBI for chartfields display; the new spine view re-uses the existing `resolvePositionChartfields` for that detail panel rather than duplicating it. Lesson: when superseding a prior surface, look for what's worth keeping. The chartfield-resolve module survived because it's downstream of the spine, not a competitor.
+- **Test-helper updates are a real cost of expanding a type.** `chartfields.test.ts` + `quality.test.ts` had `Partial<PsHcmPpRow>`-defaulting factories with all-required fields enumerated. Adding 20 new required fields meant updating both. A shared `makeHcmRow(overrides)` helper at `app/src/test/factories.ts` would avoid this for future expansions — queued as a small follow-up but not blocking.
+- **Preview MCP works cleanly with synthetic data via dev-server module imports.** The `await import('/kospos/src/lib/store.ts')` pattern lets a test session populate the zustand store without needing a real file-upload path. Worth remembering for future view sub-phases that need pre-populated state for visual checks.
+- **`feedback_dont_reremind.md` filter held.** The 4 acknowledged items from S21 stayed dropped from the handoff; no re-acknowledgment churn. The carry-forward set is at 5 restated questions + 12 default calls + 1 open action — unchanged numerically.
+
+### Brief audit (Alex's collaboration this session)
+
+This session was mostly model-driven — Alex's direct input was the AskUserQuestion answer (Option A + Start now). So narrow audit:
+
+- **Prompt quality (S24 handoff prompt):** ✅ Three discrete steps with clear gates between them, recommended options for each decision, explicit "what we are NOT doing" guardrails, session-end checklist. The clearest multi-step prompt pattern of the project so far. (Better than the S23 prompt, which was single-step.)
+- **Decision-making under trade-offs:** ✅ Alex picked the recommended options on both questions (A + Start now) without negotiation. The recommendation reasoning was documented in the handoff + the AskUserQuestion preview text, so the call required no follow-up clarification.
+- **Scope discipline:** ✅ Audit PR and spine PR kept separate per the constraint. The spine PR bundled 3 sub-phases as documented + justified. No scope creep into Tier-5 (reconciliation / projections / snapshots).
+- **Verification habits:** ✅ The handoff required `npm test` + dev-server walkthrough; both happened (196 tests + 9 distinct UI paths verified + screenshots).
+- **Gap surfaced:** None this session. The 3-step prompt + 2 AskUserQuestion confirmations + 2 separate PRs is the cleanest pattern of any Phase 2 session.
