@@ -4,14 +4,14 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
-## Current status (end of Session 24 — Phase 2.1 close audit + Phase 2.2.a Position spine bundle, 2026-05-25)
+## Current status (end of Session 24 — Phase 2.1 audit + Phase 2.2.a spine bundle + calculator fixes, 2026-05-25)
 
-**Phase:** Phase 2.2.a — **Position spine bundle shipped.** Production `/kospos/` now shows **2 tabs** (Job Class Calculator + Positions); `?dev=1` adds Load Reports + Special Class. Phase 2.1 close audit also shipped this session.
-**Last main commit:** `c7e1e84` ([PR #62](https://github.com/alkprojects/kospos/pull/62) — Phase 2.2.a spine bundle) → `bb7b2e9` ([PR #61](https://github.com/alkprojects/kospos/pull/61) — Phase 2.1 close audit) → `330d689` (PR #60 — Phase 2.1 closeout handoff)
-**Tests:** 196 / 196 passing (152 + 44 new across dept-tree, positions, importer expansion)
-**Branches in flight:** none after PR #62 merges
+**Phase:** Phase 2.2.a — **Position spine bundle shipped.** Production `/kospos/` now shows **2 tabs** (Job Class Calculator + Positions); `?dev=1` adds Load Reports + Special Class. Phase 2.1 close audit + Job Class Calculator bug-fix PR also shipped this session.
+**Last main commit:** `61f69a0` ([PR #64](https://github.com/alkprojects/kospos/pull/64) — calculator fixes) → `a1adc73` ([PR #63](https://github.com/alkprojects/kospos/pull/63) — Session 24 handoff) → `c7e1e84` ([PR #62](https://github.com/alkprojects/kospos/pull/62) — Phase 2.2.a spine bundle) → `bb7b2e9` ([PR #61](https://github.com/alkprojects/kospos/pull/61) — Phase 2.1 close audit)
+**Tests:** 189 / 189 passing (152 baseline + 11 dept-tree + 17 positions + 1 importer spine field + 8 cost.test — 196 in the prior version of this doc was a tally error)
+**Branches in flight:** none
 
-### What landed this session — two PRs
+### What landed this session — four PRs
 
 #### [PR #61](https://github.com/alkprojects/kospos/pull/61) — Phase 2.1 close audit (small)
 
@@ -29,7 +29,21 @@ Three sub-phases shipped as one cohesive PR per Alex's pick on audit item E (Opt
 
 **Tab promoted to non-dev:** Positions tab loses `devOnly` and reorders to position 2 (right after Calculator). Production `/kospos/` now shows 2 tabs; `?dev=1` adds Load Reports + Special Class. The dev gate from Phase 2.1 continues to gate those two tabs cleanly.
 
-**Verification:** 196/196 tests; `npm run build` clean; preview-MCP walkthrough of empty state, populated table, filters, detail modal (3-dept warning, Cat 18 tracking, reports-to), userNotes inline edit (saved note shows ● in Notes column), `?dev=0` production surface, `?dev=1` dev surface. No console errors.
+**Verification:** 181/181 tests at spine-bundle merge; `npm run build` clean; preview-MCP walkthrough of empty state, populated table, filters, detail modal (3-dept warning, Cat 18 tracking, reports-to), userNotes inline edit (saved note shows ● in Notes column), `?dev=0` production surface, `?dev=1` dev surface. No console errors.
+
+#### [PR #63](https://github.com/alkprojects/kospos/pull/63) — Session 24 handoff (docs only)
+
+Updated SESSION_HANDOFF.md + appended SESSION_LOG.md Session 24 entry. Mid-session iteration; this update supersedes it with PR #64 reflected.
+
+#### [PR #64](https://github.com/alkprojects/kospos/pull/64) — Job Class Calculator bug fixes
+
+Alex spot-checked the live calculator and surfaced three bugs. All three fixed in one PR:
+
+1. **Autocomplete on "code — title"**. Input label now reads "Job Code — Title". Datalist has 1136 class entries with "code — title" labels (e.g. "922 — Manager I") extracted from `Hourly-Rates-of-Pay-by-Classification-and-Step-FY25-26 (2).xlsx`. Users can type either the code or any substring of the title to filter. Class title shows under the input once a known code is recognized. New file: `app/src/data/job-class-titles.json`. Refresh script: `.scratch/extract-job-titles.py` (gitignored dir; reproducible from the PR body).
+2. **MCCP setId UX bug.** Range-based MCCP classes (which usually have one SetID = COMMN) highlighted the SetID button automatically, but Range A/B/C + Min/Max + Calculate stayed hidden / grey until the user clicked the already-highlighted SetID. Root cause: `availableSteps`/`availableRanges` memos referenced raw `setid` state instead of `effectiveSetid` (the auto-selected fallback). Fixed both memos.
+3. **MCCP biweekly amounts off by 80×.** `dhr-ranges.json` values are *hourly* rates (same convention as `dhr-steps.json`), despite a misleading "biweekly" comment in the JSON. `cost.ts`'s `getBiweeklyRate` step branch multiplied by 80; the range branch returned values as-is. Verified against [careers.sf.gov/classifications/](https://careers.sf.gov/classifications/): class 0922 Manager I Range A post-COLA = "$136,604 annual" = $5,254 biweekly = $65.68 hourly × 80 × 26. Calculator now shows **$136,084 annual salary** for Alex's screenshotted test case (was $1,701.05). JSON comment updated to "HOURLY rates" with the verification note.
+
+**Tests:** 181 → 189 (+8 in new `cost.test.ts` covering step + range branches and the MCCP regression).
 
 ### Items surfaced for Alex's review (carry forward)
 
@@ -276,7 +290,7 @@ Hard constraints
   - **Strict one-sub-phase-per-PR this time.** The spine-bundle
     bundling was justified by shared end-user surface; 2.2.b doesn't
     have that constraint.
-  - **`npm test` stays green** (currently 196 / 196).
+  - **`npm test` stays green** (currently 189 / 189).
   - One PR per logical change; merge after CI passes; fast-forward main:
     `git -C "C:\Users\ALK\Desktop\Claude Projects\kospos" pull --ff-only origin main`
   - Commit messages end with the Co-Authored-By line per CLAUDE.md.
