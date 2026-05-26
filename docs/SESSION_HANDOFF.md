@@ -6,13 +6,13 @@ Updated at the end of every session. The next session reads this before doing an
 
 ## Current status (end of Session 26 — Phase 2.2.c views/labor/, 2026-05-27)
 
-**Phase:** Phase 2.2.c — **`lib/views/labor/` per-PP drill-down shipped.** The Tab 7 BI Payroll drill-down sub-phase 2.2.17 now sits on top of the rollup cube PR #66 added. Position Detail gains a "View payroll →" button that scopes the Labor view to that position and switches tabs. Audit cadence caught up: the Phase 2.2.b close audit was bundled with the 2.2.c close into [PR #70](https://github.com/alkprojects/kospos/pull/70).
-**Last main commit:** `35daba2` ([PR #71](https://github.com/alkprojects/kospos/pull/71) — Phase 2.2.c views/labor) → `e0c659b` ([PR #70](https://github.com/alkprojects/kospos/pull/70) — combined 2.2.b+c close audit + PR #68 docs sync) → `2755559` ([PR #69](https://github.com/alkprojects/kospos/pull/69) — S25 handoff reflect) → `24c7f57` ([PR #68](https://github.com/alkprojects/kospos/pull/68) — drop QR-002 + RTF hint) → `c91815c` ([PR #66](https://github.com/alkprojects/kospos/pull/66) — Phase 2.2.b obi-payroll full)
-**Tests:** 210 / 210 passing (199 baseline + 11 new labor view tests covering filter math single-axis + combined + zero-strip normalization, aggregate math, bucketOf routing, distinctValues helper)
-**Branches in flight:** none post-merge (this handoff PR is the only one open)
-**Worktree hygiene:** 1 stale post-merge worktree (`vibrant-margulis-960939` on `docs/auto-archive-enabled`) carried over from PR #69; auto-archive preference was enabled mid-session in S25 so it didn't catch PR #69's own worktree. Surface for manual sweep + monitor S27's next PR to confirm auto-archive catches new worktrees. Sweep command in [Phase 2.2.b+c close audit § Item A](audits/phase-2-2-b-and-c-close-audit.md#item-a--worktree-sweep-result).
+**Phase:** Phase 2.2.c — **`lib/views/labor/` per-PP drill-down shipped + post-deploy UI fixes ([PR #73](https://github.com/alkprojects/kospos/pull/73)).** The Tab 7 BI Payroll drill-down sub-phase 2.2.17 sits on top of the rollup cube PR #66 added; Position Detail gains a "View payroll →" button that scopes the Labor view to that position and switches tabs. Audit cadence caught up: Phase 2.2.b close audit was bundled with 2.2.c into [PR #70](https://github.com/alkprojects/kospos/pull/70). Two post-deploy bugs Alex flagged on the live site (header scrolled out of view while scrolling; YTD/BFM hints conflated "no data loaded" with "no data for this position") fixed in PR #73.
+**Last main commit:** `97e599a` ([PR #73](https://github.com/alkprojects/kospos/pull/73) — sticky header + three-state YTD/BFM hints) → `ac52461` ([PR #72](https://github.com/alkprojects/kospos/pull/72) — S26 handoff) → `35daba2` ([PR #71](https://github.com/alkprojects/kospos/pull/71) — Phase 2.2.c views/labor) → `e0c659b` ([PR #70](https://github.com/alkprojects/kospos/pull/70) — combined 2.2.b+c close audit + PR #68 docs sync) → `2755559` ([PR #69](https://github.com/alkprojects/kospos/pull/69) — S25 handoff reflect)
+**Tests:** 210 / 210 passing (199 baseline + 11 new labor view tests covering filter math single-axis + combined + zero-strip normalization, aggregate math, bucketOf routing, distinctValues helper). PR #73 added no tests — the new conditional copy is rendered text, not logic that benefits from coverage.
+**Branches in flight:** none post-merge (this small docs sync PR is the only one open)
+**Worktree hygiene:** Auto-archive is now working as designed — `git worktree list` after PR #73's merge shows only the main worktree. The `vibrant-margulis-960939` worktree flagged in the combined audit was swept (the worktree directory was deleted between PR #72's merge and PR #73's session). Item A in the carry-forward is now empirically RESOLVED (auto-archive caught both PR #71 and PR #73 worktrees post-merge). If a stale worktree shows up in S27, treat it as a regression and surface it.
 
-### What landed this session — three PRs
+### What landed this session — four PRs
 
 #### [PR #70](https://github.com/alkprojects/kospos/pull/70) — Combined Phase 2.2.b + 2.2.c close audit + PR #68 docs sync
 
@@ -42,9 +42,23 @@ The Tab 7 BI Payroll drill-down. 8 files changed (+837 / −5). Single-sub-phase
 
 **Verification (preview-MCP, synthetic data):** Unscoped view (20 OBI rows, 2 positions × 3 PPEs × 3 buckets each + 1 RPO + 1 LSP) shows $31,200 / $27,000 reg / $1,200 OT / $1,200 RPO / $900 prm / $900 LSP / 658 hrs / asOf 2026-05-22 ✓. Scoped to position `50001` via "View payroll →": 9 of 20 / $14,550 (= 3 PPE × $4,850) / $13,500 reg / $600 OT / $450 prm ✓. Filter (OTP) + scope: 3 rows / $600 OT / 9 hrs ✓. Trace modal: all 40 fields render correctly. Clear scope returns to all-positions; reset filters wipes filter chips. No console errors/warnings.
 
-#### [PR (this one)](https://github.com/alkprojects/kospos/pulls) — Session 26 handoff
+#### [PR #72](https://github.com/alkprojects/kospos/pull/72) — Session 26 handoff (initial)
 
-Docs-only closeout. SESSION_HANDOFF.md updated + SESSION_LOG.md Session 26 entry appended.
+Initial closeout doc reflecting PRs #70 + #71; superseded by this update (which also reflects PR #73).
+
+#### [PR #73](https://github.com/alkprojects/kospos/pull/73) — Sticky nav header + three-state YTD/BFM hints on Position Detail
+
+Post-deploy follow-up after Alex spot-checked the live `/kospos/` and flagged two UI bugs on Position Detail. 3 files changed (+69 / −9).
+
+- **Bug 1 — Header scrolled out of view.** The KosPos nav header wasn't sticky. Long Position Detail modals or scrolled lists pushed the tabs off-screen so they weren't reachable mid-scroll. Fix: `position: sticky; top: 0; z-index: 10` on `.site-header`. The dev-mode banner above stays in normal flow (scrolls away naturally); the header docks at the top of the viewport once the banner is past.
+- **Bug 2 — "Load a BI Payroll export…" hint shown when data was loaded.** The YTD Payroll section had a binary state — either render the breakdown, or render the "Load…" hint. The second branch fired in two indistinguishable cases: (a) BI Payroll genuinely not loaded, OR (b) BI Payroll loaded but no rows for this specific position (vacant, brand-new, no FY-to-date activity). Same bug on the Posting Chartfields hint for BFM. Fix: thread `obiLoaded` + `bfmLoaded` global flags from `PositionsView` to `PositionDetail`; render three-state copy per panel: matched rows → data card; source loaded but no rows for this position → "No BI Payroll activity recorded for position X in the loaded snapshot…"; source not loaded → "Load a …" (existing copy).
+- **Bonus:** the bottom Sources line now surfaces `obi` when OBI is loaded anywhere in the app, not only when it joined to this position. The footer honestly reflects "what's loaded" vs "what joined here".
+
+**Verification:** 210/210 tests still pass (the change is conditional rendered text, not logic that benefits from coverage); `npm run build` clean; preview-MCP confirmed: (a) header computed `position: sticky / top: 0 / z-index: 10`; at scrollY=1500 with a 3000px spacer, `header.getBoundingClientRect().top === 0` with banner off-screen above ✓ (b) synthetic 2-position data (one with OBI rows, one without) — the without-rows position now shows "No BI Payroll activity recorded for position 70002 in the loaded snapshot…" with the asOf badge; Sources line shows `hcm + obi` ✓.
+
+#### [PR (this one)](https://github.com/alkprojects/kospos/pulls) — S26 handoff reflect PR #73
+
+Small docs sync reflecting the post-deploy fix PR into the S26 handoff doc.
 
 ### Items surfaced for Alex's review (carry forward)
 
@@ -122,13 +136,7 @@ These were drafted as reasonable-default calls deferred for Alex's confirmation.
 
 From [Phase 2.2.b+c combined close audit](audits/phase-2-2-b-and-c-close-audit.md):
 
-A. **Stale post-merge worktrees — 1 carried over.** Auto-archive preference enabled mid-S25 didn't catch PR #69's own worktree (`vibrant-margulis-960939` on `docs/auto-archive-enabled`). Surface for manual sweep + monitor S27's next PR to confirm auto-archive catches new worktrees. Sweep command:
-   ```powershell
-   git worktree remove "C:\Users\ALK\Desktop\Claude Projects\kospos\.claude\worktrees\vibrant-margulis-960939"
-   git worktree prune
-   git branch -D docs/auto-archive-enabled
-   git push origin --delete docs/auto-archive-enabled
-   ```
+A. **Stale post-merge worktrees — empirically RESOLVED.** Auto-archive now confirmed working: `git worktree list` after PR #73's merge shows only the main worktree. PR #71's worktree (`clever-elion-0c5678`) and PR #73's worktree both auto-archived post-merge without manual intervention. The `vibrant-margulis-960939` worktree previously flagged was also cleaned up. **Treat any stale worktree appearing in S27 as a regression** and surface it; otherwise this item drops from carry-forward in the next audit.
 
 B. **Trim `SESSION_LOG.md` Sessions 1–16 to one-paragraph digests.** File at 2,445 lines (+150 from S25); past the 2,000-line trim trigger. Bundleable with item C (~1.5 hours combined). Priority unchanged: "schedule when capacity allows."
 
