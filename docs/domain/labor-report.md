@@ -8472,7 +8472,7 @@ suite:
 | `cat-16-hours-cap-warning` | [Scenario 4](../audits/labor-report-scenario-tests.md#scenario-4--cat-16-hours-approaching-cap) (revised Session 20: **per Position Number, not per Employee ID**) | red (>100%) / yellow (80-100%) |
 | `appt-cat-mismatch` | Scenario 4 (drift between P&P appointment type and BI Payroll-implied type) | yellow |
 | `appt-cat-mismatch-pex-cat18` | [Scenario 6](../audits/labor-report-scenario-tests.md#scenario-6--pex-on-cat-18-enumeration) | yellow |
-| `vacant-no-rtf` | [Scenario 5](../audits/labor-report-scenario-tests.md#scenario-5--vacant-but-no-rtf) (cross-check against vice history per [`staffing_plan_types.md` memory](#tab-24--staffing-plan)) | yellow |
+| ~~`vacant-no-rtf`~~ | **Dropped in [PR #68](https://github.com/alkprojects/kospos/pull/68)** — the workbook's RTF status fields are CON-sourced and not always populated for vacancies (CON data-pipeline limitation, not a missing departmental action). Position Detail now always renders an RTF section for vacant positions with either the populated RTF table or an explanatory hint. | — |
 | `rtf-data-integrity-suspected` | New (Session 20) — vacant position has prior incumbent but no RTF on record | yellow |
 | `sick-leave-bucket-size` | [Scenario 7](../audits/labor-report-scenario-tests.md#scenario-7--sick-leave-bucket-size) | informational |
 | `negative-balance-amount` | [Scenario 8](../audits/labor-report-scenario-tests.md#scenario-8--negative-or-zero-balance-amount-rows) | informational |
