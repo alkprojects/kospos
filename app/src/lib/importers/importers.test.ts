@@ -318,6 +318,9 @@ describe('importPsHcmPp', () => {
 // ---------------------------------------------------------------------------
 
 describe('importObiPayroll', () => {
+  // Legacy minimal-header shape kept for backward-compat checks. Real exports
+  // carry 39 columns; the legacy fixture exercises the importer's fallback to
+  // older "Department" / "Account" header names.
   const HEADERS = [
     'Fiscal Year', 'Department', 'Department Description', 'Position Identifier',
     'Person Number', 'Person Full Name', 'Job Code', 'Job Description',
@@ -367,5 +370,98 @@ describe('importObiPayroll', () => {
     const rows = importObiPayroll(ws);
     expect(rows).toHaveLength(2);
     expect(rows[1].earningsCode).toBe('OT');
+  });
+
+  it('parses the full 39-column export shape', () => {
+    // Header order matches the real OBI export per labor-report.md § Tab 7
+    // column inventory (A-AL; col AM is a trailing blank, ignored).
+    const FULL_HEADERS = [
+      'Fiscal Year', 'Department Group Code',
+      'Fund Lvl 1 Code', 'Fund Lvl 1 Desc', 'Fund Control',
+      'Fund Code', 'Fund Description',
+      'Department Code', 'Department Description',
+      'Project Code', 'Project Description',
+      'Activity Code', 'Activity Description',
+      'Authority Lvl 1 Code', 'Authority Lvl 1 Description',
+      'Authority Code', 'Authority Description',
+      'Account Lvl 2 Description', 'Account Lvl 5 Name', 'Account Lvl 3 Description',
+      'Account Code', 'Account Description',
+      'Earning Period Number', 'Earning Period End Date',
+      'Person Number', 'Person Full Name',
+      'Roster Code',
+      'Earnings Code', 'Earnings Code Description',
+      'Position Identifier', 'Job Code', 'Job Description',
+      'Assignment Number', 'HR Assignment Appointment Type',
+      'Is FTE Hours', 'Earning Hours', 'Pay Period FTE', 'Balance Amount',
+    ];
+    const ws = makeSheet([
+      FULL_HEADERS,
+      [
+        '2026', 'DBI',
+        '10000', 'Special Revenue', 'FACCT',
+        '10190', 'SR BIF Operating Project',
+        '229235', 'DBI IS Building Inspection',
+        '', '',
+        '', '',
+        '10000', 'Operating',
+        'AUTH1', 'Operating Authority',
+        'Expenditures', '5010Salary', 'Salaries',
+        '501010', 'Regular Salaries - Misc',
+        0, '2026-05-08',
+        '12345', 'Smith, Jane',
+        'DBIXE',
+        'WKP', 'Regular Hours - Worked',
+        '10001', 'COMMN:6278', 'Building Inspector',
+        0, 'PCS',
+        'Y', 80, 1, 5254.40,
+      ],
+    ]);
+    const rows = importObiPayroll(ws);
+    expect(rows).toHaveLength(1);
+    const r = rows[0];
+    expect(r.departmentGroupCode).toBe('DBI');
+    expect(r.fundLvl1Code).toBe('10000');
+    expect(r.fundControl).toBe('FACCT');
+    expect(r.fund).toBe('10190');
+    expect(r.fundDescription).toBe('SR BIF Operating Project');
+    expect(r.departmentCode).toBe('229235');
+    expect(r.authorityLvl1Code).toBe('10000');
+    expect(r.authority).toBe('AUTH1');
+    expect(r.accountLvl5Name).toBe('5010Salary');
+    expect(r.accountCode).toBe('501010');
+    expect(r.accountDescription).toBe('Regular Salaries - Misc');
+    expect(r.rosterCode).toBe('DBIXE');
+    expect(r.jobCode).toBe('6278');
+    expect(r.jobCodeSet).toBe('COMMN');
+    expect(r.assignmentNumber).toBe(0);
+    expect(r.isFteHours).toBe('Y');
+    expect(r.earningHours).toBe(80);
+    expect(r.balanceAmount).toBe(5254.40);
+    expect(r._asOfDate).toBe('2026-05-08');
+  });
+
+  it('stamps _asOfDate = MAX(earningPeriodEnd) on every row in the import call', () => {
+    const ws = makeSheet([
+      HEADERS,
+      ['FY2026', 'DBI', 'DBI', '10001', '12345', 'Smith, Jane', 'COMMN:6278', 'Inspector',
+       '501010', '10190', 'AUTH1', 0, '2026-04-24', 'WKP', 'Regular Pay', 4846.15, 1, 'PCS'],
+      ['FY2026', 'DBI', 'DBI', '10001', '12345', 'Smith, Jane', 'COMMN:6278', 'Inspector',
+       '501010', '10190', 'AUTH1', 0, '2026-05-08', 'WKP', 'Regular Pay', 4846.15, 1, 'PCS'],
+      ['FY2026', 'DBI', 'DBI', '10002', '67890', 'Doe, John', 'COMMN:6331', 'Tech',
+       '501010', '10190', 'AUTH1', 0, '2026-04-10', 'WKP', 'Regular Pay', 4000.00, 1, 'PCS'],
+    ]);
+    const rows = importObiPayroll(ws);
+    for (const r of rows) expect(r._asOfDate).toBe('2026-05-08');
+  });
+
+  it('preserves a job code that has no COMMN: prefix', () => {
+    const ws = makeSheet([
+      HEADERS,
+      ['FY2026', 'DBI', 'DBI', '10001', '12345', 'Smith, Jane', '6278', 'Inspector',
+       '501010', '10190', 'AUTH1', 0, '2026-05-08', 'WKP', 'Pay', 4846.15, 1, 'PCS'],
+    ]);
+    const r = importObiPayroll(ws)[0];
+    expect(r.jobCode).toBe('6278');
+    expect(r.jobCodeSet).toBe('');
   });
 });

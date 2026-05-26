@@ -4,14 +4,16 @@
  * Surfaces the three department concepts explicitly (the workbook hides them
  * by conflating col G and col CB in different downstream tabs); shows Cat
  * 17/18 expiry status; renders the inline userNotes editor per [memory
- * feedback_user_notes_per_position.md]; falls back to "load BFM to see
- * chartfields" when BFM data isn't loaded.
+ * feedback_user_notes_per_position.md]; shows YTD payroll actuals in 5
+ * special-class buckets when BI Payroll is loaded; falls back to "load BFM
+ * to see chartfields" when BFM data isn't loaded.
  */
 
 import { useEffect, useState } from 'react';
 import type { Position } from '../../positions';
 import { hasDeptMismatch, usePositionNotes } from '../../positions';
 import type { ResolvedChartfields } from '../../chartfields/types';
+import type { PositionYtdActuals } from '../../payroll';
 
 function fmtMoney(n: number): string {
   return n.toLocaleString('en-US', {
@@ -213,13 +215,66 @@ function Cat1718Card({ position }: { position: Position }) {
   );
 }
 
+function YtdPayrollCard({ actuals, asOfDate }: {
+  actuals: PositionYtdActuals;
+  asOfDate: string;
+}) {
+  const rows: Array<[string, number]> = [
+    ['Regular labor',    actuals.regular],
+    ['Overtime',         actuals.overtime],
+    ['Retirement Payout', actuals.rpo],
+    ['Premium',          actuals.premium],
+    ['Temp Lump-Sum',    actuals.tempLsp],
+  ];
+  // Hide bucket rows with $0 to keep the modal tight — total still shown.
+  const nonZero = rows.filter(([, v]) => v !== 0);
+  return (
+    <section style={{ marginBottom: 18 }}>
+      <div style={{
+        fontSize: 11, fontWeight: 600, color: 'var(--muted)',
+        textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <span>YTD Payroll</span>
+        {asOfDate && (
+          <span style={{ fontSize: 10, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+            asOf {asOfDate}
+          </span>
+        )}
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <tbody>
+          {nonZero.map(([label, value]) => (
+            <tr key={label} style={{ borderBottom: '1px solid var(--border)' }}>
+              <td style={{ padding: '5px 0', color: 'var(--muted)', width: 180 }}>{label}</td>
+              <td style={{ padding: '5px 0', fontFamily: 'monospace', textAlign: 'right' }}>
+                {fmtMoney(value)}
+              </td>
+            </tr>
+          ))}
+          <tr style={{ borderTop: '2px solid var(--border)' }}>
+            <td style={{ padding: '7px 0', fontWeight: 700 }}>Total</td>
+            <td style={{ padding: '7px 0', fontFamily: 'monospace', fontWeight: 700, textAlign: 'right' }}>
+              {fmtMoney(actuals.total)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
 export function PositionDetail({
   position,
   chartfields,
+  ytdActuals,
+  ytdAsOfDate,
   onClose,
 }: {
   position: Position;
   chartfields?: ResolvedChartfields | null;
+  ytdActuals?: PositionYtdActuals | null;
+  ytdAsOfDate?: string;
   onClose: () => void;
 }) {
   const mismatch = hasDeptMismatch(position);
@@ -448,14 +503,6 @@ export function PositionDetail({
                     </td>
                   </tr>
                 ))}
-                {chartfields.ytdActuals !== 0 && (
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '5px 0', color: 'var(--muted)', width: 100 }}>YTD actuals</td>
-                    <td style={{ padding: '5px 0', fontFamily: 'monospace' }}>
-                      {fmtMoney(chartfields.ytdActuals)}
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           ) : (
@@ -464,6 +511,24 @@ export function PositionDetail({
             </div>
           )}
         </section>
+
+        {/* YTD Payroll — only if BI Payroll is loaded for this position */}
+        {ytdActuals ? (
+          <YtdPayrollCard actuals={ytdActuals} asOfDate={ytdAsOfDate ?? ''} />
+        ) : (
+          <section style={{ marginBottom: 18 }}>
+            <div style={{
+              fontSize: 11, fontWeight: 600, color: 'var(--muted)',
+              textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8,
+            }}>
+              YTD Payroll
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+              Load a BI Payroll export to see YTD actuals split into regular labor,
+              overtime, retirement payout, premium, and temp lump-sum.
+            </div>
+          </section>
+        )}
 
         {/* User notes */}
         <section style={{ marginBottom: 8 }}>
