@@ -2443,3 +2443,68 @@ Mostly model-driven session — Alex picked Option A via AskUserQuestion, the re
 - **Scope discipline:** ✅ Strict one-PR-per-sub-phase honored. Did not bundle `2.2.17 views/labor/` (which would have been tempting since the cube is ready for it) — that's the next sub-phase's pick.
 - **Verification habits:** ✅ Tests + build + preview MCP walkthrough + screenshots. Same pattern as S24.
 - **Gap surfaced:** None this session. Pattern is stable.
+
+---
+
+## Session 26 — Phase 2.2.c: lib/views/labor/ per-PP drill-down (2026-05-27)
+
+**Worktree:** `clever-elion-0c5678`
+**Model:** Opus 4.7 medium (per S25 handoff recommendation for Option A)
+**Branches:** `chore/audit-phase-2-2-b-c` ([PR #70](https://github.com/alkprojects/kospos/pull/70)), `feat/views-labor` ([PR #71](https://github.com/alkprojects/kospos/pull/71)), `docs/session-26-handoff` (this PR)
+
+### Prompts
+
+**[start of session — Session 26 prompt from S25 handoff]**
+> This session asks Alex to pick the next Phase 2.2 sub-phase (2.2.c), then ships it. […]
+
+**[AskUserQuestion answer]**
+> Option A — `2.2.17` views/labor/ (recommended)
+
+### Milestones
+
+| What | Where |
+|---|---|
+| **PR #70** Combined Phase 2.2.b + 2.2.c close audit (mirroring Phase 2.1 audit format) | [docs/audits/phase-2-2-b-and-c-close-audit.md](../docs/audits/phase-2-2-b-and-c-close-audit.md) |
+| **PR #70** In-session doc-sync fix — labor-report.md catalog row 8475 tombstoned for the QR-002 vacant-no-rtf rule dropped in PR #68 | [docs/domain/labor-report.md](../docs/domain/labor-report.md) |
+| **PR #70** In-session doc-sync fix — labor-report-scenario-tests.md Scenario 5 § "KosPos surfaces this as" rewritten to match merged PR #68 behavior (always-render RTF section + hint) | [docs/audits/labor-report-scenario-tests.md](../docs/audits/labor-report-scenario-tests.md) |
+| **PR #71** `lib/views/labor/aggregate.ts` — pure filter + 5-bucket aggregate math | [aggregate.ts](../app/src/lib/views/labor/aggregate.ts) |
+| **PR #71** `lib/views/labor/scope-store.ts` — tiny Zustand store for scoped-position state | [scope-store.ts](../app/src/lib/views/labor/scope-store.ts) |
+| **PR #71** `LaborView.tsx` — per Tab 7 § KosPos UI sketch #2: aggregates header + filter row + per-row table + Trace-to-source modal (40 source fields) | [LaborView.tsx](../app/src/lib/views/labor/LaborView.tsx) |
+| **PR #71** Position Detail "View payroll →" button gated on parent providing `onViewPayroll` | [PositionDetail.tsx](../app/src/lib/views/positions/PositionDetail.tsx) |
+| **PR #71** App.tsx new "Labor" tab (devOnly initially) + cross-tab navigation wiring through PositionsView | [App.tsx](../app/src/App.tsx) |
+| Tests: 199 → 210 (+11 in `labor.test.ts` — filter math single-axis + combined + zero-strip normalization, aggregate math, bucketOf routing, distinctValues helper) | — |
+
+### Verification
+
+- `npm test` 210/210 ✓
+- `npm run build` clean ✓
+- Preview MCP walkthrough with synthetic data (20 OBI rows, 2 positions × 3 PPEs × 3 buckets each + 1 RPO + 1 LSP):
+  - **Unscoped:** 20 rows / $31,200 / $27,000 reg / $1,200 OT / $1,200 RPO / $900 prm / $900 LSP / 658 hrs / asOf 2026-05-22 — all match the synthetic plan ✓
+  - **Scoped to position `50001`** (via "View payroll →" from Position Detail): 9 of 20 / $14,550 (= 3 PPE × $4,850) / $13,500 reg / $600 OT / $450 prm ✓
+  - **Filter (OTP) + scope:** 3 rows / $600 OT / 9 hrs ✓
+  - **Trace-to-source modal:** all 40 fields render ✓
+  - **Clear scope:** returns to all-positions view; filter chip persists ✓
+  - **Reset filters:** wipes all filter chips ✓
+  - Console: no errors/warnings ✓
+
+### Out of scope (intentionally deferred)
+
+- **Labor tab non-dev promotion.** The tab stays devOnly until 2.2.d ships and the cross-tab navigation has been used end-to-end on real data. The plan is to drop the devOnly flag once the workflow is shaken out — same approach as Positions tab promotion in S24.
+- **IndexedDB persistence of `useLaborScope`.** The scope is browser-session only (resets on reload). Matches the existing `usePositionNotes` pattern; IndexedDB wiring queued for the same future cleanup.
+- **Per-row "post to chartfield" affordance.** Some rows in the trace modal show a Fund / Project / Activity tuple that could route to a future "see all rows for this chartfield" link. Deferred — not in the Tab 7 UI sketch #2 scope.
+- **Account-description rename guard.** Tab 7 improvement #7 (a Data Issue when an unrecognized account-desc appears) still belongs in `2.2.2 quality/` with the catalog detectors, not here.
+
+### Lessons / improvements for next phase
+
+- **Tiny scope store pattern works.** `useLaborScope` matches the `usePositionNotes` shape: one purpose, two actions, one bumping counter for cross-tab navigation effects. Pattern generalizes to other "selected X" surfaces (e.g. future "selected pay period" for the projection page).
+- **Gated cross-tab navigation.** Threading `onViewPayroll` through PositionsView → PositionDetail keeps the Position Detail modal pure of router knowledge while ensuring the View payroll button only renders when the target tab is visible. This is the right shape for promoting Labor to non-dev later (just always pass the callback).
+- **Audit cadence slip caught and patched.** S25 missed its Phase 2.2.b close audit because the prompt template didn't include an explicit Step-0 audit trigger. The S26 prompt did include it; the S27 prompt template preserves the pattern. Item F in the carry-forward list now tracks "audit cadence + prompt template" as a coupled concern.
+
+### Brief audit (Alex's collaboration this session)
+
+Mostly model-driven session — Alex picked Option A via AskUserQuestion at the start, the rest was scope from the S25 handoff. Narrow audit:
+
+- **Prompt quality (S25 handoff prompt that drove S26):** ✅ The Step-0 audit trigger was the missing element from the S24→S25 prompt; including it in S25→S26 surfaced and fixed the carry-forward F gap. The branched A/B/C scope worked the same way it did for 2.2.b/c.
+- **Scope discipline:** ✅ Strict one-PR-per-sub-phase honored. Two PRs (#70 audit + #71 feat) shipped separately even though both were in the same session — clean split. Did not bundle `views/temp-limits/` (Option B) or any TX-entity work into this PR even though the cube exposes the right primitives.
+- **Verification habits:** ✅ Tests + build + preview MCP walkthrough + screenshot. Synthetic-data math walked through in the PR description so a reviewer can sanity-check each aggregate against the data plan.
+- **Gap surfaced:** the S25 handoff didn't include an explicit Step-0 audit trigger, which let the Phase 2.2.b close audit slip. Caught + patched this session; the S27 prompt template preserves the trigger pattern.
