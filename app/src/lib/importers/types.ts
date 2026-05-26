@@ -142,28 +142,100 @@ export interface PsHcmPpRow {
 //
 // Per-pay-period rows — NOT a YTD summary.
 // Each row = one employee × one earning code × one pay period.
+// 39 columns in the real OBI export (col AM is a trailing blank, ignored).
+// See docs/domain/labor-report.md § Tab 7 — BI Payroll for full column inventory.
 // ---------------------------------------------------------------------------
 
 export interface ObiPayrollRow {
   _source: 'obi-payroll';
-  fiscalYear: string;
-  departmentCode: string;
-  departmentName: string;
-  positionIdentifier: string;   // "Position Identifier" — numeric string
-  personNumber: string;         // "Person Number"
-  personFullName: string;       // "Person Full Name"
-  jobCode: string;              // "Job Code" — format "COMMN:XXXX"
-  jobDescription: string;
-  accountCode: string;
-  fund: string;                 // "Fund Code"
-  authority: string;            // "Authority Code"
-  earningPeriodNumber: number;  // "Earning Period Number"
-  earningPeriodEnd: string;     // "Earning Period End Date" — ISO date
-  earningsCode: string;         // "Earnings Code" — WKP, ACTFLT, OT, etc.
-  earningsDescription: string;
-  balanceAmount: number;        // "Balance Amount" — dollars for this row
-  payPeriodFTE: number;         // "Pay Period FTE"
-  appointmentType: string;      // "HR Assignment Appointment Type"
+
+  // Fiscal year + department-group identity
+  fiscalYear: string;                 // A  "Fiscal Year"
+  departmentGroupCode: string;        // B  "Department Group Code" — DBI/CPC etc.
+
+  // Fund hierarchy
+  fundLvl1Code: string;               // C  "Fund Lvl 1 Code"
+  fundLvl1Description: string;        // D  "Fund Lvl 1 Desc"
+  fundControl: string;                // E  "Fund Control" — FACCT/FCNT
+  fund: string;                       // F  "Fund Code" — 6-digit
+  fundDescription: string;            // G  "Fund Description"
+
+  // Department
+  departmentCode: string;             // H  "Department Code"
+  departmentName: string;             // I  "Department Description"
+
+  // Project / Activity / Authority
+  projectCode: string;                // J  "Project Code"
+  projectDescription: string;         // K  "Project Description"
+  activityCode: string;               // L  "Activity Code"
+  activityDescription: string;        // M  "Activity Description"
+  authorityLvl1Code: string;          // N  "Authority Lvl 1 Code"
+  authorityLvl1Description: string;   // O  "Authority Lvl 1 Description"
+  authority: string;                  // P  "Authority Code"
+  authorityDescription: string;       // Q  "Authority Description"
+
+  // Account
+  accountLvl2Description: string;     // R  "Account Lvl 2 Description"
+  accountLvl5Name: string;            // S  "Account Lvl 5 Name"
+  accountLvl3Description: string;     // T  "Account Lvl 3 Description"
+  accountCode: string;                // U  "Account Code"
+  /**
+   * "Account Description" (col V) — the text used by every Step / Report Data
+   * exclusion SUMIFS. The 4 special-class bucket strings are:
+   *   "Overtime - Scheduled Misc"
+   *   "Ret Payout - SP & Vac - Misc"
+   *   "Premium Pay - Misc"
+   *   "Temp Misc LumpSum Payoff"
+   * Anything else = regular labor. See lib/payroll/types.ts ACCOUNT_DESCRIPTIONS.
+   */
+  accountDescription: string;
+
+  // Earning period
+  earningPeriodNumber: number;        // W  "Earning Period Number" — all-zero in current exports; PP is derived from X
+  earningPeriodEnd: string;           // X  "Earning Period End Date" — the PPE
+
+  // Person
+  personNumber: string;               // Y  "Person Number"
+  personFullName: string;             // Z  "Person Full Name"
+
+  // Roster
+  rosterCode: string;                 // AA "Roster Code"
+
+  // Earnings
+  earningsCode: string;               // AB "Earnings Code" — WKP, OTP, VPO, etc. Null for benefit lines.
+  earningsDescription: string;        // AC "Earnings Code Description"
+
+  // Position + Job
+  positionIdentifier: string;         // AD "Position Identifier" — the per-position key
+  /**
+   * AE "Job Code" — the 4-digit SF job code, stripped of the `COMMN:` prefix.
+   * The original source value (e.g. `"COMMN:5380"`) is split into:
+   *   jobCode      = "5380"
+   *   jobCodeSet   = "COMMN"
+   * See labor-report.md § Tab 7 KosPos improvement #5.
+   */
+  jobCode: string;
+  jobCodeSet: string;                 // "COMMN" or department-specific prefix; "" if raw value had no prefix
+  jobDescription: string;             // AF "Job Description"
+
+  // Assignment
+  assignmentNumber: number;           // AG "Assignment Number" — 0 = primary, >0 = acting/additional
+  appointmentType: string;            // AH "HR Assignment Appointment Type" — PCS/PEX/TEX/etc.
+
+  // Hours / FTE / Amount
+  isFteHours: string;                 // AI "Is FTE Hours" — "Y"/"N"
+  earningHours: number;               // AJ "Earning Hours"
+  payPeriodFTE: number;               // AK "Pay Period FTE"
+  balanceAmount: number;              // AL "Balance Amount" — the dollar amount
+
+  /**
+   * MAX(earningPeriodEnd) across all rows in the same import call. Lets the
+   * payroll cube group rows from different uploads into separate snapshots
+   * without an explicit upload-batch tracker on the store. Stamped by the
+   * importer.
+   */
+  _asOfDate: string;
+
   _row: number;
 }
 

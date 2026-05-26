@@ -8,6 +8,8 @@
  * When BFM data is also loaded, the Position Detail modal joins to it via
  * `resolvePositionChartfields` so the posting Fund / Authority / Project /
  * Activity show through. Without BFM, those fields show a "load BFM" hint.
+ * When BI Payroll is also loaded, the modal shows the per-position YTD
+ * actuals broken into the 5 special-class buckets — see lib/payroll/.
  */
 
 import { useMemo, useState } from 'react';
@@ -16,7 +18,8 @@ import { buildPositions, hasDeptMismatch, usePositionNotes } from '../../positio
 import type { Position } from '../../positions';
 import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import { resolvePositionChartfields, normalizePositionKey } from '../../chartfields/resolve';
-import type { PsHcmPpRow } from '../../importers/types';
+import type { ObiPayrollRow, PsHcmPpRow } from '../../importers/types';
+import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import { PositionDetail } from './PositionDetail';
 
 function badge(label: string, color: string, bg: string) {
@@ -113,6 +116,16 @@ export function PositionsView() {
     );
   }, [loadedRows]);
 
+  // Latest PayrollSnapshot — used to surface YTD actuals on Position Detail.
+  // Most-recent asOfDate wins when multiple snapshots are loaded.
+  const latestPayroll = useMemo(() => {
+    const obiRows = loadedRows.filter(
+      (r): r is ObiPayrollRow => r._source === 'obi-payroll',
+    );
+    if (obiRows.length === 0) return null;
+    return pickLatestSnapshot(buildPayrollSnapshots(obiRows));
+  }, [loadedRows]);
+
   const deptGroups = useMemo(() => {
     const set = new Set<string>();
     for (const p of positions) {
@@ -182,6 +195,9 @@ export function PositionsView() {
   const selectedChartfields = selected
     ? resolvedChartfieldsMap.get(selected.id) ?? null
     : null;
+  const selectedYtd = selected && latestPayroll
+    ? latestPayroll.byPosition.get(selected.id) ?? null
+    : null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -189,6 +205,8 @@ export function PositionsView() {
         <PositionDetail
           position={selected}
           chartfields={selectedChartfields}
+          ytdActuals={selectedYtd}
+          ytdAsOfDate={latestPayroll?.asOfDate}
           onClose={() => setSelectedId(null)}
         />
       )}
