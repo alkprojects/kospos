@@ -130,6 +130,16 @@ export function PositionsView({ onViewPayroll }: {
     return pickLatestSnapshot(buildPayrollSnapshots(obiRows));
   }, [loadedRows]);
 
+  // Global "is this data source loaded anywhere?" flags. Distinct from the
+  // per-position resolution above — needed so Position Detail can tell the
+  // difference between "no BI Payroll loaded" and "BI Payroll loaded but this
+  // position has no rows in it" (e.g., a brand-new vacancy). Same for BFM.
+  const obiLoaded = latestPayroll !== null;
+  const bfmLoaded = useMemo(
+    () => loadedRows.some(r => r._source === 'bfm-position'),
+    [loadedRows],
+  );
+
   const deptGroups = useMemo(() => {
     const set = new Set<string>();
     for (const p of positions) {
@@ -211,6 +221,8 @@ export function PositionsView({ onViewPayroll }: {
           chartfields={selectedChartfields}
           ytdActuals={selectedYtd}
           ytdAsOfDate={latestPayroll?.asOfDate}
+          obiLoaded={obiLoaded}
+          bfmLoaded={bfmLoaded}
           onClose={() => setSelectedId(null)}
           onViewPayroll={() => { setSelectedId(null); onViewPayroll?.(); }}
         />

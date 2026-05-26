@@ -287,6 +287,8 @@ export function PositionDetail({
   chartfields,
   ytdActuals,
   ytdAsOfDate,
+  obiLoaded,
+  bfmLoaded,
   onClose,
   onViewPayroll,
 }: {
@@ -294,6 +296,13 @@ export function PositionDetail({
   chartfields?: ResolvedChartfields | null;
   ytdActuals?: PositionYtdActuals | null;
   ytdAsOfDate?: string;
+  /** Global "is BI Payroll loaded anywhere?" flag. When true but ytdActuals
+   *  is null, the hint should say "no rows for this position" instead of
+   *  "Load a BI Payroll export…". */
+  obiLoaded?: boolean;
+  /** Global "is a BFM Position eturn loaded anywhere?" flag. Same logic
+   *  as obiLoaded but for the Posting Chartfields panel. */
+  bfmLoaded?: boolean;
   onClose: () => void;
   onViewPayroll?: () => void;
 }) {
@@ -541,6 +550,14 @@ export function PositionDetail({
                 ))}
               </tbody>
             </table>
+          ) : bfmLoaded ? (
+            <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+              No BFM Position eturn row matched this position. The loaded BFM
+              eturn doesn't carry chartfields for position{' '}
+              <span style={{ fontFamily: 'monospace' }}>{position.displayNumber}</span> —
+              either the position was added after the eturn was generated, or
+              the position number changed between the BFM and HCM snapshots.
+            </div>
           ) : (
             <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
               Load a BFM Position eturn to see posting Fund / Authority / Project / Activity.
@@ -548,7 +565,9 @@ export function PositionDetail({
           )}
         </section>
 
-        {/* YTD Payroll — only if BI Payroll is loaded for this position */}
+        {/* YTD Payroll — three states: (a) actuals present → breakdown card;
+            (b) BI Payroll loaded but no rows for this position → explanatory
+            hint; (c) BI Payroll not loaded at all → "load one" hint. */}
         {ytdActuals ? (
           <YtdPayrollCard
             actuals={ytdActuals}
@@ -560,13 +579,29 @@ export function PositionDetail({
             <div style={{
               fontSize: 11, fontWeight: 600, color: 'var(--muted)',
               textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
-              YTD Payroll
+              <span>YTD Payroll</span>
+              {obiLoaded && ytdAsOfDate && (
+                <span style={{ fontSize: 10, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                  asOf {ytdAsOfDate}
+                </span>
+              )}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
-              Load a BI Payroll export to see YTD actuals split into regular labor,
-              overtime, retirement payout, premium, and temp lump-sum.
-            </div>
+            {obiLoaded ? (
+              <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+                No BI Payroll activity recorded for position{' '}
+                <span style={{ fontFamily: 'monospace' }}>{position.displayNumber}</span> in
+                the loaded snapshot. Vacant positions, brand-new positions, and positions
+                that haven't paid any earnings in FY-to-date will show this — it's not a
+                data bug.
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+                Load a BI Payroll export to see YTD actuals split into regular labor,
+                overtime, retirement payout, premium, and temp lump-sum.
+              </div>
+            )}
           </section>
         )}
 
@@ -583,9 +618,16 @@ export function PositionDetail({
 
         <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12 }}>
           Sources: P&amp;P snapshot {position.snapshotDate || '—'}
-          {chartfields && (
-            <> · joined with {chartfields.dataSources.join(' + ')}</>
-          )}
+          {(() => {
+            // Combine chartfields-side joins + OBI when loaded. Lets the
+            // footer honestly reflect "what data is loaded in the app"
+            // separately from "what joined to this specific position".
+            const joined = chartfields ? [...chartfields.dataSources] : [];
+            if (obiLoaded && !joined.includes('obi')) joined.push('obi');
+            return joined.length > 0
+              ? <> · joined with {joined.join(' + ')}</>
+              : null;
+          })()}
         </div>
       </div>
     </div>
