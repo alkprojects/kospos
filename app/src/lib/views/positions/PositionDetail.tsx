@@ -385,10 +385,26 @@ function ChartfieldChip({ label, code, title }: { label: string; code: string; t
   );
 }
 
+function ViewPayrollButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        marginTop: 8, fontSize: 11, padding: '4px 12px',
+        border: '1px solid var(--accent)', borderRadius: 12,
+        background: 'var(--accent-soft)', color: 'var(--accent)',
+        cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+      }}
+    >
+      View payroll →
+    </button>
+  );
+}
+
 function YtdPayrollCard({ actuals, asOfDate, onViewPayroll }: {
   actuals: PositionYtdActuals;
   asOfDate: string;
-  /** When omitted (e.g. Labor tab not yet promoted to non-dev), the
+  /** When omitted (e.g. Payroll tab not yet promoted to non-dev), the
    *  "View payroll →" button is hidden so a user can't end up navigating
    *  to a tab that isn't currently visible. */
   onViewPayroll?: () => void;
@@ -434,19 +450,7 @@ function YtdPayrollCard({ actuals, asOfDate, onViewPayroll }: {
           </tr>
         </tbody>
       </table>
-      {onViewPayroll && (
-        <button
-          onClick={onViewPayroll}
-          style={{
-            marginTop: 8, fontSize: 11, padding: '4px 12px',
-            border: '1px solid var(--accent)', borderRadius: 12,
-            background: 'var(--accent-soft)', color: 'var(--accent)',
-            cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-          }}
-        >
-          View payroll →
-        </button>
-      )}
+      {onViewPayroll && <ViewPayrollButton onClick={onViewPayroll} />}
     </section>
   );
 }
@@ -741,7 +745,11 @@ export function PositionDetail({
 
         {/* YTD Payroll — three states: (a) actuals present → breakdown card;
             (b) BI Payroll loaded but no rows for this position → explanatory
-            hint; (c) BI Payroll not loaded at all → "load one" hint. */}
+            hint; (c) BI Payroll not loaded at all → "load one" hint.
+            "View payroll →" appears in (a) and (b) — in (b) the user can
+            still drill into the Payroll tab scoped to this position to
+            confirm there really are no matching rows (or surface a data-
+            identifier mismatch). */}
         {ytdActuals ? (
           <YtdPayrollCard
             actuals={ytdActuals}
@@ -763,13 +771,17 @@ export function PositionDetail({
               )}
             </div>
             {obiLoaded ? (
-              <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
-                No BI Payroll activity recorded for position{' '}
-                <span style={{ fontFamily: 'monospace' }}>{position.displayNumber}</span> in
-                the loaded snapshot. Vacant positions, brand-new positions, and positions
-                that haven't paid any earnings in FY-to-date will show this — it's not a
-                data bug.
-              </div>
+              <>
+                <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
+                  No BI Payroll activity recorded for position{' '}
+                  <span style={{ fontFamily: 'monospace' }}>{position.displayNumber}</span> in
+                  the loaded snapshot. Vacant positions, brand-new positions, and positions
+                  that haven't paid any earnings in FY-to-date will show this — it's not
+                  always a data bug, but "View payroll →" will scope the Payroll tab to
+                  this position so you can confirm.
+                </div>
+                {onViewPayroll && <ViewPayrollButton onClick={viewPayroll} />}
+              </>
             ) : (
               <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>
                 Load a BI Payroll export to see YTD actuals split into regular labor,

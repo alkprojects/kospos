@@ -15,7 +15,7 @@ type TabDef = { id: Tab; label: string; devOnly?: boolean };
 const ALL_TABS: TabDef[] = [
   { id: 'calculator',    label: 'Job Class Calculator' },
   { id: 'positions',     label: 'Positions' },
-  { id: 'labor',         label: 'Labor',                 devOnly: true },
+  { id: 'labor',         label: 'Payroll',               devOnly: true },
   { id: 'importer',      label: 'Load Reports',          devOnly: true },
   { id: 'special-class', label: 'Special Class',         devOnly: true },
 ];
