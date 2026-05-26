@@ -158,6 +158,158 @@ describe('importBfmPosition', () => {
     const ws = makeSheet([HEADERS]);
     expect(importBfmPosition(ws)).toEqual([]);
   });
+
+  it('captures all 7 phase layers for FY-this when present', () => {
+    // Mirror the real eturn shape: FTE + Dollars per phase. All 7 phases of
+    // FY 2025-26 (Original / Base / Department / Mayor / Committee /
+    // Technical Adjustment / Board) so we exercise the full ladder.
+    const FULL_HEADERS = [
+      'BY HCM Position#', 'Dept ID', 'Job Class', 'Status', 'Ret Indicator',
+      'FY 2025-26 Original FTE', 'FY 2025-26 Original',
+      'FY 2025-26 Base FTE',     'FY 2025-26 Base',
+      'FY 2025-26 Department FTE', 'FY 2025-26 Department',
+      'FY 2025-26 Mayor FTE',    'FY 2025-26 Mayor',
+      'FY 2025-26 Committee FTE', 'FY 2025-26 Committee',
+      'FY 2025-26 Technical Adjustment FTE', 'FY 2025-26 Technical Adjustment',
+      'FY 2025-26 Board FTE',    'FY 2025-26 Board',
+    ];
+    const ws = makeSheet([
+      FULL_HEADERS,
+      ['10001', 'DBI', '6278_C', 'A', '1',
+       1, 100000,
+       1, 102000,
+       1, 105000,
+       1, 108000,
+       1, 110000,
+       1, 110500,
+       1, 112000],
+    ]);
+    const r = importBfmPosition(ws)[0];
+    expect(r.budgetByFy['FY 2025-26']).toBeDefined();
+    const layers = r.budgetByFy['FY 2025-26'];
+    expect(layers.Original?.dollars).toBe(100000);
+    expect(layers.Base?.dollars).toBe(102000);
+    expect(layers.Department?.dollars).toBe(105000);
+    expect(layers.Mayor?.dollars).toBe(108000);
+    expect(layers.Committee?.dollars).toBe(110000);
+    expect(layers.TechnicalAdjustment?.dollars).toBe(110500);
+    expect(layers.Board?.dollars).toBe(112000);
+    // Default anchor picks Board (most-advanced).
+    expect(r.defaultPhase).toBe('Board');
+    expect(r.budgetedSalary).toBe(112000);
+  });
+
+  it('picks latest FY when both FY-this and FY-plus-one columns are populated', () => {
+    // FY 2025-26 has Board (final); FY 2026-27 only has Department populated.
+    // Anchor should be FY 2026-27 Department (latest year wins) — but only
+    // if Department is non-zero. If FY 2026-27 is all zeros, fall back to
+    // FY 2025-26 Board.
+    const HEADS = [
+      'BY HCM Position#', 'Dept ID', 'Job Class', 'Status', 'Ret Indicator',
+      'FY 2025-26 Board FTE', 'FY 2025-26 Board',
+      'FY 2026-27 Department FTE', 'FY 2026-27 Department',
+      'FY 2026-27 Mayor FTE', 'FY 2026-27 Mayor',
+    ];
+    const populated = makeSheet([
+      HEADS,
+      ['10001', 'DBI', '6278_C', 'A', '1', 1, 110000, 1, 115000, 0, 0],
+    ]);
+    const r1 = importBfmPosition(populated)[0];
+    expect(r1.defaultFiscalYear).toBe('FY 2026-27');
+    expect(r1.defaultPhase).toBe('Department');
+    expect(r1.budgetedSalary).toBe(115000);
+
+    const empty27 = makeSheet([
+      HEADS,
+      ['10001', 'DBI', '6278_C', 'A', '1', 1, 110000, 0, 0, 0, 0],
+    ]);
+    const r2 = importBfmPosition(empty27)[0];
+    expect(r2.defaultFiscalYear).toBe('FY 2025-26');
+    expect(r2.defaultPhase).toBe('Board');
+    expect(r2.budgetedSalary).toBe(110000);
+  });
+
+  it('captures prior-FY Original alongside current FY layers', () => {
+    // FY 2024-25 historical band (AK:AL): only Original is present.
+    const HEADS = [
+      'BY HCM Position#', 'Dept ID', 'Job Class', 'Status', 'Ret Indicator',
+      'FY 2024-25 Original FTE', 'FY 2024-25 Original',
+      'FY 2025-26 Board FTE',    'FY 2025-26 Board',
+    ];
+    const ws = makeSheet([
+      HEADS,
+      ['10001', 'DBI', '6278_C', 'A', '1', 1, 100000, 1, 110000],
+    ]);
+    const r = importBfmPosition(ws)[0];
+    expect(r.budgetByFy['FY 2024-25']?.Original?.dollars).toBe(100000);
+    expect(r.budgetByFy['FY 2024-25']?.Board).toBeUndefined();
+    expect(r.budgetByFy['FY 2025-26']?.Board?.dollars).toBe(110000);
+    // Anchor picks latest FY's Board.
+    expect(r.defaultFiscalYear).toBe('FY 2025-26');
+    expect(r.defaultPhase).toBe('Board');
+  });
+
+  it('captures the full position-metadata column set', () => {
+    // The full eturn carries identity / dept-tree / chartfield-title /
+    // job-class-tier / FY-span fields we now expose.
+    const HEADS = [
+      'GFS Type', 'Dept Grp', 'Prior Budget HCM Position#', 'BY HCM Position#',
+      'FormID', 'Division', 'Division Title', 'Section', 'Section Title',
+      'Dept ID', 'Dept ID Title',
+      'Fund', 'Fund Title', 'Project', 'Project Title', 'Activity', 'Activity Title',
+      'Authority', 'Authority Title',
+      'Account Lvl 5 Title', 'Agency Use', 'Agency Use Title',
+      'Prior Budget Position Code', 'Position Code',
+      'Job Class', 'Job Class Title', 'Job Class Tier',
+      'Emp Org', 'Emp Org Title', 'Ret Indicator', 'Status', 'Action',
+      'Fiscal Year Start', 'PPD Start', 'Fiscal Year End', 'PPD End',
+      'FY 2025-26 Board FTE', 'FY 2025-26 Board',
+    ];
+    const ws = makeSheet([
+      HEADS,
+      [
+        'NGFS', 'DBI', '00010001', '10001',
+        'F-123', 'D-100', 'Inspections Division', 'S-110', 'Building Inspection Section',
+        '229235', 'Department of Building Inspection',
+        '10190', 'Special Revenue', '10039761', 'BIF Operating', '0', 'Default',
+        '2DBIA', 'BIF Authority',
+        'Salaries & Wages', 'AGY-1', 'Use 1',
+        'BPC-1', 'PC-1',
+        '6278_C', 'Building Inspector', 'A',
+        '21', 'SEIU 1021', 'C', 'A', 'New',
+        '2025', '2025-07-01', '2026', '2026-06-30',
+        1, 110000,
+      ],
+    ]);
+    const r = importBfmPosition(ws)[0];
+    expect(r.gfsType).toBe('NGFS');
+    expect(r.deptGroup).toBe('DBI');
+    expect(r.priorPositionNumber).toBe('00010001');
+    expect(r.positionNumber).toBe('10001');
+    expect(r.formId).toBe('F-123');
+    expect(r.division).toBe('D-100');
+    expect(r.divisionTitle).toBe('Inspections Division');
+    expect(r.section).toBe('S-110');
+    expect(r.sectionTitle).toBe('Building Inspection Section');
+    expect(r.departmentName).toBe('Department of Building Inspection');
+    expect(r.fundTitle).toBe('Special Revenue');
+    expect(r.projectTitle).toBe('BIF Operating');
+    expect(r.activityTitle).toBe('Default');
+    expect(r.authorityTitle).toBe('BIF Authority');
+    expect(r.accountLvl5Title).toBe('Salaries & Wages');
+    expect(r.agencyUse).toBe('AGY-1');
+    expect(r.agencyUseTitle).toBe('Use 1');
+    expect(r.priorPositionCode).toBe('BPC-1');
+    expect(r.positionCode).toBe('PC-1');
+    expect(r.jobClassTier).toBe('A');
+    expect(r.empOrgTitle).toBe('SEIU 1021');
+    expect(r.action).toBe('New');
+    expect(r.ppdStart).toBe('2025-07-01');
+    expect(r.fiscalYearEnd).toBe('2026');
+    expect(r.ppdEnd).toBe('2026-06-30');
+    // Anchor.
+    expect(r.budgetByFy['FY 2025-26']?.Board?.dollars).toBe(110000);
+  });
 });
 
 // ---------------------------------------------------------------------------

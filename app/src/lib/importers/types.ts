@@ -19,35 +19,153 @@ export interface DetectionResult {
 // ---------------------------------------------------------------------------
 // BFM Position eturn  (15.10.006 "By Position#" sheet / "Pos" sheet in Eturns)
 //
-// Budget columns are named "FY YYYY-YY <Phase> FTE" / "FY YYYY-YY <Phase>".
-// The importer picks the most-advanced approved phase (Board > Mayor > Committee
-// > Department > Base) from the latest fiscal year present.
+// Real eturn carries 64 columns (A:BL) per labor-report.md § Tab 4. Columns
+// fall into four bands:
+//   - Position metadata     (A:AF)  identity, chartfields, job class, status
+//   - Date metadata         (AG:AJ) FY span (PPD start/end, FY end)
+//   - FY-this layers        (AK:AZ) Original / Base / Department / Mayor /
+//                                   Committee / Technical Adjustment / Board
+//                                   plus a prior-FY Original (AK:AL)
+//   - FY-plus-one layers    (BA:BL) Base / Department / Mayor / Committee /
+//                                   Technical Adjustment / Board
+// Each layer has two cells: FTE + Dollars.
+//
+// The importer preserves every layer so variance views can compare across
+// budget phases (e.g. "what changed between Mayor and Board?"). The
+// default-anchor `fte` / `budgetedSalary` is the most-advanced approved
+// phase of the latest fiscal year present, per the precedence:
+//   Board > Technical Adjustment > Committee > Mayor > Department > Base > Original
 // ---------------------------------------------------------------------------
+
+/** The seven budget phases of the SF budget cycle, ordered base → adopted. */
+export type BfmBudgetPhase =
+  | 'Original'
+  | 'Base'
+  | 'Department'
+  | 'Mayor'
+  | 'Committee'
+  | 'TechnicalAdjustment'
+  | 'Board';
+
+/** One layer's two cells: FTE + dollar amount. */
+export interface BfmBudgetLayer {
+  fte: number;
+  dollars: number;
+}
+
+/**
+ * The set of layers present in one fiscal year on one position. Keys are
+ * the seven possible phases; only the phases actually present in the eturn
+ * for that FY are populated. Use `pickAdoptedPhase` (in lib/budget/) to
+ * resolve to the most-advanced layer.
+ */
+export type BfmBudgetLayers = Partial<Record<BfmBudgetPhase, BfmBudgetLayer>>;
 
 export interface BfmPositionRow {
   _source: 'bfm-position';
+
+  /* ---- Identity ---- */
   /** "BY HCM Position#" — the budget-year position number */
   positionNumber: string;
   /** "Prior Budget HCM Position#" — prior year number (may differ) */
   priorPositionNumber: string;
+  /** "Position Code" — may differ from HCM position number on new positions. */
+  positionCode: string;
+  /** "Prior Budget Position Code". */
+  priorPositionCode: string;
+  /** "FormID" — internal BFM form identifier. */
+  formId: string;
+
+  /* ---- Dept tree ---- */
+  /** "Dept Grp" — dept-group code (DBI / CPC / etc.). */
+  deptGroup: string;
+  /** "Division" code. */
+  division: string;
+  /** "Division Title". */
+  divisionTitle: string;
+  /** "Section" code. */
+  section: string;
+  /** "Section Title". */
+  sectionTitle: string;
+  /** "GFS Type" (NGFS = non-General Fund). */
+  gfsType: string;
   departmentCode: string;       // "Dept ID"
   departmentName: string;       // "Dept ID Title"
+
+  /* ---- Chartfields ---- */
+  fund: string;
+  fundTitle: string;
+  authority: string;
+  authorityTitle: string;
+  project: string;
+  projectTitle: string;
+  activity: string;
+  activityTitle: string;
+  /** "Account Lvl 5 Title" — e.g. "Salaries & Wages". */
+  accountLvl5Title: string;
+  /** "Agency Use" code (used by a handful of depts; blank for DBI). */
+  agencyUse: string;
+  /** "Agency Use Title". */
+  agencyUseTitle: string;
+
+  /* ---- Job class + union ---- */
   jobCode: string;              // "Job Class" e.g. "6321_C"
   jobCodeDescription: string;   // "Job Class Title"
+  /** "Job Class Tier" — within-class tier (some classes have A/B/C tiers). */
+  jobClassTier: string;
   empOrg: string;               // "Emp Org" — employee organization / union group
-  retIndicator: string;         // "Ret Indicator" — retirement code
+  empOrgTitle: string;          // "Emp Org Title"
+  retIndicator: string;         // "Ret Indicator" — retirement code (C/U)
+
+  /* ---- Status ---- */
   positionStatus: string;       // "Status" — "A" active, "I" inactive, "S" special
-  fund: string;
-  authority: string;
-  project: string;
-  activity: string;
-  /** FTE from the most-advanced budget phase column found */
+  action: string;               // "Action" — e.g. "New" / "Reclass" / "Delete"
+
+  /* ---- FY span ---- */
+  /** "Fiscal Year Start" — calendar year the FY starts (e.g. "2026" for FY26-27). */
+  fiscalYearStart: string;
+  /** "PPD Start" — earliest pay-period date the position is active for. */
+  ppdStart: string;
+  /** "Fiscal Year End" — calendar year the FY ends. */
+  fiscalYearEnd: string;
+  /** "PPD End" — last pay-period date the position is active for. */
+  ppdEnd: string;
+
+  /* ---- Budget layers, keyed by FY ---- */
+  /**
+   * Map of fiscalYearLabel → layers. The label is the "FY YYYY-YY" string
+   * from the column header (e.g. "FY 2025-26", "FY 2026-27"). Multiple FYs
+   * coexist on every row in the eturn (FY-this columns + FY-plus-one
+   * columns are populated together).
+   *
+   * The prior FY (e.g. "FY 2024-25") only carries Original in the eturn and
+   * shows up as a layer set with just `{ Original: {...} }`.
+   */
+  budgetByFy: Record<string, BfmBudgetLayers>;
+
+  /* ---- Default anchor (back-compat) ---- */
+  /**
+   * The "default-pick" FY label (latest present in the eturn). FY-plus-one
+   * usually beats FY-this once BY+1 columns appear. Empty when no budget
+   * columns are present.
+   */
+  defaultFiscalYear: string;
+  /**
+   * The "default-pick" phase for `defaultFiscalYear`. Most-advanced approved
+   * phase per `BfmBudgetPhase` order. Empty when no budget columns are
+   * present.
+   */
+  defaultPhase: BfmBudgetPhase | '';
+  /** FTE from `(defaultFiscalYear, defaultPhase)`. 0 when unresolved. */
   fte: number;
-  /** Dollar amount from the same phase column */
+  /** Dollar amount from the same `(defaultFiscalYear, defaultPhase)`. */
   budgetedSalary: number;
-  /** Name of the FTE column used, e.g. "FY 2026-27 Mayor FTE" */
+  /**
+   * Display label of the FTE column used (e.g. "FY 2026-27 Mayor FTE").
+   * Kept for back-compat with code that reports which phase was chosen.
+   */
   budgetPhaseColumn: string;
-  fiscalYearStart: string;      // "Fiscal Year Start" e.g. "2027"
+
   _row: number;
 }
 
