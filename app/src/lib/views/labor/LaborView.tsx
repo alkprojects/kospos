@@ -308,7 +308,9 @@ export function LaborView() {
         </div>
       )}
 
-      {/* Summary bar — YTD aggregates per Tab 7 UI sketch #2 */}
+      {/* Summary bar — YTD aggregates per Tab 7 UI sketch #2.
+          Special-class buckets at $0 are hidden to reduce visual noise; the
+          Total and Regular stats stay so the baseline is always anchored. */}
       <div className="card" style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
         <Stat label="Rows" value={agg.rowCount.toLocaleString('en-US')}
               hint={agg.rowCount !== totalAgg.rowCount
@@ -316,10 +318,10 @@ export function LaborView() {
                 : undefined} />
         <Stat label="Total"    value={fmtMoney(agg.total)} />
         <Stat label="Regular"  value={fmtMoney(agg.regular)} />
-        <Stat label="Overtime" value={fmtMoney(agg.overtime)} />
-        <Stat label="RPO"      value={fmtMoney(agg.rpo)} />
-        <Stat label="Premium"  value={fmtMoney(agg.premium)} />
-        <Stat label="Temp LSP" value={fmtMoney(agg.tempLsp)} />
+        {agg.overtime !== 0 && <Stat label="Overtime" value={fmtMoney(agg.overtime)} />}
+        {agg.rpo      !== 0 && <Stat label="RPO"      value={fmtMoney(agg.rpo)} />}
+        {agg.premium  !== 0 && <Stat label="Premium"  value={fmtMoney(agg.premium)} />}
+        {agg.tempLsp  !== 0 && <Stat label="Temp LSP" value={fmtMoney(agg.tempLsp)} />}
         <Stat label="Hours"    value={fmtNumber(agg.totalHours)} />
         <div style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }}>
           Snapshot asOf <span style={{ fontFamily: 'monospace' }}>{snapshot.asOfDate}</span>
@@ -428,12 +430,16 @@ export function LaborView() {
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent-soft)')}
                 onMouseLeave={e => (e.currentTarget.style.background = '')}
               >
-                <td style={{ padding: '5px 10px', fontFamily: 'monospace' }}>{r.earningPeriodEnd}</td>
+                <td style={{ padding: '5px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                  {r.earningPeriodEnd}
+                </td>
                 <td style={{ padding: '5px 10px', fontFamily: 'monospace' }}>{r.positionIdentifier}</td>
                 <td style={{ padding: '5px 10px', fontFamily: 'monospace' }}>{r.earningsCode || '—'}</td>
                 <td style={{ padding: '5px 10px' }}>{r.earningsDescription || '—'}</td>
-                <td style={{ padding: '5px 10px', color: 'var(--muted)' }}>{r.accountDescription || '—'}</td>
-                <td style={{ padding: '5px 10px', fontFamily: 'monospace', fontSize: 11 }}>
+                <td style={{ padding: '5px 10px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                  {r.accountDescription || '—'}
+                </td>
+                <td style={{ padding: '5px 10px', fontFamily: 'monospace', fontSize: 11, whiteSpace: 'nowrap' }}>
                   {r.fund}{r.fundDescription ? <span style={{ color: 'var(--muted)' }}> {r.fundDescription}</span> : null}
                 </td>
                 <td style={{ padding: '5px 10px', fontFamily: 'monospace', textAlign: 'right' }}>

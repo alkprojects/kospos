@@ -333,10 +333,10 @@ export function PositionsView({ onViewPayroll }: {
                   {p.displayNumber}
                 </td>
                 <td style={{ padding: '7px 12px', fontFamily: 'monospace' }}>{p.jobCode}</td>
-                <td style={{ padding: '7px 12px' }}>
+                <td style={{ padding: '7px 12px', whiteSpace: 'nowrap' }}>
                   {p.jobCodeDescription || <span style={{ color: 'var(--muted)' }}>—</span>}
                 </td>
-                <td style={{ padding: '7px 12px' }}>
+                <td style={{ padding: '7px 12px', whiteSpace: 'nowrap' }}>
                   <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
                     {p.effectiveDept.code || '—'}
                   </span>
