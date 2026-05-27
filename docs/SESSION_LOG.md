@@ -3036,3 +3036,105 @@ Autonomous session — Alex pasted the S33 startup prompt then left the computer
 - **Audit cadence:** ✅ 10th event-based trigger on time. Item A resolved cleanly (auto-archive pattern resumed, drops from carry-forward).
 - **Research-mode work:** ✅ The DHR scraping plan landed as research-only (no code), which is the right shape for Alex's question ("how realistic is it"). Avoided the trap of shipping a scraper without first checking CORS.
 - **One self-caught error worth surfacing:** The cumulative test count didn't reconcile with the per-PR sums (485 vs expected 490). Documenting here rather than letting it pass silently. Future session may want to re-count.
+
+
+---
+
+## Session 34 — Phase 2.2.k: lib/scrapers/ + lib/views/eligibility/ + 5 follow-up PRs in autonomous mode (2026-05-27)
+
+**Worktree:** `jovial-pascal-c76f83`
+**Model:** Opus 4.7
+**Time:** 08:35–16:40 PT (≈ 8 hours autonomous of the 9 Alex allotted)
+**PRs merged:** #106 (Probation+Separations bug fix) → #107 (Probation supervisor/deputy) → #108 (Probation end-date+presets) → #109 (Probation email gen) → #110 (CopyButton rollout) → #111 (Phase 2.2.k primary — Eligibility + scrapers)
+
+### Prompts (1 startup + 1 kickoff question answered + 0 follow-ups)
+
+**[08:35]** *(full session-start prompt — Phase 2.2.k pick + 4 added items + research-plan use-the-time directive)*
+> This session asks Alex to pick the next Phase 2.2 sub-phase (2.2.k),
+> then ships it. Phase 2.2.j shipped 5 PRs in an autonomous-mode session…
+>
+> *[STEP 1 — pick from A/B/C/D/E]*
+>
+> added by alex:
+> probation tab items:
+> - when employee name is updated, employee id field doesn't update.
+>   supervisor and deputy for each potition should be shown.
+> - there should be a feature that adds a selection box for every row
+>   and then a button that generates emails to the supervisors and
+>   deputies informing them employees are nearing probation completion
+>   date and to email hr if there are any issues.
+> - probation end date should be added up front next to start date and
+>   modified on click.
+> - there should be selectable options in addition to freeform entry
+>   like 6 months 1040 hours, 1 year, etc.
+> other items:
+> - the copy box ui element should be for all the data in all the tabs
+> - same bug on the separations page, when changing name employee id
+>   doesn't update.
+> other:
+> i will be away from the computer for this session. i will have my
+> phone so i can remotely provide short answers to questions but can't
+> type long replies.
+> i will be away for 9 hours.
+> maybe use the time to create agents or some other method to do the
+> eligibility list and job posting scraping in addition to your other
+> planned work.
+
+**[08:38] Kickoff question (answered):**
+> Q1. Phase 2.2.k = Option A (Eligibility view + DHR/SF-Careers scrapers), with your added items shipped as separate PRs in the same session. Confirm?
+> A1. **Yes — A + your added items**
+>
+> Q2. Probation email feature: how should the button generate emails?
+> A2. **Both — buttons for each** (mailto: + copy template)
+
+No follow-up prompts. 9 hours of autonomous work.
+
+### Milestones
+
+- **Top-of-session CORS verification (30 min, mandated by S34 prompt):** SmartRecruiters Posting API CORS = **permissive**, no token, **133 postings**. sfdhr.org = **CORS blocked** (TypeError: Failed to fetch). Decision: live fetch for SF Careers + manual-paste fallback for DHR (no infra Alex didn't pre-approve).
+
+- **6 PRs landed sequentially**, each branching from latest origin/main:
+  - [PR #106](https://github.com/alkprojects/kospos/pull/106) — Probation + Separations bug fix (employee-# stuck on old person after name datalist switch). +4 tests. Same root-cause `applyPersonMatch` guard in both views.
+  - [PR #107](https://github.com/alkprojects/kospos/pull/107) — Probation supervisor auto-resolves from `position.reportsTo.managerFirstName + managerLastName` (annotated `(auto)`) + new deputy free-text field paralleling supervisor. +5 tests.
+  - [PR #108](https://github.com/alkprojects/kospos/pull/108) — Probation end-date input next to start date + 5-chip Duration radiogroup (6 months / 1040 hrs / 1 year / 2080 hrs / Custom) + click-to-edit on the table's Current end cell. +5 tests.
+  - [PR #109](https://github.com/alkprojects/kospos/pull/109) — Probation row selection checkboxes + sticky action bar + NotificationPanel with both mailto: AND copy-template buttons per selected row. Email template names supervisor + deputy in greeting; mailto: encodes %20 (Outlook-safe). +10 tests.
+  - [PR #110](https://github.com/alkprojects/kospos/pull/110) — CopyButton rollout to Positions (4 cells/row), Payroll (cells + detail), Inactive (4 cells/row), Hiring Plan (position cell), Position Detail RTF+ReportsTo. +0 tests (mechanical JSX on tested primitive). Empirical: 8 CopyButtons across 2-row Positions sample.
+  - [PR #111](https://github.com/alkprojects/kospos/pull/111) — **Phase 2.2.k primary.** New `lib/scrapers/` top-level module (types + SmartRecruiters fetcher + DHR HTML parser + rollup builder + Zustand store) + `lib/views/eligibility/EligibilityView` (Tab 11). Live SmartRecruiters fetch returned 133 postings → 88 distinct SF job codes via 3-pattern extractor. DHR manual-paste workflow with linked sfdhr.org URL, parse feedback, append-dedupe semantics. App.tsx adds Eligibility tab devOnly. +35 tests.
+
+- **Tests trajectory:** 490 (fresh-install baseline) → 494 → 499 → 504 → 514 → 514 → 549. **+59 net.**
+
+- **One TS catch on `npm run build`:** PR #111 first-attempt had a class parameter-property in `FetchJobPostingsError` constructor (`public readonly cause`) — rejected by `erasableSyntaxOnly`. Fixed by expanding the field declaration before PR open. Habit-check: 5 sessions in a row of running `npm run build` before PR open; caught a real error this session.
+
+- **3-pattern jobCode extractor for SmartRecruiters.** First attempt with `\((\d{4})\s+([^)]+)\)` regex only matched 6 of 133 postings — many use `(NNNN)` alone or `NNNN-prefix` form. Empirical investigation drove regex extension to 3 patterns. After fix: 88 codes from 133 postings.
+
+- **Phase 2.2.k close audit fired on schedule (11th event-based trigger).** Mirrors the Phase 2.2.j format. Item A drops permanently (auto-archive watcher working as designed across S33 + S34). 6/6 session PRs auto-archived inside the session as they merged.
+
+- **S33 audit reconciliation correction:** The S33 audit reconciled a 5-test discrepancy (expected 490, actual 485) by concluding "I miscounted, 485 is correct." Fresh-install `npm test` at the start of S34 returned **490**, not 485 — the S33-baseline-recount was wrong. Likely a Vitest cache or environment artifact at S33 audit time. Documented in S34 audit Finding 8 + audit recommendation #1: future audits should `npm test` from a fresh `npm install` to eliminate this class of under-count.
+
+### What didn't ship (and why)
+
+- **Cloudflare Worker for live DHR fetch.** Adds infra (token rotation, error monitoring). Not pre-approved by Alex; manual-paste workflow ships today and is real-data-validatable in S35 first task. Filed as low-priority follow-up.
+- **Cross-tab nav from Eligibility job code → filtered Positions.** ~30 min lift but out of scope for the Phase 2.2.k primary. Filed as low-priority follow-up.
+- **EligibilityView smoke tests.** The 35 tests are in `lib/scrapers/scrapers.test.ts` (the data layer). EligibilityView itself is a thin renderer — worth a future smoke-test pass when Alex walks the real data and surfaces any UX edge cases.
+- **Lift `buildProbation*Email` to `lib/ui/notifications/`.** Premature — only one consumer right now (ProbationsView). Lift if a 2nd consumer arrives (e.g., Separations notify-supervisor flow).
+
+### Lessons / improvements for next phase
+
+- **The 30-min CORS verification was high-value.** Knowing *before* writing scraper code that SmartRecruiters works without a token and DHR is blocked saved 4-8 hours of speculative serverless-proxy setup. Future scraping work: always do the CORS check first.
+- **Empirical regex validation matters more than fixture-based unit tests.** The first jobCode extractor passed unit tests with synthetic input ("(0943 Manager VIII)") but only extracted 6 codes from 133 real postings. Investigating real data revealed the (NNNN), NNNN-prefix patterns. The unit tests now cover all 3 patterns.
+- **Autonomous mode + batched kickoff question = high throughput.** Alex got 2 yes/no taps; the rest was reasonable-default reasoning. 6 PRs in 9 hours.
+- **Phase 2.2.k's preflight check → execute → audit pattern is reusable.** STEP-0 audit-trigger + STEP-0.5 CORS-verification + STEP-1 ask-once + STEP-2 ship is a clean template. The S35 prompt template repeats it with the DHR real-data paste walkthrough as the new STEP-0.5.
+- **One catch on `npm run build` validates the habit.** Five sessions in a row of running the production build before PR open.
+- **`docs/research/` location convention now has 1 doc + 1 implementation.** PR #111 implements the S33 plan.
+
+### Brief audit (Alex's collaboration this session)
+
+Autonomous session — Alex pasted the S34 startup prompt + an inline list of added-items + a "use the time" directive, then left the computer for 9 hours with phone access for short answers.
+
+- **Prompt quality (S34 startup prompt + Alex's inline additions):** ✅ The 5-option pick + 4 inline added-items + the explicit "use the time to do scraping in addition to other planned work" all landed clearly. The kickoff question batched the only 2 questions worth asking (Phase 2.2.k confirmation + email mechanism) into a single AskUserQuestion call; Alex tapped both fast.
+- **Scope discipline:** ✅ 6 single-purpose PRs. The one-sub-phase-per-PR rule held even when the temptation to combine the 4 probation features was real.
+- **Verification habits:** ✅ Tests + build + preview-MCP smoke for each PR. Real-data verification ran for PR #111 (the 133→88 jobcode roll-up was the right number, validating the extractor against real postings).
+- **Audit cadence:** ✅ 11th event-based trigger fires on schedule.
+- **DHR real-data gap surfaced cleanly.** The parser ships against unit-tested synthetic input that mirrors WebFetch'd real HTML. But no live data has flowed through. Filed as restated-action-item #20 (S35 first task).
+- **The "use the time" Alex addition shows trust calibration.** Alex's prompt explicitly invited parallel agents for the scraping work, signaling he expected the session to ship both Phase 2.2.k AND the added-items. The single-thread sequential approach (6 PRs in series, no parallel worktree agents) worked — but parallel-worktree-agents could have shaved 1-2 hours if the scraping work had been independent of the probation work. Filed as a technique-to-try note for future autonomous-mode sessions.
+- **Self-correction on test count.** Discovered at S34 audit time that S33's reconciliation was wrong — actual S33 baseline was 490, not 485. Surfacing the discrepancy rather than letting it pass silently.
