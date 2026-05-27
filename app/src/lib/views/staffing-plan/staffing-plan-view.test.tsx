@@ -197,4 +197,94 @@ describe('StaffingPlanView', () => {
     // Manual user changes section disappears (no omissions left)
     expect(screen.queryByText(/Manual user changes/i)).not.toBeInTheDocument();
   });
+
+  // --------------------------------------------------------------------------
+  // S30 PR 2 — PlannedActionDetail modal: row-click drill-down, status guard,
+  // convert-from-derived flow.
+  // --------------------------------------------------------------------------
+
+  it('S30: clicking a manual row opens the PlannedActionDetail modal', () => {
+    useAppStore.getState().addRows([ppRow('50001')]);
+    useStaffingPlan.getState().addAction({ positionId: '50001', type: 'active-hire' });
+    render(<StaffingPlanView />);
+    // No modal initially
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // Click the row — the position-id cell is inside the clickable <tr>
+    const cells = screen.getAllByText('50001');
+    // The first 50001 is the section row td; click its enclosing tr
+    const tr = cells[0].closest('tr');
+    expect(tr).toBeTruthy();
+    fireEvent.click(tr!);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Planned action detail/i)).toBeInTheDocument();
+  });
+
+  it('S30: clicking a derived row opens the modal in convert-from-auto mode', () => {
+    useAppStore.getState().addRows([ppRow('50001', { fillStatus: 'VACANT' })]);
+    render(<StaffingPlanView />);
+    const cells = screen.getAllByText('50001');
+    const tr = cells[0].closest('tr');
+    fireEvent.click(tr!);
+    // Modal mounted with the "converting from auto" affordance.
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText(/Converting from auto/i)).toBeInTheDocument();
+    // Save button label reflects conversion.
+    expect(screen.getByText(/Save \(convert to manual\)/i)).toBeInTheDocument();
+  });
+
+  it('S30: Cancel closes the modal without persisting changes', () => {
+    useAppStore.getState().addRows([ppRow('50001')]);
+    useStaffingPlan.getState().addAction({ positionId: '50001', type: 'active-hire' });
+    render(<StaffingPlanView />);
+    fireEvent.click(screen.getAllByText('50001')[0].closest('tr')!);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Cancel'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // Store unchanged.
+    expect(useStaffingPlan.getState().actions.size).toBe(1);
+  });
+
+  it('S30: Hide / Delete row buttons do NOT also open the modal (stopPropagation)', () => {
+    useAppStore.getState().addRows([ppRow('50001')]);
+    useStaffingPlan.getState().addAction({ positionId: '50001', type: 'active-hire' });
+    render(<StaffingPlanView />);
+    fireEvent.click(screen.getByLabelText(/Delete action for position 50001/i));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('S30: status guard surfaces the force-override checkbox on backward transition', () => {
+    useAppStore.getState().addRows([ppRow('50001')]);
+    useStaffingPlan.getState().addAction({
+      positionId: '50001', type: 'active-hire', status: 'offer',
+    });
+    render(<StaffingPlanView />);
+    fireEvent.click(screen.getAllByText('50001')[0].closest('tr')!);
+    // The status select inside the dialog is the one we want — getAllByLabelText
+    // would also pick up other instances if the page had multiple; here it's
+    // unique because the dialog mounts above.
+    const statusSelect = screen.getByDisplayValue('offer') as HTMLSelectElement;
+    fireEvent.change(statusSelect, { target: { value: 'posted' } });
+    // Force-override checkbox appears.
+    expect(screen.getByText(/Force override/i)).toBeInTheDocument();
+  });
+
+  it('S30: convert-from-derived save materializes a manual action', () => {
+    useAppStore.getState().addRows([ppRow('50001', { fillStatus: 'VACANT' })]);
+    render(<StaffingPlanView />);
+    // Header confirms the derived row.
+    expect(screen.getByText(/Pending · 1/i)).toBeInTheDocument();
+    expect(useStaffingPlan.getState().actions.size).toBe(0);
+
+    fireEvent.click(screen.getAllByText('50001')[0].closest('tr')!);
+    // Click Save (convert) — the basis is incomplete (no retCode / ppStartDate)
+    // but that's allowed; the action saves with `basis: null`.
+    fireEvent.click(screen.getByText(/Save \(convert to manual\)/i));
+
+    // Modal closes; manual action appears in the store.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(useStaffingPlan.getState().actions.size).toBe(1);
+    const stored = useStaffingPlan.getState().toArray()[0];
+    expect(stored.positionId).toBe('50001');
+    expect(stored.type).toBe('pending');
+  });
 });

@@ -166,6 +166,30 @@ export interface ExpectedCost {
 }
 
 /**
+ * Side-by-side cost view for delta-pay modeling. The PlannedActionDetail
+ * editor renders these as three stats: current incumbent cost, planned
+ * action cost, and the difference. Drives the "separation of PCS at Step 5
+ * → backfill with TX at Step 1" scenario per the S30 CostInput-scope pick.
+ *
+ * All three numbers are signed per the action's type (separations carry
+ * negative `planned.annual`). `delta = planned.annual - incumbent.annual`
+ * — positive means the plan adds cost vs the incumbent baseline; negative
+ * means savings. `null` slots indicate "no cost calculable" (incumbent on
+ * a vacant position; planned action with an incomplete basis).
+ */
+export interface DeltaCost {
+  /** Current incumbent's projected cost. Null when the position is vacant
+   *  or the incumbent's CostInput can't be derived (rare — only when the
+   *  appointment is missing step/range data). */
+  incumbent: ExpectedCost | null;
+  /** Planned action's projected cost. Null when the action is unpriced. */
+  planned: ExpectedCost | null;
+  /** Annual delta = planned.annual - incumbent.annual. Null when either
+   *  operand is null. */
+  delta: number | null;
+}
+
+/**
  * Rollup per PlannedActionType for the Hiring Plan summary header. The
  * 5 sections of Tab 24 each get one rollup row.
  *

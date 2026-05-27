@@ -1,5 +1,6 @@
 export type {
   ActionMode,
+  DeltaCost,
   DerivedAction,
   ExpectedCost,
   HiringStatus,
@@ -17,12 +18,20 @@ export {
   computeDerivedActions,
   computeExpectedCost,
   computeOmittedDerivedActions,
+  deltaCost,
+  incumbentCostInput,
   isAllowedStatusTransition,
   netCostImpact,
   newActionId,
   pricingDiagnostic,
   rollupByType,
 } from './build';
+
+export {
+  DEFAULT_FY,
+  defaultBasisForPosition,
+  isCostInputComplete,
+} from './cost-prefill';
 
 export type {
   NewPlannedActionInput,
