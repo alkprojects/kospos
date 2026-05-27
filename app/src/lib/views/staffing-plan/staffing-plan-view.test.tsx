@@ -287,4 +287,57 @@ describe('StaffingPlanView', () => {
     expect(stored.positionId).toBe('50001');
     expect(stored.type).toBe('pending');
   });
+
+  // --------------------------------------------------------------------------
+  // PR B (S30 follow-up) — global needle search on the Hiring Plan tab.
+  // --------------------------------------------------------------------------
+
+  it('search input filters actions to those whose position OR action matches', () => {
+    useAppStore.getState().addRows([
+      ppRow('50001', { fillStatus: 'VACANT', jobCode: '6278', jobCodeDescription: 'Building Inspector' }),
+      ppRow('60001', { fillStatus: 'VACANT', jobCode: '5380', jobCodeDescription: 'Engineer' }),
+    ]);
+    render(<StaffingPlanView />);
+    // Both auto-Pending rows are in the workspace.
+    expect(screen.getByText(/Pending · 2/i)).toBeInTheDocument();
+
+    // Search for "engineer" → 60001 stays, 50001 leaves.
+    const input = screen.getByPlaceholderText(/Search any field/i);
+    fireEvent.change(input, { target: { value: 'engineer' } });
+    expect(screen.getByText(/Pending · 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 of 2 match/i)).toBeInTheDocument();
+
+    // Clear the search → both rows return.
+    fireEvent.click(screen.getByText('Clear'));
+    expect(screen.getByText(/Pending · 2/i)).toBeInTheDocument();
+  });
+
+  it('search matches by position number (digits in the row)', () => {
+    useAppStore.getState().addRows([
+      ppRow('50001', { fillStatus: 'VACANT' }),
+      ppRow('60001', { fillStatus: 'VACANT' }),
+    ]);
+    render(<StaffingPlanView />);
+    const input = screen.getByPlaceholderText(/Search any field/i);
+    fireEvent.change(input, { target: { value: '60001' } });
+    expect(screen.getByText(/Pending · 1/i)).toBeInTheDocument();
+  });
+
+  it('search by incumbent name finds filled positions (joins to position record)', () => {
+    // The position's incumbent name lives on `employeeName` on PsHcmPpRow;
+    // buildAppointment lifts it into Position.appointment.name. The needle
+    // walks both the action AND the position via the {action, position}
+    // tuple, so a search for "Smith" hits position.appointment.name.
+    useAppStore.getState().addRows([
+      ppRow('50001', { fillStatus: 'FILLED', emplId: '11111', employeeName: 'Smith, Jane' }),
+      ppRow('50002', { fillStatus: 'FILLED', emplId: '22222', employeeName: 'Doe, John' }),
+    ]);
+    useStaffingPlan.getState().addAction({ positionId: '50001', type: 'active-hire' });
+    useStaffingPlan.getState().addAction({ positionId: '50002', type: 'active-hire' });
+    render(<StaffingPlanView />);
+    expect(screen.getByText(/Active · 2/i)).toBeInTheDocument();
+    const input = screen.getByPlaceholderText(/Search any field/i);
+    fireEvent.change(input, { target: { value: 'Smith' } });
+    expect(screen.getByText(/Active · 1/i)).toBeInTheDocument();
+  });
 });
