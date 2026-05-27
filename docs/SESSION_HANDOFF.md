@@ -12,34 +12,23 @@ Updated at the end of every session. The next session reads this before doing an
 **Branches in flight:** none post-merge.
 **Worktree hygiene:** auto-archive working across **11 consecutive PRs** (#71, #73, #74, #75, #76, #78, #79, #80, #82, #84, #85). Carry-forward Item A stays dropped. Any stale worktree in S30+ is a regression.
 
-### ⚠️ Bug 2 reopened on live data — S30 must fix FIRST before Phase 2.2.g pick
+### ⚠️ Bug 2 reopened on live data — Bug 2b RESOLVED (user-side); Bug 2a still real
 
-Alex reviewed the live site after S29 close and reported the diagnostic still shows 1106950 as "not in the OBI snapshot" despite **confirming the position has payroll data** on his end. His screenshot also revealed a second bug.
+Alex reviewed the live site after S29 close and initially reported the diagnostic still showed 1106950 as "not in the OBI snapshot" despite his belief the position had payroll data. His screenshot also revealed a second, smaller bug. **Late S29 update:** Alex confirmed the OBI export he loaded **genuinely does not contain 1106950** — he had the wrong file in mind. He's running a new export with both CPC and DBI positions to confirm the join works end-to-end on a position that IS in both snapshots.
 
-**Bug 2a (clear bug — fix first).** Snapshot meta line shows `Snapshot asOf 46150 · FY 2026`. The `46150` is a **raw Excel date serial** — `46150` ≈ 2026-05-08. Root cause: [`app/src/lib/importers/obi-payroll.ts`](../app/src/lib/importers/obi-payroll.ts) line 24's `str()` converts numeric cells via `String(v)`, which yields the serial number unchanged. The xlsx import doesn't pass `cellDates: true`, so dates come through as serials. The MAX-tracker on line 132 then stores `"46150"`, every row gets `_asOfDate = "46150"`, and the display surfaces it raw. **Fix:** either pass `cellDates: true` to the xlsx sheet-read OR add an Excel-serial → ISO converter applied to the `iPeriodEnd` column read. Worth checking whether `earningPeriodEnd` *itself* is also serial — if so, the PP-range filter in Payroll is comparing string serials against ISO dates in `applyFilters` and silently no-matching. The summary-header serial display is the visible symptom; the under-the-hood join damage may be larger.
+**Bug 2a (still real — clear bug, fix first).** Snapshot meta line shows `Snapshot asOf 46150 · FY 2026`. The `46150` is a **raw Excel date serial** — `46150` ≈ 2026-05-08. Root cause: [`app/src/lib/importers/obi-payroll.ts`](../app/src/lib/importers/obi-payroll.ts) line 24's `str()` converts numeric cells via `String(v)`, which yields the serial number unchanged. The xlsx import doesn't pass `cellDates: true`, so dates come through as serials. The MAX-tracker on line 132 then stores `"46150"`, every row gets `_asOfDate = "46150"`, and the display surfaces it raw. **Fix:** either pass `cellDates: true` to the xlsx sheet-read OR add an Excel-serial → ISO converter applied to the `iPeriodEnd` column read. Worth checking whether `earningPeriodEnd` *itself* is also serial — if so, the PP-range filter in Payroll is comparing string serials against ISO dates in `applyFilters` and silently no-matching. The summary-header serial display is the visible symptom; the under-the-hood join damage may be larger.
 
-**Bug 2b (investigation needed — 1106950).** Alex's screenshot:
-- Scope: `1106950 · 953 Dep Dir III` (P&P knows this is "Department Director III")
-- Snapshot: 568 P&P positions, 232 in OBI, 336 P&P-only
-- This position is one of the 336 P&P-only positions per the new diagnostic
-- Nearby positionIdentifiers (same `110` prefix): 1102281, 1109695, 1109941, 1101847, 1102940, 1106348
-- 1106950 does NOT appear in the nearby chips → no variant of the number is in OBI's positionIdentifier column
+**Bug 2b — RESOLVED (user-side; no code fix needed).** Alex's screenshot showed 1106950 in the 336 "P&P-only" group with no variant in OBI's positionIdentifier column. The diagnostic from PR #84 was technically correct: that specific OBI export did not contain 1106950. Alex confirmed mid-S29-tail this was a wrong-file mistake on his side. Loading a new OBI export with the full dept-group coverage (both DBI + CPC) will be his next validation step. No alias-map needed; no diagnostic copy needed beyond what PR #84 already says.
 
-Alex insists 1106950 has real payroll data. **Two hypotheses to investigate:**
+**S30 STEP 0 (revised — only the asOf-serial fix is urgent):**
 
-  (i) **OBI export coverage gap.** The OBI file Alex loaded only covers PP1 through ~PP23 (asOf serial 46150 ≈ May 8). If 1106950 only had payroll posted in PP24+ (mid-May onward), it wouldn't be in this file. Test: ask Alex to confirm the export date of the OBI file he loaded, AND whether 1106950 had any earlier-FY payroll.
+  0a. **Ship the asOf-serial fix as a small standalone PR.** Pass `cellDates: true` to the xlsx read OR add a serial-to-ISO converter applied to the `iPeriodEnd` column. Verify the fix doesn't break the existing 303-test baseline (importer tests use synthetic ISO strings, so they should still pass). Add a new test case feeding an Excel-serial-numeric cell through the importer and asserting `earningPeriodEnd` + `_asOfDate` are ISO strings. **Also audit downstream:** is `applyFilters`'s PP-range filter in `lib/views/labor/aggregate.ts` comparing ISO strings against potentially-serial `earningPeriodEnd`? If so, fix at the same time + add a regression test. Spot-check the live site: the summary header should read `Snapshot asOf 2026-05-08 · FY 2026` (or whatever the MAX truly is).
 
-  (ii) **The 232-position OBI is filtered somehow.** Maybe the OBI export was filtered to a specific dept group, fund, or earnings-code subset before Alex loaded it. 568 P&P positions vs 232 OBI distinct is a big gap — typical departmental OBI files have near-1:1 coverage for active positions. Test: ask Alex what the OBI file's filename suggests (e.g., "DBI Payroll 2026 Q1.xlsx" would imply Q1-only).
+  0b. **(Demoted to nice-to-have — defer to a future polish PR or skip entirely.)** A "search snapshot positionIdentifiers for ____" affordance in the empty-state diagnostic is still useful for future debugging cases, but no longer urgent now that Bug 2b is resolved. Pick this up later if a similar mystery recurs.
 
-**S30 STEP 0 (mandatory before Phase 2.2.g pick):**
+  0c. **(Cancelled.)** The alias-map / more-specific-message conditional from the prior plan is moot — Alex confirmed the diagnostic copy is correct as-is for the actual case (P&P-only, position genuinely not in this OBI export).
 
-  0a. **Ship the asOf-serial fix as a separate small PR.** Pass `cellDates: true` to the xlsx read OR add a serial-to-ISO converter. Verify the fix doesn't break the existing 303-test baseline (the importer tests use synthetic ISO strings, so they should still pass). Add a new test case feeding an Excel-serial-numeric cell through the importer and verifying the resulting `earningPeriodEnd` and `_asOfDate` are ISO strings. Spot-check the live site: the summary header should read `Snapshot asOf 2026-05-08 · FY 2026` (or whatever the real MAX is).
-
-  0b. **Add a "search OBI by digits" affordance to the empty-state diagnostic.** Below the "nearby positionIdentifiers" chip row, add a small text input: *"Search snapshot positionIdentifiers for ____"*. Filter the 232 distinct positions to anything containing the typed substring. Lets Alex type "950" or "6950" and see whether OBI has any positionIdentifier containing those digits — confirming whether 1106950 has a renumbered cousin or whether it's truly absent.
-
-  0c. **(Conditional, depends on Alex's answer to 0b)** If 0b reveals 1106950 IS in OBI under a different identifier → ship an alias-map (positionIdentifier → canonical Position.id) in `lib/payroll/` and document the alias source. If 0b confirms 1106950 is genuinely absent → the user's mental model is wrong (e.g., 1106950 hired post-cutoff or the OBI export was filtered) and no code fix needed; surface this affirmatively in the diagnostic via a sentence like *"OBI snapshot covers PP1–PP23 (Jul 2025 – May 8 2026). If you expect payroll in a later period, load a newer OBI export."*
-
-Only AFTER 0a + 0b ship can S30 move to the Phase 2.2.g pick (Option A staffing-plan PR 2 / B temp-limits / C inactive).
+After 0a ships, S30 can move directly to the Phase 2.2.g pick (Option A staffing-plan PR 2 / B temp-limits / C inactive).
 
 ### What landed this session — two PRs (plus docs PR)
 
@@ -267,47 +256,41 @@ DO fire the 2.2.g audit before this session ends. Use the Phase 2.2.f
 close audit format; mirror the prior audit's table of carry-forwards.
 
 ==============================================================================
-STEP 0.5 — Bug 2 reopened on live data (FIX FIRST before Phase 2.2.g pick)
+STEP 0.5 — Bug 2a asOf-serial fix (Bug 2b RESOLVED user-side)
 ==============================================================================
-Alex's S29-close screenshot of the live site revealed TWO issues that
-must ship before any 2.2.g work begins. See SESSION_HANDOFF.md § "Bug
-2 reopened on live data" for the full diagnosis.
+Alex's S29-tail clarification: the OBI export he loaded genuinely does
+not contain 1106950 (wrong file on his side). PR #84's diagnostic was
+correct as-is. Bug 2b is RESOLVED — no alias-map / search affordance
+needed this session.
+
+Bug 2a (asOf raw Excel serial) IS still real and must ship first.
 
   0a. asOf-serial bug — diagnostic shows "Snapshot asOf 46150" (raw
       Excel date serial). Fix in app/src/lib/importers/obi-payroll.ts:
       pass cellDates: true to the xlsx read OR add a serial → ISO
       converter applied to the iPeriodEnd column. Add a test feeding a
       numeric Excel-serial cell and asserting earningPeriodEnd +
-      _asOfDate are ISO strings. Ship as a separate small PR before 0b.
+      _asOfDate are ISO strings.
 
-      WARNING: also check whether earningPeriodEnd itself is unparsed
-      everywhere — the PP-range filter in Payroll may be comparing
-      string serials against ISO dates and silently no-matching. If so,
-      the asOf-display bug is the visible tip of a larger join-key
-      damage.
+      WARNING: also audit downstream — is applyFilters's PP-range
+      filter in lib/views/labor/aggregate.ts comparing ISO date strings
+      against potentially-serial earningPeriodEnd values? If so, fix at
+      the same time + add a regression test. The asOf-display bug may
+      be the visible tip of a larger join-key damage.
 
-  0b. Add a "search OBI by digits" affordance to the empty-state
-      diagnostic. Below the nearby-chips row in lib/views/labor/
-      LaborView.tsx's ScopedEmptyDiagnostic, add a small text input:
-      "Search snapshot positionIdentifiers for ____". Filter the
-      distinctPositions list to entries containing the typed substring;
-      render as chips. Lets Alex type "950" or "6950" and see whether
-      any OBI positionIdentifier contains those digits — surfacing a
-      possible alias / renumber case the prefix-fallback misses.
+      Spot-check on the live site after merge: summary header should
+      read "Snapshot asOf 2026-05-08 · FY 2026" (or whatever the real
+      MAX is). Alex's new CPC+DBI export will exercise this end-to-end.
 
-  0c. (Conditional, depends on Alex's answer to 0b.)
-      - If 0b reveals 1106950 IS in OBI under a different identifier:
-        ship an alias-map (positionIdentifier → canonical Position.id)
-        in lib/payroll/ with a clear "source of aliases" comment.
-      - If 0b confirms 1106950 is genuinely absent from OBI:
-        the diagnostic should surface a more specific message naming
-        the snapshot's earliest + latest periodEnd, e.g. "OBI snapshot
-        covers PP1–PP23 (2025-07-04 — 2026-05-08). If you expect
-        payroll for this position in a later period, load a newer OBI
-        export."
+  0b. (Demoted to nice-to-have / defer.) A "search snapshot
+      positionIdentifiers for ____" text input in the empty-state
+      diagnostic is still useful for future debugging cases, but no
+      longer urgent. Pick up later if a similar mystery recurs.
 
-ONLY AFTER 0a + 0b (and 0c if applicable) merge can S30 move to
-STEP 1.
+  0c. (Cancelled.) Diagnostic copy from PR #84 is correct for the
+      actual P&P-only case Alex saw.
+
+After 0a merges, S30 can move directly to STEP 1.
 
 ==============================================================================
 STEP 1 — Ask Alex to pick Phase 2.2.g
