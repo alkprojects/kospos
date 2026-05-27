@@ -128,12 +128,39 @@ describe('buildPositions', () => {
     expect(cat18.appointment?.cat1718?.category).toBe('18');
     expect(cat18.appointment?.cat1718?.months).toBe(36);
     expect(cat18.appointment?.cat1718?.expiredDate).toBe('2027-01-15');
+    // Position-level mirror — same data, available even for vacant positions.
+    expect(cat18.cat1718?.category).toBe('18');
 
     const notExempt = buildPositions(
       [row({ cat1718ExemptCode: '', cat1718AppointmentDate: '2024-01-15' })],
       DEFAULT_DEPT_TREE,
     )[0];
     expect(notExempt.appointment?.cat1718).toBeUndefined();
+    expect(notExempt.cat1718).toBeUndefined();
+  });
+
+  it('Position.cat1718 is set on VACANT positions when the row has a Cat 17/18 code', () => {
+    // S29 Bug 3 fix: lift cat1718 to position level so the Staffing Plan
+    // TEMP-derivation rule can fire on vacant Cat 17/18 positions (which
+    // have no `appointment` — the legacy `appointment.cat1718` is null for
+    // them).
+    const p = buildPositions(
+      [row({
+        emplId: '',
+        employeeName: '',
+        employeeStatus: '',
+        fillStatus: 'VACANT',
+        vacantDate: '2025-12-01',
+        cat1718ExemptCode: '17',
+        cat1718AppointmentDate: '2024-06-01',
+        cat1718ExemptMonths: 24,
+        cat1718TxExpiredDate: '2026-06-01',
+      })],
+      DEFAULT_DEPT_TREE,
+    )[0];
+    expect(p.appointment).toBeUndefined();
+    expect(p.cat1718?.category).toBe('17');
+    expect(p.cat1718?.expiredDate).toBe('2026-06-01');
   });
 
   it('attaches a ComboOverride when comboCode is set', () => {

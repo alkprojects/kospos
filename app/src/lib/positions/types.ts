@@ -139,6 +139,20 @@ export interface Position {
   previousEmployee: string;
   reportsTo?: ReportsTo;
 
+  /**
+   * Cat 17/18 tracking lifted from the row. Set whenever
+   * `row.cat1718ExemptCode === '17' | '18'`, regardless of fill status.
+   *
+   * The appointment-level `appointment.cat1718` still tracks the *incumbent's*
+   * Cat 17/18 attributes (only when filled). This position-level field
+   * mirrors what the P&P column itself encodes — the position is *budgeted
+   * as* a Cat 17/18 slot, whether or not an incumbent is currently in it.
+   * The Staffing Plan TEMP-derivation rule (Bug 3 S29) consults this field
+   * so a vacant Cat 17/18 position still derives as TEMP rather than
+   * falling through to the vacant → Pending branch.
+   */
+  cat1718?: Cat1718Tracking;
+
   /** ----------------------------------------------------------------------
    * RTF + roster (operational fields)
    * ---------------------------------------------------------------------- */

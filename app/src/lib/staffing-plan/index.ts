@@ -1,5 +1,6 @@
 export type {
   ActionMode,
+  DerivedAction,
   ExpectedCost,
   HiringStatus,
   PlannedAction,
@@ -7,12 +8,16 @@ export type {
   PlannedActionType,
   SeparationConfidence,
   StaffingPlanRollup,
+  UnifiedAction,
 } from './types';
 
 export {
   ACTION_TYPE_ORDER,
   actionsForPosition,
+  computeDerivedActions,
   computeExpectedCost,
+  computeOmittedDerivedActions,
+  isAllowedStatusTransition,
   netCostImpact,
   newActionId,
   pricingDiagnostic,

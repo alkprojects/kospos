@@ -140,4 +140,61 @@ describe('StaffingPlanView', () => {
     // Multi-action positions summary surfaces the position
     expect(screen.getByText(/Multi-action positions/i)).toBeInTheDocument();
   });
+
+  // --------------------------------------------------------------------------
+  // Bug 3 (S29) — derived defaults + Manual user changes section
+  // --------------------------------------------------------------------------
+
+  it('Bug 3: vacant position with no manual action auto-populates Pending', () => {
+    useAppStore.getState().addRows([ppRow('50001', { fillStatus: 'VACANT' })]);
+    render(<StaffingPlanView />);
+    expect(screen.getByText(/Pending · 1/i)).toBeInTheDocument();
+    // The auto-chip badge appears on the row.
+    expect(screen.getAllByText('auto').length).toBeGreaterThan(0);
+    // The Hide button is available (not Delete).
+    expect(screen.getByLabelText(/Hide auto-populated row for position 50001/i)).toBeInTheDocument();
+  });
+
+  it('Bug 3: Cat 17 position with no manual action auto-populates TEMP', () => {
+    useAppStore.getState().addRows([
+      ppRow('60001', { fillStatus: 'FILLED', cat1718ExemptCode: '17', cat1718ExemptMonths: 24, cat1718AppointmentDate: '2025-01-01', cat1718TxExpiredDate: '2027-01-01' }),
+    ]);
+    render(<StaffingPlanView />);
+    expect(screen.getByText(/TEMP · 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/Cat 17 temp/i)).toBeInTheDocument();
+  });
+
+  it('Bug 3: manual action on a vacant position suppresses the auto-Pending row', () => {
+    useAppStore.getState().addRows([ppRow('50001', { fillStatus: 'VACANT' })]);
+    useStaffingPlan.getState().addAction({ positionId: '50001', type: 'active-hire' });
+    render(<StaffingPlanView />);
+    expect(screen.getByText(/Active · 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/Pending · 0/i)).toBeInTheDocument();
+    // No auto badge — only the manual row.
+    expect(screen.queryByText('auto')).not.toBeInTheDocument();
+  });
+
+  it('Bug 3: Hide button moves an auto row to the Manual user changes section', () => {
+    useAppStore.getState().addRows([ppRow('50001', { fillStatus: 'VACANT' })]);
+    render(<StaffingPlanView />);
+    fireEvent.click(screen.getByLabelText(/Hide auto-populated row for position 50001/i));
+    // Auto row leaves Pending
+    expect(screen.getByText(/Pending · 0/i)).toBeInTheDocument();
+    // Manual user changes section appears with 1 entry
+    expect(screen.getByText(/Manual user changes · 1/i)).toBeInTheDocument();
+    // Restore button is present
+    expect(screen.getByLabelText(/Restore auto-populated row for position 50001/i)).toBeInTheDocument();
+  });
+
+  it('Bug 3: Restore button brings a hidden row back into its derived section', () => {
+    useAppStore.getState().addRows([ppRow('50001', { fillStatus: 'VACANT' })]);
+    useStaffingPlan.getState().hideDerivedAction('50001');
+    render(<StaffingPlanView />);
+    expect(screen.getByText(/Manual user changes · 1/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText(/Restore auto-populated row for position 50001/i));
+    // Row returns to Pending
+    expect(screen.getByText(/Pending · 1/i)).toBeInTheDocument();
+    // Manual user changes section disappears (no omissions left)
+    expect(screen.queryByText(/Manual user changes/i)).not.toBeInTheDocument();
+  });
 });

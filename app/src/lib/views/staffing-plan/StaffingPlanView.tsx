@@ -29,15 +29,19 @@ import type { PsHcmPpRow } from '../../importers/types';
 import {
   ACTION_TYPE_ORDER,
   actionsForPosition,
+  computeDerivedActions,
   computeExpectedCost,
+  computeOmittedDerivedActions,
   netCostImpact,
   pricingDiagnostic,
   rollupByType,
   useStaffingPlan,
 } from '../../staffing-plan';
 import type {
+  DerivedAction,
   PlannedAction,
   PlannedActionType,
+  UnifiedAction,
 } from '../../staffing-plan';
 
 function fmtMoney(n: number): string {
@@ -103,27 +107,46 @@ function badge(label: string, color: string, bg: string) {
 /**
  * Single-row in a section's table. Cost is computed live; unpriced rows
  * show a "—" + small unpriced badge.
+ *
+ * Manual vs derived dispatch:
+ *   - source === 'manual' → "Delete" button (removes the PlannedAction)
+ *   - source === 'derived' → "Hide" button (adds to derivedRemoved); the
+ *     row displays a small auto-chip badge so the user can tell at a glance
+ *     this isn't something they typed.
  */
-function ActionRow({ action, position, onDelete }: {
-  action: PlannedAction;
+function ActionRow({ action, position, onDelete, onHide }: {
+  action: UnifiedAction;
   position: Position | undefined;
-  onDelete: () => void;
+  onDelete: (id: string) => void;
+  onHide: (positionId: string) => void;
 }) {
   const cost = computeExpectedCost(action);
   const jobLabel = position
     ? `${position.jobCode}${position.jobCodeDescription ? ' ' + position.jobCodeDescription : ''}`
     : '—';
+  const isDerived = action.source === 'derived';
 
   return (
     <tr style={{ borderBottom: '1px solid var(--border)' }}>
       <td style={{ padding: '6px 10px', fontFamily: 'monospace', fontWeight: 600 }}>
         {action.displayNumber}
+        {isDerived && (
+          <span title="Auto-populated from P&P data — Hide to suppress" style={{
+            marginLeft: 6,
+            fontSize: 9, fontWeight: 600,
+            padding: '1px 5px', borderRadius: 8,
+            color: '#6b21a8', background: '#f3e8ff',
+            textTransform: 'uppercase', letterSpacing: 0.3,
+          }}>auto</span>
+        )}
       </td>
       <td style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}>
         {jobLabel}
       </td>
       <td style={{ padding: '6px 10px', fontSize: 11 }}>
-        {action.status ?? <span style={{ color: 'var(--muted)' }}>—</span>}
+        {isDerived
+          ? <span style={{ fontStyle: 'italic', color: 'var(--muted)' }}>{action.derivedReason}</span>
+          : (action.status ?? <span style={{ color: 'var(--muted)' }}>—</span>)}
       </td>
       <td style={{ padding: '6px 10px', fontFamily: 'monospace', fontSize: 11 }}>
         {action.startPpe || <span style={{ color: 'var(--muted)' }}>—</span>}
@@ -137,17 +160,32 @@ function ActionRow({ action, position, onDelete }: {
         {action.notes || <span>—</span>}
       </td>
       <td style={{ padding: '6px 10px', textAlign: 'right' }}>
-        <button
-          onClick={onDelete}
-          aria-label={`Delete action for position ${action.displayNumber}`}
-          style={{
-            border: '1px solid var(--border)', borderRadius: 12,
-            background: 'transparent', color: 'var(--muted)', cursor: 'pointer',
-            fontSize: 10, padding: '2px 8px', fontFamily: 'inherit',
-          }}
-        >
-          Delete
-        </button>
+        {isDerived ? (
+          <button
+            onClick={() => onHide(action.positionId)}
+            aria-label={`Hide auto-populated row for position ${action.displayNumber}`}
+            title="Hide this auto-populated row. It will reappear in the Manual user changes section below."
+            style={{
+              border: '1px solid var(--border)', borderRadius: 12,
+              background: 'transparent', color: 'var(--muted)', cursor: 'pointer',
+              fontSize: 10, padding: '2px 8px', fontFamily: 'inherit',
+            }}
+          >
+            Hide
+          </button>
+        ) : (
+          <button
+            onClick={() => onDelete(action.id)}
+            aria-label={`Delete action for position ${action.displayNumber}`}
+            style={{
+              border: '1px solid var(--border)', borderRadius: 12,
+              background: 'transparent', color: 'var(--muted)', cursor: 'pointer',
+              fontSize: 10, padding: '2px 8px', fontFamily: 'inherit',
+            }}
+          >
+            Delete
+          </button>
+        )}
       </td>
     </tr>
   );
@@ -157,16 +195,21 @@ function ActionRow({ action, position, onDelete }: {
  * One section block — header + table + empty state. Mirrors the 5-section
  * stack from Tab 24 but with the position-id duplication eliminated (multi-
  * action positions render once per action with the same positionId visible).
+ *
+ * Accepts UnifiedAction (manual + derived mixed); the row renderer dispatches
+ * on `source` for the Hide vs Delete button.
  */
-function Section({ type, actions, positionsById, onDelete }: {
+function Section({ type, actions, positionsById, onDelete, onHide }: {
   type: PlannedActionType;
-  actions: PlannedAction[];
+  actions: UnifiedAction[];
   positionsById: Map<string, Position>;
   onDelete: (id: string) => void;
+  onHide: (positionId: string) => void;
 }) {
   const sectionActions = actions.filter(a => a.type === type);
   const color = TYPE_COLORS[type];
   const diag = pricingDiagnostic(sectionActions);
+  const derivedCount = sectionActions.filter(a => a.source === 'derived').length;
   const sectionCost = sectionActions.reduce<number>((acc, a) => {
     const c = computeExpectedCost(a);
     return c ? acc + c.annual : acc;
@@ -180,6 +223,13 @@ function Section({ type, actions, positionsById, onDelete }: {
         borderBottom: sectionActions.length > 0 ? '1px solid var(--border)' : 'none',
       }}>
         {badge(`${TYPE_LABELS[type]} · ${sectionActions.length}`, color.fg, color.bg)}
+        {derivedCount > 0 && (
+          <span title="Derived rows are auto-populated from the P&P data — Pending = vacant + no manual plan; TEMP = Cat 17/18 + no manual plan. Hide a row to suppress it; it'll move to the Manual user changes section below." style={{
+            fontSize: 11, color: '#6b21a8',
+          }}>
+            {derivedCount} auto
+          </span>
+        )}
         {diag.unpriced > 0 && (
           <span style={{ fontSize: 11, color: '#7a4b1a' }} title="Actions without a cost basis aren't summed into the section total.">
             ⚠ {diag.priced} of {diag.total} priced
@@ -215,13 +265,101 @@ function Section({ type, actions, positionsById, onDelete }: {
                   key={a.id}
                   action={a}
                   position={positionsById.get(a.positionId)}
-                  onDelete={() => onDelete(a.id)}
+                  onDelete={onDelete}
+                  onHide={onHide}
                 />
               ))}
             </tbody>
           </table>
         </div>
       )}
+    </section>
+  );
+}
+
+/**
+ * "Manual user changes" section — derived rows the user explicitly hid via
+ * the Hide button. Shown below the 5 main sections so the workspace stays
+ * clean while keeping the omissions visible + reversible.
+ *
+ * Auto-pruned at view time when the derive rule no longer fires (e.g. a
+ * previously-vacant position got filled): the omission row vanishes from
+ * this section but stays in the store, so re-introducing the rule trigger
+ * preserves the user's hide intent.
+ */
+function ManualOmissionsSection({ omissions, positionsById, onRestore }: {
+  omissions: DerivedAction[];
+  positionsById: Map<string, Position>;
+  onRestore: (positionId: string) => void;
+}) {
+  if (omissions.length === 0) return null;
+  return (
+    <section className="card" style={{ padding: 0 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 14px',
+        borderBottom: '1px solid var(--border)',
+      }}>
+        {badge(`Manual user changes · ${omissions.length}`, '#444', '#e7e7e7')}
+        <span style={{ fontSize: 11, color: 'var(--muted)' }} title="Auto-populated rows you hid. Restore brings them back into their auto-derived section (Pending or TEMP).">
+          Hidden auto rows — Restore to bring back
+        </span>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: 'var(--accent-soft)' }}>
+              {['Position #', 'Job', 'Reason', 'Would be', ''].map(h => (
+                <th key={h} style={{
+                  padding: '7px 10px',
+                  textAlign: h === '' ? 'right' : 'left',
+                  fontWeight: 600, fontSize: 10,
+                  textTransform: 'uppercase', letterSpacing: 0.5,
+                  color: 'var(--accent)', whiteSpace: 'nowrap',
+                }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {omissions.map(o => {
+              const p = positionsById.get(o.positionId);
+              const jobLabel = p
+                ? `${p.jobCode}${p.jobCodeDescription ? ' ' + p.jobCodeDescription : ''}`
+                : '—';
+              const color = TYPE_COLORS[o.type];
+              return (
+                <tr key={o.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '6px 10px', fontFamily: 'monospace', fontWeight: 600 }}>
+                    {o.displayNumber}
+                  </td>
+                  <td style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}>
+                    {jobLabel}
+                  </td>
+                  <td style={{ padding: '6px 10px', fontStyle: 'italic', color: 'var(--muted)' }}>
+                    {o.derivedReason}
+                  </td>
+                  <td style={{ padding: '6px 10px' }}>
+                    {badge(TYPE_LABELS[o.type], color.fg, color.bg)}
+                  </td>
+                  <td style={{ padding: '6px 10px', textAlign: 'right' }}>
+                    <button
+                      onClick={() => onRestore(o.positionId)}
+                      aria-label={`Restore auto-populated row for position ${o.displayNumber}`}
+                      style={{
+                        border: '1px solid var(--accent)', borderRadius: 12,
+                        background: 'transparent', color: 'var(--accent)', cursor: 'pointer',
+                        fontSize: 10, padding: '2px 10px', fontFamily: 'inherit',
+                      }}
+                    >
+                      Restore
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -350,6 +488,9 @@ export function StaffingPlanView() {
   const loadedRows = useAppStore(s => s.loadedRows);
   const actionsMap = useStaffingPlan(s => s.actions);
   const deleteAction = useStaffingPlan(s => s.deleteAction);
+  const hideDerivedAction = useStaffingPlan(s => s.hideDerivedAction);
+  const restoreDerivedAction = useStaffingPlan(s => s.restoreDerivedAction);
+  const derivedRemoved = useStaffingPlan(s => s.derivedRemoved);
 
   const positions = useMemo<Position[]>(() => {
     const ppRows = loadedRows.filter((r): r is PsHcmPpRow => r._source === 'ps-hcm-pp');
@@ -359,10 +500,36 @@ export function StaffingPlanView() {
 
   const positionsById = useMemo(() => new Map(positions.map(p => [p.id, p])), [positions]);
 
-  // Convert the store's Map to an array — useMemo over the size so React
-  // re-derives when actions are added/removed without re-running on every
-  // unrelated app-store update.
-  const actions = useMemo(() => [...actionsMap.values()], [actionsMap]);
+  // Manual actions (stored). Convert the store's Map to an array — useMemo
+  // over the size so React re-derives when actions are added/removed.
+  const manualActions = useMemo<PlannedAction[]>(
+    () => [...actionsMap.values()],
+    [actionsMap],
+  );
+  const manualPositionIds = useMemo(
+    () => new Set(manualActions.map(a => a.positionId)),
+    [manualActions],
+  );
+
+  // Derived actions (virtual — computed at view time per Bug 3 S29 design).
+  const derivedActions = useMemo(
+    () => computeDerivedActions(positions, manualPositionIds, derivedRemoved),
+    [positions, manualPositionIds, derivedRemoved],
+  );
+  const omittedDerived = useMemo(
+    () => computeOmittedDerivedActions(positions, manualPositionIds, derivedRemoved),
+    [positions, manualPositionIds, derivedRemoved],
+  );
+
+  // Unified array for rendering. Manual rows get a `source: 'manual'` tag
+  // so the Section + ActionRow components can dispatch on it.
+  const actions = useMemo<UnifiedAction[]>(
+    () => [
+      ...manualActions.map(a => ({ ...a, source: 'manual' as const })),
+      ...derivedActions,
+    ],
+    [manualActions, derivedActions],
+  );
 
   const rollups   = useMemo(() => rollupByType(actions), [actions]);
   const net       = useMemo(() => netCostImpact(actions), [actions]);
@@ -425,12 +592,23 @@ export function StaffingPlanView() {
           actions={actions}
           positionsById={positionsById}
           onDelete={deleteAction}
+          onHide={hideDerivedAction}
         />
       ))}
 
+      {/* Manual user changes — derived rows the user explicitly hid */}
+      <ManualOmissionsSection
+        omissions={omittedDerived}
+        positionsById={positionsById}
+        onRestore={restoreDerivedAction}
+      />
+
       {/* Footer */}
       <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-        Planning workspace · {actions.length} action{actions.length === 1 ? '' : 's'} across {positions.length} positions
+        Planning workspace · {actions.length} action{actions.length === 1 ? '' : 's'}
+        {' '}({manualActions.length} manual · {derivedActions.length} auto-derived)
+        {omittedDerived.length > 0 && ` · ${omittedDerived.length} hidden`}
+        {' · '}{positions.length} positions
         {' · '}
         <span title="Each PlannedAction's expectedCost is computed live via lib/cost.ts — COLA-aware, COLA-weighted across the FY horizon (per memory feedback_projections_always_cola_aware.md).">
           live COLA-aware projection
