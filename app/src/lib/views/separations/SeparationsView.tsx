@@ -23,6 +23,7 @@ import type { Position, PersonRef } from '../../positions';
 import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import type { PsHcmPpRow } from '../../importers/types';
 import { matchesNeedle } from '../../search/needle';
+import { CopyButton } from '../../ui';
 import {
   SEPARATION_STATUS_ORDER,
   rollupByStatus,
@@ -477,14 +478,20 @@ export function SeparationsView() {
                 >
                   <td style={{ padding: '5px 10px', fontWeight: 600 }}>
                     {s.employeeName}
+                    <CopyButton value={s.employeeName} label="Employee name" />
                     {s.employeeId && (
-                      <span style={{ marginLeft: 6, color: 'var(--muted)', fontFamily: 'monospace', fontSize: 11 }}>
-                        {s.employeeId}
-                      </span>
+                      <>
+                        <span style={{ marginLeft: 6, color: 'var(--muted)', fontFamily: 'monospace', fontSize: 11 }}>
+                          {s.employeeId}
+                        </span>
+                        <CopyButton value={s.employeeId} label="Employee ID" />
+                      </>
                     )}
                   </td>
                   <td style={{ padding: '5px 10px', fontFamily: 'monospace' }}>
-                    {s.positionDisplayNumber || <span style={{ color: 'var(--muted)' }}>—</span>}
+                    {s.positionDisplayNumber
+                      ? <>{s.positionDisplayNumber}<CopyButton value={s.positionDisplayNumber} label="Position number" /></>
+                      : <span style={{ color: 'var(--muted)' }}>—</span>}
                   </td>
                   <td style={{ padding: '5px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
                     {s.jobCode || <span style={{ color: 'var(--muted)' }}>—</span>}
