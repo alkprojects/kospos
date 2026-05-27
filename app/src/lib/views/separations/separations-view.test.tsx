@@ -143,6 +143,26 @@ describe('SeparationsView', () => {
     expect(screen.getByText(/🔗 Linked/i)).toBeInTheDocument();
   });
 
+  it('add form has an Employee # input', () => {
+    // Regression — Alex reported the add form lacked an Employee # field.
+    render(<SeparationsView />);
+    expect(screen.getByLabelText(/Employee number/i)).toBeInTheDocument();
+  });
+
+  it('add form persists the typed Employee # to the store on Add', () => {
+    render(<SeparationsView />);
+    const nameInput = screen.getByLabelText(/Employee name/i);
+    fireEvent.change(nameInput, { target: { value: 'Smith, Alice' } });
+    const idInput = screen.getByLabelText(/Employee number/i);
+    fireEvent.change(idInput, { target: { value: '187518' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add separation/i }));
+
+    const stored = useSeparations.getState().toArray();
+    expect(stored).toHaveLength(1);
+    expect(stored[0].employeeName).toBe('Smith, Alice');
+    expect(stored[0].employeeId).toBe('187518');
+  });
+
   it('status guard rejects backward transition without override', () => {
     const id = useSeparations.getState().addSeparation({
       employeeName: 'GuardCase, A',

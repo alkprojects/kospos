@@ -33,7 +33,7 @@ import type {
   SeparationStatus,
 } from '../../separations';
 import { useStaffingPlan } from '../../staffing-plan';
-import type { Position } from '../../positions';
+import type { Position, PersonRef } from '../../positions';
 
 interface SeparationDetailProps {
   separation: PendingSeparation;
@@ -41,6 +41,14 @@ interface SeparationDetailProps {
    *  empty if no P&P snapshot is loaded — picker still works, the field
    *  just becomes plain text. */
   positions: Position[];
+  /** Lookup by name → person ref. Drives the employee-name autocomplete +
+   *  the auto-fill of employee # / position when a known name is picked. */
+  peopleByName: Map<string, PersonRef>;
+  /** Lookup by emplId → person ref. Drives the employee-# autocomplete +
+   *  the auto-fill of name / position when a known emplId is picked. */
+  peopleByEmplId: Map<string, PersonRef>;
+  /** Alphabetical list for the datalist options. */
+  peopleList: PersonRef[];
   onClose: () => void;
 }
 
@@ -72,7 +80,14 @@ function draftFrom(s: PendingSeparation): DraftState {
   };
 }
 
-export function SeparationDetail({ separation, positions, onClose }: SeparationDetailProps) {
+export function SeparationDetail({
+  separation,
+  positions,
+  peopleByName,
+  peopleByEmplId,
+  peopleList,
+  onClose,
+}: SeparationDetailProps) {
   const updateSeparation = useSeparations(s => s.updateSeparation);
   const deleteSeparation = useSeparations(s => s.deleteSeparation);
   const actionsMap = useStaffingPlan(s => s.actions);
@@ -203,21 +218,70 @@ export function SeparationDetail({ separation, positions, onClose }: SeparationD
           <Field label="Employee name" required>
             <input
               type="text"
+              list="separation-detail-people-name-datalist"
               value={draft.employeeName}
-              onChange={e => setDraft({ ...draft, employeeName: e.target.value })}
+              onChange={e => {
+                const v = e.target.value;
+                const match = peopleByName.get(v.trim());
+                if (match) {
+                  // Pick from datalist → fill in employee # + position when
+                  // the corresponding fields are still blank (don't overwrite
+                  // user edits).
+                  setDraft({
+                    ...draft,
+                    employeeName: match.name,
+                    employeeId: draft.employeeId.trim() === '' ? match.emplId : draft.employeeId,
+                    positionDisplayNumber:
+                      draft.positionDisplayNumber.trim() === ''
+                        ? match.positionDisplayNumber
+                        : draft.positionDisplayNumber,
+                    jobCode: draft.jobCode.trim() === '' ? match.jobCode : draft.jobCode,
+                  });
+                } else {
+                  setDraft({ ...draft, employeeName: v });
+                }
+              }}
               aria-label="Employee name"
               style={inputStyle()}
             />
+            <datalist id="separation-detail-people-name-datalist">
+              {peopleList.map(p => (
+                <option key={p.emplId} value={p.name}>{p.emplId} — {p.jobCode}</option>
+              ))}
+            </datalist>
           </Field>
           <Field label="Employee #">
             <input
               type="text"
+              list="separation-detail-people-id-datalist"
               value={draft.employeeId}
-              onChange={e => setDraft({ ...draft, employeeId: e.target.value })}
+              onChange={e => {
+                const v = e.target.value;
+                const match = peopleByEmplId.get(v.trim());
+                if (match) {
+                  setDraft({
+                    ...draft,
+                    employeeId: match.emplId,
+                    employeeName: draft.employeeName.trim() === '' ? match.name : draft.employeeName,
+                    positionDisplayNumber:
+                      draft.positionDisplayNumber.trim() === ''
+                        ? match.positionDisplayNumber
+                        : draft.positionDisplayNumber,
+                    jobCode: draft.jobCode.trim() === '' ? match.jobCode : draft.jobCode,
+                  });
+                } else {
+                  setDraft({ ...draft, employeeId: v });
+                }
+              }}
               placeholder="optional"
               aria-label="Employee number"
               style={{ ...inputStyle(), fontFamily: 'monospace', width: 120 }}
             />
+            <datalist id="separation-detail-people-id-datalist">
+              {peopleList.map(p => (
+                <option key={p.emplId} value={p.emplId}>{p.name} — {p.jobCode}</option>
+              ))}
+            </datalist>
           </Field>
           <Field label="Position #">
             <input

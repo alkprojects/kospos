@@ -11,3 +11,5 @@ export type {
 } from './types';
 export { buildPositions, hasDeptMismatch } from './build';
 export { usePositionNotes } from './notes';
+export { buildPeopleIndex } from './people';
+export type { PersonRef, PeopleIndex } from './people';
