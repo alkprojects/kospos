@@ -2767,3 +2767,27 @@ Mostly autonomous (1 Phase pick + 1 CostInput-scope gating question). Two PRs sh
 - **Verification habits:** ✅ Tests + build + tsc + preview-MCP smoke on each PR. Production build caught a real type error that `npx tsc --noEmit` missed (Finding 5 / Lesson 1 above). Without `npm run build`, the PR would have shipped a build break.
 - **Audit cadence:** ✅ 7th event-based trigger on time. Item A stays dropped (13 consecutive PRs auto-archived).
 - **Gap surfaced:** OBI BI Payroll data-source doc doesn't mention the Excel-serial date-cell behavior. Could fold into the Phase 2.4 ADR-007 amendment alongside the column-shape note. Low priority.
+
+### S30 tail — QoL additions (PR #92 + #93)
+
+After the Phase 2.2.g audit + handoff merged, Alex flagged two pain points and asked them to be handled before S31:
+
+1. **"Testing is becoming tedious. I have to import files each time."** Plus a related question about whether to pivot off GitHub Pages to Vercel for true multi-user shared state.
+2. **"On the position, payroll, and hiring plan tabs there should be a search function that allows searching and filtering by any combination of all fields."**
+
+Two follow-up PRs shipped:
+
+- **[PR #92](https://github.com/alkprojects/kospos/pull/92)** — Save / load session as JSON (lib/session/snapshot.ts pure helpers + SessionExportImport.tsx UI above Load Reports). 6 files / +679 / −0; +10 tests.
+- **[PR #93](https://github.com/alkprojects/kospos/pull/93)** — Global needle search on Positions / Payroll / Hiring Plan (lib/search/needle.ts pure helper + view-level integration on all 3 tabs). 6 files / +346 / −14; +16 tests.
+
+**Hosting question (Vercel / Cloudflare / shared-state) explicitly deferred.** Rationale documented in PR #92 description: PII / department policy review needed; auth + schema migration + conflict resolution stories all need work; CLAUDE.md non-negotiable #5 ("real labor reports are never committed") rules out the commit-data-to-repo path. PR #92's session-JSON file is the v1 answer.
+
+**Field-qualified search syntax explicitly deferred** per Alex's S30 AskUserQuestion pick (Both — simple needle now, field syntax later). Queued in SESSION_HANDOFF.md as a S31+ follow-up to revisit after Alex has used the simple needle on real data.
+
+**Tests post-tail:** 354 / 354 (was 328 at audit; +10 from PR #92 + +16 from PR #93). **Worktree hygiene:** 15 consecutive PRs auto-archived (#71, #73, #74, #75, #76, #78, #79, #80, #82, #84, #85, #89, #90, #92, #93).
+
+**Lessons from the tail:**
+
+- **Test-fixture / type-shape divergence caught at run time, not type-check time.** PR #93's first test pass had a `ppRow({ name: 'Smith, Jane' })` override that *type-checked* (the test factory casts via `as PsHcmPpRow`) but didn't actually populate `appointment.name` because the real field is `employeeName`. Caught when the test asserted "Active · 1" and the rendered DOM showed "Active · 0" — the search was correctly filtering but couldn't find "Smith" because the build hadn't lifted it onto `appointment.name`. Fix: use the real field names in test fixtures. The `as PsHcmPpRow` cast suppresses a useful warning here; worth tightening if we touch the factory again.
+- **Two parallel needles for one search input on Hiring Plan.** The PlannedAction itself doesn't carry the job code, incumbent name, or dept — those live on Position. Solution: wrap `{action, position}` in a tuple and walk both via the same `matchesNeedle` helper. Cleaner than maintaining two separate search paths.
+- **The 354-test baseline matters for S31's prompt.** S31 prompt template in SESSION_HANDOFF.md updated from `currently 328 / 328` → `currently 354 / 354` so the next session knows the post-tail baseline. Without this, S31 would erroneously think the +16 search tests + +10 session tests were regressions.

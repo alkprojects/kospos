@@ -4,13 +4,29 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
-## Current status (end of Session 30 — Phase 2.2.g: Bug 2a asOf-serial fix + PlannedActionDetail editor / staffing-plan v2 PR 2, 2026-05-26)
+## Current status (end of Session 30 — Phase 2.2.g + S30-tail QoL: session export/import + global search, 2026-05-26)
 
-**Phase:** Phase 2.2.g — **PlannedActionDetail editor (Option A — staffing-plan v2 PR 2)** ([PR #90](https://github.com/alkprojects/kospos/pull/90) — full CostInput sub-editor + row-click drill-down + status workflow UI + delta-pay view) preceded by a small standalone bug-fix PR ([PR #89](https://github.com/alkprojects/kospos/pull/89) — Bug 2a: coerce OBI Earning Period End Excel-serial cells to ISO `YYYY-MM-DD`). Phase 2.2.g close audit fired on schedule (7th event-based trigger).
-**Last main commit:** `016c9c3` ([PR #90](https://github.com/alkprojects/kospos/pull/90) — PlannedActionDetail editor) → `9aca9fb` ([PR #89](https://github.com/alkprojects/kospos/pull/89) — Bug 2a asOf-serial fix) → `0e4dfa5` ([PR #88](https://github.com/alkprojects/kospos/pull/88) — S30 handoff bug-followup) → `19c8544` ([PR #87](https://github.com/alkprojects/kospos/pull/87) — Bug 2 reopened amendment) → `51a889c` ([PR #86](https://github.com/alkprojects/kospos/pull/86) — Phase 2.2.f close audit)
-**Tests:** 328 / 328 passing (+25 from start of Phase 2.2.g: +5 from PR #89 importer serial-coerce + downstream invariant; +20 from PR #90 cost-prefill + incumbent / delta + view-level modal).
+**Phase:** Phase 2.2.g — **PlannedActionDetail editor (Option A — staffing-plan v2 PR 2)** ([PR #90](https://github.com/alkprojects/kospos/pull/90) — full CostInput sub-editor + row-click drill-down + status workflow UI + delta-pay view) preceded by a small standalone bug-fix PR ([PR #89](https://github.com/alkprojects/kospos/pull/89) — Bug 2a: coerce OBI Earning Period End Excel-serial cells to ISO `YYYY-MM-DD`). Phase 2.2.g close audit fired on schedule (7th event-based trigger). **Plus two QoL PRs at session tail** addressing Alex's late feedback ("testing is tedious" + "search by any combination of fields"): [PR #92](https://github.com/alkprojects/kospos/pull/92) — save / load session as JSON; [PR #93](https://github.com/alkprojects/kospos/pull/93) — global needle search on Positions / Payroll / Hiring Plan.
+**Last main commit:** `187861a` ([PR #93](https://github.com/alkprojects/kospos/pull/93) — global search) → `7392713` ([PR #92](https://github.com/alkprojects/kospos/pull/92) — session export/import) → `88efab8` ([PR #91](https://github.com/alkprojects/kospos/pull/91) — Phase 2.2.g close audit) → `016c9c3` ([PR #90](https://github.com/alkprojects/kospos/pull/90) — PlannedActionDetail editor) → `9aca9fb` ([PR #89](https://github.com/alkprojects/kospos/pull/89) — Bug 2a asOf-serial fix)
+**Tests:** 354 / 354 passing (+51 from start of Phase 2.2.g: +5 from PR #89; +20 from PR #90; +10 from PR #92 session round-trip + parse-error branches; +16 from PR #93 needle helper + view-level search filtering).
 **Branches in flight:** none post-merge.
-**Worktree hygiene:** auto-archive working across **13 consecutive PRs** (#71, #73, #74, #75, #76, #78, #79, #80, #82, #84, #85, #89, #90). Carry-forward Item A stays dropped. Any stale worktree in S31+ is a regression.
+**Worktree hygiene:** auto-archive working across **15 consecutive PRs** (#71, #73, #74, #75, #76, #78, #79, #80, #82, #84, #85, #89, #90, #92, #93). Carry-forward Item A stays dropped. Any stale worktree in S31+ is a regression.
+
+### S30-tail QoL additions (PRs #92 + #93)
+
+After the Phase 2.2.g close audit + handoff merged, Alex flagged two pain points that needed addressing before S31:
+
+#### [PR #92](https://github.com/alkprojects/kospos/pull/92) — Save / load session as JSON
+
+Alex: *"testing is becoming tedious. I have to import files each time."* Until Phase 2.2.33 ships IndexedDB persistence, every browser reload loses all in-memory state. This PR adds Save/Load session buttons above the FilePicker on the Load Reports tab. Save → downloads `kospos-session-YYYY-MM-DDTHHMM.json` with all loaded rows + staffing-plan actions + position notes + hidden-derived set. Load → uploads a previously-saved JSON + fans the payload back to the three Zustand stores via `restoreFromSession` helpers. 6 files / +679 / −0. 10 new tests covering round-trip + parse-error branches (invalid JSON / wrong kind / future schemaVersion / missing payload fields) + filename formatting.
+
+**Considered + rejected this session: Vercel pivot for true multi-user shared state.** Alex asked whether we should move off GitHub Pages to enable shared uploads. **NOT doing that here** — it's a separate architectural decision involving: PII / department personnel-data policy review (real names, emplIds, salaries leaving Alex's machine); auth provider + token plumbing; schema-migration story for shared state (today a schema bump breaks one user's IndexedDB; with shared state it breaks everyone at once); conflict resolution + audit log for who-uploaded-what-when. The CLAUDE.md non-negotiable #5 ("Real labor reports are never committed") rules out the commit-data-to-repo path. Session files are the simplest path that solves the actual testing pain without committing to any of the above.
+
+#### [PR #93](https://github.com/alkprojects/kospos/pull/93) — Global needle search on Positions / Payroll / Hiring Plan tabs
+
+Alex: *"on the position, payroll, and hiring plan tabs there should be a search function that allows searching and filtering by any combination of all fields."* Per the S30 AskUserQuestion pick (simple needle now, field-qualified syntax later), this PR ships the simple-needle scope: case-insensitive substring match against every string/numeric leaf on the row, walks nested objects + arrays, handles `Date` ISO matching + cycle safety. Multi-term needle ANDs across terms but ORs across fields (so `smith 6278` finds rows where one field has "smith" + another has "6278"). 6 files / +346 / −14. 16 new tests covering helper rules + view-level integration (StaffingPlanView search by job description / position # / incumbent name; `N of M match` stat; Clear button).
+
+**Field-qualified search syntax (`name:Smith jobCode:6278 step:>5`) is queued as a follow-up** after Alex lives with the global needle on real data. Decision deferred — Alex's S30 pick was explicitly "ship simple now, decide on syntax later."
 
 ### What landed this session — two PRs (plus docs PR)
 
@@ -288,7 +304,7 @@ Hard constraints
 
   - Branch from main, single-purpose name.
   - Strict one-sub-phase-per-PR.
-  - npm test stays green (currently 328 / 328).
+  - npm test stays green (currently 354 / 354).
   - One PR per logical change; merge after CI passes; fast-forward main.
   - Commit messages end with the Co-Authored-By line per CLAUDE.md.
   - Run `npm run build` before opening PR — production build catches
@@ -351,6 +367,12 @@ C-tier (future features, not polish) also carry forward:
 - **Sortable column headers on Positions list.**
 - **Bulk-select positions for aggregate Budget vs Actual.**
 - **`?labor=<positionId>` URL persistence for scope.**
+
+### New S30-tail follow-ups (deferred from PR #92 + #93)
+
+- **Field-qualified search syntax.** Per S30 Alex pick, PR #93 ships the simple-needle scope. Live with it for a session or two; if Alex wants `name:Smith jobCode:6278 step:>5` power-user mode, queue a follow-up PR. Decision: ship after Alex has lived with the simple needle on real data.
+- **Multi-user shared state (Vercel / Cloudflare pivot).** Alex asked about this in S30; deferred. PR #92 (session export/import) is the v1 answer to "I have to import files every session." Revisit only if Alex requests it after Department policy review on putting personnel data on external infrastructure.
+- **IndexedDB persistence (Phase 2.2.33 `snapshots/`).** Pre-existing carry-forward. PR #92 (session JSON file) doesn't replace this — IndexedDB still lands as part of the snapshots/ sub-phase whenever it's picked.
 
 ---
 
