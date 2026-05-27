@@ -5,11 +5,12 @@ import { ImporterView } from './modules/importer/ImporterView';
 import { PositionsView } from './lib/views/positions';
 import { LaborView } from './lib/views/labor';
 import { StaffingPlanView } from './lib/views/staffing-plan';
+import { InactiveView } from './lib/views/inactive';
 import { SpecialClassView } from './modules/special-class/SpecialClassView';
 import { useAppStore } from './lib/store';
 import { resolveDevMode, disableDevMode } from './lib/dev-mode';
 
-type Tab = 'calculator' | 'importer' | 'positions' | 'labor' | 'staffing-plan' | 'special-class';
+type Tab = 'calculator' | 'importer' | 'positions' | 'labor' | 'staffing-plan' | 'inactive' | 'special-class';
 
 type TabDef = { id: Tab; label: string; devOnly?: boolean };
 
@@ -18,6 +19,7 @@ const ALL_TABS: TabDef[] = [
   { id: 'positions',     label: 'Positions' },
   { id: 'labor',         label: 'Payroll',               devOnly: true },
   { id: 'staffing-plan', label: 'Hiring Plan',           devOnly: true },
+  { id: 'inactive',      label: 'Inactive',              devOnly: true },
   { id: 'importer',      label: 'Load Reports',          devOnly: true },
   { id: 'special-class', label: 'Special Class',         devOnly: true },
 ];
@@ -161,6 +163,7 @@ export default function App() {
         )}
         {tab === 'labor'         && <LaborView />}
         {tab === 'staffing-plan' && <StaffingPlanView />}
+        {tab === 'inactive'      && <InactiveView />}
         {tab === 'special-class' && <SpecialClassView />}
       </main>
 
