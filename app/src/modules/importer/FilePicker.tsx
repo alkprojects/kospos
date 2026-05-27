@@ -7,6 +7,8 @@ import { importPsHcmPp } from '../../lib/importers/ps-hcm-pp';
 import { importObiPayroll } from '../../lib/importers/obi-payroll';
 import { useAppStore } from '../../lib/store';
 import type { ImportedRow } from '../../lib/importers/types';
+import { LoadingOverlay } from './LoadingOverlay';
+import type { LoadingProgress } from './LoadingOverlay';
 
 const REPORT_LABELS: Record<string, string> = {
   'bfm-position':     'BFM Eturns — Position',
@@ -23,24 +25,76 @@ interface FileStatus {
   error?: string;
 }
 
+/** Yield to the browser between files so the LoadingOverlay can repaint
+ *  before the next sync .xlsx parse blocks the main thread. */
+function nextFrame(): Promise<void> {
+  return new Promise(resolve => requestAnimationFrame(() => resolve()));
+}
+
 export function FilePicker() {
   const inputRef = useRef<HTMLInputElement>(null);
   const addRows = useAppStore(s => s.addRows);
   const [statuses, setStatuses] = useState<FileStatus[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<LoadingProgress | null>(null);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
-    setLoading(true);
+
+    const fileArray = Array.from(files);
     const next: FileStatus[] = [];
 
-    for (const file of Array.from(files)) {
+    // Surface the overlay before the first parse so the user sees feedback
+    // immediately rather than after the first sync xlsx parse blocks the
+    // main thread for ~1-3s on a real labor report.
+    setProgress({
+      totalFiles: fileArray.length,
+      currentFileIndex: 0,
+      currentFileName: fileArray[0].name,
+      currentFileSizeBytes: fileArray[0].size,
+      stage: 'reading',
+      filesDone: 0,
+    });
+    await nextFrame();
+
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
+      setProgress({
+        totalFiles: fileArray.length,
+        currentFileIndex: i,
+        currentFileName: file.name,
+        currentFileSizeBytes: file.size,
+        stage: 'reading',
+        filesDone: i,
+      });
+      await nextFrame();
+
       try {
         const buf = await file.arrayBuffer();
         const isCSV = file.name.toLowerCase().endsWith('.csv');
+
+        setProgress({
+          totalFiles: fileArray.length,
+          currentFileIndex: i,
+          currentFileName: file.name,
+          currentFileSizeBytes: file.size,
+          stage: 'parsing',
+          filesDone: i,
+        });
+        await nextFrame();
+
         const wb = isCSV
           ? read(new TextDecoder().decode(buf), { type: 'string' })
           : read(buf, { type: 'array' });
+
+        setProgress({
+          totalFiles: fileArray.length,
+          currentFileIndex: i,
+          currentFileName: file.name,
+          currentFileSizeBytes: file.size,
+          stage: 'importing',
+          filesDone: i,
+        });
+        await nextFrame();
 
         // Scan every sheet — Eturns files have both Pos and Nonpos sheets
         let totalRows = 0;
@@ -82,12 +136,15 @@ export function FilePicker() {
     }
 
     setStatuses(prev => [...prev, ...next]);
-    setLoading(false);
+    setProgress(null);
     if (inputRef.current) inputRef.current.value = '';
   }
 
+  const loading = progress !== null;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {progress && <LoadingOverlay progress={progress} />}
       <div
         style={{
           border: '2px dashed var(--border)',
