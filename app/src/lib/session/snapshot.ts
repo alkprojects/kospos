@@ -40,6 +40,7 @@
 
 import type { ImportedRow } from '../importers/types';
 import type { PlannedAction } from '../staffing-plan';
+import type { PendingSeparation } from '../separations';
 
 /**
  * Schema version. Increment when the payload shape changes incompatibly.
@@ -47,6 +48,10 @@ import type { PlannedAction } from '../staffing-plan';
  * History:
  *   v1 — initial — loadedRows + lastBfmImportAt + staffingPlanActions +
  *                  staffingPlanDerivedRemoved + positionNotes
+ *   v1 — extended (Phase 2.2.i) — added optional `pendingSeparations`
+ *        field. Stays on v1 because the new field is backward-compatible:
+ *        v1 files saved before Phase 2.2.i don't carry the field, and the
+ *        restore defaults to []. New v1 files always include the field.
  */
 export const SESSION_SCHEMA_VERSION = 1;
 
@@ -76,6 +81,13 @@ export interface SessionPayload {
   staffingPlanDerivedRemoved: string[];
   /** Tuple-of-entries form of `usePositionNotes.notes`. */
   positionNotes: Array<[string, string]>;
+  /**
+   * Tuple-of-entries form of `useSeparations.separations` (Phase 2.2.i).
+   * Optional for backward compatibility: v1 files saved before this field
+   * was added load with `pendingSeparations` undefined; the restore code
+   * defaults to []. New v1 files always include the field.
+   */
+  pendingSeparations?: Array<[string, PendingSeparation]>;
 }
 
 /**
@@ -151,6 +163,13 @@ export function parseSessionFile(raw: string): ParseResult {
   if (typeof p.lastBfmImportAt !== 'string') {
     return { ok: false, reason: 'not-a-session-file', detail: 'payload.lastBfmImportAt missing.' };
   }
+  // `pendingSeparations` is optional for backward compatibility with v1
+  // files saved before Phase 2.2.i. If present, it must be an array; if
+  // absent, the restore path defaults to []. Reject only on a wrong-type
+  // (e.g. someone hand-edited the JSON and inserted a string).
+  if (p.pendingSeparations !== undefined && !Array.isArray(p.pendingSeparations)) {
+    return { ok: false, reason: 'not-a-session-file', detail: 'payload.pendingSeparations must be an array if present.' };
+  }
   return { ok: true, file: parsed as unknown as SessionFile };
 }
 
@@ -164,6 +183,8 @@ export function buildSessionFile(input: {
   staffingPlanActions: Map<string, PlannedAction>;
   staffingPlanDerivedRemoved: Set<string>;
   positionNotes: Map<string, string>;
+  /** Optional — backward compatible with pre-Phase 2.2.i callers. */
+  pendingSeparations?: Map<string, PendingSeparation>;
   label?: string;
 }): SessionFile {
   return {
@@ -177,6 +198,9 @@ export function buildSessionFile(input: {
       staffingPlanActions: [...input.staffingPlanActions.entries()],
       staffingPlanDerivedRemoved: [...input.staffingPlanDerivedRemoved],
       positionNotes: [...input.positionNotes.entries()],
+      pendingSeparations: input.pendingSeparations
+        ? [...input.pendingSeparations.entries()]
+        : [],
     },
   };
 }

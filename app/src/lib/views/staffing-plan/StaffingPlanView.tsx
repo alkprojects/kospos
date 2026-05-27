@@ -43,6 +43,7 @@ import type {
   PlannedActionType,
   UnifiedAction,
 } from '../../staffing-plan';
+import { useSeparations } from '../../separations';
 import { PlannedActionDetail } from './PlannedActionDetail';
 import { matchesNeedle } from '../../search/needle';
 
@@ -116,9 +117,13 @@ function badge(label: string, color: string, bg: string) {
  *     row displays a small auto-chip badge so the user can tell at a glance
  *     this isn't something they typed.
  */
-function ActionRow({ action, position, onDelete, onHide, onOpen }: {
+function ActionRow({ action, position, linkedSeparationCount, onDelete, onHide, onOpen }: {
   action: UnifiedAction;
   position: Position | undefined;
+  /** Number of PendingSeparation rows whose `linkedActionId` matches this
+   *  action. > 0 → render the "Tracked in Separations" chip per Phase 2.2.i
+   *  cross-link design. */
+  linkedSeparationCount: number;
   onDelete: (id: string) => void;
   onHide: (positionId: string) => void;
   onOpen: (action: UnifiedAction) => void;
@@ -170,6 +175,20 @@ function ActionRow({ action, position, onDelete, onHide, onOpen }: {
       </td>
       <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--muted)', maxWidth: 260 }}>
         {action.notes || <span>—</span>}
+        {linkedSeparationCount > 0 && (
+          <span
+            title={`${linkedSeparationCount} pending separation${linkedSeparationCount === 1 ? '' : 's'} linked to this row — open the Separations tab to manage.`}
+            style={{
+              marginLeft: 6,
+              fontSize: 10, fontWeight: 700,
+              padding: '1px 6px', borderRadius: 8,
+              color: '#6b21a8', background: '#f3e8ff',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            🔗 Tracked in Separations
+          </span>
+        )}
       </td>
       <td style={{ padding: '6px 10px', textAlign: 'right' }}>
         {isDerived ? (
@@ -211,10 +230,12 @@ function ActionRow({ action, position, onDelete, onHide, onOpen }: {
  * Accepts UnifiedAction (manual + derived mixed); the row renderer dispatches
  * on `source` for the Hide vs Delete button.
  */
-function Section({ type, actions, positionsById, onDelete, onHide, onOpen }: {
+function Section({ type, actions, positionsById, linkedSeparationCounts, onDelete, onHide, onOpen }: {
   type: PlannedActionType;
   actions: UnifiedAction[];
   positionsById: Map<string, Position>;
+  /** Map of action id → count of PendingSeparation rows linking back to it. */
+  linkedSeparationCounts: Map<string, number>;
   onDelete: (id: string) => void;
   onHide: (positionId: string) => void;
   onOpen: (action: UnifiedAction) => void;
@@ -278,6 +299,7 @@ function Section({ type, actions, positionsById, onDelete, onHide, onOpen }: {
                   key={a.id}
                   action={a}
                   position={positionsById.get(a.positionId)}
+                  linkedSeparationCount={linkedSeparationCounts.get(a.id) ?? 0}
                   onDelete={onDelete}
                   onHide={onHide}
                   onOpen={onOpen}
@@ -505,6 +527,7 @@ export function StaffingPlanView() {
   const hideDerivedAction = useStaffingPlan(s => s.hideDerivedAction);
   const restoreDerivedAction = useStaffingPlan(s => s.restoreDerivedAction);
   const derivedRemoved = useStaffingPlan(s => s.derivedRemoved);
+  const separationsMap = useSeparations(s => s.separations);
 
   // Row-click → open PlannedActionDetail modal. State carries the action's
   // id (manual) or `derived-${positionId}` (derived). When the underlying
@@ -570,6 +593,19 @@ export function StaffingPlanView() {
   const rollups   = useMemo(() => rollupByType(actions), [actions]);
   const net       = useMemo(() => netCostImpact(actions), [actions]);
   const diag      = useMemo(() => pricingDiagnostic(actions), [actions]);
+
+  // Cross-link count: how many PendingSeparation rows link back to each
+  // PlannedAction.id? Drives the "Tracked in Separations" indicator on
+  // Separation-section rows (Phase 2.2.i cross-link design). Map computed
+  // once per separationsMap change to avoid per-row scans during render.
+  const linkedSeparationCounts = useMemo<Map<string, number>>(() => {
+    const out = new Map<string, number>();
+    for (const sep of separationsMap.values()) {
+      if (!sep.linkedActionId) continue;
+      out.set(sep.linkedActionId, (out.get(sep.linkedActionId) ?? 0) + 1);
+    }
+    return out;
+  }, [separationsMap]);
 
   /** The action currently being edited in the detail modal, if any. Looked
    *  up off the unified actions array so the same selection survives across
@@ -674,6 +710,7 @@ export function StaffingPlanView() {
           type={t}
           actions={actions}
           positionsById={positionsById}
+          linkedSeparationCounts={linkedSeparationCounts}
           onDelete={deleteAction}
           onHide={hideDerivedAction}
           onOpen={a => setSelectedActionId(a.id)}
