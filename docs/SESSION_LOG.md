@@ -2866,3 +2866,67 @@ Mostly autonomous (1 Phase pick). One PR shipped end-to-end; close audit + S32 h
 - **Verification habits:** ✅ Tests + build + preview-MCP smoke. Preview-MCP synthetic-data test confirmed the full view render including empty states + filter chips before the PR opened. No console errors.
 - **Audit cadence:** ✅ 8th event-based trigger on time. Item A back on carry-forward (one slip on PR #95's auto-archive; monitor).
 - **Gap surfaced:** auto-archive watcher's merge-outside-session lifecycle (see Lesson 1).
+
+---
+
+## Session 32 — Phase 2.2.i: lib/separations/ + lib/views/separations/ — Tab 14 Separations + cross-link to Hiring Plan (2026-05-27)
+
+**Worktree:** `awesome-sammet-6f6ee6`
+**Model:** Opus 4.7
+**Branches:** `feat/views-separations` (PR #98) → `docs/phase-2-2-i-close-audit-and-handoff` (this docs PR)
+
+### Prompt summary
+
+> Pick Phase 2.2.i (B — views/temp-limits/ + TX entity, gated on the 4 TX TODOs; D — views/separations/ + PendingSeparation entity, no gating). Branch from main, single-purpose, npm test green, npm run build clean before PR. Then fire Phase 2.2.i close audit mirroring the 2.2.h format.
+
+### Alex interaction
+
+One AskUserQuestion round:
+
+1. **Phase 2.2.i pick (B / D / escape hatch).** Alex picked **Option D — Separations** (the recommended option in the S32 prompt; no TX gating, completes the vacancy-planning trio with Hiring Plan + Inactive).
+
+### Milestones
+
+| What | Where |
+|---|---|
+| **Pre-work — worktree sweep clean.** `git worktree list` showed only main + the active session worktree at S32 open. **PR #96 auto-archived cleanly** at the S31→S32 transition — the first datapoint after PR #95's one-off slip in S30→S31. Surfaced in the Phase 2.2.i close audit as Item A improving (1 of 3 watch-PRs clean; need 2 more clean to declare the streak resumed). | this session pre-work |
+| **PR #98** — New `lib/separations/types.ts` — `PendingSeparation` typed entity with required `employeeName` + optional `employeeId` / `positionId` / `jobCode` / `expectedSeparationDate` / `separationReason` / free-text `notes`. `SeparationStatus` enum (`rumored / confirmed / paperwork-filed / cleared`) + `ConfidenceLevel` enum (`low / medium / high`) on orthogonal axes. Naming note: avoided importing the existing `lib/staffing-plan/SeparationConfidence` (3-value workflow enum on PlannedAction) to prevent module-import collisions; future cleanup PR could unify if it ever feels worth the churn. | [types.ts](../app/src/lib/separations/types.ts) |
+| **PR #98** — `useSeparations` Zustand store. Map-keyed by id; history-diff-on-update with optional `overrideReason` routed to the `status` field only (other fields don't have a guard to override); `restoreFromSession` for the JSON roundtrip; defensive `normalizePositionKey` on positionId at add + patch time. Mirrors `lib/staffing-plan/store.ts` shape. | [store.ts](../app/src/lib/separations/store.ts) |
+| **PR #98** — Pure helpers: `newSeparationId`, `isAllowedSeparationStatusTransition` (mirrors PR #85 guard pattern — forward + same-state allowed, backward requires override), `rollupByStatus` (4-bucket strip), `separationsForPosition` (normalized-key join), `separationsForAction` (by `linkedActionId`). | [build.ts](../app/src/lib/separations/build.ts) |
+| **PR #98** — `SeparationsView.tsx` — summary header (total + 4-status rollup chips) + add form (employee name required, position picker autocomplete optional, defaults: status=`rumored`, confidence=`medium`) + filter bar (search + status radiogroup chips with counts) + 8-col table (Employee / Position / Job / Status / Conf / Expected / Reason / Link). Works even with no P&P loaded. | [SeparationsView.tsx](../app/src/lib/views/separations/SeparationsView.tsx) |
+| **PR #98** — `SeparationDetail.tsx` modal editor. All fields editable. Status guard: backward transitions surface "Force override (logged)" checkbox + required reason text input; Save gated until both filled. Override reason flows into the history audit log on the status entry. Cross-link picker lists the user's `'separation'`-type PlannedActions. History audit log preview at bottom. Fixed-overlay pattern (Esc + backdrop close), `role="dialog"` + `aria-modal="true"`. | [SeparationDetail.tsx](../app/src/lib/views/separations/SeparationDetail.tsx) |
+| **PR #98** — New `Separations` tab between Hiring Plan and Inactive in App.tsx, `devOnly: true` per "no promotion to non-dev until cross-tab nav has been used end-to-end on real data". | [App.tsx](../app/src/App.tsx) |
+| **PR #98** — Session export / import wiring. Added optional `pendingSeparations?: Array<[string, PendingSeparation]>` to `SessionPayload`. Schema stays at v1 (backward-compatible — pre-Phase-2.2.i files load with the field undefined, restore defaults to `[]`). `buildSessionFile`'s arg is optional for back-compat with existing test fixtures. | [snapshot.ts](../app/src/lib/session/snapshot.ts) + [SessionExportImport.tsx](../app/src/modules/importer/SessionExportImport.tsx) |
+| **PR #98** — Hiring Plan cross-link indicator. Separation-section rows whose id matches a `PendingSeparation.linkedActionId` get a 🔗 Tracked in Separations chip in the Notes column. One-way pointer keeps the data shape simple; the StaffingPlanView reads the separations store and computes `Map<actionId, count>` once per separationsMap change. | [StaffingPlanView.tsx](../app/src/lib/views/staffing-plan/StaffingPlanView.tsx) |
+| **PR #98** — 39 new tests: 23 entity (guard transitions, rollup, by-position / by-action joins, store CRUD with defaults / patch / history / override-reason routing / positionId normalization) + 12 view (empty state, render, add flow, status filter, search, count tracking, row-click → modal, delete, linked indicator, guard override flow) + 4 session (Map → array → Map roundtrip + back-compat + wrong-type rejection). | [separations.test.ts](../app/src/lib/separations/separations.test.ts) + [separations-view.test.tsx](../app/src/lib/views/separations/separations-view.test.tsx) + [session.test.ts](../app/src/lib/session/session.test.ts) |
+| **This docs PR** — Phase 2.2.i close audit + S32 handoff + S32 SESSION_LOG entry. Item A improved (1 of 3 watch-PRs clean post-PR #95 slip). Phase 2.4 ADR queue updated to fold the 3 no-upstream-source views (staffing-plan + inactive + separations) into one consolidated ADR (down from 2 separate). New S32 follow-up items: enum-naming overlap cleanup candidate, "View tracked separation" click-through on the Hiring Plan indicator chip. | [phase-2-2-i-close-audit.md](audits/phase-2-2-i-close-audit.md) + this file |
+
+### Verification
+
+- `npm test` 413/413 (374 → 413 from PR #98's +39 cases) ✓
+- `npm run build` clean on first run — no type errors caught (third session running with the rule; firmly internalized) ✓
+- Preview-MCP — app loads in dev mode; new Separations tab visible between Hiring Plan and Inactive; empty state renders; add-form flow pipes through to the store ("Pending separations 1", "Rumored 1"); row click opens the detail modal with pre-filled fields; status guard verified end-to-end (forward `rumored → confirmed` save enabled; reopen modal; backward `confirmed → rumored` Save disabled until override checkbox + reason filled; Save logs the reason on the status history entry). No console errors. ✓
+
+### Out of scope (intentionally deferred to future sessions)
+
+- **Bidirectional cross-link.** Currently `PendingSeparation.linkedActionId` is a one-way pointer; the Hiring Plan side queries the separations store for matches. Bidirectional links would require maintenance on both sides — deferred until a real use case emerges.
+- **Click-through from Hiring Plan chip to Separations tab.** The `🔗 Tracked in Separations` chip is read-only in v1. Click-through is a 1-hour add when Alex asks.
+- **Enum-naming cleanup.** `lib/staffing-plan/SeparationConfidence` (3-value workflow) overlaps semantically with the new module's `SeparationStatus` (4-value, adds `cleared`). Cleanup PR could unify by renaming PlannedAction's field to `separationProgress`. Not urgent — flag for next staffing-plan-types touch.
+- **Person-level "rumored separations across positions" surface.** Mirrors the Inactive PR #96 finding (Tab 13 is position-level, not person-level); same orthogonality applies here. Not in scope for v1.
+
+### Lessons / improvements for next phase
+
+- **Three-session streak on `npm run build` discipline.** S30 + S31 + S32 all ran `npm run build` before PR; S30 + S31 caught real type errors that `vitest run` missed; S32 was clean on first run. The rule is firmly internalized — keep running it but no longer treat it as a worry signal.
+- **Naming-collision rationale should be in code, not just commit message.** The `SeparationStatus` vs existing `SeparationConfidence` choice could have been left as a confusing duplicate-looking enum for a future reader; instead the rationale is documented in [`lib/separations/types.ts`](../app/src/lib/separations/types.ts) header. Future sessions should follow this pattern — when avoiding a naming collision deliberately, put the rationale where the next reader will see it (the type file), not just the commit message.
+- **3-view no-upstream-source pattern is now a real architectural shape.** `lib/staffing-plan/` (PR #79) → `lib/views/inactive/` (PR #96) → `lib/views/separations/` (PR #98). The Phase 2.4 ADR queue folded the planned 2 separate ADRs into 1 consolidated ADR. Pattern emerging: KosPos has typed "system of record" workspaces for everything that doesn't have a clean PS HCM / OBI / BFM source.
+- **Auto-archive monitoring discipline.** Item A is back on carry-forward, but improving — 1 of 3 watch-PRs clean. The S33 prompt template carries the Step-0.5 check pattern so this doesn't slip out of attention.
+
+### Brief audit (Alex's collaboration this session)
+
+Mostly autonomous (1 Phase pick). One PR shipped end-to-end; close audit + S33 handoff in this docs PR.
+
+- **Prompt quality (S31 handoff prompt that drove S32):** ✅ The Step-0 audit trigger fired on schedule (9th event-based trigger). The B-vs-D pick was well-scoped; the S32 prompt recommended D, Alex confirmed. The hard-constraint reminder to run `npm run build` continues to serve even when no type errors surface (third session running clean now).
+- **Scope discipline:** ✅ Strict one-PR-per-sub-phase honored. PR #98 ships only the Separations surface + the supporting session export wiring + the cross-link indicator (one cohesive feature); the audit + handoff doc lands in this second docs-only PR.
+- **Verification habits:** ✅ Tests + build + preview-MCP smoke. Preview-MCP synthetic walkthrough confirmed end-to-end: tab navigation, add-form pipe-through, row-click → modal, status guard forward / backward / override / reason / save / history-log. No console errors.
+- **Audit cadence:** ✅ 9th event-based trigger on time. Item A improving (1 of 3 watch-PRs clean after PR #95's one-off slip).
+- **Architectural shape recognition:** ✅ Spotted the 3-view no-upstream-source pattern crystallizing into a single architectural shape and folded the Phase 2.4 ADR queue accordingly.

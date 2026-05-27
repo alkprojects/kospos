@@ -4,6 +4,347 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
+## Current status (end of Session 32 — Phase 2.2.i: lib/views/separations/ — Tab 14 Separations + cross-link to Hiring Plan, 2026-05-27)
+
+**Phase:** Phase 2.2.i — **`lib/separations/` + `lib/views/separations/` + Separations tab + Hiring Plan cross-link indicator** ([PR #98](https://github.com/alkprojects/kospos/pull/98) — PendingSeparation typed entity with status workflow + confidence axis + cross-link to PlannedAction.id; SeparationsView with summary header, add form, filter chips, table; SeparationDetail modal editor with status guard + override-reason flow + history audit log; Separations tab between Hiring Plan and Inactive; "Tracked in Separations" reciprocal indicator on Hiring Plan side; session JSON export/import wired backward-compatibly). Phase 2.2.i close audit fired on schedule (9th event-based trigger).
+**Last main commit:** `d1703ea` ([PR #98](https://github.com/alkprojects/kospos/pull/98) — Separations) → `2cefa12` ([PR #97](https://github.com/alkprojects/kospos/pull/97) — S31 docs/audit/handoff) → `7fef159` ([PR #96](https://github.com/alkprojects/kospos/pull/96) — Inactive view) → `bb38f9d` ([PR #95](https://github.com/alkprojects/kospos/pull/95) — data-sensitivity correction) → `90fb86f` ([PR #94](https://github.com/alkprojects/kospos/pull/94) — S30 tail docs)
+**Tests:** 413 / 413 passing (+39 from start of Phase 2.2.i: 23 entity-layer + 12 view-level + 4 session export/import).
+**Branches in flight:** none post-merge.
+**Worktree hygiene:** **1 of 3 watch-PRs clean.** PR #96 auto-archived cleanly at S31→S32 transition (the first datapoint after PR #95's one-off slip in S30→S31). PR #98 + this docs PR will be measured at S33 open. **Two more clean PRs needed to declare the pattern resumed.**
+
+### What landed this session — one PR (plus this docs PR)
+
+#### [PR #98](https://github.com/alkprojects/kospos/pull/98) — Phase 2.2.i: lib/views/separations/ — Tab 14 Separations
+
+The workbook's Tab 14 is a hand-maintained list with no employee ID join, no status workflow, and no cross-link to Tab 24 § Separations. KosPos types it as a focused workspace for rumored / pending separations the user hears about before they're formally entered as PlannedActions in the Hiring Plan.
+
+14 files / +2,042 / −4. Highlights:
+
+| What | Where |
+|---|---|
+| **`PendingSeparation` typed entity** + `SeparationStatus` enum (`rumored / confirmed / paperwork-filed / cleared`) + `ConfidenceLevel` enum (`low / medium / high`) on separate axes + canonical orderings. Naming note: the existing `PlannedAction.separationConfidence` is a 3-value workflow enum (no "cleared" terminal); the new module's `SeparationStatus` is the 4-value workflow + `ConfidenceLevel` is the orthogonal certainty axis. Kept names distinct to avoid module-import collisions. | new [types.ts](../app/src/lib/separations/types.ts) |
+| **`useSeparations` Zustand store** — Map-keyed by id; history-diff-on-update with optional `overrideReason` routed to the `status` field only (other fields don't have a guard to override); `restoreFromSession` for the JSON roundtrip; defensive `normalizePositionKey` on positionId at add + patch time. | new [store.ts](../app/src/lib/separations/store.ts) |
+| **Pure helpers** — `newSeparationId`; `isAllowedSeparationStatusTransition` (mirrors PR #85 guard pattern — forward + same-state allowed, backward requires override); `rollupByStatus` (4-bucket strip in canonical order); `separationsForPosition` (normalized-key join); `separationsForAction` (by `linkedActionId`). | new [build.ts](../app/src/lib/separations/build.ts) |
+| **`SeparationsView`** — summary header (total + 4-status rollup chips) + add form (employee name required, position picker autocomplete optional, status defaults to `rumored`, confidence to `medium`) + filter bar (search + status radiogroup chips with counts) + 8-col table (Employee / Position / Job / Status / Conf / Expected / Reason / Link). Works even with no P&P loaded — the position field is optional in v1. | new [SeparationsView.tsx](../app/src/lib/views/separations/SeparationsView.tsx) |
+| **`SeparationDetail` modal editor** — all fields editable (employee name + ID + position picker + job code + status + confidence + expected date + reason + notes + linkedActionId picker). Status guard: backward transitions surface "Force override (logged)" checkbox + required reason text input; Save is gated until both. Override reason flows into the history audit log on the status entry. History audit log preview at modal bottom. | new [SeparationDetail.tsx](../app/src/lib/views/separations/SeparationDetail.tsx) |
+| **`Separations` tab** between Hiring Plan and Inactive, `devOnly: true` per "no promotion to non-dev until cross-tab nav has been used end-to-end on real data". | [App.tsx](../app/src/App.tsx) |
+| **Session export / import wiring** — added optional `pendingSeparations?: Array<[string, PendingSeparation]>` to `SessionPayload`. Schema stays at v1 (backward-compatible: pre-Phase-2.2.i files load with the field undefined, restore defaults to `[]`). `buildSessionFile`'s pendingSeparations arg is optional for back-compat with existing test fixtures. 4 new session tests cover the roundtrip + backward-compat + wrong-type rejection. | [snapshot.ts](../app/src/lib/session/snapshot.ts) + [SessionExportImport.tsx](../app/src/modules/importer/SessionExportImport.tsx) |
+| **Hiring Plan cross-link indicator** — Separation-section rows whose id matches a `PendingSeparation.linkedActionId` get a 🔗 Tracked in Separations chip in the Notes column. One-way pointer keeps the data shape simple; the Hiring Plan side queries the separations store and computes `Map<actionId, count>` once per separationsMap change. | [StaffingPlanView.tsx](../app/src/lib/views/staffing-plan/StaffingPlanView.tsx) |
+| **39 new tests** — 23 entity (guard transitions, rollup, by-position/by-action joins, store CRUD with defaults / patch / history / override-reason routing / positionId normalization) + 12 view (empty state, render, add flow, status filter, search, count tracking, row-click → modal, delete, linked indicator, guard override flow) + 4 session (Map → array → Map roundtrip + back-compat + wrong-type rejection). | [separations.test.ts](../app/src/lib/separations/separations.test.ts) + [separations-view.test.tsx](../app/src/lib/views/separations/separations-view.test.tsx) + [session.test.ts](../app/src/lib/session/session.test.ts) |
+
+#### This docs PR — Phase 2.2.i close audit + S32 handoff + SESSION_LOG entry
+
+Audit doc at [`docs/audits/phase-2-2-i-close-audit.md`](audits/phase-2-2-i-close-audit.md) + this handoff + the S32 SESSION_LOG entry.
+
+### Items surfaced for Alex's review (carry forward)
+
+Per [memory `feedback_dont_reremind.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_dont_reremind.md): **one new acknowledgment this session** (Phase 2.2.i pick → D). Nothing else.
+
+#### Restated questions for Alex (4 — unchanged from S31, since none were re-asked this session)
+
+Items 1-4 carry. Item 5 (TX rules — 4 sub-questions) **still gates Phase 2.2.19 `views/temp-limits/`** if Alex picks that as 2.2.j.
+
+1. **Attribution rate on Operating Report Summary.** Three different things on the Operating Report Summary page look like they're called "attrition rate" at the DBI / CPC dept-group level — G42 / H42 (9993 ÷ non-9993 labor), L23 / L32 (projected balance ÷ total budget), H43 (hand-keyed "Calculated, Questionable"). All three display as percentages but mean different things. Which is "the attrition rate" for CON / MYR reporting? **My current default:** G42 / H42 is canonical; L23 / L32 gets renamed to "leftover %" in KosPos. **Confirm or correct?**
+
+2. **`Department Group` pivot label.** The Operating Report Summary's GETPIVOTDATA calls reference a pivot label called `Department Group` — but Report Data doesn't have a column with that exact name. When KosPos emits the labor-report-shaped .xlsx for downstream consumers, do we need to preserve that label so other people's GETPIVOTDATA formulas still work? **My current default:** yes, preserve it.
+
+3. **OPS Detail snapshot-diff key.** The OPS Detail "what changed since the last report" panel needs a key. Options: (a) Position Number alone, (b) `(Effective Dept, Position Number, Fill Status, Budget Job Code)`, (c) Position Number + a separate tracker for "who occupied it when". **My current default:** option (b).
+
+4. **Step variance merit-event aware.** The Step (Tab 18) walkthrough proposed making per-PP step variance "merit-event aware" — adds modeling complexity but makes per-PP variance numbers meaningful. Implement now in Phase 2.4 importer, or defer to a Phase 2.2 sub-phase? **Default: defer.**
+
+5. **TX (Temporary Exchange) rules — still gates Phase 2.2.19 `views/temp-limits/`.** Four follow-up rules need confirmation before the TX typed entity can ship:
+
+   **5a.** Is the TX `expired_date` set by **CSC in fixed increments** (per CSC Rule 114's 1,040-hour blocks for Cat 17, or 6-month rolls), or is it **negotiated independently** between DHR and the originating dept on a case-by-case basis?
+
+   **5b.** Can a TX be **Cat 16** as well, or only Cat 17/18?
+
+   **5c.** Is "TX" the same concept as a **"limited duration appointment"** in DHR/PS HCM terminology, or is it a distinct PS HCM construct?
+
+   **5d.** How does **TX renewal** work? Charter §10.104-17 + §10.104-18 say Cat 17/18 "shall not be renewable" but CSC Rule 114 implies up-to-1,040-hour increments are allowed for Cat 17.
+
+#### Reasonable-default calls deferred (12 — unchanged, nothing acknowledged this session)
+
+**8 from Session 20 (Tab 23-25 walkthroughs):**
+
+5. **(Tab 23)** 6 slicer-chip semantics reverse-engineered — confirm or correct?
+6. **(Tab 23)** Where does `Vacant Date` come from?
+7. **(Tab 23)** `Previous Employee2` vs `Previous Employee` — which is which?
+8. **(Tab 24)** `V Check` semantics for TEMPM-budgeted rows — `IF(P="TEMPM", "", ...)` skips check.
+9. **(Tab 24)** Cost-basis for blank `W` cells — **Default:** KosPos always computes expected cost.
+10. **(Tab 24)** PlannedAction history retention — **Default:** 18 months with summary roll-up.
+11. **(Tab 24)** DBI→CPC transfer-of-function propagation — **Default:** stays on originating dept until EOY.
+12. **(Tab 24 + Tab 25)** Active-row blank-`W` "X of Y priced ⚠" diagnostic chip — placement OK?
+
+**4 new from Session 21 (Tab 1-22 walkthroughs):**
+
+13. **(Tab 12)** `E2P` = "Eligible to Promote" — what does it mean exactly?
+14. **(Tab 21)** `PARTIALLY FILLED` semantics — used for pool positions. Map to `is_pool_position = true`?
+15. **(Tab 21)** Reporting Tree change-proposal cols — workflow today?
+16. **(Tab 15)** Succession plan scope priority — Phase 2 (current-year) or Phase 7 (talent)?
+
+#### Open action items (1 — same as S31)
+
+17. **The 5 vacant-no-RTF positions.** Restated: 5 positions show **Fill Status = VACANT** and **Latest RTF Submitted Date = blank/null**. Per [memory `staffing_plan_types.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/staffing_plan_types.md), "no RTF" is not always accurate in practice. **Disposition needed per position: data bug vs intentional hold.** These auto-populate as Pending in the Hiring Plan workspace — click row → add holdReason note + actionMode + startPpe to claim each one explicitly.
+
+#### Resolved this session (drops from carry-forward)
+
+- **Phase 2.2.i pick (B / D / escape hatch) — ANSWERED + SHIPPED.** Alex picked D; PR #98 ships the Separations entity + view + cross-link end-to-end.
+
+#### Audit-surfaced items (carry-forward update — items A-F)
+
+From [Phase 2.2.i close audit](audits/phase-2-2-i-close-audit.md):
+
+A. **Auto-archive monitoring — improved.** PR #96 auto-archived cleanly at the S31→S32 transition (first datapoint after PR #95's one-off slip). **1 of 3 watch-PRs clean.** PR #98 + this docs PR will be measured at S33 open. If both auto-archive cleanly, item A drops back to "stays dropped." If either lingers, that's the second slip and the pattern is real.
+
+B. **Trim `SESSION_LOG.md` Sessions 1–16 to one-paragraph digests.** ~2,870 lines after S32 entry (was 2,809 pre-entry). Past the 2,000-line trim trigger; bundleable with C + the Tab 24 Improvement #6 holdReason language drift + the OBI serial doc note.
+
+C. **Migrate the memory-file citation anti-pattern in `labor-report.md`.** **12 instances unchanged** (no labor-report.md edits this session). Bundleable with B.
+
+D. **Defer the `labor-report.md` split until Phase 2.4.** Still 8,518 lines. Defer holds.
+
+E. ~~Phase 2.2 first sub-phase pick.~~ Resolved S24; **stays dropped**.
+
+F. **Audit cadence — working as designed.** 9th event-based trigger fired on schedule this session.
+
+### Top 3 findings to surface for Alex this session
+
+1. **The Separations tab is shippable.** Visit `/kospos/?dev=1` → click Separations (between Hiring Plan and Inactive). Type an employee name, hit Add → row appears with default Rumored / medium chips. Click the row → modal opens with all fields editable. Forward status transitions save normally; backward transitions (e.g., reverting a "cleared" back to "rumored") surface a Force override checkbox + required reason input. Override + reason flow into the history audit log on the status entry. The Position # picker autocompletes from the loaded P&P snapshot when one exists; works without P&P too.
+
+2. **The vacancy-planning trio is complete.** Hiring Plan (planned hires + separations with cost projection) ⋈ Inactive (orphan FYTD spend on positions absent from the active P&P) ⋈ Separations (rumored / pending). The cross-link `🔗 Tracked in Separations` indicator surfaces on Hiring Plan Separation rows whose id is linked from a PendingSeparation — so once you wire a rumor to a planned action, both surfaces show the connection.
+
+3. **Session JSON save/load now preserves Separations.** The schema stays at v1 (backward-compatible — pre-Phase-2.2.i session files still load; the field defaults to empty array when missing). New saves always include the field. Alex's existing session files keep working.
+
+### Cumulative state of the labor-report walkthrough
+
+| Phase | Tab | Status |
+|---|---|---|
+| 2.0a-h | All 27 tabs | done 2026-05-25 |
+| 2.0i | DSI final + Phase 2.2 sub-phase enumeration + Phase 2.0 close audit | done 2026-05-25 |
+| 2.1 | `?dev=1` route guard + Phase 2.1 close audit | done 2026-05-25 |
+| 2.2.a | Position spine bundle (dept-tree + obi-pnp full + views/positions) | done 2026-05-25 |
+| 2.2.b | obi-payroll full + lib/payroll/ rollup cube | done 2026-05-26 |
+| 2.2.b+c | Combined close audit + PR #68 docs sync | done 2026-05-27 |
+| 2.2.c | `2.2.17` `views/labor/` — per-PP drill-down + Position Detail "View payroll →" | done 2026-05-27 |
+| 2.2.d | `2.2.13` `bfm-eturn/` full — full 64-col importer + `lib/budget/` cube + Budget vs Actual on Position Detail | done 2026-05-26 |
+| 2.2.e | `2.2.21` `staffing-plan/` — PlannedAction entity + Hiring Plan workspace v1 (devOnly) + UI fix PR #78 | done 2026-05-26 |
+| 2.2.f | `2.2.21` v2 PR 1: Bug 3 derived defaults + status-transition guard + Bug 2 payroll-diagnostic polish | done 2026-05-26 |
+| 2.2.g | `2.2.21` v2 PR 2: PlannedActionDetail editor + full CostInput + delta-pay + status-workflow UI + Bug 2a asOf-serial importer fix | done 2026-05-26 |
+| 2.2.h | `2.2.20` `views/inactive/` — Tab 13 INACTIVE live query replacing the workbook's 3-step manual flow | done 2026-05-27 |
+| **2.2.i** | **`2.2.26` `lib/separations/` + `views/separations/`** — Tab 14 Separations PendingSeparation entity + status workflow + Hiring Plan cross-link indicator | **done 2026-05-27** |
+| **2.2.j** | **Next sub-phase** — Alex's pick. Top candidates: **(a) `2.2.19` `views/temp-limits/`** (TX entity + Cat 17/18 expiry — gated on TX TODOs Restated Q #5); **(b) `2.2.18` `views/reporting-tree/`** (Tab 21 — feeds Phase 7 org chart); **(c) `2.2.25` `views/probation/`** (Tab 10 — typed status workflow, system of record going forward); **(d)** any other Tier-4 sub-phase from the dependency graph. | **NEXT** |
+| 2.2.k-n | Remaining Tier-4 sub-phases | pending |
+| 2.3 | Excel export | pending |
+| 2.4 | Importer wiring (incl. ADR-007 amendment for the 39-col OBI shape + new ADR for the 64-col BFM eturn shape + **new ADR for the 3-view no-upstream-source pattern: `lib/staffing-plan/` + `lib/views/inactive/` + `lib/views/separations/`** + Position.cat1718 lift note + iso() serial-converter from PR #89 — 4 queued together, down from 5 by folding) | pending |
+
+## Blockers for Alex
+
+None landing-related. Live site: <https://alkprojects.github.io/kospos/>. Spot-check once the deploy completes:
+
+- **Separations tab is visible in dev mode** between Hiring Plan and Inactive.
+- **Add separation flow** works without P&P (employee name only). With P&P loaded, position picker autocompletes.
+- **Row click → detail editor.** Status guard: backward transition surfaces override + reason; Save gated until both filled. Override reason logs in history audit log on the status entry.
+- **Cross-link works both ways.** In Hiring Plan, add a Separation-type PlannedAction. In Separations, open a row, pick that PlannedAction in the "Linked Hiring Plan action" picker, Save. Back to Hiring Plan → the matching row shows the `🔗 Tracked in Separations` chip.
+- **Session JSON roundtrip preserves Separations.** Save session, reload, load session back → separations survive.
+- **No regression on prior surfaces.** Positions / Payroll / Hiring Plan / Inactive / Calculator / Special Class all still render.
+
+**One decision pending — pick the next Phase 2.2 sub-phase (2.2.j).** Top candidates below; see Recommendations.
+
+### Recommendation for Phase 2.2.j
+
+Three options worth surfacing now that the vacancy-planning trio is complete:
+
+**Option A — `2.2.19` `lib/views/temp-limits/` + TemporaryExchange typed entity.** Tab 12 TEMP Limits — Cat 17/18 expiry alerts + 1040-hour gauge using the cube's `earningHours`. **Pros:** the `Position.cat1718` lift from PR #85 + the delta-pay infrastructure from PR #90 + the OBI cube's `earningHours` aggregator all feed naturally; visible payoff (red/yellow expiry banners + 1040-hour progress bars); the operational pain at DBI is real (Cat 17/18 expiration tracking is hand-managed today). **Cons:** the 4 TX TODOs in Restated Question #5 need Alex confirmation up front — those are stop-the-world questions that can't be defaulted past. Effort: medium-to-high.
+
+**Option B — `2.2.18` `lib/views/reporting-tree/`.** Tab 21 Reporting Tree (org-chart preview + data-quality flags + change-proposal cols → KosPos Change Mode precursor). Feeds Phase 7 org chart. **Pros:** unblocks Phase 7; surfaces the reports-to chain integrity flags from Scenario 1; can deliver Reports-to-cycle / dangling-ref detection as part of the same surface. **Cons:** Change Mode design (lib/changes/ — still a stub) needs to land alongside or shortly after to make the change-proposal cols meaningful. Effort: medium-to-high.
+
+**Option C — `2.2.25` `lib/views/probation/`.** Tab 10 Probation — typed entity with status workflow (Open → Approaching → Extended → Cleared / Failed / Resigned); end-date auto-computation; system of record going forward (no PS HCM source for DBI). **Pros:** clean entity + workflow surface; mirrors the patterns now used in 3 surfaces (Hiring Plan, Separations); typed system-of-record approach matches Separations directly. **Cons:** smaller user-visible payoff than A or B; standalone surface with no cross-link yet. Effort: low-to-medium.
+
+**Escape hatch:** Alex picks any other Tier-4 sub-phase from the dependency graph in `labor-report.md § Phase 2.2 sub-phases`.
+
+**My pick: Option A** — TX is the most asked-about operational surface at DBI, the upstream entity layer is already in place, and the 4 TX TODOs are real domain questions worth answering anyway (a TX modeling discussion is overdue regardless of which sub-phase it powers). **Option C remains a strong fast-shipping alternative** if Alex wants a no-gating-questions session.
+
+## Next session prompt — Phase 2.2.j (Alex picks A, B, C, or another sub-phase)
+
+Paste this verbatim to start Session 33:
+
+````
+This session asks Alex to pick the next Phase 2.2 sub-phase (2.2.j),
+then ships it. Phase 2.2.i shipped in 1 PR: #98 (lib/separations/ +
+lib/views/separations/ — Tab 14 Separations PendingSeparation entity
+with status workflow + confidence axis + Hiring Plan cross-link
+indicator; SeparationsView + SeparationDetail modal + tab; session
+JSON export/import wired backward-compatibly). The vacancy-planning
+trio (Hiring Plan ⋈ Inactive ⋈ Separations) is now complete.
+
+Read first, in order:
+  docs/CLAUDE.md
+  docs/SESSION_HANDOFF.md (this file — recommendation + carry-forwards)
+  docs/SESSION_LOG.md (Session 32 entry — Phase 2.2.i)
+  memory/MEMORY.md + the 10 memory files
+  docs/audits/phase-2-2-i-close-audit.md (carry-forwards A-F)
+  docs/domain/labor-report.md § "Phase 2.2 sub-phases" — dependency graph
+
+Confirm state on main:
+  git log --oneline origin/main -5
+
+==============================================================================
+STEP 0 — Phase 2.2.j close audit cadence check
+==============================================================================
+Per WORKFLOW.md § Audit cadence, the Phase 2.2.i close audit fired in
+S32. This session, the audit cadence check is only the Phase 2.2.j
+close audit when 2.2.j ships. Don't re-audit 2.2.i.
+
+DO fire the 2.2.j audit before this session ends. Use the Phase 2.2.i
+close audit format; mirror the prior audit's table of carry-forwards.
+
+==============================================================================
+STEP 0.5 — Auto-archive monitoring (carries from S32 Item A)
+==============================================================================
+At session open, check `git worktree list`. PR #96 auto-archived cleanly
+at S31→S32 (1 of 3 watch-PRs). PR #98 + the S32 docs PR are the next 2
+datapoints — if both worktrees are gone at S33 open, the streak resumes
+(3 clean PRs in a row) and Item A drops back to "stays dropped." If
+either lingers, that's the second slip — surface as a confirmed pattern
+and investigate the Cowork watcher's merge-event lifecycle.
+
+==============================================================================
+STEP 1 — Ask Alex to pick Phase 2.2.j
+==============================================================================
+Use AskUserQuestion. Three options:
+
+  A. 2.2.19 lib/views/temp-limits/ + TemporaryExchange typed entity
+     — Cat 17/18 expiry surfaces + 1040-hour gauges. Position.cat1718
+     lift (PR #85) + delta-pay infrastructure (PR #90) + earningHours
+     from the OBI cube all feed naturally.
+     GATING: the 4 TX TODOs in Restated Question #5 must be answered
+     up front (5a expired_date set by CSC vs negotiated; 5b Cat 16
+     TX-capable?; 5c TX = limited-duration appointment?; 5d renewal
+     reconciliation Charter §10.104 vs CSC Rule 114).
+
+  B. 2.2.18 lib/views/reporting-tree/ + Change Mode precursor
+     — Tab 21 Reporting Tree. Feeds Phase 7 org chart. Surfaces
+     reports-to chain integrity flags from Scenario 1 (cycle /
+     dangling-ref / excessive-depth). Change-proposal cols → KosPos
+     Change Mode precursor (lib/changes/ stub needs to land alongside
+     or shortly after).
+
+  C. 2.2.25 lib/views/probation/ + Probation typed entity
+     — Tab 10 Probation. Typed status workflow (Open → Approaching
+     → Extended → Cleared / Failed / Resigned). End-date auto-
+     computation. KosPos as system of record going forward (no PS HCM
+     source for DBI). Mirrors Separations entity + workflow patterns
+     directly. Low gating, low cross-cutting risk.
+
+  (Escape hatch: Alex names something else from the dependency graph.)
+
+==============================================================================
+STEP 2 — Start Phase 2.2.j (the picked sub-phase)
+==============================================================================
+Branch + scope depend on the pick:
+
+If A — views/temp-limits/:
+  Branch: feat/temp-limits-view
+  Scope:
+    - Resolve the 4 TX TODOs via AskUserQuestion at the start
+      (Restated Q #5a-5d)
+    - Add lib/temp-exchange/ typed entity (per memory
+      temporary_exchange_tx.md schema)
+    - Build lib/views/temp-limits/ — Tab 12 TEMP Limits surface
+      (1040-hour gauge per temp using the cube's earningHours,
+      expiry alerts via the existing cat1718 model)
+    - Surface temp-tx-expiration-imminent + temp-tx-expired flags
+      from lib/quality/
+    - Add the tab to App.tsx (devOnly until ready)
+    - Tests + preview-MCP walkthrough
+
+If B — views/reporting-tree/:
+  Branch: feat/views-reporting-tree
+  Scope:
+    - Add lib/views/reporting-tree/ — Tab 21 surface (org-chart
+      preview + reports-to chain integrity flags)
+    - Surface Scenario 1 flags: reports-to-cycle / reports-to-dangling-
+      ref / reports-to-empty-non-commissioner / reports-to-excessive-
+      depth via lib/quality/
+    - Optionally: change-proposal cols precursor (requires lib/changes/
+      to be lifted from stub — flag if this becomes the bigger lift)
+    - Add the tab to App.tsx (devOnly initially)
+    - Tests
+
+If C — views/probation/:
+  Branch: feat/views-probation
+  Scope:
+    - Add lib/probation/ typed entity (Probation + ProbationStatus
+      + transition guard helper + end-date auto-computation)
+    - Build lib/views/probation/ — typed editable list with status
+      chips + due-date countdown + end-date inference
+    - Surface probation-end-approaching + probation-extension-required
+      flags from lib/quality/
+    - Wire history audit log via the same pattern as PR #90 + PR #98
+    - Add the tab to App.tsx (devOnly initially)
+    - Tests
+
+==============================================================================
+Hard constraints
+==============================================================================
+
+  - Branch from main, single-purpose name.
+  - Strict one-sub-phase-per-PR.
+  - npm test stays green (currently 413 / 413).
+  - One PR per logical change; merge after CI passes; fast-forward main.
+  - Commit messages end with the Co-Authored-By line per CLAUDE.md.
+  - **Run `npm run build` before opening PR** — production build catches
+    type errors that `npx tsc --noEmit` glosses over. S32 was the first
+    session in 3 not to need a build catch — the habit is firm; keep
+    running it.
+
+==============================================================================
+What we are NOT doing
+==============================================================================
+
+  - No bundling.
+  - No tab walkthroughs. Phase 2.0 is closed.
+  - No ADR amendments. Phase 2.4 (4 ADRs queued: ADR-007 amendment
+    for the 39-col OBI shape + iso() serial-converter note + BFM
+    eturn ADR + Position.cat1718 lift note + ONE consolidated ADR
+    for the 3-view no-upstream-source pattern shared by
+    lib/staffing-plan/ + lib/views/inactive/ + lib/views/separations/).
+  - No tool / setting / hook changes unless surfaced by audit.
+  - No promotion of Payroll / Hiring Plan / Inactive / Separations /
+    Temp Limits / Reporting Tree / Probation to non-dev yet — wait
+    until cross-tab nav has been used end-to-end on real data.
+
+==============================================================================
+Session-end checklist
+==============================================================================
+
+Before ending, update SESSION_HANDOFF.md with:
+  - Phase 2.2.j status + next-session prompt for Phase 2.2.k.
+  - Re-ask the 4 restated questions + 12 reasonable-default calls
+    (#5-16) + 1 open action item (#17). DROP items Alex acknowledges
+    this session.
+  - Carry-forward update on items A-F (A monitor: if both S32 PRs
+    auto-archived, item drops; if either lingered, confirmed pattern).
+  - Fire the Phase 2.2.j close audit (mirrors Phase 2.2.i audit format).
+
+Recommended model: claude-opus-4-7 for Option A (entity layer + UI
++ TX domain reasoning) or Option B (entity layer + UI + cross-cutting
+quality-flag wiring). claude-sonnet-4-6 OK for Option C (smallest
+scope, well-trodden pattern). Effort: medium-to-high for A; medium for
+B; low-to-medium for C.
+````
+
+### Recommended model (Phase 2.2.j)
+
+`claude-opus-4-7` for either A (TX domain reasoning) or B (entity + UI + cross-cutting quality wiring). `claude-sonnet-4-6` is fine for C (smallest scope, well-trodden pattern). Effort medium-to-high for A, medium for B, low-to-medium for C.
+
+### S32 follow-ups (new)
+
+- **`SeparationConfidence` enum naming overlap.** The new `lib/separations/` module avoids importing `SeparationConfidence` from `lib/staffing-plan/`; new names are `SeparationStatus` (4 values incl. `cleared`) + `ConfidenceLevel` (low/medium/high). A future cleanup PR could unify the two (rename PlannedAction's `separationConfidence` to `separationProgress` and reuse `SeparationStatus`). Not urgent; flag for the next time someone touches staffing-plan types.
+- **3-view no-upstream-source ADR consolidation.** Phase 2.4 ADR queue now has the staffing-plan + inactive + separations triplet to document as ONE ADR (was queued as 2 separate). Updated count: 4 ADRs queued (down from 5).
+- **"View tracked separation" affordance on Hiring Plan chip.** Currently the `🔗 Tracked in Separations` chip is read-only. Click-through-to-Separations-tab would be a 1-hour add; defer until Alex asks.
+
+---
+
 ## Current status (end of Session 31 — Phase 2.2.h: lib/views/inactive/ — Tab 13 INACTIVE live query, 2026-05-27)
 
 **Phase:** Phase 2.2.h — **`lib/views/inactive/` + InactiveView tab** ([PR #96](https://github.com/alkprojects/kospos/pull/96) — pure live query replacing the workbook's manual Tab 13 INACTIVE flow: positions paid in OBI but absent from the active P&P roster, with 5-bucket breakdown + inferred reason chip). Phase 2.2.h close audit fired on schedule (8th event-based trigger).
