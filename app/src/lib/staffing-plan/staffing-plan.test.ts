@@ -596,3 +596,200 @@ describe('isAllowedStatusTransition', () => {
     expect(isAllowedStatusTransition(null, null)).toBe(true);
   });
 });
+
+// ----------------------------------------------------------------------------
+// PR 2 — CostInput pre-fill, incumbent-cost helper, delta-cost view.
+// ----------------------------------------------------------------------------
+
+import { defaultBasisForPosition, isCostInputComplete } from './cost-prefill';
+import { deltaCost, incumbentCostInput } from './build';
+
+describe('defaultBasisForPosition', () => {
+  it('seeds code + salaryType + setid from a filled position', () => {
+    // 922 is a real range class (police-related); the Position factory uses
+    // jobCode '1234' which isn't in the reference data, so we need to feed
+    // a real code via appointment override.
+    const p = position({ id: '50001' });
+    const withRealCode: Position = {
+      ...p,
+      jobCode: '922',
+      appointment: { ...p.appointment!, jobCode: '922', salaryStep: '' },
+    };
+    const seed = defaultBasisForPosition(withRealCode);
+    expect(seed.code).toBe('922');
+    expect(seed.salaryType).toBe('range');
+    expect(seed.setid).toBeTruthy();
+    expect(seed.fiscalYear).toBe('FY2026');
+    expect(seed.rangePos).toBe('min');
+    // retCode + ppStartDate are not in the data layer; user supplies.
+    expect(seed.retCode).toBe('');
+    expect(seed.ppStartDate).toBe('');
+  });
+
+  it('falls back to position.jobCode when there is no appointment (vacant)', () => {
+    const p = position({ id: '50001', fillStatus: 'VACANT' });
+    const withRealCode: Position = { ...p, jobCode: '922' };
+    const seed = defaultBasisForPosition(withRealCode);
+    expect(seed.code).toBe('922');
+    expect(seed.salaryType).toBe('range');
+  });
+
+  it('returns blank code + no salaryType for unknown job codes', () => {
+    const p = position({ id: '50001' }); // jobCode '1234' — not in reference
+    const seed = defaultBasisForPosition(p);
+    expect(seed.code).toBe('1234');
+    expect(seed.salaryType).toBeUndefined();
+    expect(seed.setid).toBe('');
+  });
+
+  it('seeds stepOrRange from appointment.salaryStep when salaryType is step', () => {
+    // 881 is a step class (Mayoral Staff I); use a real step code.
+    const p = position({ id: '50001' });
+    const withStepClass: Position = {
+      ...p,
+      jobCode: '881',
+      appointment: { ...p.appointment!, jobCode: '881', salaryStep: '3' },
+    };
+    const seed = defaultBasisForPosition(withStepClass);
+    expect(seed.salaryType).toBe('step');
+    expect(seed.stepOrRange).toBe(3);
+  });
+});
+
+describe('isCostInputComplete', () => {
+  it('rejects when any required field is missing', () => {
+    expect(isCostInputComplete({})).toBe(false);
+    expect(isCostInputComplete({ code: '922' })).toBe(false);
+    expect(isCostInputComplete({
+      code: '922', setid: 'COMMN', retCode: 'C',
+      ppStartDate: '2025-07-04', salaryType: 'range',
+      stepOrRange: 'A', fiscalYear: 'FY2026',
+      // missing rangePos
+    })).toBe(false);
+  });
+
+  it('accepts a complete step input', () => {
+    expect(isCostInputComplete({
+      code: '881', setid: 'COMMN', retCode: 'C',
+      ppStartDate: '2025-07-04', salaryType: 'step',
+      stepOrRange: 3, fiscalYear: 'FY2026',
+    })).toBe(true);
+  });
+
+  it('accepts a complete range input', () => {
+    expect(isCostInputComplete(REAL_BASIS)).toBe(true);
+  });
+});
+
+describe('incumbentCostInput', () => {
+  it('returns null for vacant positions (no incumbent)', () => {
+    const p = position({ id: '50001', fillStatus: 'VACANT' });
+    const result = incumbentCostInput(p, {
+      retCode: 'C', ppStartDate: '2025-07-04', fiscalYear: 'FY2026',
+    });
+    expect(result).toBeNull();
+  });
+
+  it('returns null when the incumbent job code is unknown', () => {
+    const p = position({ id: '50001' }); // jobCode '1234' — not in reference
+    const result = incumbentCostInput(p, {
+      retCode: 'C', ppStartDate: '2025-07-04', fiscalYear: 'FY2026',
+    });
+    expect(result).toBeNull();
+  });
+
+  it('builds a complete CostInput for a step-class incumbent', () => {
+    const p = position({ id: '50001' });
+    const withStepClass: Position = {
+      ...p,
+      jobCode: '881',
+      appointment: { ...p.appointment!, jobCode: '881', salaryStep: '3' },
+    };
+    const result = incumbentCostInput(withStepClass, {
+      retCode: 'C', ppStartDate: '2025-07-04', fiscalYear: 'FY2026',
+    });
+    expect(result).not.toBeNull();
+    expect(result?.code).toBe('881');
+    expect(result?.salaryType).toBe('step');
+    expect(result?.stepOrRange).toBe(3);
+  });
+
+  it('builds a complete CostInput for a range-class incumbent (best-effort)', () => {
+    const p = position({ id: '50001' });
+    const withRangeClass: Position = {
+      ...p,
+      jobCode: '922',
+      appointment: { ...p.appointment!, jobCode: '922', salaryStep: '' },
+    };
+    const result = incumbentCostInput(withRangeClass, {
+      retCode: 'C', ppStartDate: '2025-07-04', fiscalYear: 'FY2026',
+    });
+    expect(result).not.toBeNull();
+    expect(result?.salaryType).toBe('range');
+    expect(result?.rangePos).toBe('min');
+  });
+});
+
+describe('deltaCost', () => {
+  it('returns both halves + signed delta for a filled position with a priced action', () => {
+    const p = position({ id: '50001' });
+    const withStepClass: Position = {
+      ...p,
+      jobCode: '881',
+      appointment: { ...p.appointment!, jobCode: '881', salaryStep: '3' },
+    };
+    // Planned hire at a HIGHER step than the incumbent → positive delta.
+    const plannedAction: PlannedAction = action({
+      positionId: '50001', type: 'active-hire',
+      basis: {
+        code: '881', setid: 'COMMN', retCode: 'C',
+        ppStartDate: '2025-07-04', salaryType: 'step',
+        stepOrRange: 5, fiscalYear: 'FY2026',
+      },
+    });
+    const result = deltaCost(withStepClass, plannedAction, {
+      retCode: 'C', ppStartDate: '2025-07-04', fiscalYear: 'FY2026',
+    });
+    expect(result.incumbent).not.toBeNull();
+    expect(result.planned).not.toBeNull();
+    expect(result.delta).not.toBeNull();
+    // Step 5 > Step 3 → plan adds cost.
+    expect(result.delta!).toBeGreaterThan(0);
+  });
+
+  it('separation actions carry negative planned.annual (savings)', () => {
+    const p = position({ id: '50001' });
+    const withStepClass: Position = {
+      ...p,
+      jobCode: '881',
+      appointment: { ...p.appointment!, jobCode: '881', salaryStep: '5' },
+    };
+    const sep: PlannedAction = action({
+      positionId: '50001', type: 'separation',
+      basis: {
+        code: '881', setid: 'COMMN', retCode: 'C',
+        ppStartDate: '2025-07-04', salaryType: 'step',
+        stepOrRange: 5, fiscalYear: 'FY2026',
+      },
+    });
+    const result = deltaCost(withStepClass, sep, {
+      retCode: 'C', ppStartDate: '2025-07-04', fiscalYear: 'FY2026',
+    });
+    expect(result.planned!.annual).toBeLessThan(0);
+    // Delta = planned (negative) - incumbent (positive) = roughly -2 * incumbent
+    expect(result.delta!).toBeLessThan(0);
+  });
+
+  it('returns null delta when one operand is missing (vacant + unpriced action)', () => {
+    const p = position({ id: '50001', fillStatus: 'VACANT' });
+    const unpriced: PlannedAction = action({
+      positionId: '50001', type: 'pending',
+    });
+    const result = deltaCost(p, unpriced, {
+      retCode: 'C', ppStartDate: '2025-07-04', fiscalYear: 'FY2026',
+    });
+    expect(result.incumbent).toBeNull();
+    expect(result.planned).toBeNull();
+    expect(result.delta).toBeNull();
+  });
+});

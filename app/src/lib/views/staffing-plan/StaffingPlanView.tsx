@@ -43,6 +43,7 @@ import type {
   PlannedActionType,
   UnifiedAction,
 } from '../../staffing-plan';
+import { PlannedActionDetail } from './PlannedActionDetail';
 
 function fmtMoney(n: number): string {
   return n.toLocaleString('en-US', {
@@ -114,11 +115,12 @@ function badge(label: string, color: string, bg: string) {
  *     row displays a small auto-chip badge so the user can tell at a glance
  *     this isn't something they typed.
  */
-function ActionRow({ action, position, onDelete, onHide }: {
+function ActionRow({ action, position, onDelete, onHide, onOpen }: {
   action: UnifiedAction;
   position: Position | undefined;
   onDelete: (id: string) => void;
   onHide: (positionId: string) => void;
+  onOpen: (action: UnifiedAction) => void;
 }) {
   const cost = computeExpectedCost(action);
   const jobLabel = position
@@ -126,8 +128,17 @@ function ActionRow({ action, position, onDelete, onHide }: {
     : '—';
   const isDerived = action.source === 'derived';
 
+  // Row click → open detail editor. Clicks on per-row action buttons stop
+  // propagation so Hide / Delete don't also fire the detail open.
   return (
-    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+    <tr
+      onClick={() => onOpen(action)}
+      style={{
+        borderBottom: '1px solid var(--border)',
+        cursor: 'pointer',
+      }}
+      aria-label={`Open details for position ${action.displayNumber}`}
+    >
       <td style={{ padding: '6px 10px', fontFamily: 'monospace', fontWeight: 600 }}>
         {action.displayNumber}
         {isDerived && (
@@ -162,7 +173,7 @@ function ActionRow({ action, position, onDelete, onHide }: {
       <td style={{ padding: '6px 10px', textAlign: 'right' }}>
         {isDerived ? (
           <button
-            onClick={() => onHide(action.positionId)}
+            onClick={e => { e.stopPropagation(); onHide(action.positionId); }}
             aria-label={`Hide auto-populated row for position ${action.displayNumber}`}
             title="Hide this auto-populated row. It will reappear in the Manual user changes section below."
             style={{
@@ -175,7 +186,7 @@ function ActionRow({ action, position, onDelete, onHide }: {
           </button>
         ) : (
           <button
-            onClick={() => onDelete(action.id)}
+            onClick={e => { e.stopPropagation(); onDelete(action.id); }}
             aria-label={`Delete action for position ${action.displayNumber}`}
             style={{
               border: '1px solid var(--border)', borderRadius: 12,
@@ -199,12 +210,13 @@ function ActionRow({ action, position, onDelete, onHide }: {
  * Accepts UnifiedAction (manual + derived mixed); the row renderer dispatches
  * on `source` for the Hide vs Delete button.
  */
-function Section({ type, actions, positionsById, onDelete, onHide }: {
+function Section({ type, actions, positionsById, onDelete, onHide, onOpen }: {
   type: PlannedActionType;
   actions: UnifiedAction[];
   positionsById: Map<string, Position>;
   onDelete: (id: string) => void;
   onHide: (positionId: string) => void;
+  onOpen: (action: UnifiedAction) => void;
 }) {
   const sectionActions = actions.filter(a => a.type === type);
   const color = TYPE_COLORS[type];
@@ -267,6 +279,7 @@ function Section({ type, actions, positionsById, onDelete, onHide }: {
                   position={positionsById.get(a.positionId)}
                   onDelete={onDelete}
                   onHide={onHide}
+                  onOpen={onOpen}
                 />
               ))}
             </tbody>
@@ -492,6 +505,12 @@ export function StaffingPlanView() {
   const restoreDerivedAction = useStaffingPlan(s => s.restoreDerivedAction);
   const derivedRemoved = useStaffingPlan(s => s.derivedRemoved);
 
+  // Row-click → open PlannedActionDetail modal. State carries the action's
+  // id (manual) or `derived-${positionId}` (derived). When the underlying
+  // action disappears from the actions/derived list (e.g. user deletes it),
+  // the modal auto-closes via `selectedAction === undefined`.
+  const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
+
   const positions = useMemo<Position[]>(() => {
     const ppRows = loadedRows.filter((r): r is PsHcmPpRow => r._source === 'ps-hcm-pp');
     if (ppRows.length === 0) return [];
@@ -534,6 +553,16 @@ export function StaffingPlanView() {
   const rollups   = useMemo(() => rollupByType(actions), [actions]);
   const net       = useMemo(() => netCostImpact(actions), [actions]);
   const diag      = useMemo(() => pricingDiagnostic(actions), [actions]);
+
+  /** The action currently being edited in the detail modal, if any. Looked
+   *  up off the unified actions array so the same selection survives across
+   *  store updates (e.g. saving a derived-to-manual conversion preserves
+   *  the underlying positionId; the new manual replaces the derived row in
+   *  the list, and the modal closes on save). */
+  const selectedAction = useMemo<UnifiedAction | undefined>(() => {
+    if (!selectedActionId) return undefined;
+    return actions.find(a => a.id === selectedActionId);
+  }, [actions, selectedActionId]);
 
   if (positions.length === 0) {
     return (
@@ -593,6 +622,7 @@ export function StaffingPlanView() {
           positionsById={positionsById}
           onDelete={deleteAction}
           onHide={hideDerivedAction}
+          onOpen={a => setSelectedActionId(a.id)}
         />
       ))}
 
@@ -636,6 +666,15 @@ export function StaffingPlanView() {
               ))}
           </ul>
         </details>
+      )}
+
+      {/* Detail editor modal — open when a row is clicked. */}
+      {selectedAction && (
+        <PlannedActionDetail
+          action={selectedAction}
+          position={positionsById.get(selectedAction.positionId)}
+          onClose={() => setSelectedActionId(null)}
+        />
       )}
     </div>
   );

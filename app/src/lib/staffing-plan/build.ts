@@ -9,10 +9,13 @@
  */
 
 import { calcEmployeeCost, CostCalcError } from '../cost';
+import type { CostInput } from '../cost';
+import { detectSalaryType, RANGE_CODES, STEP_CODES } from '../calc-opts';
 import { normalizePositionKey } from '../chartfields/resolve';
 import type { Position } from '../positions';
 import type {
   DerivedAction,
+  DeltaCost,
   ExpectedCost,
   PlannedAction,
   PlannedActionType,
@@ -148,6 +151,131 @@ export function pricingDiagnostic(actions: (PlannedAction | DerivedAction)[]): {
     else unpriced += 1;
   }
   return { total: actions.length, priced, unpriced };
+}
+
+/**
+ * Build a CostInput approximating the position's *current* incumbent —
+ * driving the "delta-pay" side of PlannedActionDetail. Returns null when
+ * the position is vacant or the incumbent's step/range data isn't usable
+ * for projection.
+ *
+ * Pre-fill rules mirror `cost-prefill.ts:defaultBasisForPosition` (which
+ * pre-fills the editor for a *new* action) but apply to the position's
+ * incumbent specifically:
+ *   - `code` ← appointment.jobCode if set; falls back to position.jobCode.
+ *   - `setid` ← first setId for `code` (best-effort; data layer doesn't
+ *     carry the incumbent's setId).
+ *   - `retCode` ← passed in by the caller (typically what the user picked
+ *     in the editor — same retCode for incumbent + planned is the only way
+ *     to get a meaningful apples-to-apples delta).
+ *   - `ppStartDate` ← passed in by the caller (same start PPE as the
+ *     planned action so the projection horizons match).
+ *   - `salaryType` ← detected from `code`.
+ *   - `stepOrRange` ← appointment.salaryStep (number for step; '' for
+ *     range, since the data layer doesn't carry the incumbent's range
+ *     letter — caller must pass via `incumbentOverride`).
+ *   - `rangePos` ← 'min' default for range classes (override-able).
+ *   - `fiscalYear` ← from caller.
+ *
+ * `overrides` lets the editor surface fields the data layer can't fill —
+ * the user pins retCode + ppStartDate + fiscalYear at the form level.
+ */
+export function incumbentCostInput(
+  position: Position,
+  overrides: { retCode: string; ppStartDate: string; fiscalYear: string },
+): CostInput | null {
+  const app = position.appointment;
+  if (!app) return null; // Vacant — no incumbent.
+  const code = app.jobCode || position.jobCode;
+  if (!code) return null;
+  const salaryType = detectSalaryType(code);
+  if (!salaryType) return null;
+  const table = salaryType === 'step' ? STEP_CODES : RANGE_CODES;
+  const setid = table[code]?.setids[0];
+  if (!setid) return null;
+
+  let stepOrRange: number | string;
+  let rangePos: 'min' | 'max' | undefined;
+  if (salaryType === 'step') {
+    const n = Number(app.salaryStep);
+    if (isNaN(n) || n <= 0) return null;
+    stepOrRange = n;
+  } else {
+    // For range incumbents, the data layer doesn't carry the range letter.
+    // Best-effort fallback: pick the first range letter for the setid.
+    const ranges = (RANGE_CODES[code]?.rangesPerSetid[setid] ?? []);
+    if (ranges.length === 0) return null;
+    stepOrRange = ranges[0];
+    rangePos = 'min';
+  }
+
+  return {
+    code,
+    setid,
+    retCode: overrides.retCode,
+    ppStartDate: overrides.ppStartDate,
+    salaryType,
+    stepOrRange,
+    rangePos,
+    fiscalYear: overrides.fiscalYear,
+  };
+}
+
+/**
+ * Compute the delta-pay view: incumbent cost + planned cost + delta. Used
+ * by PlannedActionDetail to surface "what does this hire/separation cost
+ * vs the current incumbent?" The delta is signed:
+ *
+ *   delta > 0 → plan adds cost vs incumbent baseline
+ *   delta < 0 → plan saves vs incumbent baseline (typical for separations)
+ *
+ * `action` may be null when the editor is in convert-from-derived mode
+ * before any basis is filled in; only the incumbent half renders then.
+ */
+export function deltaCost(
+  position: Position,
+  action: PlannedAction | DerivedAction | null,
+  overrides: { retCode: string; ppStartDate: string; fiscalYear: string },
+): DeltaCost {
+  // Incumbent cost — non-derived path, fixed at the incumbent's data.
+  const incumbentInput = incumbentCostInput(position, overrides);
+  let incumbent: ExpectedCost | null = null;
+  if (incumbentInput) {
+    incumbent = computeRawCost(incumbentInput);
+  }
+
+  // Planned action cost — applies the action's sign convention.
+  const planned = action ? computeExpectedCost(action) : null;
+
+  const delta = (incumbent && planned)
+    ? planned.annual - incumbent.annual
+    : null;
+
+  return { incumbent, planned, delta };
+}
+
+/**
+ * Internal: compute raw COLA-aware cost without applying the staffing-plan
+ * sign convention. Used by `deltaCost` for the incumbent half (which is
+ * always positive — incumbents aren't planned events with a sign).
+ */
+function computeRawCost(input: CostInput): ExpectedCost | null {
+  let res;
+  try {
+    res = calcEmployeeCost(input);
+  } catch (err) {
+    if (err instanceof CostCalcError) return null;
+    throw err;
+  }
+  const ppCount = res.ppRows.length;
+  if (ppCount === 0) return null;
+  const annual = res.totalSalary + res.totalBen;
+  return {
+    annual,
+    perPp: annual / ppCount,
+    ppCount,
+    empOrg: res.empOrg,
+  };
 }
 
 /**
