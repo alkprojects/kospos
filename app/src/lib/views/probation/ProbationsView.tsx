@@ -24,6 +24,7 @@ import type { Position, PersonRef } from '../../positions';
 import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import type { PsHcmPpRow } from '../../importers/types';
 import { matchesNeedle } from '../../search/needle';
+import { CopyButton } from '../../ui';
 import {
   PROBATION_STATUS_ORDER,
   PROBATIONARY_PERIOD_HOURS,
@@ -575,14 +576,20 @@ export function ProbationsView() {
                 >
                   <td style={{ padding: '5px 10px', fontWeight: 600 }}>
                     {p.employeeName}
+                    <CopyButton value={p.employeeName} label="Employee name" />
                     {p.employeeId && (
-                      <span style={{ marginLeft: 6, color: 'var(--muted)', fontFamily: 'monospace', fontSize: 11 }}>
-                        {p.employeeId}
-                      </span>
+                      <>
+                        <span style={{ marginLeft: 6, color: 'var(--muted)', fontFamily: 'monospace', fontSize: 11 }}>
+                          {p.employeeId}
+                        </span>
+                        <CopyButton value={p.employeeId} label="Employee ID" />
+                      </>
                     )}
                   </td>
                   <td style={{ padding: '5px 10px', fontFamily: 'monospace' }}>
-                    {p.positionDisplayNumber || <span style={{ color: 'var(--muted)' }}>—</span>}
+                    {p.positionDisplayNumber
+                      ? <>{p.positionDisplayNumber}<CopyButton value={p.positionDisplayNumber} label="Position number" /></>
+                      : <span style={{ color: 'var(--muted)' }}>—</span>}
                   </td>
                   <td style={{ padding: '5px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
                     {p.jobCode || <span style={{ color: 'var(--muted)' }}>—</span>}

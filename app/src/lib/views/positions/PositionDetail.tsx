@@ -12,6 +12,7 @@
 import { useEffect, useState } from 'react';
 import type { Position } from '../../positions';
 import { hasDeptMismatch, usePositionNotes } from '../../positions';
+import { CopyButton } from '../../ui';
 import type { ResolvedChartfields } from '../../chartfields/types';
 import type { PositionYtdActuals } from '../../payroll';
 import type { PositionBudget, BfmBudgetPhase } from '../../budget';
@@ -522,10 +523,15 @@ export function PositionDetail({
         }}>
           <div>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 2 }}>
-              Position {position.displayNumber}
+              Position <span style={{ fontFamily: 'monospace' }}>{position.displayNumber}</span>
+              <CopyButton value={position.displayNumber} label="Position number" />
             </div>
             <div style={{ fontSize: 17, fontWeight: 700 }}>
               {position.jobCodeDescription || position.jobCode}
+              <CopyButton
+                value={position.jobCode}
+                label="Job code"
+              />
             </div>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
               {position.effectiveDept.name || position.effectiveDept.code || '—'}
@@ -624,16 +630,26 @@ export function PositionDetail({
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <tbody>
-                {[
-                  ['Name',            position.appointment.name],
-                  ['Empl ID',         position.appointment.emplId],
+                {([
+                  ['Name', (
+                    <>
+                      {position.appointment.name}
+                      <CopyButton value={position.appointment.name} label="Employee name" />
+                    </>
+                  )],
+                  ['Empl ID', (
+                    <>
+                      <span style={{ fontFamily: 'monospace' }}>{position.appointment.emplId}</span>
+                      <CopyButton value={position.appointment.emplId} label="Employee ID" />
+                    </>
+                  )],
                   ['Status',          position.appointment.status === 'L' ? 'On leave' : position.appointment.status || '—'],
                   ['Appointment',     position.appointment.type || '—'],
                   ['Exempt category', position.appointment.exemptCategory || '—'],
                   ['Step / rate',     `${position.appointment.salaryStep || '—'} / ${position.appointment.hourlyRate ? fmtMoney(position.appointment.hourlyRate) : '—'}/hr`],
                   ['Job code (emp)',  position.appointment.jobCode || '—'],
                   ['Merit increase',  fmtDate(position.appointment.meritIncreaseDate)],
-                ].map(([label, value]) => (
+                ] as Array<[string, React.ReactNode]>).map(([label, value]) => (
                   <tr key={label} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '5px 0', color: 'var(--muted)', width: 140 }}>{label}</td>
                     <td style={{ padding: '5px 0' }}>{value}</td>
