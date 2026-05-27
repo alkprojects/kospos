@@ -78,7 +78,7 @@ These exist because beginner Claude users + bundled changes is how v1 of orgchar
 2. **Verify visually.** When a UI change is made, run the app and inspect the rendered output. "It should look right" is not done.
 3. **Data quality and Change Mode are cross-cutting.** Every module surfaces likely errors (`lib/quality/`) and records edits as proposed changes (`lib/changes/`). See ADR-003.
 4. **Reference data is versioned by effective date.** Never hardcode "FY 2025-26" — look up by date.
-5. **Real labor reports are never committed.** All `.xlsx`/`.xlsm` files are gitignored.
+5. **Real labor reports are never committed.** All `.xlsx`/`.xlsm` files are gitignored. **Rationale:** the workbook is Alex's active working file (commits would create binary-blob churn + obscure diffs). The data *itself* is **SF public-employee public records** (names, IDs, classifications, salaries) and NOT confidential per the Sunshine Ordinance + state law — see [memory `data_sensitivity.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/data_sensitivity.md). Hosting / sharing decisions (Vercel, shared state, cloud storage) should be made on engineering + cost grounds, not data-confidentiality grounds.
 6. **Match the spreadsheet to the dollar.** Phase 1 / 4 / 5 each ship with parity tests against Alex's existing workbook.
 7. **Update DECISIONS.md when changing direction.** Future sessions will not understand why something is the way it is otherwise.
 8. **If a fix unblocks a related bug, file the related bug as a new issue.** Do not fold it into the current PR.
