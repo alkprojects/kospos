@@ -2807,3 +2807,62 @@ PR #95 ships the correction across:
 - `SESSION_HANDOFF.md` — Vercel-pivot-deferred entry updated to reflect the smaller actual blocker set (auth + schema migration + conflict resolution + cost — engineering trade-offs only); S31 prompt template gained an explicit "important clarification" block at the top so future sessions don't repeat the mistake.
 
 **Lesson:** When framing architectural trade-offs that touch data handling, ask + confirm the data-sensitivity assumption explicitly rather than defaulting to the most conservative interpretation. The "PII forbids this" default was overcautious + cost a small amount of mental overhead in the Vercel discussion. Future sessions should default to the memory's framing.
+
+---
+
+## Session 31 — Phase 2.2.h: lib/views/inactive/ — Tab 13 INACTIVE live query (2026-05-27)
+
+**Worktree:** `angry-kirch-6d27a1`
+**Model:** Opus 4.7
+**Branches:** `feat/views-inactive` (PR #96) → `docs/phase-2-2-h-close-audit-and-handoff` (this docs PR)
+
+### Prompt summary
+
+> Pick Phase 2.2.h (B — views/temp-limits/ + TX entity, gated on the 4 TX TODOs; C — views/inactive/, smallest sub-phase, no gating). Branch from main, single-purpose, npm test green, npm run build clean before PR. Then fire Phase 2.2.h close audit mirroring the 2.2.g format.
+
+### Alex interaction
+
+One AskUserQuestion round:
+
+1. **Phase 2.2.h pick (B / C / escape hatch).** Alex picked **Option C — Inactive view** (the recommended option in the S31 prompt; smallest scope, no TX gating, fast win).
+
+### Milestones
+
+| What | Where |
+|---|---|
+| **Pre-work — stale worktree sweep.** Found 1 stale worktree at S31 open: `quirky-lumiere-eee73a` on `docs/data-is-public-records` (PR #95 merged 2026-05-27 ~3h before session open; auto-archive watcher likely missed the event because Alex's session had already closed). Force-removed + deleted local branch. **Breaks the 15-PR auto-archive streak** claimed in the S30 audit/handoff — streak resets at PR #96. Surfaced in Phase 2.2.h audit as Item A back on carry-forward (monitor next 3-4 PRs to confirm one-off vs pattern). | this session pre-work |
+| **PR #96** New `lib/views/inactive/build.ts` — pure query `buildInactiveSummary(positions, snapshot)`. Joins on `normalizePositionKey` so zero-padded OBI ids match unpadded P&P ids. Returns one `InactivePositionSummary` per position present in OBI but absent from P&P, with 5-bucket FYTD breakdown + last-known-incumbent picked from MAX(earningPeriodEnd) rows (falls back across blank-name rows for orphan RPO-only spend). Sort: total descending. | [build.ts](../app/src/lib/views/inactive/build.ts) |
+| **PR #96** `InactiveReasonHint` derived enum: `retirement-payout` (RPO > 0) / `temp-lumpsum-payoff` (tempLsp > 0 and no RPO) / `wages-only` (otherwise). Informational hint surfaced as a chip — PS HCM has the authoritative separation reason. | `build.ts` |
+| **PR #96** `InactiveView.tsx` — summary header (count + 5-bucket totals tracking the filtered set), search input (uses shared `matchesNeedle`), reason-chip radiogroup filter with per-reason counts, 12-col table (Position / Job / Dept / Last incumbent / Last PPE / FYTD / Reg / OT / RPO / Prm / TLS / Reason). 4 empty-state branches: no data / no OBI / no P&P / no inactives found. | [InactiveView.tsx](../app/src/lib/views/inactive/InactiveView.tsx) |
+| **PR #96** New `Inactive` tab between Hiring Plan and Load Reports in App.tsx, `devOnly: true` per "no promotion of new tabs to non-dev until cross-tab nav has been used end-to-end on real data". | [App.tsx](../app/src/App.tsx) |
+| **PR #96** Tests: 20 new cases — 11 build cases (null snapshot; empty inactives; OBI ⊄ P&P; zero-padded normalize; skips empty position ids; 5-bucket aggregation; 3 reasonHint paths; last-incumbent MAX-PPE picking; blank-name fallback; descending sort) + 7 view-level (3 empty-state branches; "all active" message; row render; chip filter narrows; search filter narrows + count tracks) + 2 implicit `useAppStore` integration paths. | [inactive.test.ts](../app/src/lib/views/inactive/inactive.test.ts) + [inactive-view.test.tsx](../app/src/lib/views/inactive/inactive-view.test.tsx) |
+| **PR (this docs PR)** Phase 2.2.h close audit + S31 handoff + S31 SESSION_LOG entry. Item A back on carry-forward (one slip on a docs-only PR merged outside an active session); Item C citation count recount from "17" → 12 (audit text was overstated). New low-priority housekeeping note: 36 stale local-only `docs/*` branches don't occupy worktrees but clutter listings. | [phase-2-2-h-close-audit.md](audits/phase-2-2-h-close-audit.md) + this file |
+
+### Verification
+
+- `npm test` 374/374 (354 → 374 from PR #96's +20 cases) ✓
+- `npm run build` clean (one unused-import lint caught + removed; final build clean) ✓
+- Preview-MCP — app loads in dev mode; clicked into the new Inactive tab; pushed synthetic test data (2 active P&P + 4 OBI rows on 3 inactive positions: 1 retirement payout, 1 temp lump-sum, 1 wages-only). View rendered 3 rows sorted by FYTD descending ($14,200 / $4,200 / $1,500), summary stats rolled up to $19,900 total / $11,000 RPO / $7,400 Regular / $1,500 Temp LSP, reason chips correct, per-reason chip filter counts correct. ✓
+- Console: no errors / warnings on any tab ✓
+
+### Out of scope (intentionally deferred to future sessions)
+
+- **Person-level surface.** Tab 13 + this PR are strictly position-level (one row = one position id). A "person paid but not in P&P on any position" view would be orthogonal — flagged as a possible future addition if Alex asks for it explicitly. Build.ts header documents the choice so future sessions don't try to "fix" it.
+- **Row-click drill-down to source OBI rows.** The 12-col table covers the per-position story for v1. If a future session wants per-row drill-down, the existing `LaborView` `TraceModal` pattern transplants here cleanly.
+- **Promotion to non-dev.** Tab stays `devOnly: true` until cross-tab nav has been used end-to-end on real data (per the prompt's "What we are NOT doing").
+
+### Lessons / improvements for next phase
+
+- **Auto-archive watcher misses merges-outside-of-active-sessions.** PR #95 (docs-only S30-tail data-sensitivity correction) merged ~3 hours after Alex closed S30. The worktree didn't auto-archive. Hypothesis: the Cowork watcher is event-driven against the session's PR-state subscription; if the session is closed when the merge happens, no archive trigger fires. Not yet confirmed; watching next 3-4 PRs to see if it recurs.
+- **`tsc -b` (production build) and `vitest run` use different transform settings.** PR #96's first commit passed `npm test` but failed `npm run build` with `TS6196: 'InactivePositionSummary' is declared but never used`. This is the *third* session (S30, S31) where production-build-only errors slipped past vitest. Habit firmly established: `npm run build` always runs pre-PR.
+- **Empty-state branches benefit from per-input messages, not one generic.** The InactiveView has 4 distinct empty states (no data / no OBI / no P&P / no inactives) with tailored copy explaining what's missing or absent. Tested separately. The previous LaborView pattern of one generic "no data loaded" empty state would leave the user confused when they loaded one side but not the other.
+
+### Brief audit (Alex's collaboration this session)
+
+Mostly autonomous (1 Phase pick). One PR shipped end-to-end; close audit + S32 handoff in this docs PR.
+
+- **Prompt quality (S30 handoff prompt that drove S31):** ✅ The Step-0 audit trigger fired on schedule (8th event-based trigger). The B-vs-C pick was well-scoped; the S31 prompt recommended C for a fast win, Alex confirmed. The hard-constraint reminder to run `npm run build` before PR caught a real type error that vitest missed (Lesson 2 above).
+- **Scope discipline:** ✅ Strict one-PR-per-sub-phase honored. PR #96 ships only the Inactive view; the audit + handoff doc lands in a second docs-only PR.
+- **Verification habits:** ✅ Tests + build + preview-MCP smoke. Preview-MCP synthetic-data test confirmed the full view render including empty states + filter chips before the PR opened. No console errors.
+- **Audit cadence:** ✅ 8th event-based trigger on time. Item A back on carry-forward (one slip on PR #95's auto-archive; monitor).
+- **Gap surfaced:** auto-archive watcher's merge-outside-session lifecycle (see Lesson 1).
