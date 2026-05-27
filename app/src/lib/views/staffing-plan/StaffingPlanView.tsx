@@ -282,7 +282,10 @@ function AddActionForm({ positions }: { positions: Position[] }) {
           }}
         />
         <datalist id="staffing-plan-positions-datalist">
-          {positions.slice(0, 200).map(p => (
+          {/* All positions — browsers handle the long list. The 200-cap from
+              the initial PR truncated positions whose displayNumber sorted
+              after the 200th, hiding common cases (Alex flagged 1115135). */}
+          {positions.map(p => (
             <option key={p.id} value={p.displayNumber}>{p.jobCode} — {p.jobCodeDescription}</option>
           ))}
         </datalist>
