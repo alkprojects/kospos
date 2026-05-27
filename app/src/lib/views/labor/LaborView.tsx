@@ -27,6 +27,7 @@ import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import { normalizePositionKey } from '../../chartfields/resolve';
 import type { ObiPayrollRow, PsHcmPpRow } from '../../importers/types';
+import { CopyButton } from '../../ui';
 import {
   EMPTY_FILTERS, aggregate, applyFilters, bucketOf, distinctValues,
 } from './aggregate';
@@ -300,9 +301,12 @@ function TraceModal({ row, onClose }: { row: ObiPayrollRow; onClose: () => void 
             </div>
             <div style={{ fontSize: 16, fontWeight: 700 }}>
               {row.personFullName || '(no name)'}
+              {row.personFullName && <CopyButton value={row.personFullName} label="Person full name" />}
             </div>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-              Position {row.positionIdentifier} · {fmtMoney(row.balanceAmount)} · {fmtNumber(row.earningHours)} hrs
+              Position {row.positionIdentifier}
+              {row.positionIdentifier && <CopyButton value={row.positionIdentifier} label="Position number" />}
+              {' · '}{fmtMoney(row.balanceAmount)} · {fmtNumber(row.earningHours)} hrs
             </div>
           </div>
           <button onClick={onClose} style={{
@@ -618,14 +622,19 @@ export function LaborView() {
                 <td style={{ padding: '5px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
                   {r.earningPeriodEnd}
                 </td>
-                <td style={{ padding: '5px 10px', fontFamily: 'monospace' }}>{r.positionIdentifier}</td>
+                <td style={{ padding: '5px 10px', fontFamily: 'monospace' }}>
+                  {r.positionIdentifier}
+                  {r.positionIdentifier && <CopyButton value={r.positionIdentifier} label="Position number" />}
+                </td>
                 <td style={{ padding: '5px 10px', fontFamily: 'monospace' }}>{r.earningsCode || '—'}</td>
                 <td style={{ padding: '5px 10px' }}>{r.earningsDescription || '—'}</td>
                 <td style={{ padding: '5px 10px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
                   {r.accountDescription || '—'}
                 </td>
                 <td style={{ padding: '5px 10px', fontFamily: 'monospace', fontSize: 11, whiteSpace: 'nowrap' }}>
-                  {r.fund}{r.fundDescription ? <span style={{ color: 'var(--muted)' }}> {r.fundDescription}</span> : null}
+                  {r.fund}
+                  {r.fund && <CopyButton value={r.fund} label="Fund code" />}
+                  {r.fundDescription ? <span style={{ color: 'var(--muted)' }}> {r.fundDescription}</span> : null}
                 </td>
                 <td style={{ padding: '5px 10px', fontFamily: 'monospace', textAlign: 'right' }}>
                   {fmtNumber(r.earningHours)}
