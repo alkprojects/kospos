@@ -2698,3 +2698,72 @@ Mix of synchronous + autonomous. 3 AskUserQuestion rounds; otherwise autonomous.
 - **Verification habits:** ✅ Tests + build + preview-MCP walkthrough + screenshots on each PR. PR #85's preview verification caught the precedence bug (vacant Cat 18 was deriving as Pending instead of TEMP) — surfaced during walkthrough, root-caused to `appointment.cat1718` being undefined for vacant positions, fixed via the `Position.cat1718` lift, re-verified. **The walkthrough caught a real semantic bug the unit tests had glossed over** (test fixtures used the lifted field directly, so they passed even before the lift).
 - **Audit cadence:** ✅ 6th event-based trigger on time. Item A stays dropped (11 consecutive PRs auto-archived).
 - **Gap surfaced:** Tab 24 § Improvement #6 (holdReason enum) language in labor-report.md is now stale (Alex dropped the enum). Bundleable with items B + C in a future docs cleanup PR. Low priority.
+
+---
+
+## Session 30 — Phase 2.2.g: Bug 2a asOf-serial fix + staffing-plan v2 PR 2 (PlannedActionDetail editor) (2026-05-26)
+
+**Worktree:** `quirky-lumiere-eee73a`
+**Model:** Opus 4.7
+**Branches:** `fix/obi-payroll-asof-serial` (PR #89) → `feat/staffing-plan-detail-editor` (PR #90) → `chore/phase-2-2-g-close-audit-and-handoff` (this docs PR)
+
+### Prompt summary
+
+> Ship Bug 2a asOf-serial fix first (importer + downstream applyFilters invariant), then pick Phase 2.2.g (A — staffing-plan PR 2, B — temp-limits, C — inactive view). S29 handoff recommended Option A (closes out staffing-plan v2 cleanly; status-transition guard already shipped in PR #85, just UI wiring).
+
+### Alex interaction
+
+Two AskUserQuestion rounds:
+
+1. **Phase 2.2.g pick (A/B/C).** Alex picked Option A (Staffing Plan PR 2).
+2. **CostInput scope (Minimal vs Full with deltaPay).** Alex picked **Full with deltaPay support** — all 8 fields editable + delta-pay view modeling incumbent vs planned-action cost side-by-side.
+
+### Milestones
+
+| What | Where |
+|---|---|
+| **PR #89** Bug 2a asOf-serial fix. Added focused `iso()` converter in [obi-payroll.ts](../app/src/lib/importers/obi-payroll.ts) applied to the `iPeriodEnd` column reads. Handles numeric Excel serials (epoch 1899-12-30 → JS 1970-01-01 offset 25569 days, accounts for the spurious 1900 leap day), JS `Date` objects (defensive in case `cellDates: true` is ever passed at `read()` time), already-ISO strings (CSV passthrough), and empty/null cells. **Scope choice:** targeted to obi-payroll only rather than passing `cellDates: true` at the FilePicker `read()` level — the global option would also affect `ps-hcm-pp`/`bfm-position` date columns where it would yield JS `Date.toString()` strings (`"Thu May 08 2026..."`) instead of the ISO format the codebase already expects. | [obi-payroll.ts](../app/src/lib/importers/obi-payroll.ts) |
+| **PR #89** Tests: 5 new cases — numeric serial → ISO; MAX(asOfDate) across mixed serial+ISO rows; already-ISO passthrough; empty-cell handling; **regression test in [labor.test.ts](../app/src/lib/views/labor/labor.test.ts)** documenting the PP-range filter's ISO invariant (serial-shaped values lexicographically `>` any 2026 ISO date because `'4' > '2'`, so the filter silently drops every row). | [importers.test.ts](../app/src/lib/importers/importers.test.ts) + [labor.test.ts](../app/src/lib/views/labor/labor.test.ts) |
+| **PR #90** `PlannedActionDetail` modal editor — fixed-overlay pattern (no Portal / no headless-ui dep), Esc + backdrop click to close, `role="dialog"` + `aria-modal="true"` + `aria-label`. Save / Cancel / Delete footer. Delete hidden in derive-convert mode. Per-row Hide/Delete buttons `stopPropagation` so they don't double-fire the modal open. | [PlannedActionDetail.tsx](../app/src/lib/views/staffing-plan/PlannedActionDetail.tsx) |
+| **PR #90** Full `CostInputEditor` sub-component — all 8 CostInput fields editable: code datalist + setid button group + retCode buttons + ppStartDate / fiscalYear selects + step / range pickers + range-pos toggle + `cumulativeCalendarYearSalary` number input. Mirrors `CalculatorView`'s affordances inline-styled. Controlled — parent owns partial CostInput state. | [CostInputEditor.tsx](../app/src/lib/views/staffing-plan/CostInputEditor.tsx) |
+| **PR #90** Pre-fill + completeness helpers in new module [cost-prefill.ts](../app/src/lib/staffing-plan/cost-prefill.ts): `defaultBasisForPosition` pulls code + salaryType + setid + step (when filled + step-class) from appointment data + sensible defaults for the rest. `isCostInputComplete` type-narrowing predicate gates `calcEmployeeCost` calls. | [cost-prefill.ts](../app/src/lib/staffing-plan/cost-prefill.ts) |
+| **PR #90** Delta-pay view: new `incumbentCostInput(position, overrides)` synthesizes the incumbent's CostInput (best-effort range-letter fallback when the data layer doesn't carry it); new `deltaCost(position, action, overrides)` computes incumbent + planned + signed delta. Renders three stats in the modal: Incumbent (positive) + Planned action (signed per type — separations negative) + Δ Annual (signed: positive red = adds cost, negative green = savings). New `DeltaCost` typed entity in types.ts. | [build.ts](../app/src/lib/staffing-plan/build.ts) + [types.ts](../app/src/lib/staffing-plan/types.ts) |
+| **PR #90** Status workflow UI consumes `isAllowedStatusTransition` guard from PR #85. Forward-only + csc-hold bidirectional + null-status unconstrained. Rejected transitions surface "Force override (skip {from} → {to} guard — logged)" checkbox; Save gated until override is checked. Override path flows through `updateAction`, which logs the field change in the history audit log automatically. | [PlannedActionDetail.tsx](../app/src/lib/views/staffing-plan/PlannedActionDetail.tsx) |
+| **PR #90** All fields now editable: `startPpe` date input, `holdReason` (Pending/Unfunded only), `separationConfidence` (Separation only), `actionMode` select, multi-line notes textarea. Plus collapsible history audit log preview (newest first, `YYYY-MM-DD HH:MM · field · before → after` format). | `PlannedActionDetail.tsx` |
+| **PR #90** Convert-from-derived flow — clicking a derived (virtual) row opens the editor with "Converting from auto" tag + "Save (convert to manual)" button label. On save, derive-spec is materialized as a manual action via `addAction`; existing per-position manual-wins rule then suppresses the auto-derived row. | `PlannedActionDetail.tsx` + `StaffingPlanView.tsx` |
+| **PR #90** Row-click drill-down — every section row clickable; `selectedActionId` state in `StaffingPlanView`; modal renders when selection resolves to a `UnifiedAction`. | [StaffingPlanView.tsx](../app/src/lib/views/staffing-plan/StaffingPlanView.tsx) |
+| **PR #90** Tests: 20 new cases — 4 `defaultBasisForPosition` (filled step seed, vacant fallback, unknown-code blank, step from `appointment.salaryStep`) + 3 `isCostInputComplete` (rejects incomplete, accepts step + range) + 4 `incumbentCostInput` (null for vacant + unknown, builds for step + range incumbents) + 3 `deltaCost` (signed delta for filled position with priced action, negative for separations, null operands return null delta) + 6 view-level (row-click opens modal, derived → convert mode, Cancel preserves store, Hide/Delete stopPropagation, status guard override checkbox, convert save materializes manual). | [staffing-plan.test.ts](../app/src/lib/staffing-plan/staffing-plan.test.ts) + [staffing-plan-view.test.tsx](../app/src/lib/views/staffing-plan/staffing-plan-view.test.tsx) |
+| **PR (this docs PR)** Phase 2.2.g close audit + S30 handoff + S30 SESSION_LOG entry. Carry-forward Item A **stays dropped** (13 consecutive PRs auto-archived). Bug 2 (both 2a + 2b) drops fully from carry-forward. New minor drift surfaced: OBI BI Payroll data-source doc doesn't mention the Excel-serial behavior — could fold into Phase 2.4 ADR-007 amendment. | [phase-2-2-g-close-audit.md](audits/phase-2-2-g-close-audit.md) + this file |
+
+### Verification
+
+- `npm test` 328/328 (303 → 308 from PR #89's +5 cases, → 328 from PR #90's +20 cases) ✓
+- `npm run build` clean (CI green on both PRs) ✓
+- `npx tsc --noEmit` clean ✓
+- Preview MCP — app loads in dev mode; Hiring Plan tab renders with the existing empty-state. End-to-end click-through of the modal couldn't run in-page (xlsx not exposed on `window`; the test suite covers the row-click + modal flows via React Testing Library exhaustively instead). ✓
+- Console: no errors / warnings on any tab ✓
+
+### Out of scope (intentionally deferred to future sessions)
+
+- **Type-switch field pruning.** Editing `type` after creation works but doesn't prune fields stale-for-the-new-type (e.g., switching active-hire → separation leaves the `status` field present, meaningless for separations). v1 surfaces all fields conditionally per `type`; v2 could prompt to prune on type-switch.
+- **History audit log filtering / search + pagination.** PR #90 ships read-only collapsible preview. Filtering queues against Restated Q #10's 18-month retention policy.
+- **Delta-pay retCode pre-fill.** The delta view requires retCode + ppStartDate to be filled before it renders (both halves need the same retCode for an apples-to-apples projection). Possible UX improvement: pre-fill retCode from the position's roster / empOrg signal. Out of scope for this PR.
+- **Focus-trap + Portal.** Modal uses a fixed-position overlay rendered inline (no Portal). a11y basics covered (role / aria-modal / Esc / backdrop). Focus-trap deferred until a wider a11y pass.
+
+### Lessons / improvements for next phase
+
+- **`npm run build` catches type errors `npx tsc --noEmit` glosses over.** First commit of PR #90 passed both `npm test` AND `npx tsc --noEmit` — but `npm run build` failed with `TS2339: Property 'source' does not exist on type 'PlannedAction | DerivedAction'`. The issue: my prop type was `PlannedAction | DerivedAction` (each branch independently lacks `source` because `PlannedAction` doesn't carry it — only `UnifiedAction = (PlannedAction & { source: 'manual' }) | DerivedAction` does). `tsc --noEmit` didn't surface this because some test-fixture pattern that exposes the same shape passes the check at the source-file level. The build's stricter rolldown analysis caught it. **Pattern: run `npm run build` before opening a PR**, not just `npm test` + `tsc --noEmit`.
+- **The S30 prompt's Step 0.5 (downstream PP-range filter audit) was high-value.** Without that explicit prompt, I would have shipped the asOf-display fix alone, leaving the silent PP-range join-key damage uncovered. The regression test in `labor.test.ts` documenting "PP-range filter requires ISO earningPeriodEnd" makes the invariant durable — a future session that lifts `iso()` out or removes it will see the test fail. The handoff's "WARNING: also audit downstream" was exactly the right framing.
+- **Modal pattern stays simple without sacrificing a11y basics.** No Portal, no headless-ui library, no focus-trap library. `role="dialog"` + `aria-modal="true"` + `aria-label` + Esc/backdrop close + the existing tabbable elements give 90% of the value. Trade-off documented in the audit (Finding 4). When a wider a11y pass is needed, the modal can move to a Portal then.
+- **`useEffect([action.id])` over `useEffect([action])`.** The first version of `PlannedActionDetail` had `[action.id, isDerived, position, action]` in the effect deps — every Zustand store update that re-created the `action` reference (e.g., the user toggling Hide on another row) would wipe the in-progress draft. Narrowed to `[action.id]` with an `eslint-disable-next-line` + a prose note. Trade-off: if the underlying action's data changes via some other path while the modal is open, the user has to cancel + reopen to see the new state — acceptable for v1.
+- **Targeted-to-one-importer vs global option.** PR #89's `iso()` converter is targeted to `obi-payroll` rather than passing `cellDates: true` at the FilePicker `read()` level. Reason: the global option would also affect `ps-hcm-pp` + `bfm-position` date columns whose `str()` wrappers would yield `Date.toString()` output ("Thu May 08 2026 17:00:00 GMT-0700") instead of ISO. The targeted helper avoids the wider blast radius. Pattern: when fixing a bug at a layer that crosses multiple consumers, prefer the surgical fix unless every consumer benefits from the wider change.
+
+### Brief audit (Alex's collaboration this session)
+
+Mostly autonomous (1 Phase pick + 1 CostInput-scope gating question). Two PRs shipped end-to-end.
+
+- **Prompt quality (S29 handoff prompt that drove S30):** ✅ The Step-0 audit trigger fired on schedule (7th event-based trigger). The Step-0.5 "Bug 2a fix first" block was high-value — it surfaced the downstream PP-range filter invariant explicitly before I'd seen the code, so the regression test in `labor.test.ts` was a natural addition. A/B/C Phase 2.2.g pick was well-scoped; the CostInput-scope gating question (minimal vs full with deltaPay) was set up correctly so I could ask it immediately after Alex picked Option A.
+- **Scope discipline:** ✅ Strict one-PR-per-sub-phase honored. PR #89 (Bug 2a) shipped FIRST as a small standalone PR (~3 files), then PR #90 (PlannedActionDetail) as the main Option A PR.
+- **Verification habits:** ✅ Tests + build + tsc + preview-MCP smoke on each PR. Production build caught a real type error that `npx tsc --noEmit` missed (Finding 5 / Lesson 1 above). Without `npm run build`, the PR would have shipped a build break.
+- **Audit cadence:** ✅ 7th event-based trigger on time. Item A stays dropped (13 consecutive PRs auto-archived).
+- **Gap surfaced:** OBI BI Payroll data-source doc doesn't mention the Excel-serial date-cell behavior. Could fold into the Phase 2.4 ADR-007 amendment alongside the column-shape note. Low priority.

@@ -4,6 +4,362 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
+## Current status (end of Session 30 — Phase 2.2.g: Bug 2a asOf-serial fix + PlannedActionDetail editor / staffing-plan v2 PR 2, 2026-05-26)
+
+**Phase:** Phase 2.2.g — **PlannedActionDetail editor (Option A — staffing-plan v2 PR 2)** ([PR #90](https://github.com/alkprojects/kospos/pull/90) — full CostInput sub-editor + row-click drill-down + status workflow UI + delta-pay view) preceded by a small standalone bug-fix PR ([PR #89](https://github.com/alkprojects/kospos/pull/89) — Bug 2a: coerce OBI Earning Period End Excel-serial cells to ISO `YYYY-MM-DD`). Phase 2.2.g close audit fired on schedule (7th event-based trigger).
+**Last main commit:** `016c9c3` ([PR #90](https://github.com/alkprojects/kospos/pull/90) — PlannedActionDetail editor) → `9aca9fb` ([PR #89](https://github.com/alkprojects/kospos/pull/89) — Bug 2a asOf-serial fix) → `0e4dfa5` ([PR #88](https://github.com/alkprojects/kospos/pull/88) — S30 handoff bug-followup) → `19c8544` ([PR #87](https://github.com/alkprojects/kospos/pull/87) — Bug 2 reopened amendment) → `51a889c` ([PR #86](https://github.com/alkprojects/kospos/pull/86) — Phase 2.2.f close audit)
+**Tests:** 328 / 328 passing (+25 from start of Phase 2.2.g: +5 from PR #89 importer serial-coerce + downstream invariant; +20 from PR #90 cost-prefill + incumbent / delta + view-level modal).
+**Branches in flight:** none post-merge.
+**Worktree hygiene:** auto-archive working across **13 consecutive PRs** (#71, #73, #74, #75, #76, #78, #79, #80, #82, #84, #85, #89, #90). Carry-forward Item A stays dropped. Any stale worktree in S31+ is a regression.
+
+### What landed this session — two PRs (plus docs PR)
+
+#### [PR #89](https://github.com/alkprojects/kospos/pull/89) — Bug 2a: coerce OBI Earning Period End serial dates to ISO
+
+Alex's S29-tail live-site review showed the Payroll summary header displayed `Snapshot asOf 46150 · FY 2026` — the raw Excel date serial for 2026-05-08. Root cause: `obi-payroll.ts`'s `str()` helper converted numeric date cells via `String(v)`, which yields the serial unchanged. The serial flowed into:
+
+1. `_asOfDate` (the Payroll summary header binds directly to it).
+2. `applyFilters`'s PP-range filter in `lib/views/labor/aggregate.ts` — lexicographic comparison of `earningPeriodEnd` against ISO `YYYY-MM-DD` user input. Because `'4' > '2'`, a serial-shaped value like `"46150"` is `>` every ISO date in 2026, so the range filter silently dropped every row.
+
+3 files / +139 / −1. New `iso()` converter in [`obi-payroll.ts`](../app/src/lib/importers/obi-payroll.ts) applied to the `iPeriodEnd` reads. Handles numeric serials (Excel epoch 1899-12-30 → JS 1970-01-01 offset 25569, accounts for the spurious 1900 leap day), JS `Date` objects (defensive), already-ISO strings (passthrough), and empty cells. **Targeted to obi-payroll only** — passing `cellDates: true` globally at the FilePicker `read()` level would also affect `ps-hcm-pp` / `bfm-position` date columns whose `str()` wrappers would yield JS `Date.toString()` strings ("Thu May 08 2026 17:00:00 GMT-0700") instead of ISO. 5 new test cases including a downstream regression test in `labor.test.ts` documenting the PP-range filter's ISO invariant.
+
+#### [PR #90](https://github.com/alkprojects/kospos/pull/90) — Phase 2.2.g Option A: PlannedActionDetail editor (staffing-plan v2 PR 2)
+
+The biggest gap on the Hiring Plan workspace at the close of S29: the only row-level affordance was Delete. Clicking a row did nothing; pricing an action required no UI path at all. The "X of Y priced ⚠" diagnostic chip was informational but not actionable.
+
+9 files / +1525 / −5. Resolves 1 S30 AskUserQuestion gating item at the start:
+
+- **CostInput-scope question:** Alex picked **Full with deltaPay support**. All 8 CostInput fields editable + delta-pay view modeling incumbent vs planned-action cost side-by-side.
+
+| What | Where |
+|---|---|
+| **`PlannedActionDetail` modal** — opens on row click; covers manual edit + derived-to-manual conversion in one component; fixed-overlay pattern (no Portal / no headless-ui dep), Esc + backdrop click to close, `role="dialog"` + `aria-modal="true"` + `aria-label`. Save / Cancel / Delete footer; Delete hidden in derive-convert mode. Per-row Hide / Delete buttons `stopPropagation`. | new [PlannedActionDetail.tsx](../app/src/lib/views/staffing-plan/PlannedActionDetail.tsx) |
+| **Full `CostInputEditor` sub-component** — all 8 `CostInput` fields editable: code datalist + setid button group + retCode buttons + ppStartDate / fiscalYear selects + step / range pickers + range-pos toggle + `cumulativeCalendarYearSalary` input. Mirrors `CalculatorView`'s affordances. Controlled — parent owns partial state. | new [CostInputEditor.tsx](../app/src/lib/views/staffing-plan/CostInputEditor.tsx) |
+| **`defaultBasisForPosition` + `isCostInputComplete` pre-fill helpers** — pure functions seeding the editor from appointment data + type-narrowing predicate gating `calcEmployeeCost` calls. | new [cost-prefill.ts](../app/src/lib/staffing-plan/cost-prefill.ts) |
+| **`incumbentCostInput` + `deltaCost` + `DeltaCost` typed entity** — synthesizes the incumbent's CostInput; computes incumbent + planned + signed delta. Renders three stats: Incumbent (positive) + Planned action (signed per type — separations negative) + Δ Annual (positive red = adds cost, negative green = savings). | [build.ts](../app/src/lib/staffing-plan/build.ts) + [types.ts](../app/src/lib/staffing-plan/types.ts) |
+| **Status workflow UI with force-override** — consumes the `isAllowedStatusTransition` guard from PR #85. Rejected transitions surface a "Force override (skip {from} → {to} guard — logged)" checkbox; Save gated until override is checked. Override flows through `updateAction`, which logs the field change in the history audit log automatically. | `PlannedActionDetail.tsx` |
+| **All fields editable** — `startPpe` date input, `holdReason` (Pending/Unfunded only), `separationConfidence` (Separation only), `actionMode` select, multi-line notes textarea, collapsible history audit log preview. | `PlannedActionDetail.tsx` |
+| **Convert-from-derived flow** — clicking a derived (virtual) row opens the editor with "Converting from auto" tag + "Save (convert to manual)" button. On save, derive-spec is materialized as a manual action via `addAction`; existing per-position manual-wins rule then suppresses the auto row. | `PlannedActionDetail.tsx` + `StaffingPlanView.tsx` |
+| **Row-click drill-down** — every section row clickable; `selectedActionId` state in `StaffingPlanView`. | [StaffingPlanView.tsx](../app/src/lib/views/staffing-plan/StaffingPlanView.tsx) |
+| **20 new tests** — 4 `defaultBasisForPosition` + 3 `isCostInputComplete` + 4 `incumbentCostInput` + 3 `deltaCost` (incl. negative for separations + null operands) + 6 view-level modal cases (row-click opens, derived → convert mode, Cancel preserves store, Hide/Delete stopPropagation, status guard override checkbox, convert-save materializes manual). | [staffing-plan.test.ts](../app/src/lib/staffing-plan/staffing-plan.test.ts) + [staffing-plan-view.test.tsx](../app/src/lib/views/staffing-plan/staffing-plan-view.test.tsx) |
+
+#### [PR (this docs PR)](https://github.com/alkprojects/kospos/pulls) — Phase 2.2.g close audit + S30 handoff
+
+Audit doc at [`docs/audits/phase-2-2-g-close-audit.md`](audits/phase-2-2-g-close-audit.md) + this handoff + the S30 SESSION_LOG entry.
+
+### Items surfaced for Alex's review (carry forward)
+
+Per [memory `feedback_dont_reremind.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_dont_reremind.md): **two new acknowledgments this session** (Phase 2.2.g pick → A; CostInput-scope → Full with deltaPay). Bug 2 (both 2a + 2b) drops fully from carry-forward.
+
+Per Alex's "restate everything in plain English" preference, every carry-forward below is plain-English restated — no file pointers required.
+
+#### Restated questions for Alex (4 — unchanged from S29, since none were re-asked this session)
+
+These were drafted as reasonable-default calls deferred for Alex's confirmation. Items 1-4 are repeated from prior sessions; **item 5 (TX rules — 4 sub-questions) still gates Phase 2.2.19 `views/temp-limits/`** — if Alex picks that as 2.2.h or later, the 4 TODOs need answers up front.
+
+1. **Attribution rate on Operating Report Summary.** Three different things on the Operating Report Summary page look like they're called "attrition rate" at the DBI / CPC dept-group level:
+   - **G42 / H42** = (9993 ÷ non-9993 labor) — the spread between the budgeted 9993 attrition savings line and total labor, expressed as a %
+   - **L23 / L32** = (projected balance ÷ total budget) — what % of the total budget is projected to remain unspent
+   - **H43** = a hand-keyed prior-year number with a tooltip-note "Calculated, Questionable"
+
+   All three display as percentages on the same page, look similar, but mean different things. Which one is "the attrition rate" you'd put in the report sent to CON / MYR? **My current default:** G42 / H42 is canonical (9993 ÷ non-9993); L23 / L32 gets renamed to "leftover %" in KosPos. **Confirm or correct?**
+
+2. **`Department Group` pivot label.** The Operating Report Summary's GETPIVOTDATA calls reference a pivot label called `Department Group` — but Report Data doesn't have a column with that exact name. It's a workbook-internal pivot grouping. When KosPos emits the labor-report-shaped .xlsx for downstream consumers, do we need to preserve that `Department Group` label so other people's GETPIVOTDATA formulas still work? **My current default:** yes, preserve it (cosmetic, but breaks downstream Excel formulas if we rename).
+
+3. **OPS Detail snapshot-diff key.** The OPS Detail "what changed since the last report" panel needs a key to identify each row across snapshots. Options:
+   - **(a)** Position Number alone — simplest, but doesn't differentiate vacant-then-filled (same position number, different occupant)
+   - **(b)** `(Effective Dept, Position Number, Fill Status, Budget Job Code)` — captures dept moves + reclassifications
+   - **(c)** Position Number + a separate tracker for "who occupied it when"
+
+   **My current default:** option (b). **Confirm or correct?**
+
+4. **Step variance merit-event aware.** The Step (Tab 18) walkthrough proposed making per-PP step variance "merit-event aware" — instead of uniform per-PP proration, the formula would understand "this employee advanced a step on PP15, so pre-PP15 PPs used Step 4 budget and post-PP15 PPs use Step 5 budget." Adds modeling complexity (per-employee step history) but makes per-PP variance numbers meaningful (currently they drift pre/post-merit even though the FY total is correct). Implement now in Phase 2.4 importer, or defer to a Phase 2.2 sub-phase? **Default: defer.**
+
+5. **TX (Temporary Exchange) rules — still gates Phase 2.2.19 `views/temp-limits/`.** Four follow-up rules need confirmation before the TX typed entity can ship:
+
+   **5a.** Is the TX `expired_date` (the date in the workbook col J that says when a TX arrangement ends) set by **CSC in fixed increments** (per CSC Rule 114's 1,040-hour blocks for Cat 17, or 6-month rolls), or is it **negotiated independently** between DHR and the originating dept on a case-by-case basis? My current default: CSC-set in increments, but the workbook doesn't make this distinction clear.
+
+   **5b.** Can a TX be **Cat 16** as well, or only Cat 17/18? (The workbook column is named `CAT_17_18 Exempt TX Expired Date`, suggesting Cat 17/18 only, but I want to be sure Cat 16 doesn't have a TX-like mechanism.)
+
+   **5c.** Is "TX" the same concept as a **"limited duration appointment"** in DHR/PS HCM terminology, or is it a distinct PS HCM construct? They feel related but I haven't confirmed.
+
+   **5d.** How does **TX renewal** work? Charter §10.104-17 + §10.104-18 say Cat 17/18 "shall not be renewable" (which would mean a TX dies when its expired_date hits and you can't extend), but CSC Rule 114 implies up-to-1,040-hour increments are allowed for Cat 17 (which would mean some form of extension IS possible). Reconcile?
+
+#### Reasonable-default calls deferred (12 — restated in plain English per Alex's preference)
+
+Same as Session 29; nothing acknowledged this session beyond the staffing-plan v2 close. Verbatim copies retained.
+
+**8 from Session 20 (Tab 23-25 walkthroughs):**
+
+5. **(Tab 23)** I reverse-engineered the 6 slicer-chip definitions (`Vacant`, `TEMP`, `Position =/= Budget`, `Temp on Budgeted Position`, `On Leave`, `Exclude`) from the pivot's field bindings. Best-guess semantics in Tab 23 § "Explicit categorical slicer semantics" table. **Do those definitions match your working semantics, or are any wrong?**
+
+6. **(Tab 23)** Where does `Vacant Date` come from? — Possibilities: computed from a P&P Data column natively, hand-entered per snapshot, or derived from the vacancy-history snapshot chain.
+
+7. **(Tab 23)** `Previous Employee2` (P&P Data col Q) vs `Previous Employee` (cache field 19) — I'm guessing one is second-to-last incumbent, the other is most-recent. **Which is which?**
+
+8. **(Tab 24)** `V Check` semantics for TEMPM-budgeted rows — the formula `IF(P="TEMPM", "", ...)` skips the check, so a temp planned for "E2P" (convert to PCS) on a TEMPM-budgeted position wouldn't appear in Vacancies. **Should it still appear there?**
+
+9. **(Tab 24)** Cost-basis for blank `W` cells — when an Active row has Status = "Not started / List / Posted", the cost cell is blank and gets summed as zero. **Default I picked:** KosPos always computes the expected cost (don't leave blank); let user toggle a "show planned-only" view that hides un-priced rows. **Confirm?**
+
+10. **(Tab 24)** PlannedAction history retention — when a planned action is completed (hire happens, separation files), should KosPos keep the diff records indefinitely or roll up older than 18 months? **Default:** 18 months with summary roll-up.
+
+11. **(Tab 24)** DBI→CPC transfer-of-function propagation — when a position transfers from DBI to CPC mid-year, does it stay on DBI's Staffing Plan until end-of-year or jump to CPC's immediately? Tied to BVA chartfield reconciliation. **Default:** stays on originating dept until EOY for reporting; flagged as "transferring."
+
+12. **(Tab 24 + Tab 25)** Active-row blank-`W` under-count surfaced as "X of Y priced ⚠" diagnostic chip (already shipped in PR #80; **chip + diagnostic placement matches your expectation?**)
+
+**4 new from Session 21 (Tab 1-22 walkthroughs):**
+
+13. **(Tab 12)** `E2P` = "Eligible to Promote" — does that mean (a) the employee has met the time-in-class minimum, (b) DHR has placed them on a promotion list, or (c) something else?
+
+14. **(Tab 21)** `PARTIALLY FILLED` semantics — used for pool positions (commissioners). KosPos plans to map this directly to `is_pool_position = true`. **Confirm this 1:1 mapping or describe other states.**
+
+15. **(Tab 21)** Reporting Tree change-proposal cols (AI:AT — Budget Job Code Change / Manager Position Number Change / etc.) — when you fill these in today, what's the workflow? Does someone review, or do you just edit PS HCM directly later? KosPos's Change Mode design assumes a review step.
+
+16. **(Tab 15)** Succession plan scope priority — Phase 2 (current-year workspace) or Phase 7 (people/talent management)?
+
+#### Open action items (1 — same as S29)
+
+17. **The 5 vacant-no-RTF positions.** Restated in plain English: there are 5 positions in the current snapshot that show **Fill Status = VACANT** and **Latest RTF Submitted Date = blank/null**. Per [memory `staffing_plan_types.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/staffing_plan_types.md), "no RTF" is not always accurate in practice. **Disposition needed per position: data bug vs intentional hold.** **NEW context (S29):** these 5 positions now auto-populate as Pending in the Hiring Plan workspace (Bug 3 design). You can click Hide on each to send to "Manual user changes," or **(NEW S30)** click the row to open the detail editor → add a holdReason note (free text) + actionMode + startPpe target to claim each one explicitly.
+
+#### Resolved this session (drops from carry-forward)
+
+- **Bug 2a (asOf serial display) — SHIPPED.** PR #89 ships the `iso()` converter in `obi-payroll.ts` + the PP-range filter regression test. Spot-check awaits Alex's new CPC+DBI export.
+- **Bug 2b (1106950 not in OBI) — RESOLVED user-side in S29.** No further action.
+- **CostInput-scope gating question (Minimal vs Full with deltaPay) — ANSWERED + SHIPPED.** Alex S30: Full with deltaPay support. Shipped in PR #90.
+- **Phase 2.2.f Option C PR 2 (PlannedActionDetail editor) — SHIPPED.** PR #90 closes the staffing-plan v2 work.
+
+#### Audit-surfaced items (carry-forward update — items A-F)
+
+From [Phase 2.2.g close audit](audits/phase-2-2-g-close-audit.md):
+
+A. ~~Stale post-merge worktrees.~~ **Stays dropped.** **13 consecutive PRs** auto-archived (#71, #73, #74, #75, #76, #78, #79, #80, #82, #84, #85, #89, #90). Any stale worktree in S31+ is a regression.
+
+B. **Trim `SESSION_LOG.md` Sessions 1–16 to one-paragraph digests.** Pre-S30 entry: **2,630 lines**. After S30 entry: TBD; will resume drift tracking next audit. Past the 2,000-line trim trigger; bundleable with items C + the Tab 24 Improvement #6 holdReason language drift + new minor drift item #19 (OBI data-source doc lacks the Excel-serial note).
+
+C. **Migrate the memory-file citation anti-pattern in `labor-report.md`.** Count unchanged at **17 instances** (no labor-report.md changes this session). Single-purpose cleanup PR; ~30 min. Bundleable with B.
+
+D. **Defer the `labor-report.md` split until Phase 2.4.** File still 8,518 lines.
+
+E. ~~Phase 2.2 first sub-phase pick.~~ Resolved S24; **stays dropped**.
+
+F. **Audit cadence — working as designed.** 7th event-based trigger fired on schedule this session. S31 prompt template (below) preserves the Step-0 trigger pattern.
+
+**New for S31 carry-forward:** OBI BI Payroll data-source doc doesn't mention the Excel-serial date-cell behavior. Could fold into the Phase 2.4 ADR-007 amendment alongside the column-shape note. Low priority.
+
+### Top 3 findings to surface for Alex this session
+
+1. **The Hiring Plan workspace is now end-to-end interactive.** Visit `/kospos/?dev=1` → Load Reports, load a P&P → open Hiring Plan. Click any row (manual or auto) → a detail editor modal opens. Fill the 8 CostInput fields (job code datalist + setid + retCode buttons + ppStartDate / fiscalYear selects + step or range picker + range-position toggle + optional cumulative CY salary) → the action gets priced via the live COLA-aware projection + a delta-pay view shows incumbent vs planned-action cost side-by-side. Change the status to a backward state (e.g., posted → not-started) → the "Force override (logged)" checkbox appears; Save is gated until you check it. The history audit log preview at the bottom of the modal shows every saved field change.
+
+2. **Bug 2a (asOf-serial display) is shipped.** Visit the Payroll tab on the live site after the deploy completes. The summary header should now read `Snapshot asOf 2026-05-08 · FY 2026` (or whatever the real MAX is in your latest OBI export) instead of `Snapshot asOf 46150`. The PP-range filter join-key damage is also fixed — a regression test in `labor.test.ts` documents the ISO invariant downstream consumers rely on.
+
+3. **`Position.cat1718` lift from PR #85 is now exercised by the delta-pay view.** `incumbentCostInput` + `deltaCost` build their incumbent half from appointment data; vacant Cat 17/18 positions still derive as TEMP (via the lift), but their incumbent half is correctly null (no incumbent to project). The position-level vs appointment-level split is paying real dividends in PR #90's surface.
+
+### Cumulative state of the labor-report walkthrough
+
+| Phase | Tab | Status |
+|---|---|---|
+| 2.0a-h | All 27 tabs | done 2026-05-25 |
+| 2.0i | DSI final + Phase 2.2 sub-phase enumeration + Phase 2.0 close audit | done 2026-05-25 |
+| 2.1 | `?dev=1` route guard + Phase 2.1 close audit | done 2026-05-25 |
+| 2.2.a | Position spine bundle (dept-tree + obi-pnp full + views/positions) | done 2026-05-25 |
+| 2.2.b | obi-payroll full + lib/payroll/ rollup cube | done 2026-05-26 |
+| 2.2.b+c | Combined close audit + PR #68 docs sync | done 2026-05-27 |
+| 2.2.c | `2.2.17` `views/labor/` — per-PP drill-down + Position Detail "View payroll →" | done 2026-05-27 |
+| 2.2.d | `2.2.13` `bfm-eturn/` full — full 64-col importer + `lib/budget/` cube + Budget vs Actual on Position Detail | done 2026-05-26 |
+| 2.2.e | `2.2.21` `staffing-plan/` — PlannedAction entity + Hiring Plan workspace v1 (devOnly) + UI fix PR #78 | done 2026-05-26 |
+| 2.2.f | `2.2.21` v2 PR 1: Bug 3 derived defaults + status-transition guard + Bug 2 payroll-diagnostic polish | done 2026-05-26 |
+| **2.2.g** | **`2.2.21` v2 PR 2: PlannedActionDetail editor + full CostInput + delta-pay + status-workflow UI** + Bug 2a asOf-serial importer fix | **done 2026-05-26** |
+| **2.2.h** | **Next sub-phase** — Alex's pick. Top candidates: **(a) `2.2.19` `views/temp-limits/`** (TX entity layer + Cat 17/18 expiry surfaces — gated on TX TODOs Restated Q #5); **(b) `2.2.20` `views/inactive/`** (smallest sub-phase; pure query view: active roster ⋈ paid-this-FY); **(c)** any other Tier-4 sub-phase from the dependency graph. | **NEXT** |
+| 2.2.i-n | Remaining Tier-4 sub-phases | pending |
+| 2.3 | Excel export | pending |
+| 2.4 | Importer wiring (incl. ADR-007 amendment for the 39-col OBI shape + new ADR for the 64-col BFM eturn shape + new ADR for the `lib/staffing-plan/` no-upstream-source pattern + Position.cat1718 lift note + iso() serial-converter from PR #89 — five queued together) | pending |
+
+## Blockers for Alex
+
+None landing-related. Live site: <https://alkprojects.github.io/kospos/>. Spot-check once the deploy completes:
+
+- **Hiring Plan row click opens the detail editor.** Click any auto-Pending row → modal with "Converting from auto" affordance. Click any manual row → modal with Delete button + history audit log preview.
+- **Status workflow UI.** On an Active hire row with status `offer`, change status to `posted` (backward) → the "Force override (skip offer → posted guard — logged)" checkbox appears. Without checking it, Save is disabled.
+- **Delta-pay view.** On a filled position with a known job code (e.g., 881 or 6278), fill retCode + ppStartDate → three stats appear: Incumbent / Planned action / Δ Annual. Try a separation type → the planned-action stat shows a negative number (savings); the delta is negative too.
+- **Payroll summary header asOf.** Open Payroll on the live site → header should read `Snapshot asOf 2026-05-08 · FY 2026` (or whatever the real MAX is) instead of the raw serial.
+- **Worktree hygiene is self-managing.** 13 consecutive PRs auto-archived. Any stale worktree in S31+ is a regression.
+
+**One decision pending — pick the next Phase 2.2 sub-phase (2.2.h).** Two recommended options below; see Recommendations.
+
+### Recommendation for Phase 2.2.h
+
+Two options worth surfacing (Option A from S30 — staffing-plan PR 2 — is now done; B and C from S30 remain as picks):
+
+**Option B — `2.2.19` `lib/views/temp-limits/` + TemporaryExchange typed entity.** Tab 12 TEMP Limits — Cat 17/18 expiry alerts + 1040-hour gauge using the cube's `earningHours`. **Pros:** the `Position.cat1718` lift from PR #85 + the delta-pay infrastructure from PR #90 both feed naturally into this surface; visible payoff (red/yellow expiry banners + 1040-hour progress bars); the second-most-asked TEMP surface after the now-shipped Hiring Plan workspace. **Cons:** the 4 TX TODOs in Restated Question #5 need Alex confirmation up front — those are stop-the-world questions that can't be defaulted past. Effort: medium-to-high.
+
+**Option C — `2.2.20` `lib/views/inactive/`.** Tab 13 Inactive — pure query, no separate importer. Cross-references P&P (active employees) against BI Payroll (people paid in this FY) to surface "people who got paid but aren't in the active roster anymore" — typically separations + leaves. **Pros:** smallest focused sub-phase; fast win; no new entity layer; no gating questions; surfaces real data quality signal. **Cons:** doesn't unblock any other sub-phase; the user-visible payoff is informational rather than actionable. Effort: low.
+
+**Escape hatch:** Alex picks any other Tier-4 sub-phase from the dependency graph in `labor-report.md § Phase 2.2 sub-phases`.
+
+**My pick: Option C** for the quick win if S31 ought to be a small session; **Option B** if Alex is ready to answer the 4 TX TODOs upfront and wants the more user-visible payoff. Both are viable.
+
+## Next session prompt — Phase 2.2.h (Alex picks B, C, or another sub-phase)
+
+Paste this verbatim to start Session 31:
+
+````
+This session asks Alex to pick the next Phase 2.2 sub-phase (2.2.h),
+then ships it. Phase 2.2.g shipped in 2 PRs (plus docs): #89 (Bug 2a
+asOf-serial fix in OBI importer + downstream PP-range filter regression
+coverage) and #90 (PlannedActionDetail editor + full CostInput sub-editor
++ delta-pay view + status workflow UI consuming the
+isAllowedStatusTransition guard helper). Phase 2.2.f Option C — the
+queued staffing-plan v2 — is now COMPLETE.
+
+Read first, in order:
+  docs/CLAUDE.md
+  docs/SESSION_HANDOFF.md (this file — recommendation + carry-forwards)
+  docs/SESSION_LOG.md (Session 30 entry — Phase 2.2.g)
+  memory/MEMORY.md + the 9 memory files
+  docs/audits/phase-2-2-g-close-audit.md (carry-forwards A-F)
+  docs/domain/labor-report.md § "Phase 2.2 sub-phases" — dependency graph
+
+Confirm state on main:
+  git log --oneline origin/main -5
+
+==============================================================================
+STEP 0 — Phase 2.2.h close audit cadence check
+==============================================================================
+Per WORKFLOW.md § Audit cadence, the Phase 2.2.g close audit fired in
+S30. This session, the audit cadence check is only the Phase 2.2.h
+close audit when 2.2.h ships. Don't re-audit 2.2.g.
+
+DO fire the 2.2.h audit before this session ends. Use the Phase 2.2.g
+close audit format; mirror the prior audit's table of carry-forwards.
+
+==============================================================================
+STEP 1 — Ask Alex to pick Phase 2.2.h
+==============================================================================
+Use AskUserQuestion. Two options:
+
+  B. 2.2.19 lib/views/temp-limits/ + TemporaryExchange typed entity
+     — Cat 17/18 expiry surfaces + 1040-hour gauges. The
+     Position.cat1718 lift (PR #85) + delta-pay infrastructure (PR #90)
+     both feed into this surface naturally.
+     GATING: the 4 TX TODOs in Restated Question #5 must be answered
+     up front (5a expired_date set by CSC vs negotiated; 5b Cat 16
+     TX-capable?; 5c TX = limited-duration appointment?; 5d renewal
+     reconciliation Charter §10.104 vs CSC Rule 114).
+
+  C. 2.2.20 lib/views/inactive/ — smallest sub-phase, no importer
+     expansion, fast win. Pure query view (active roster ⋈
+     paid-this-FY). No gating questions.
+
+  (Escape hatch: Alex names something else from the dependency graph.)
+
+==============================================================================
+STEP 2 — Start Phase 2.2.h (the picked sub-phase)
+==============================================================================
+Branch + scope depend on the pick:
+
+If B — views/temp-limits/:
+  Branch: feat/temp-limits-view
+  Scope:
+    - Resolve the 4 TX TODOs via AskUserQuestion at the start
+      (Restated Q #5a-5d)
+    - Add lib/temp-exchange/ typed entity (per memory
+      temporary_exchange_tx.md schema)
+    - Build lib/views/temp-limits/ — Tab 12 TEMP Limits surface
+      (1040-hour gauge per temp using the cube's earningHours,
+      expiry alerts via the existing cat1718 model)
+    - Surface temp-tx-expiration-imminent + temp-tx-expired flags
+      from lib/quality/
+    - Add the tab to App.tsx (devOnly until ready)
+    - Tests + preview-MCP walkthrough
+
+If C — views/inactive:
+  Branch: feat/views-inactive
+  Scope:
+    - Add lib/views/inactive/ — query view joining P&P (active
+      roster) with BI Payroll (people paid this FY)
+    - Surface "paid but not in active roster" rows + separation/leave
+      reasons inferred from the data
+    - Add the tab to App.tsx (devOnly initially)
+    - Tests
+
+==============================================================================
+Hard constraints
+==============================================================================
+
+  - Branch from main, single-purpose name.
+  - Strict one-sub-phase-per-PR.
+  - npm test stays green (currently 328 / 328).
+  - One PR per logical change; merge after CI passes; fast-forward main.
+  - Commit messages end with the Co-Authored-By line per CLAUDE.md.
+  - Run `npm run build` before opening PR — production build catches
+    some type errors that `tsc --noEmit` glosses over (lesson learned
+    in S30).
+
+==============================================================================
+What we are NOT doing
+==============================================================================
+
+  - No bundling.
+  - No tab walkthroughs. Phase 2.0 is closed.
+  - No ADR amendments. Phase 2.4 (5 ADRs queued: ADR-007 amendment
+    for the 39-col OBI shape + iso() serial-converter note + BFM
+    eturn ADR + staffing-plan no-upstream-source ADR + Position.cat1718
+    lift note).
+  - No tool / setting / hook changes unless surfaced by audit.
+  - No promotion of Payroll / Hiring Plan / Temp Limits / Inactive to
+    non-dev yet — wait until cross-tab nav has been used end-to-end on
+    real data.
+
+==============================================================================
+Session-end checklist
+==============================================================================
+
+Before ending, update SESSION_HANDOFF.md with:
+  - Phase 2.2.h status + next-session prompt for Phase 2.2.i.
+  - Re-ask the 4 restated questions + 12 reasonable-default calls
+    (#5-16) + 1 open action item (#17). DROP items Alex acknowledges
+    this session.
+  - Carry-forward update on items A-F (A stays dropped, F working as
+    designed). Note: SESSION_LOG.md drift item B will have a new
+    baseline after the S30 entry lands; track from there.
+  - Fire the Phase 2.2.h close audit (mirrors Phase 2.2.g audit format).
+
+Recommended model: claude-opus-4-7 for Option B (entity layer + UI +
+TX domain reasoning); claude-sonnet-4-6 for Option C (smallest).
+Effort: medium-to-high for B; low for C.
+````
+
+### Recommended model (Phase 2.2.h)
+
+`claude-opus-4-7` for Option B (TX entity layer + UI surface + the 4 TX TODOs need careful domain reasoning); `claude-sonnet-4-6` for Option C (smallest).
+
+### Recommended effort (Phase 2.2.h)
+
+`medium-to-high` for Option B; `low` for Option C.
+
+### Surfaced UX/UI proposals carrying forward from S27
+
+Same B-tier list — not yet shipped:
+
+- **Phase lens switcher on Budget vs Actual card.** Phase-chip buttons next to "Board layer" to switch lens to Mayor / Committee / TechAdj.
+- **Mobile responsive layout** on Position Detail's Budget vs Actual 3-stat row.
+- **Snapshot date strip on Load Reports.** BFM / OBI / P&P asOf dates at a glance.
+- **Positions list "as of" footer.** Per-source asOf badge under the stats summary.
+
+C-tier (future features, not polish) also carry forward:
+
+- **Sortable column headers on Positions list.**
+- **Bulk-select positions for aggregate Budget vs Actual.**
+- **`?labor=<positionId>` URL persistence for scope.**
+
+---
+
+## Pre-Session 30 status archived below
+
+Original content from end-of-Session-29 handoff retained for reference.
+
+---
+
 ## Current status (end of Session 29 — Phase 2.2.f Option C PR 1: Bug 3 derived defaults + Bug 2 payroll-diagnostic polish, 2026-05-26)
 
 **Phase:** Phase 2.2.f — **Option C PR 1: `lib/staffing-plan/` Bug 3 derived defaults ([PR #85](https://github.com/alkprojects/kospos/pull/85))** plus a small payroll-diagnostic-polish PR ([PR #84](https://github.com/alkprojects/kospos/pull/84) — Bug 2 follow-up: widened the Payroll empty-state diagnostic with a P&P-vs-OBI coverage stat + progressive prefix fallback). Phase 2.2.f close audit fired on schedule (6th event-based trigger). **Option C PR 2 (`PlannedActionDetail` editor + row-click drill-down + status workflow UI + CostInput exposure) is queued for S30** — the status-transition guard helper already shipped in PR #85, so PR 2 is the UI wiring on top.
