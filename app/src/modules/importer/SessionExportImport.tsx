@@ -19,6 +19,7 @@ import { useRef, useState } from 'react';
 import { useAppStore } from '../../lib/store';
 import { useStaffingPlan } from '../../lib/staffing-plan';
 import { useSeparations } from '../../lib/separations';
+import { useProbations } from '../../lib/probation';
 import { usePositionNotes } from '../../lib/positions/notes';
 import {
   SESSION_SCHEMA_VERSION,
@@ -45,6 +46,9 @@ export function SessionExportImport() {
   const pendingSeparations = useSeparations(s => s.separations);
   const restoreSeparations = useSeparations(s => s.restoreFromSession);
 
+  const probations = useProbations(s => s.probations);
+  const restoreProbations = useProbations(s => s.restoreFromSession);
+
   const notes = usePositionNotes(s => s.notes);
   const restoreNotes = usePositionNotes(s => s.restoreFromSession);
 
@@ -59,6 +63,7 @@ export function SessionExportImport() {
       staffingPlanDerivedRemoved: staffingDerivedRemoved,
       positionNotes: notes,
       pendingSeparations,
+      probations,
     });
     const json = JSON.stringify(file, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
@@ -103,6 +108,8 @@ export function SessionExportImport() {
       // `pendingSeparations`. Default to []; existing in-memory rows are
       // wiped (the "load replaces the session" contract).
       restoreSeparations(payload.pendingSeparations ?? []);
+      // Same back-compat rule for `probations` (Phase 2.2.j).
+      restoreProbations(payload.probations ?? []);
       setStatus({
         kind: 'loaded',
         filename: file.name,
@@ -121,9 +128,10 @@ export function SessionExportImport() {
   const totalNotes = notes.size;
   const totalHidden = staffingDerivedRemoved.size;
   const totalSeparations = pendingSeparations.size;
+  const totalProbations = probations.size;
   const saveDisabled =
     loadedRows.length === 0 && totalActions === 0 && totalNotes === 0 &&
-    totalHidden === 0 && totalSeparations === 0;
+    totalHidden === 0 && totalSeparations === 0 && totalProbations === 0;
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -179,6 +187,7 @@ export function SessionExportImport() {
           {totalHidden > 0 && <> · {totalHidden} hidden</>}
           {totalNotes > 0 && <> · {totalNotes} note{totalNotes === 1 ? '' : 's'}</>}
           {totalSeparations > 0 && <> · {totalSeparations} separation{totalSeparations === 1 ? '' : 's'}</>}
+          {totalProbations > 0 && <> · {totalProbations} probation{totalProbations === 1 ? '' : 's'}</>}
         </span>
       </div>
 

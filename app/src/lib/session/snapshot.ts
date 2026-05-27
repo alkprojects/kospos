@@ -41,6 +41,7 @@
 import type { ImportedRow } from '../importers/types';
 import type { PlannedAction } from '../staffing-plan';
 import type { PendingSeparation } from '../separations';
+import type { Probation } from '../probation';
 
 /**
  * Schema version. Increment when the payload shape changes incompatibly.
@@ -52,6 +53,10 @@ import type { PendingSeparation } from '../separations';
  *        field. Stays on v1 because the new field is backward-compatible:
  *        v1 files saved before Phase 2.2.i don't carry the field, and the
  *        restore defaults to []. New v1 files always include the field.
+ *   v1 — extended (Phase 2.2.j) — added optional `probations` field.
+ *        Same back-compat rule: pre-Phase-2.2.j files load with the
+ *        field undefined; restore defaults to []. New v1 files always
+ *        include the field.
  */
 export const SESSION_SCHEMA_VERSION = 1;
 
@@ -88,6 +93,13 @@ export interface SessionPayload {
    * defaults to []. New v1 files always include the field.
    */
   pendingSeparations?: Array<[string, PendingSeparation]>;
+  /**
+   * Tuple-of-entries form of `useProbations.probations` (Phase 2.2.j).
+   * Optional for backward compatibility: v1 files saved before this field
+   * was added load with `probations` undefined; the restore code defaults
+   * to []. New v1 files always include the field.
+   */
+  probations?: Array<[string, Probation]>;
 }
 
 /**
@@ -170,6 +182,11 @@ export function parseSessionFile(raw: string): ParseResult {
   if (p.pendingSeparations !== undefined && !Array.isArray(p.pendingSeparations)) {
     return { ok: false, reason: 'not-a-session-file', detail: 'payload.pendingSeparations must be an array if present.' };
   }
+  // `probations` is optional for backward compatibility with v1 files
+  // saved before Phase 2.2.j. Same rule as pendingSeparations.
+  if (p.probations !== undefined && !Array.isArray(p.probations)) {
+    return { ok: false, reason: 'not-a-session-file', detail: 'payload.probations must be an array if present.' };
+  }
   return { ok: true, file: parsed as unknown as SessionFile };
 }
 
@@ -185,6 +202,8 @@ export function buildSessionFile(input: {
   positionNotes: Map<string, string>;
   /** Optional — backward compatible with pre-Phase 2.2.i callers. */
   pendingSeparations?: Map<string, PendingSeparation>;
+  /** Optional — backward compatible with pre-Phase 2.2.j callers. */
+  probations?: Map<string, Probation>;
   label?: string;
 }): SessionFile {
   return {
@@ -200,6 +219,9 @@ export function buildSessionFile(input: {
       positionNotes: [...input.positionNotes.entries()],
       pendingSeparations: input.pendingSeparations
         ? [...input.pendingSeparations.entries()]
+        : [],
+      probations: input.probations
+        ? [...input.probations.entries()]
         : [],
     },
   };

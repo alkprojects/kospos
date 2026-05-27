@@ -14,6 +14,7 @@ import {
 import type { ImportedRow } from '../importers/types';
 import type { PlannedAction } from '../staffing-plan';
 import type { PendingSeparation } from '../separations';
+import type { Probation } from '../probation';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -90,6 +91,20 @@ function pendingSep(id: string, employeeName: string): PendingSeparation {
     notes: '',
     history: [],
     createdAt: '2026-05-27T00:00:00.000Z',
+  };
+}
+
+function probation(id: string, employeeName: string): Probation {
+  return {
+    id,
+    employeeName,
+    probationaryPeriodHours: 2080,
+    startWorkDate: '2026-01-01',
+    extensions: [],
+    status: 'open',
+    notes: '',
+    history: [],
+    createdAt: '2026-05-28T00:00:00.000Z',
   };
 }
 
@@ -224,6 +239,81 @@ describe('session snapshot round-trip', () => {
         staffingPlanDerivedRemoved: [],
         positionNotes: [],
         pendingSeparations: 'oops not an array',
+      },
+    }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('not-a-session-file');
+  });
+
+  it('round-trips probations through Map → array → Map', () => {
+    const file = buildSessionFile({
+      loadedRows: [],
+      lastBfmImportAt: '',
+      staffingPlanActions: new Map(),
+      staffingPlanDerivedRemoved: new Set(),
+      positionNotes: new Map(),
+      probations: new Map([
+        ['p1', probation('p1', 'Smith, A.')],
+        ['p2', probation('p2', 'Jones, B.')],
+      ]),
+    });
+    expect(file.payload.probations).toHaveLength(2);
+
+    const json = JSON.stringify(file);
+    const parsed = parseSessionFile(json);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.file.payload.probations).toHaveLength(2);
+    expect(parsed.file.payload.probations![0][1].employeeName).toBe('Smith, A.');
+  });
+
+  it('defaults probations to [] when buildSessionFile omits the arg (back-compat)', () => {
+    const file = buildSessionFile({
+      loadedRows: [],
+      lastBfmImportAt: '',
+      staffingPlanActions: new Map(),
+      staffingPlanDerivedRemoved: new Set(),
+      positionNotes: new Map(),
+      // probations omitted on purpose
+    });
+    expect(file.payload.probations).toEqual([]);
+  });
+
+  it('parseSessionFile accepts a v1 file with probations missing entirely', () => {
+    // Simulates a session file saved on a build prior to Phase 2.2.j, when
+    // the field didn't exist. Should still parse cleanly.
+    const result = parseSessionFile(JSON.stringify({
+      kind: 'kospos-session',
+      schemaVersion: SESSION_SCHEMA_VERSION,
+      savedAt: '2026-05-28T00:00:00.000Z',
+      payload: {
+        loadedRows: [],
+        lastBfmImportAt: '',
+        staffingPlanActions: [],
+        staffingPlanDerivedRemoved: [],
+        positionNotes: [],
+        // probations intentionally omitted (pendingSeparations too — both
+        // are optional and may not be present in legacy files)
+      },
+    }));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.file.payload.probations).toBeUndefined();
+    }
+  });
+
+  it('parseSessionFile rejects probations if present but not an array', () => {
+    const result = parseSessionFile(JSON.stringify({
+      kind: 'kospos-session',
+      schemaVersion: SESSION_SCHEMA_VERSION,
+      savedAt: '2026-05-28T00:00:00.000Z',
+      payload: {
+        loadedRows: [],
+        lastBfmImportAt: '',
+        staffingPlanActions: [],
+        staffingPlanDerivedRemoved: [],
+        positionNotes: [],
+        probations: { not: 'an array' },
       },
     }));
     expect(result.ok).toBe(false);
