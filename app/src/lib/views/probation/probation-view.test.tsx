@@ -410,6 +410,86 @@ describe('ProbationsView', () => {
     expect(rows[0].deputy).toBe('Dep, B.');
   });
 
+  it('add form: picking the "6 months" preset sets endDate = start + 6 months + hours = 1040', () => {
+    render(<ProbationsView />);
+    fireEvent.change(screen.getByLabelText(/Employee name/i), { target: { value: 'Newhire, Just' } });
+    fireEvent.change(screen.getByLabelText(/Start work date/i), { target: { value: '2026-01-15' } });
+    // Default preset is 2080h; pick "6 months"
+    fireEvent.click(screen.getByRole('radio', { name: /6 months/i }));
+    // End date input should now show start + 6 months
+    expect((screen.getByLabelText(/^End date$/i) as HTMLInputElement).value).toBe('2026-07-15');
+    fireEvent.click(screen.getByRole('button', { name: /Add probation/i }));
+    const stored = useProbations.getState().toArray();
+    expect(stored).toHaveLength(1);
+    expect(stored[0].baseEndDate).toBe('2026-07-15');
+    expect(stored[0].probationaryPeriodHours).toBe(1040);
+  });
+
+  it('add form: picking the "1 year" preset sets endDate = start + 1 year + hours = 2080', () => {
+    render(<ProbationsView />);
+    fireEvent.change(screen.getByLabelText(/Employee name/i), { target: { value: 'Newhire, Just' } });
+    fireEvent.change(screen.getByLabelText(/Start work date/i), { target: { value: '2026-01-15' } });
+    fireEvent.click(screen.getByRole('radio', { name: /^1 year/i }));
+    expect((screen.getByLabelText(/^End date$/i) as HTMLInputElement).value).toBe('2027-01-15');
+    fireEvent.click(screen.getByRole('button', { name: /Add probation/i }));
+    expect(useProbations.getState().toArray()[0].baseEndDate).toBe('2027-01-15');
+    expect(useProbations.getState().toArray()[0].probationaryPeriodHours).toBe(2080);
+  });
+
+  it('add form: typing a custom end date snaps preset to Custom and preserves user value through submit', () => {
+    render(<ProbationsView />);
+    fireEvent.change(screen.getByLabelText(/Employee name/i), { target: { value: 'Newhire, Just' } });
+    fireEvent.change(screen.getByLabelText(/Start work date/i), { target: { value: '2026-01-15' } });
+    fireEvent.change(screen.getByLabelText(/^End date$/i), { target: { value: '2026-09-30' } });
+    const customRadio = screen.getByRole('radio', { name: /^Custom$/i });
+    expect(customRadio).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('button', { name: /Add probation/i }));
+    expect(useProbations.getState().toArray()[0].baseEndDate).toBe('2026-09-30');
+  });
+
+  it('table: clicking the end-date cell (no extensions) opens an inline date editor that saves on blur', () => {
+    const id = useProbations.getState().addProbation({
+      employeeName: 'Edit, Me',
+      probationaryPeriodHours: 2080,
+      startWorkDate: '2026-01-15',
+      baseEndDate: '2027-01-14',
+    });
+    render(<ProbationsView />);
+    // Inline edit input is not present initially
+    expect(screen.queryByLabelText(/End date for Edit, Me/i)).not.toBeInTheDocument();
+
+    // Click the end-date cell text
+    const endCellText = screen.getByText('2027-01-14');
+    fireEvent.click(endCellText);
+
+    // Inline input now present
+    const inlineInput = screen.getByLabelText(/End date for Edit, Me/i) as HTMLInputElement;
+    expect(inlineInput).toBeInTheDocument();
+
+    // Change + blur → update commits
+    fireEvent.change(inlineInput, { target: { value: '2027-03-01' } });
+    fireEvent.blur(inlineInput);
+
+    expect(useProbations.getState().probations.get(id)?.baseEndDate).toBe('2027-03-01');
+  });
+
+  it('table: end-date cell with extensions is read-only (forces detail-modal flow)', () => {
+    const id = useProbations.getState().addProbation({
+      employeeName: 'HasExt, Row',
+      probationaryPeriodHours: 2080,
+      startWorkDate: '2026-01-15',
+      baseEndDate: '2027-01-14',
+    });
+    useProbations.getState().addExtension(id, { newEndDate: '2027-07-01' });
+    render(<ProbationsView />);
+    // Clicking the cell opens the detail modal — does NOT open an inline editor
+    const endCellText = screen.getByText('2027-07-01');
+    fireEvent.click(endCellText);
+    expect(screen.queryByLabelText(/End date for HasExt, Row/i)).not.toBeInTheDocument();
+    // The row's onClick should have run, opening detail modal
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
   it('add extension from detail modal auto-transitions open → extended', () => {
     const id = useProbations.getState().addProbation({
       employeeName: 'ExtCase, E',
