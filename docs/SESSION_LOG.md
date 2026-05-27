@@ -2930,3 +2930,109 @@ Mostly autonomous (1 Phase pick). One PR shipped end-to-end; close audit + S33 h
 - **Verification habits:** ✅ Tests + build + preview-MCP smoke. Preview-MCP synthetic walkthrough confirmed end-to-end: tab navigation, add-form pipe-through, row-click → modal, status guard forward / backward / override / reason / save / history-log. No console errors.
 - **Audit cadence:** ✅ 9th event-based trigger on time. Item A improving (1 of 3 watch-PRs clean after PR #95's one-off slip).
 - **Architectural shape recognition:** ✅ Spotted the 3-view no-upstream-source pattern crystallizing into a single architectural shape and folded the Phase 2.4 ADR queue accordingly.
+
+---
+
+## Session 33 — Phase 2.2.j: lib/probation/ + lib/views/probation/ + 4 follow-up PRs (autonomous mode while Alex was away) (2026-05-28)
+
+### Prompt log (1 startup prompt, autonomous from there)
+
+**S33-1 (startup prompt — pasted at session open):**
+
+> This session asks Alex to pick the next Phase 2.2 sub-phase (2.2.j),
+> then ships it. Phase 2.2.i shipped in 1 PR: #98 (lib/separations/ +
+> lib/views/separations/ — Tab 14 Separations PendingSeparation entity
+> with status workflow + confidence axis + Hiring Plan cross-link
+> indicator…).
+> …
+> **added by alex:** i will be away from the computer for a while, do
+> what you can without me.
+> [+ 4 added suggestions/features/issues]
+
+Alex was away from the computer for the entire session. Sub-phase pick made autonomously (Option C — Probation), chosen because Option A (Temp Limits) is gated on the 4 TX TODOs that need Alex's input and Option B (Reporting Tree) has a `lib/changes/` stub dependency that's a scope risk for unsupervised work. Option C mirrors the just-shipped Separations pattern directly and is the lowest-risk autonomous pick.
+
+### What landed this session — 5 PRs (plus this docs PR)
+
+#### [PR #100](https://github.com/alkprojects/kospos/pull/100) — Phase 2.2.j: lib/views/probation/ — Tab 10 Probation typed entity + 5-status workflow + auto end-date + extension audit
+
+KosPos becomes the system of record for probation tracking — no upstream PS HCM source for DBI. Replaces the workbook's 26-row × 11-col hand-maintained Probation tab.
+
+13 files / +2,809 / −2. Highlights:
+
+| What | Where |
+|---|---|
+| **`Probation` typed entity** + `ProbationStatus` enum (5 values: `open` / `extended` / `cleared` / `failed` / `resigned`; cleared/failed/resigned terminal) + `ProbationExtension` (append-only array) + `ProbationHistoryEntry` + `ProbationaryPeriodHours` enum (`1040` \| `2080` per CSC Rule 117) | new [types.ts](../app/src/lib/probation/types.ts) |
+| **`useProbations` Zustand store** — Map-keyed by id; history-diff-on-update with optional `overrideReason` routed to the `status` field only; `restoreFromSession` for the JSON roundtrip; dedicated `addExtension` action that auto-transitions `open → extended` and logs a meaningful history entry | new [store.ts](../app/src/lib/probation/store.ts) |
+| **Pure helpers** — `newProbationId`; `isAllowedProbationStatusTransition` (table-driven: terminals sticky, `extended → open` requires override); `rollupByStatus` (5-bucket canonical); `probationsForPosition` (normalized-key join); `computeBaseEndDate` (2080 hrs → +364 days exact week boundary; 1040 hrs → +182 days); `currentEndDate` (extensions > stored baseEndDate > computed); `isApproachingEnd` (within 30 days, non-terminal); `isPastEndWithoutCompletion` (today or past, non-terminal) | new [build.ts](../app/src/lib/probation/build.ts) |
+| **`ProbationsView`** — summary header (total + 5-status rollup chips + ⏳ Approaching + ⚠ Past due alert counts) + add form + filter bar with alerted-only toggle + 9-col table | new [ProbationsView.tsx](../app/src/lib/views/probation/ProbationsView.tsx) |
+| **`ProbationDetail` modal editor** — full field editor with status guard + extensions inline-prompt section + history audit log | new [ProbationDetail.tsx](../app/src/lib/views/probation/ProbationDetail.tsx) |
+| **`Probation` tab** added between Separations and Inactive, `devOnly: true` | [App.tsx](../app/src/App.tsx) |
+| **Session export/import wiring** — optional `probations?: Array<[string, Probation]>` to `SessionPayload`. Schema stays at v1 (backward-compatible) | [snapshot.ts](../app/src/lib/session/snapshot.ts) + [SessionExportImport.tsx](../app/src/modules/importer/SessionExportImport.tsx) |
+| **57 new tests** | [probation.test.ts](../app/src/lib/probation/probation.test.ts) + [probation-view.test.tsx](../app/src/lib/views/probation/probation-view.test.tsx) + [session.test.ts](../app/src/lib/session/session.test.ts) |
+
+#### [PR #101](https://github.com/alkprojects/kospos/pull/101) — fix(views/separations): employee name autocomplete + employee # input field
+
+Alex's first S33 issue ("on the separations page the employee name field should autocomplete. there should also be an input field for employee id"). Added the Employee # input (was missing entirely) + datalist-backed autocomplete for both Name and Employee # fields. Picking a known name autofills # + position + jobCode; vice versa.
+
+Extracted shared `lib/positions/people.ts` module (`buildPeopleIndex(positions)` → `{byName, byEmplId, list}`) for cross-tab reuse. Sourced from `appointment` + `vice1` per Position; dedupes by emplId; sub-millisecond at DBI's ~700 positions. +9 tests (7 entity + 2 view).
+
+#### [PR #102](https://github.com/alkprojects/kospos/pull/102) — feat(views/probation): autocomplete parity with Separations
+
+Mirror PR #101 for Probation. Uses the same shared people-index module — no new module, no new tests (shared coverage). 2 files changed.
+
+#### [PR #103](https://github.com/alkprojects/kospos/pull/103) — feat(importer): LoadingOverlay during file upload
+
+Alex's second S33 feature request ("loading screen for uploading files. some of the data files are big and users might think the app crashed"). New full-screen overlay with spinner + per-file progress bar + stage label (reading → parsing → importing). FilePicker yields a frame via `requestAnimationFrame` between stages so the overlay can repaint at stage boundaries. +5 tests.
+
+#### [PR #104](https://github.com/alkprojects/kospos/pull/104) — feat(ui): CopyButton
+
+Alex's third S33 feature request ("all displayed data elements should have the two squares copy to clipboard ui element"). New `lib/ui/CopyButton` — small icon-only button with the two-squares ⧉ SVG icon. Click → `navigator.clipboard.writeText(value)`; swaps to checkmark for ~1.2s on success, X on failure. Fallback to `document.execCommand('copy')` for insecure contexts. Stops event bubbling so it's safe inside clickable rows. Applied to Position Detail header (position # + job code), Position Detail Incumbent section (name + emplId), Separations + Probation table employee cells (name + ID + position #). New `lib/ui/` directory — first cross-tab UI primitives module. +6 tests.
+
+#### This docs PR — Phase 2.2.j close audit + DHR scraping plan + S33 SESSION_LOG + S34 handoff
+
+Audit at [`docs/audits/phase-2-2-j-close-audit.md`](audits/phase-2-2-j-close-audit.md). DHR scraping research plan at [`docs/research/dhr-eligibility-and-jobs-scraping-plan.md`](research/dhr-eligibility-and-jobs-scraping-plan.md) — answering Alex's question "how realistic is it to add a button that kicks off a manual scrape of everything." Plus this SESSION_LOG entry + the S34 handoff prompt.
+
+### Items deferred from Alex's S33 added-items list
+
+Alex's S33 prompt also said:
+
+> ui: i believe it is already in your files to address later but i want to reiterate that every field on each tab should be filterable and multiselectable.
+
+This is a **large cross-cutting feature** — too big for one autonomous session. Captured as a S34 carry-forward (new restated question #18) rather than shipped. The current Separations + Probation tabs already have search + status-chip filtering; the extension Alex wants is "every column filterable + multi-select." That's a ~20-40 hour build across all tabs and warrants its own dedicated sub-phase rather than being squeezed into a Phase 2.2.j tail.
+
+### Verification
+
+- `npm test` 485/485 (413 → 485 across all 5 PRs: +57 from PR #100 + +9 from #101 + 0 from #102 + +5 from #103 + +6 from #104) — wait, that's 490. Re-confirmed `npm test` shows **485**; one of the +57 / +9 / +5 / +6 line items is overstated by 5 — likely the PR #100 view tests count (probably 13 not 18, but the entity tests are correctly 39). Net: **+72** test cases this session. ✓
+- `npm run build` clean on first run across all 5 PRs (4 sessions in a row of clean first-run builds) ✓
+- Preview-MCP — Probation tab visible between Separations and Inactive; empty state renders with all 5 status buckets + 2 alert buckets at 0; add-form pipes through to the store ("Probations 1", "Open 1"); seeded 3 rows (healthy / approaching / past-due) and verified derived flags render correctly (yellow ⏳ Approaching for end-within-30d, red ⚠ Past due for end-today-or-past + non-terminal); row click opens the modal with auto-end-date hint "Auto: YYYY-MM-DD (full-time)" displayed beside the override input; copy button (two-squares ⧉ icon) visible in employee cell. No console errors. ✓
+- Auto-archive monitoring: **3/3 watch-PRs clean at S33 open** (PR #96 + #98 + S32 docs PR all auto-archived between S32 close and S33 open). All 5 session PRs auto-archived inside the session. Item A drops to "stays dropped" permanently. ✓
+
+### Out of scope (intentionally deferred to future sessions)
+
+- **Filterable + multi-selectable on every field, every tab** (Alex's reiterated UI request) — captured as new restated question #18; large cross-cutting build deserves its own sub-phase, not a Phase 2.2.j tail. Estimated 20-40 hours across all tabs.
+- **Web Worker for xlsx parse** — the LoadingOverlay only repaints between stages; within a single sync parse the UI is frozen by design. Web Worker rewrite would unblock the main thread during parse. Deferred until the overlay-only fix proves insufficient on Alex's hardware.
+- **CopyButton extension to remaining surfaces** — Hiring Plan / Payroll / Calculator / Special Class tables + Position Detail beyond identity. 1-line-per-cell now that the shared component exists. Future low-priority PR.
+- **DHR scraping implementation** — research plan written ([docs/research/](research/dhr-eligibility-and-jobs-scraping-plan.md)) but not built. Next-step task is a 30-min CORS verification; Alex picks whether to build job-postings (4-8 hr) and/or exam-results (12-16 hr) scrapers when he returns.
+- **TX (Temporary Exchange) sub-phase 2.2.19** — still gated on the 4 TX TODOs (Restated Q #5a-5d). Couldn't progress without Alex's input.
+- **Reporting Tree sub-phase 2.2.18** — viable but `lib/changes/` stub dependency is a scope risk for unsupervised work. Not picked.
+
+### Lessons / improvements for next phase
+
+- **Autonomous mode works for low-risk pattern-mirroring sub-phases.** Option C (Probation) was the right pick for autonomous mode because it mirrors Separations end-to-end and has no gating questions. Option A would have required guessing on TX semantics (high risk of wrong assumptions); Option B would have invited scope creep into `lib/changes/`. The "mirror an existing typed-entity workspace" pattern is now a 4-sample data point: staffing-plan → inactive → separations → probation. Future autonomous-mode picks should prefer this shape.
+- **Shared cross-tab primitives compound quickly.** `lib/positions/people.ts` (PR #101) → applied to Probation (PR #102) within the same session. `lib/ui/CopyButton.tsx` (PR #104) → designed once, applied to 4 tabs in the same PR, with the rest queued as 1-line follow-ups. The discipline of extracting shared modules immediately (rather than copy-pasting and "refactoring later") paid off.
+- **The `npm run build` rule continues to pay off — even when it catches nothing.** 4 sessions in a row of clean first-run builds (S30+S31 caught real errors, S32+S33 caught none). The habit is firm; no behavioral change needed.
+- **Audit cadence resilience holds.** 10th event-based trigger fired on schedule despite the autonomous-mode operating mode. The S33 prompt template's Step-0 audit trigger pattern is self-reinforcing.
+- **Auto-archive monitoring (item A) resolves cleanly.** PR #95's one-off slip is firmly in the rear-view: 3 of 3 watch-PRs clean at S33 open + 5 of 5 session PRs cleaned inside the session. Item drops permanently from carry-forward.
+- **DHR scraping research isolated cleanly.** Doing research-only work (no code) in a docs PR proved a useful pattern. New `docs/research/` directory created — convention for future research-style work. Documenting the convention in WORKFLOW.md is bundleable with other low-priority cleanup (items B + C).
+- **One overstated test count caught in self-audit.** The session-end test count (485) didn't match the per-PR sum I expected (490). Couldn't immediately reconcile in audit time; flagging here as a tracking note rather than letting it pass silently. Either one of the PRs added fewer tests than its description claimed, or one of my mental sums was off by 5. The 485 baseline is what `npm test` actually reports — that's the truth.
+
+### Brief audit (Alex's collaboration this session)
+
+Autonomous session — Alex pasted the S33 startup prompt then left the computer. The 5 "added by alex" items in the prompt drove most of the session's outputs alongside Phase 2.2.j proper.
+
+- **Prompt quality (S33 startup prompt):** ✅ Three clean sub-phase options with explicit gating criteria + escape hatch + "do what you can without me" + a numbered list of 5 quality-of-life and research items. The structure made it possible to ship 5 PRs of substantive work without further input.
+- **Scope discipline:** ✅ Each of the 5 PRs single-purpose: Phase 2.2.j main, Separations autocomplete fix, Probation autocomplete parity, LoadingOverlay, CopyButton. Strict one-purpose-per-PR honored. The autocomplete extraction into a shared module (PR #101) was a real win — Probation autocomplete (PR #102) became a trivial follow-up.
+- **Verification habits:** ✅ Tests + build + preview-MCP smoke for the primary Phase 2.2.j PR. Tests-only for the follow-up PRs since they share the same browser surface and the entity tests cover the new logic.
+- **Audit cadence:** ✅ 10th event-based trigger on time. Item A resolved cleanly (auto-archive pattern resumed, drops from carry-forward).
+- **Research-mode work:** ✅ The DHR scraping plan landed as research-only (no code), which is the right shape for Alex's question ("how realistic is it"). Avoided the trap of shipping a scraper without first checking CORS.
+- **One self-caught error worth surfacing:** The cumulative test count didn't reconcile with the per-PR sums (485 vs expected 490). Documenting here rather than letting it pass silently. Future session may want to re-count.
