@@ -23,6 +23,36 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { ProbationsView } from './ProbationsView';
 import { useProbations } from '../../probation';
 import { useAppStore } from '../../store';
+import type { PsHcmPpRow } from '../../importers/types';
+
+/** Minimal PS-HCM P&P row helper for tests that need positions + incumbents
+ *  loaded so the people-index has entries (employee-name / # autocomplete). */
+function ppRow(positionNumber: string, partial: Partial<PsHcmPpRow> = {}): PsHcmPpRow {
+  return {
+    _source: 'ps-hcm-pp',
+    _row: 1,
+    positionNumber,
+    displayNumber: positionNumber,
+    jobCode: '1234',
+    jobCodeDescription: 'Test Class',
+    departmentCode: '229000',
+    effectiveDepartmentCode: '229000',
+    departmentName: 'TEST',
+    fillStatus: 'FILLED',
+    positionStatus: 'A',
+    fte: 1.0,
+    maxHeadcount: 1,
+    snapshotDate: '2026-05-20',
+    name: 'Test Person',
+    emplId: '11111',
+    appointmentType: 'PCS',
+    status: 'A',
+    salaryStep: '4',
+    hourlyRate: 50,
+    meritIncreaseDate: '2026-08-01',
+    ...partial,
+  } as PsHcmPpRow;
+}
 
 beforeEach(() => {
   useProbations.getState().clearAll();
@@ -254,6 +284,49 @@ describe('ProbationsView', () => {
     expect(rec.status).toBe('open');
     const statusEntry = rec.history.find(h => h.field === 'status')!;
     expect(statusEntry.overrideReason).toBe('Recorded wrong outcome');
+  });
+
+  it('add form: picking a different name from the datalist updates the employee # (regression — was sticky on the old person)', () => {
+    // Two known incumbents on two positions.
+    useAppStore.getState().addRows([
+      ppRow('50001', { employeeName: 'Smith, John', emplId: '111111', jobCode: '1820' }),
+      ppRow('50002', { employeeName: 'Smith, Jane', emplId: '222222', jobCode: '1820' }),
+    ]);
+    render(<ProbationsView />);
+
+    const nameInput = screen.getByLabelText(/Employee name/i);
+    const idInput = screen.getByLabelText(/Employee number/i);
+
+    // Pick John first — name + id auto-fill.
+    fireEvent.change(nameInput, { target: { value: 'Smith, John' } });
+    expect((nameInput as HTMLInputElement).value).toBe('Smith, John');
+    expect((idInput as HTMLInputElement).value).toBe('111111');
+
+    // Now pick Jane via the name datalist.
+    fireEvent.change(nameInput, { target: { value: 'Smith, Jane' } });
+    expect((nameInput as HTMLInputElement).value).toBe('Smith, Jane');
+    // Before the fix, this assertion failed — the # stayed on '111111'.
+    expect((idInput as HTMLInputElement).value).toBe('222222');
+  });
+
+  it('add form: picking a different employee # from the datalist updates the name (regression — was sticky on the old person)', () => {
+    useAppStore.getState().addRows([
+      ppRow('50001', { employeeName: 'Smith, John', emplId: '111111', jobCode: '1820' }),
+      ppRow('50002', { employeeName: 'Smith, Jane', emplId: '222222', jobCode: '1820' }),
+    ]);
+    render(<ProbationsView />);
+
+    const nameInput = screen.getByLabelText(/Employee name/i);
+    const idInput = screen.getByLabelText(/Employee number/i);
+
+    fireEvent.change(idInput, { target: { value: '111111' } });
+    expect((nameInput as HTMLInputElement).value).toBe('Smith, John');
+    expect((idInput as HTMLInputElement).value).toBe('111111');
+
+    fireEvent.change(idInput, { target: { value: '222222' } });
+    // Before the fix, this assertion failed — the name stayed on 'Smith, John'.
+    expect((nameInput as HTMLInputElement).value).toBe('Smith, Jane');
+    expect((idInput as HTMLInputElement).value).toBe('222222');
   });
 
   it('add extension from detail modal auto-transitions open → extended', () => {

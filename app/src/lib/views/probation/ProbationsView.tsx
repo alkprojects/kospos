@@ -140,15 +140,19 @@ function AddProbationForm({
     [positions],
   );
 
-  /** Auto-fill from a matched person — fills any blank field that the match
-   *  resolved + jobCode (for downstream submit). Does not overwrite fields
-   *  the user has already typed into. */
+  /** Auto-fill from a matched person — picking a known name (or known emplId)
+   *  is an explicit user choice ("I want THIS person"), so overwrite all
+   *  related fields unconditionally. This is the fix for the
+   *  "name changed but employee # stuck on the old person" bug: picking
+   *  Smith, Jane after Smith, John was auto-filled now updates the # too.
+   *
+   *  An unmatched manual typing path doesn't trigger this — `handleNameChange`
+   *  / `handleIdChange` only call this when the typed value resolves to a
+   *  known person, so freeform typed-in identifiers are still preserved. */
   function applyPersonMatch(p: PersonRef) {
-    setEmployeeName(prev => prev.trim() === '' || prev === p.name ? p.name : prev);
-    setEmployeeId(prev => prev.trim() === '' || prev === p.emplId ? p.emplId : prev);
-    setPositionInput(prev =>
-      (prev.trim() === '' && p.positionDisplayNumber) ? p.positionDisplayNumber : prev,
-    );
+    setEmployeeName(p.name);
+    setEmployeeId(p.emplId);
+    setPositionInput(p.positionDisplayNumber || '');
     setJobCodeFromMatch(p.jobCode);
   }
 
