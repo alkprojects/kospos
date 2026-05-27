@@ -27,7 +27,6 @@ import { matchesNeedle } from '../../search/needle';
 import { CopyButton } from '../../ui';
 import {
   PROBATION_STATUS_ORDER,
-  PROBATIONARY_PERIOD_HOURS,
   currentEndDate,
   isApproachingEnd,
   isPastEndWithoutCompletion,
@@ -133,6 +132,67 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 }
 
 // ---------------------------------------------------------------------------
+// Duration presets
+// ---------------------------------------------------------------------------
+
+/**
+ * The selectable duration presets for the add-probation form + the inline
+ * end-date editor. `custom` means "user types an arbitrary end date" and
+ * stays the active preset for any non-canonical duration.
+ *
+ * Mapped to the underlying `ProbationaryPeriodHours` enum:
+ *   - `6mo` + `1040h` → 1040 hours (half-time equivalent)
+ *   - `1yr` + `2080h` → 2080 hours (full-time equivalent)
+ *
+ * The calendar vs hours-based presets land 1 day apart for the same
+ * "duration" because months/years have variable day counts. We honor
+ * the user's specific intent — picking "6 months" sets end = start +
+ * 6 calendar months, while picking "1040 hours" sets end = start + 182
+ * days. CSC Rule 117 is hours-tracked, not date-tracked, so the
+ * difference is advisory either way.
+ */
+type DurationPreset = '6mo' | '1040h' | '1yr' | '2080h' | 'custom';
+
+const PRESET_LABEL: Record<DurationPreset, string> = {
+  '6mo':   '6 months',
+  '1040h': '1040 hrs',
+  '1yr':   '1 year',
+  '2080h': '2080 hrs',
+  'custom': 'Custom',
+};
+
+const PRESET_ORDER: readonly DurationPreset[] = ['6mo', '1040h', '1yr', '2080h', 'custom'];
+
+/** Hours value the preset commits to (Custom preserves whatever was set). */
+function presetHours(p: DurationPreset, fallback: ProbationaryPeriodHours): ProbationaryPeriodHours {
+  if (p === '6mo' || p === '1040h') return 1040;
+  if (p === '1yr' || p === '2080h') return 2080;
+  return fallback;
+}
+
+/** Compute end date from start + preset. Returns '' when start is blank or
+ *  invalid. Calendar presets add months; hours presets add days. */
+function endDateForPreset(startWorkDate: string, preset: DurationPreset): string {
+  if (!startWorkDate) return '';
+  const start = new Date(startWorkDate + 'T00:00:00Z');
+  if (Number.isNaN(start.getTime())) return '';
+  const end = new Date(start.getTime());
+  if (preset === '6mo') {
+    end.setUTCMonth(end.getUTCMonth() + 6);
+  } else if (preset === '1yr') {
+    end.setUTCFullYear(end.getUTCFullYear() + 1);
+  } else if (preset === '1040h') {
+    end.setUTCDate(end.getUTCDate() + 182);     // 1040 / 40 × 7 = 182 days
+  } else if (preset === '2080h') {
+    end.setUTCDate(end.getUTCDate() + 364);     // 2080 / 40 × 7 = 364 days
+  } else {
+    // custom — caller should preserve their own value
+    return '';
+  }
+  return end.toISOString().slice(0, 10);
+}
+
+// ---------------------------------------------------------------------------
 // Add-probation form
 // ---------------------------------------------------------------------------
 
@@ -166,10 +226,38 @@ function AddProbationForm({
   const [positionInput, setPositionInput] = useState('');
   const [jobCodeFromMatch, setJobCodeFromMatch] = useState<string | undefined>(undefined);
   const [hours, setHours] = useState<ProbationaryPeriodHours>(2080);
+  const [preset, setPreset] = useState<DurationPreset>('2080h');
   const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [supervisor, setSupervisor] = useState('');
   const [deputy, setDeputy] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  /** Picking a preset: snap hours + recompute end date from current start.
+   *  Custom keeps the user's typed end date / hours. */
+  function pickPreset(p: DurationPreset) {
+    setPreset(p);
+    setHours(presetHours(p, hours));
+    if (p !== 'custom' && startDate) {
+      setEndDate(endDateForPreset(startDate, p));
+    }
+  }
+
+  /** Typing a new start date: keep the current preset and recompute end. */
+  function handleStartChange(v: string) {
+    setStartDate(v);
+    if (preset !== 'custom' && v) {
+      setEndDate(endDateForPreset(v, preset));
+    }
+  }
+
+  /** Manually typing in the end date drops the form into Custom mode so the
+   *  hours stay as-was and the value doesn't get clobbered next time start
+   *  changes. */
+  function handleEndChange(v: string) {
+    setEndDate(v);
+    setPreset('custom');
+  }
 
   const positionByDisplay = useMemo(
     () => new Map(positions.map(p => [p.displayNumber, p])),
@@ -223,6 +311,10 @@ function AddProbationForm({
       employeeId: employeeId.trim() || undefined,
       probationaryPeriodHours: hours,
       startWorkDate: startDate,
+      // Pass the explicit end date when set (preset or custom) so the
+      // stored baseEndDate reflects the user's chosen duration rather
+      // than the always-365-day default from computeBaseEndDate.
+      baseEndDate: endDate.trim() || undefined,
       positionId: matchedPosition?.id ?? (positionDisplay || undefined),
       positionDisplayNumber: positionDisplay || undefined,
       jobCode: matchedPosition?.jobCode ?? jobCodeFromMatch,
@@ -234,6 +326,9 @@ function AddProbationForm({
     setPositionInput('');
     setJobCodeFromMatch(undefined);
     setStartDate('');
+    setEndDate('');
+    setPreset('2080h');
+    setHours(2080);
     setSupervisor('');
     setDeputy('');
     setError(null);
@@ -295,32 +390,12 @@ function AddProbationForm({
       </label>
       <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-          Hours <span style={{ color: '#b91c1c' }}>*</span>
-        </span>
-        <select
-          value={hours}
-          onChange={e => setHours(Number(e.target.value) as ProbationaryPeriodHours)}
-          aria-label="Probationary period hours"
-          style={{
-            padding: '5px 10px',
-            border: '1px solid var(--border)', borderRadius: 4,
-            fontSize: 13, fontFamily: 'inherit',
-            background: 'var(--surface)', color: 'inherit',
-          }}
-        >
-          {PROBATIONARY_PERIOD_HOURS.map(h => (
-            <option key={h} value={h}>{h.toLocaleString('en-US')}</option>
-          ))}
-        </select>
-      </label>
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
           Start date <span style={{ color: '#b91c1c' }}>*</span>
         </span>
         <input
           type="date"
           value={startDate}
-          onChange={e => setStartDate(e.target.value)}
+          onChange={e => handleStartChange(e.target.value)}
           aria-label="Start work date"
           onKeyDown={e => { if (e.key === 'Enter') submit(); }}
           style={{
@@ -331,6 +406,58 @@ function AddProbationForm({
           }}
         />
       </label>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>End date</span>
+        <input
+          type="date"
+          value={endDate}
+          onChange={e => handleEndChange(e.target.value)}
+          aria-label="End date"
+          onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+          style={{
+            padding: '5px 10px',
+            border: '1px solid var(--border)', borderRadius: 4,
+            fontSize: 13, fontFamily: 'inherit',
+            background: 'var(--surface)', color: 'inherit',
+          }}
+        />
+      </label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+          Duration <span style={{ color: '#b91c1c' }}>*</span>
+        </span>
+        <div role="radiogroup" aria-label="Duration preset" style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {PRESET_ORDER.map(p => {
+            const active = preset === p;
+            return (
+              <button
+                key={p}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => pickPreset(p)}
+                style={{
+                  fontSize: 11, padding: '4px 10px', height: 30,
+                  border: '1px solid',
+                  borderColor: active ? 'var(--accent)' : 'var(--border)',
+                  borderRadius: 14,
+                  background: active ? 'var(--accent-soft)' : 'transparent',
+                  color: active ? 'var(--accent)' : 'var(--muted)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontWeight: active ? 600 : 400,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {PRESET_LABEL[p]}
+              </button>
+            );
+          })}
+        </div>
+        <span style={{ fontSize: 10, color: 'var(--muted)' }}>
+          Hours stored: {hours.toLocaleString('en-US')}
+        </span>
+      </div>
       <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>Position # (optional)</span>
         <input
@@ -403,7 +530,7 @@ function AddProbationForm({
         Add probation
       </button>
       <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-        Status defaults to <strong>open</strong> · base end date auto-computed from start + hours · edit details on the row
+        Status defaults to <strong>open</strong> · pick a Duration preset or type a Custom end date · edit details on the row
       </span>
       {error && (
         <div style={{
@@ -474,6 +601,10 @@ export function ProbationsView() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [alertOnly, setAlertOnly] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** Inline-edit state for the end-date cell — only one cell editable at a
+   *  time. Clicking the cell sets this; blur/Enter clears it after save. */
+  const [editingEndDateId, setEditingEndDateId] = useState<string | null>(null);
+  const updateProbation = useProbations(s => s.updateProbation);
 
   const filtered = useMemo(() => {
     let out = flagged;
@@ -685,12 +816,56 @@ export function ProbationsView() {
                   <td style={{ padding: '5px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
                     {p.startWorkDate || <span style={{ color: 'var(--muted)' }}>—</span>}
                   </td>
-                  <td style={{ padding: '5px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                    {currentEnd || <span style={{ color: 'var(--muted)' }}>—</span>}
-                    {p.extensions.length > 0 && (
-                      <span style={{ marginLeft: 6, color: 'var(--muted)', fontSize: 10 }}>
-                        ({p.extensions.length} ext)
-                      </span>
+                  <td
+                    style={{ padding: '5px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}
+                    onClick={e => {
+                      // Don't open the detail modal when the user clicks
+                      // to edit the end date inline. Extensions force the
+                      // detail-modal flow since editing the base date
+                      // doesn't help when an extension overrides it.
+                      if (p.extensions.length === 0) {
+                        e.stopPropagation();
+                        setEditingEndDateId(p.id);
+                      }
+                    }}
+                  >
+                    {editingEndDateId === p.id && p.extensions.length === 0 ? (
+                      <input
+                        type="date"
+                        autoFocus
+                        defaultValue={currentEnd || ''}
+                        aria-label={`End date for ${p.employeeName}`}
+                        onClick={e => e.stopPropagation()}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                          if (e.key === 'Escape') setEditingEndDateId(null);
+                        }}
+                        onBlur={e => {
+                          const v = e.target.value;
+                          if (v && v !== currentEnd) {
+                            updateProbation(p.id, { baseEndDate: v });
+                          }
+                          setEditingEndDateId(null);
+                        }}
+                        style={{
+                          padding: '2px 4px',
+                          border: '1px solid var(--accent)', borderRadius: 3,
+                          fontSize: 12, fontFamily: 'monospace',
+                          background: 'var(--surface)', color: 'inherit',
+                          width: 130,
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <span title="Click to edit end date">
+                          {currentEnd || <span style={{ color: 'var(--muted)' }}>—</span>}
+                        </span>
+                        {p.extensions.length > 0 && (
+                          <span style={{ marginLeft: 6, color: 'var(--muted)', fontSize: 10 }}>
+                            ({p.extensions.length} ext)
+                          </span>
+                        )}
+                      </>
                     )}
                   </td>
                   <td style={{ padding: '5px 10px' }}><StatusChip status={p.status} /></td>
