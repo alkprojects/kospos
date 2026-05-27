@@ -13,6 +13,7 @@ import {
 } from './snapshot';
 import type { ImportedRow } from '../importers/types';
 import type { PlannedAction } from '../staffing-plan';
+import type { PendingSeparation } from '../separations';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -80,6 +81,18 @@ function plannedAction(id: string, positionId: string): PlannedAction {
   };
 }
 
+function pendingSep(id: string, employeeName: string): PendingSeparation {
+  return {
+    id,
+    employeeName,
+    status: 'rumored',
+    confidence: 'medium',
+    notes: '',
+    history: [],
+    createdAt: '2026-05-27T00:00:00.000Z',
+  };
+}
+
 // ---------------------------------------------------------------------------
 // buildSessionFile + parseSessionFile round-trip
 // ---------------------------------------------------------------------------
@@ -141,6 +154,80 @@ describe('session snapshot round-trip', () => {
       ['10002', 'Note B'],
     ]);
     expect(parsed.file.payload.lastBfmImportAt).toBe('2026-05-25');
+  });
+
+  it('round-trips pendingSeparations through Map → array → Map', () => {
+    const file = buildSessionFile({
+      loadedRows: [],
+      lastBfmImportAt: '',
+      staffingPlanActions: new Map(),
+      staffingPlanDerivedRemoved: new Set(),
+      positionNotes: new Map(),
+      pendingSeparations: new Map([
+        ['s1', pendingSep('s1', 'Smith, A.')],
+        ['s2', pendingSep('s2', 'Jones, B.')],
+      ]),
+    });
+    expect(file.payload.pendingSeparations).toHaveLength(2);
+
+    const json = JSON.stringify(file);
+    const parsed = parseSessionFile(json);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.file.payload.pendingSeparations).toHaveLength(2);
+    expect(parsed.file.payload.pendingSeparations![0][1].employeeName).toBe('Smith, A.');
+  });
+
+  it('defaults pendingSeparations to [] when buildSessionFile omits the arg (back-compat)', () => {
+    const file = buildSessionFile({
+      loadedRows: [],
+      lastBfmImportAt: '',
+      staffingPlanActions: new Map(),
+      staffingPlanDerivedRemoved: new Set(),
+      positionNotes: new Map(),
+      // pendingSeparations omitted on purpose
+    });
+    expect(file.payload.pendingSeparations).toEqual([]);
+  });
+
+  it('parseSessionFile accepts a v1 file with pendingSeparations missing entirely', () => {
+    // Simulates a session file saved on a build prior to Phase 2.2.i, when
+    // the field didn't exist. Should still parse cleanly.
+    const result = parseSessionFile(JSON.stringify({
+      kind: 'kospos-session',
+      schemaVersion: SESSION_SCHEMA_VERSION,
+      savedAt: '2026-05-27T00:00:00.000Z',
+      payload: {
+        loadedRows: [],
+        lastBfmImportAt: '',
+        staffingPlanActions: [],
+        staffingPlanDerivedRemoved: [],
+        positionNotes: [],
+        // pendingSeparations intentionally omitted
+      },
+    }));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.file.payload.pendingSeparations).toBeUndefined();
+    }
+  });
+
+  it('parseSessionFile rejects pendingSeparations if present but not an array', () => {
+    const result = parseSessionFile(JSON.stringify({
+      kind: 'kospos-session',
+      schemaVersion: SESSION_SCHEMA_VERSION,
+      savedAt: '2026-05-27T00:00:00.000Z',
+      payload: {
+        loadedRows: [],
+        lastBfmImportAt: '',
+        staffingPlanActions: [],
+        staffingPlanDerivedRemoved: [],
+        positionNotes: [],
+        pendingSeparations: 'oops not an array',
+      },
+    }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('not-a-session-file');
   });
 
   it('savedAt is an ISO timestamp at build time', () => {
