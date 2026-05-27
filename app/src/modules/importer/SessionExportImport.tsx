@@ -201,10 +201,11 @@ export function SessionExportImport() {
       )}
 
       <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-        ⚠ Session files contain real personnel data (names, IDs, salaries). They
-        stay on your machine — KosPos doesn't upload them anywhere. Don't share
-        the file outside the authorized group. IndexedDB persistence is queued
-        for Phase 2.2.33.
+        Session files contain SF public-employee data (names, IDs, classifications,
+        salaries) — all public records under the Sunshine Ordinance + state law.
+        Private fields (SSN, dependents, health info) aren't in these reports.
+        Session files stay on your machine until you share them; KosPos doesn't
+        upload anywhere. IndexedDB persistence is queued for Phase 2.2.33.
       </div>
     </div>
   );

@@ -2791,3 +2791,19 @@ Two follow-up PRs shipped:
 - **Test-fixture / type-shape divergence caught at run time, not type-check time.** PR #93's first test pass had a `ppRow({ name: 'Smith, Jane' })` override that *type-checked* (the test factory casts via `as PsHcmPpRow`) but didn't actually populate `appointment.name` because the real field is `employeeName`. Caught when the test asserted "Active · 1" and the rendered DOM showed "Active · 0" — the search was correctly filtering but couldn't find "Smith" because the build hadn't lifted it onto `appointment.name`. Fix: use the real field names in test fixtures. The `as PsHcmPpRow` cast suppresses a useful warning here; worth tightening if we touch the factory again.
 - **Two parallel needles for one search input on Hiring Plan.** The PlannedAction itself doesn't carry the job code, incumbent name, or dept — those live on Position. Solution: wrap `{action, position}` in a tuple and walk both via the same `matchesNeedle` helper. Cleaner than maintaining two separate search paths.
 - **The 354-test baseline matters for S31's prompt.** S31 prompt template in SESSION_HANDOFF.md updated from `currently 328 / 328` → `currently 354 / 354` so the next session knows the post-tail baseline. Without this, S31 would erroneously think the +16 search tests + +10 session tests were regressions.
+
+### S30 tail-of-tail — Data-sensitivity correction (PR #95)
+
+Alex's last message in S30: *"there is no private information in any of the reports or data. all information on public employees positions and salaries is public information. private information like dependents, health information, ssns, etc. is not in this data. it is ok to keep the data on the page."*
+
+This corrects a framing I'd used in multiple places this session — most notably the PR #92 commit message + PR description + the SessionExportImport UI warning + the SESSION_HANDOFF "Vercel pivot deferred" rationale — which over-emphasized PII / department policy review as a blocker for any shared-state architecture. **The data is SF public-employee public records under the Sunshine Ordinance + state law.** DataSF / the Controller publish equivalent data. None of the protected categories (SSN, dependents, health, home address) are in the labor reports.
+
+PR #95 ships the correction across:
+
+- New memory file [`data_sensitivity.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/data_sensitivity.md) capturing the rule for future sessions; MEMORY.md index updated (10 memories now indexed).
+- `SessionExportImport.tsx` UI warning text — replaced "real personnel data... don't share outside the authorized group" with accurate "SF public-employee data ... public records under the Sunshine Ordinance + state law; private fields aren't in these reports".
+- `lib/session/snapshot.ts` JSDoc "PII note" → "Data-sensitivity note" with the corrected framing + a link to the new memory.
+- `CLAUDE.md` non-negotiable #5 — kept the rule (`.xlsx/.xlsm` files gitignored) but added rationale: it's about binary-blob churn + workbook-is-Alex's-working-file, NOT confidentiality.
+- `SESSION_HANDOFF.md` — Vercel-pivot-deferred entry updated to reflect the smaller actual blocker set (auth + schema migration + conflict resolution + cost — engineering trade-offs only); S31 prompt template gained an explicit "important clarification" block at the top so future sessions don't repeat the mistake.
+
+**Lesson:** When framing architectural trade-offs that touch data handling, ask + confirm the data-sensitivity assumption explicitly rather than defaulting to the most conservative interpretation. The "PII forbids this" default was overcautious + cost a small amount of mental overhead in the Vercel discussion. Future sessions should default to the memory's framing.

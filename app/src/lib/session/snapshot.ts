@@ -26,11 +26,16 @@
  *     The store's `addRows` then re-runs quality rules + recomputes
  *     `issues` from the rebuilt row set.
  *
- * PII note: this file contains real personnel data (names, emplIds,
- * salaries). It is intended to live on the user's local machine,
- * never committed to the repo, never uploaded anywhere outside their
- * own session. The download lives in the browser's default
- * downloads folder + the user is responsible for storage hygiene.
+ * Data-sensitivity note: this file contains SF public-employee data
+ * (names, emplIds, classifications, salaries) — all public records
+ * under the Sunshine Ordinance + state law. Private fields (SSN,
+ * dependents, health info) aren't in these reports. The download
+ * lives in the browser's default downloads folder; the user is
+ * responsible for storage hygiene. See [[data-sensitivity]] memory.
+ *
+ * Files aren't committed to the repo because the workbook is the
+ * user's active working file (binary-blob churn in git) — NOT
+ * because the data is confidential.
  */
 
 import type { ImportedRow } from '../importers/types';

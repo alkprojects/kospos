@@ -20,7 +20,7 @@ After the Phase 2.2.g close audit + handoff merged, Alex flagged two pain points
 
 Alex: *"testing is becoming tedious. I have to import files each time."* Until Phase 2.2.33 ships IndexedDB persistence, every browser reload loses all in-memory state. This PR adds Save/Load session buttons above the FilePicker on the Load Reports tab. Save → downloads `kospos-session-YYYY-MM-DDTHHMM.json` with all loaded rows + staffing-plan actions + position notes + hidden-derived set. Load → uploads a previously-saved JSON + fans the payload back to the three Zustand stores via `restoreFromSession` helpers. 6 files / +679 / −0. 10 new tests covering round-trip + parse-error branches (invalid JSON / wrong kind / future schemaVersion / missing payload fields) + filename formatting.
 
-**Considered + rejected this session: Vercel pivot for true multi-user shared state.** Alex asked whether we should move off GitHub Pages to enable shared uploads. **NOT doing that here** — it's a separate architectural decision involving: PII / department personnel-data policy review (real names, emplIds, salaries leaving Alex's machine); auth provider + token plumbing; schema-migration story for shared state (today a schema bump breaks one user's IndexedDB; with shared state it breaks everyone at once); conflict resolution + audit log for who-uploaded-what-when. The CLAUDE.md non-negotiable #5 ("Real labor reports are never committed") rules out the commit-data-to-repo path. Session files are the simplest path that solves the actual testing pain without committing to any of the above.
+**Considered: Vercel pivot for true multi-user shared state.** Alex asked whether we should move off GitHub Pages to enable shared uploads. **Not pivoting this session** — but the previous framing here (which cited "PII / personnel-data policy review" as the top blocker) was **wrong** per Alex's S30-tail clarification. See [memory `data_sensitivity.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/data_sensitivity.md): **all KosPos data is SF public-employee public records** (Sunshine Ordinance + state law); no SSNs / dependents / health info in the reports. The CLAUDE.md non-negotiable #5 ("real labor reports never committed") is about binary-blob churn in git + the workbook being Alex's active working file, NOT confidentiality. The actual remaining blockers for a hosting pivot are smaller: **auth + schema migration + conflict resolution + cost** — engineering trade-offs, not policy. Session files (PR #92) are still the simplest interim answer; a hosting pivot is a viable S31+ conversation whenever Alex wants it.
 
 #### [PR #93](https://github.com/alkprojects/kospos/pull/93) — Global needle search on Positions / Payroll / Hiring Plan tabs
 
@@ -227,11 +227,22 @@ coverage) and #90 (PlannedActionDetail editor + full CostInput sub-editor
 isAllowedStatusTransition guard helper). Phase 2.2.f Option C — the
 queued staffing-plan v2 — is now COMPLETE.
 
+S30-tail QoL shipped: PR #92 (session export/import), PR #93 (global
+needle search on Positions / Payroll / Hiring Plan).
+
+**Important S30-tail clarification (read before any architectural
+decisions):** All KosPos data is **SF public-employee public records**
+(Sunshine Ordinance + state law) — names, IDs, classifications,
+salaries. No SSNs / dependents / health info in these reports. Don't
+gate hosting / sharing / cloud-storage decisions on "PII concerns" —
+that framing was wrong in prior sessions + has been corrected. See
+[[data-sensitivity]] memory. Engineering / cost trade-offs only.
+
 Read first, in order:
-  docs/CLAUDE.md
+  docs/CLAUDE.md (non-negotiable #5 rationale updated to reflect this)
   docs/SESSION_HANDOFF.md (this file — recommendation + carry-forwards)
-  docs/SESSION_LOG.md (Session 30 entry — Phase 2.2.g)
-  memory/MEMORY.md + the 9 memory files
+  docs/SESSION_LOG.md (Session 30 entry — Phase 2.2.g + S30 tail)
+  memory/MEMORY.md + the 10 memory files (data-sensitivity is new)
   docs/audits/phase-2-2-g-close-audit.md (carry-forwards A-F)
   docs/domain/labor-report.md § "Phase 2.2 sub-phases" — dependency graph
 
@@ -371,7 +382,7 @@ C-tier (future features, not polish) also carry forward:
 ### New S30-tail follow-ups (deferred from PR #92 + #93)
 
 - **Field-qualified search syntax.** Per S30 Alex pick, PR #93 ships the simple-needle scope. Live with it for a session or two; if Alex wants `name:Smith jobCode:6278 step:>5` power-user mode, queue a follow-up PR. Decision: ship after Alex has lived with the simple needle on real data.
-- **Multi-user shared state (Vercel / Cloudflare pivot).** Alex asked about this in S30; deferred. PR #92 (session export/import) is the v1 answer to "I have to import files every session." Revisit only if Alex requests it after Department policy review on putting personnel data on external infrastructure.
+- **Multi-user shared state (Vercel / Cloudflare pivot).** Alex asked about this in S30; deferred. PR #92 (session export/import) is the v1 answer to "I have to import files every session." **Data-sensitivity update (S30 tail):** the previous framing of this item gated it on "Department policy review on putting personnel data on external infrastructure" — that was wrong. Per [`data_sensitivity.md` memory](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/data_sensitivity.md) + Alex's S30-tail confirmation, **all KosPos data is SF public-employee public records** (Sunshine Ordinance + state law). The real blockers are smaller: auth + schema migration + conflict resolution + hosting cost. Revisit whenever Alex wants — no policy review needed.
 - **IndexedDB persistence (Phase 2.2.33 `snapshots/`).** Pre-existing carry-forward. PR #92 (session JSON file) doesn't replace this — IndexedDB still lands as part of the snapshots/ sub-phase whenever it's picked.
 
 ---
