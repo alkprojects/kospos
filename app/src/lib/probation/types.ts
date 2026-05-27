@@ -144,8 +144,22 @@ export interface Probation {
   /** Workflow status — see `ProbationStatus`. */
   status: ProbationStatus;
   /** Optional free-text supervisor — the workbook uses values like
-   *  `confirmed / Carey McElroy`. Not enumerated; supervisors come and go. */
+   *  `confirmed / Carey McElroy`. Not enumerated; supervisors come and go.
+   *
+   *  When blank, the ProbationsView falls back to the auto-resolved manager
+   *  name from the linked Position's `reportsTo` chain. Set this field
+   *  explicitly to override the auto-resolved value (e.g. when the
+   *  immediate supervisor is acting / vice / on leave). */
   supervisor?: string;
+  /** Optional free-text deputy — the second person who should be looped in
+   *  on probation-related communications (typically a section deputy, a
+   *  Deputy Director, or someone covering for the supervisor).
+   *
+   *  Not auto-resolved from position data (no canonical "deputy" field on
+   *  Position in v1 — would require walking the reportsTo chain or
+   *  modeling secondary-supervisor relationships). Manual entry only;
+   *  carried through Session JSON like every other Probation field. */
+  deputy?: string;
   /** Date the probation reached a terminal status (cleared / failed /
    *  resigned). Optional — only meaningful when status ∈ terminal set. */
   completionDate?: string;
