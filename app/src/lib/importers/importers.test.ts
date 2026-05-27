@@ -616,4 +616,68 @@ describe('importObiPayroll', () => {
     expect(r.jobCode).toBe('6278');
     expect(r.jobCodeSet).toBe('');
   });
+
+  // Bug 2a regression: the live OBI .xlsx export stores "Earning Period End
+  // Date" as an Excel date serial (a number like 46150). The importer must
+  // coerce that to ISO `YYYY-MM-DD` so the summary header doesn't display
+  // "46150" and the PP-range filter in applyFilters compares ISO-vs-ISO.
+  it('coerces a numeric Excel serial date cell to ISO YYYY-MM-DD', () => {
+    // Excel serial 46150 → 2026-05-08 (the value Alex saw on the live site).
+    const ws = makeSheet([
+      HEADERS,
+      ['FY2026', 'DBI', 'DBI', '10001', '12345', 'Smith, Jane', 'COMMN:6278', 'Inspector',
+       '501010', '10190', 'AUTH1', 15, 46150, 'WKP', 'Regular Pay', 4846.15, 1, 'PCS'],
+    ]);
+    const r = importObiPayroll(ws)[0];
+    expect(r.earningPeriodEnd).toBe('2026-05-08');
+    expect(r._asOfDate).toBe('2026-05-08');
+  });
+
+  it('computes MAX(_asOfDate) correctly across mixed serial + ISO rows', () => {
+    // The MAX-tracker must compare ISO strings to ISO strings, not serial
+    // numbers to ISO strings (the latter would yield wrong lexicographic order).
+    const ws = makeSheet([
+      HEADERS,
+      // Row 1: ISO string, mid-FY.
+      ['FY2026', 'DBI', 'DBI', '10001', '12345', 'Smith, Jane', 'COMMN:6278', 'Inspector',
+       '501010', '10190', 'AUTH1', 0, '2026-04-24', 'WKP', 'Regular Pay', 4846.15, 1, 'PCS'],
+      // Row 2: Excel serial 46150 = 2026-05-08 (later than row 1).
+      ['FY2026', 'DBI', 'DBI', '10001', '12345', 'Smith, Jane', 'COMMN:6278', 'Inspector',
+       '501010', '10190', 'AUTH1', 0, 46150, 'WKP', 'Regular Pay', 4846.15, 1, 'PCS'],
+      // Row 3: Excel serial 46136 = 2026-04-24 (same as row 1).
+      ['FY2026', 'DBI', 'DBI', '10002', '67890', 'Doe, John', 'COMMN:6331', 'Tech',
+       '501010', '10190', 'AUTH1', 0, 46136, 'WKP', 'Regular Pay', 4000.00, 1, 'PCS'],
+    ]);
+    const rows = importObiPayroll(ws);
+    expect(rows).toHaveLength(3);
+    expect(rows[0].earningPeriodEnd).toBe('2026-04-24');
+    expect(rows[1].earningPeriodEnd).toBe('2026-05-08');
+    expect(rows[2].earningPeriodEnd).toBe('2026-04-24');
+    // MAX across all rows = 2026-05-08, stamped on every row.
+    for (const r of rows) expect(r._asOfDate).toBe('2026-05-08');
+  });
+
+  it('passes through an already-ISO date string (CSV / pre-formatted cells)', () => {
+    // CSV exports — and .xlsx cells that were text-formatted — surface as
+    // ISO-shaped strings already. The converter should not double-transform.
+    const ws = makeSheet([
+      HEADERS,
+      ['FY2026', 'DBI', 'DBI', '10001', '12345', 'Smith, Jane', 'COMMN:6278', 'Inspector',
+       '501010', '10190', 'AUTH1', 15, '2026-05-08', 'WKP', 'Regular Pay', 4846.15, 1, 'PCS'],
+    ]);
+    const r = importObiPayroll(ws)[0];
+    expect(r.earningPeriodEnd).toBe('2026-05-08');
+  });
+
+  it('handles an empty date cell as empty string (no spurious 1899 epoch)', () => {
+    const ws = makeSheet([
+      HEADERS,
+      ['FY2026', 'DBI', 'DBI', '10001', '12345', 'Smith, Jane', 'COMMN:6278', 'Inspector',
+       '501010', '10190', 'AUTH1', 15, '', 'WKP', 'Regular Pay', 4846.15, 1, 'PCS'],
+    ]);
+    const r = importObiPayroll(ws)[0];
+    expect(r.earningPeriodEnd).toBe('');
+    // MAX-tracker should not promote '' over later real dates in the same file.
+    expect(r._asOfDate).toBe('');
+  });
 });

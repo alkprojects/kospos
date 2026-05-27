@@ -134,6 +134,31 @@ describe('applyFilters', () => {
     const out = applyFilters(padded, { ...EMPTY_FILTERS, positionId: '10001' });
     expect(out).toHaveLength(1);
   });
+
+  // Bug 2a regression: the PP-range filter compares `earningPeriodEnd`
+  // lexicographically against ISO `YYYY-MM-DD` user input. If a serial-shaped
+  // string ("46150") leaked through the importer, every ISO-input filter
+  // would silently drop the row — "46150" > "2026-12-31" because '4' > '2'.
+  // The importer guarantees ISO output (see obi-payroll.ts `iso()`); this
+  // test documents the downstream invariant the importer fix protects.
+  it('PP-range filter requires ISO earningPeriodEnd (serial-shaped values silently mismatch)', () => {
+    const serialShaped: ObiPayrollRow[] = [
+      row({ positionIdentifier: '10001', balanceAmount: 5000, accountDescription: 'Regular Salaries - Misc', earningPeriodEnd: '46150' }),
+    ];
+    // With pperEnd = 2026-12-31, a healthy ISO row (2026-05-08) would match.
+    // A serial-shaped string "46150" lex-compares > "2026-12-31" → dropped.
+    const out = applyFilters(serialShaped, {
+      ...EMPTY_FILTERS, pperStart: '2026-01-01', pperEnd: '2026-12-31',
+    });
+    expect(out).toHaveLength(0);
+    // ISO sibling matches as expected.
+    const iso: ObiPayrollRow[] = [
+      row({ positionIdentifier: '10001', balanceAmount: 5000, accountDescription: 'Regular Salaries - Misc', earningPeriodEnd: '2026-05-08' }),
+    ];
+    expect(
+      applyFilters(iso, { ...EMPTY_FILTERS, pperStart: '2026-01-01', pperEnd: '2026-12-31' })
+    ).toHaveLength(1);
+  });
 });
 
 describe('aggregate', () => {
