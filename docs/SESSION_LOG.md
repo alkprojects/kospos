@@ -2628,3 +2628,73 @@ Semi-autonomous session. One A/B/C question answered; no other user input.
 - **Verification habits:** ✅ Tests + build + preview-MCP walkthrough + screenshots on each PR. The UI fix PR exercised the bug case end-to-end (position with no matching OBI → drill in → see scoped view with 0 rows) rather than just verifying the button renders.
 - **Audit cadence:** ✅ Fifth event-based trigger on time. Item A stays dropped (8 consecutive PRs auto-archived).
 - **Gap surfaced:** the `holdReason` enum will need Alex's input before v2 surface ships. Free-string holdover OK for now; narrowing the enum should land before the v2 detail editor PR.
+
+---
+
+## Session 29 — Phase 2.2.f Option C PR 1: Bug 3 derived defaults + Bug 2 payroll-diagnostic polish (2026-05-26)
+
+**Worktree:** `ecstatic-bardeen-0cfa33`
+**Model:** Opus 4.7
+**Branches:** `fix/payroll-empty-diagnostic-polish` (PR #84) → `feat/staffing-plan-derived-defaults` (PR #85) → `chore/phase-2-2-f-close-audit-and-handoff` (this docs PR)
+
+### Prompt summary
+
+> Pick + ship Phase 2.2.f. S28 handoff recommended Option C (staffing-plan v2 + Bug 3 design — biggest user-visible gap). Also resolve Bug 2 (Payroll scope to 1106950 shows 0 rows) per Alex's diagnostic chip output from the live site.
+
+### Alex interaction
+
+Three AskUserQuestion rounds:
+
+1. **Bug 2 chip output + Phase 2.2.f pick** (single batch). Alex reported the live-site diagnostic showed only one nearby chip (`1106348` — same `1106` prefix but different last 3 digits) on a snapshot with 234 distinct positionIdentifiers across 42,949 rows. Picked Option C.
+
+2. **Option C gating questions** (Q #18 holdReason enum + Q #19 status workflow + Bug 3 override scope). Alex pushed back on Q #18 as "too technical, explain in simpler language."
+
+3. **Q #18 restated in plain English** (no jargon). Alex: "don't do any pre-built tags for now. everything should be entered manually. there aren't enough regular reasons to justify pre-built tags." holdReason stays free string; Q #18 drops from carry-forward.
+
+   Q #19: guarded forward-only + csc-hold/finished branches. Bug 3: per-position manual-wins.
+
+### Milestones
+
+| What | Where |
+|---|---|
+| **PR #84** Bug 2 follow-up: widened Payroll empty-state diagnostic. New pure module `lib/views/labor/payroll-diagnostic.ts` with `coverageStats` (classifies scoped position as in-both / p-and-p-only / obi-only / orphan + 4 plain-English message branches) + `findNearbyPositions` (progressive prefix fallback: 4 → 3 → 2 digits, surfaces more candidates when the strict net is sparse). Updated empty-state in `LaborView.tsx` to pass P&P position ids + snapshot meta into the diagnostic. The diagnostic now affirms whether the empty result is expected vs unexpected. | [payroll-diagnostic.ts](../app/src/lib/views/labor/payroll-diagnostic.ts) + [LaborView.tsx](../app/src/lib/views/labor/LaborView.tsx) |
+| **PR #84** Tests: 13 cases — fuzzy-match (progressive fallback to 3-digit / floor at 2-digit / exclude-self / maxResults cap / minMatches override / too-short scoped id) + coverage classification (in-both / p-and-p-only / obi-only / orphan) + empty-input safe fallback. | [payroll-diagnostic.test.ts](../app/src/lib/views/labor/payroll-diagnostic.test.ts) |
+| **PR #85** Bug 3 derived defaults — Pending + TEMP auto-populate from P&P data. New `DerivedAction` type + `UnifiedAction` discriminated union (`(PlannedAction & { source: 'manual' }) \| DerivedAction`). Pure helpers: `computeDerivedActions(positions, manualPositionIds, derivedRemoved)` + `computeOmittedDerivedActions(...)` + `isAllowedStatusTransition(from, to)` per Q #19 pick (forward-only + csc-hold bidirectional + null-status unconstrained). Store: `derivedRemoved: Set<positionId>` + `hideDerivedAction(positionId)` + `restoreDerivedAction(positionId)`; `clearAll` clears both. | [staffing-plan/types.ts](../app/src/lib/staffing-plan/types.ts) + [build.ts](../app/src/lib/staffing-plan/build.ts) + [store.ts](../app/src/lib/staffing-plan/store.ts) |
+| **PR #85** `Position.cat1718` lift — added a parallel `Position.cat1718` field (set whenever the row has the Cat 17/18 code, filled or vacant) alongside the existing `appointment.cat1718` (incumbent's attributes; only when filled). Reason: TEMP-derivation needs to fire on vacant Cat 17/18 positions, which have no `appointment`. Factored `buildCat1718` helper; both fields populate from the same source. Additive — no breaking changes to existing `appointment.cat1718` consumers. | [positions/types.ts](../app/src/lib/positions/types.ts) + [positions/build.ts](../app/src/lib/positions/build.ts) |
+| **PR #85** Workspace UI — `Section` + `ActionRow` accept `UnifiedAction`; derived rows render with a purple AUTO badge on the position number + an italic muted "Vacant, no plan" / "Cat 17 temp" / "Cat 18 temp" reason in the status column + a Hide button (instead of Delete). New `ManualOmissionsSection` renders below the 5 type sections with Restore buttons. Footer shows manual/auto count breakdown: `N actions (X manual · Y auto-derived)`. | [StaffingPlanView.tsx](../app/src/lib/views/staffing-plan/StaffingPlanView.tsx) |
+| **PR #85** Tests: 27 new cases — 5 store derivedRemoved + 7 `computeDerivedActions` (Pending from vacant, TEMP from Cat 17/18, precedence vacant+Cat18 → TEMP, manual suppression, derivedRemoved suppression, no-rule on filled-non-Cat, sort order) + 3 `computeOmittedDerivedActions` (visible + 2 auto-prune cases) + 7 `isAllowedStatusTransition` (forward / backward / csc-hold / null-status / same-state) + 1 `Position.cat1718` lift + 5 view-level Bug 3 integration cases. | [staffing-plan.test.ts](../app/src/lib/staffing-plan/staffing-plan.test.ts) + [positions.test.ts](../app/src/lib/positions/positions.test.ts) + [staffing-plan-view.test.tsx](../app/src/lib/views/staffing-plan/staffing-plan-view.test.tsx) |
+| **PR (this docs PR)** Phase 2.2.f close audit + S29 handoff + S29 SESSION_LOG entry. Carry-forward Item A **stays dropped** (11 consecutive PRs auto-archived). New minor drift surfaced: Tab 24 § Improvement #6 holdReason enum language in labor-report.md is now stale (Alex dropped the enum); bundleable with items B + C in a future docs cleanup PR. | [phase-2-2-f-close-audit.md](audits/phase-2-2-f-close-audit.md) + this file |
+
+### Verification
+
+- `npm test` 303/303 (263 → 276 from PR #84's +13 cases, → 303 from PR #85's +27 cases) ✓
+- `npm run build` clean (CI green on both PRs) ✓
+- Preview MCP walkthrough (PR #84 Bug 2): 4 P&P positions + 2 OBI positions (50001, 50002 vacant, 60001 Cat 17, 70001 vacant Cat 18 — but OBI only has 50001, 50002 in this seed). Scope to 50002 → "no rows" coverage stat fires correctly. Scope to 1106950 (not in either P&P or OBI for this seed) → orphan branch fires. ✓
+- Preview MCP walkthrough (PR #85 Bug 3): same 4-position seed → Pending 1 (50002 vacant) + TEMP 2 (60001 Cat 17 + 70001 vacant Cat 18 — precedence honored). Hide on 50002 → moves to Manual user changes section (1 omission). Restore → returns to Pending. Add manual Active on 50002 → derived Pending disappears (manual-wins). Footer: `3 actions (1 manual · 2 auto-derived)`. ✓
+- Console: no errors/warnings on any tab ✓
+
+### Out of scope (intentionally deferred to PR 3+ / future sessions)
+
+- **`PlannedActionDetail` editor with `CostInput` exposure** — Option C PR 2, queued for S30. The status-transition guard helper (`isAllowedStatusTransition`) already ships in PR #85; PR 2 is the UI wiring on top (row-click drill-down + modal/drawer editor + status workflow dropdown with force-override).
+- **`holdReason` enum narrowing** — DROPPED per Alex S29 ("not enough regular reasons to justify pre-built tags"). Stays free string indefinitely.
+- **Plan-vs-actuals reconciliation** (Tab 24 § Improvement #3) — needs the spine + payroll join overlay; design still deferred.
+- **Snapshot diff surface** (Tab 24 § Improvement #12) — needs Phase 2.2.33 `snapshots/` IndexedDB persistence first.
+- **ADR documenting the `lib/staffing-plan/` no-upstream-source pattern + the `Position.cat1718` lift note** — queued for Phase 2.4's docs PR alongside ADR-007 amendment + BFM eturn ADR. Four ADR moves now queued together.
+
+### Lessons / improvements for next phase
+
+- **Worktree-relative file paths matter for Write/Edit on shared-checkout setups.** First Write call this session went to the main worktree path (`kospos/app/...`) instead of the active worktree path (`kospos/.claude/worktrees/.../app/...`) because I used the absolute path that pointed at the wrong worktree. Cost ~10 minutes of debugging + a copy-then-revert recovery. Pattern: in a worktree session, **always use the active worktree's absolute path for Write/Edit** even if Bash CWD is set correctly — the Write tool's absolute paths bypass Bash's relative resolution. Caught quickly by `git status` showing "nothing to commit" after several edits.
+- **Derived rows render uniformly via a discriminated union.** The `UnifiedAction` shape (`(PlannedAction & { source: 'manual' }) \| DerivedAction`) lets the existing `Section` + `ActionRow` components handle both kinds without per-source branching everywhere — just one switch on `action.source` in `ActionRow` for the Hide vs Delete button. The widened helper signatures (`computeExpectedCost`, `rollupByType`, etc. accepting the union) made all the existing tests continue to pass without modification — `PlannedAction[]` is still assignable.
+- **Auto-prune for omissions across snapshot refreshes is a feature, not a bug.** When a previously-vacant position gets filled in a newer snapshot, the user's hide intent stays in the store (`derivedRemoved` still has the positionId) but the Manual user changes section auto-hides the entry because the derive rule no longer fires. If the position becomes vacant again, the hide intent re-fires automatically. This is the right UX — no lost state across snapshot refreshes, but no stale visible entries either.
+- **Position-level vs appointment-level Cat 17/18 attribution is a meaningful distinction.** Lifting `Position.cat1718` out of `appointment.cat1718` is a small refactor but reflects a real domain concept: a position is *budgeted as* Cat 17/18 (a property of the budget slot) AND/OR its current incumbent *holds* a Cat 17/18 appointment (a property of the person). They usually agree but can diverge during transitions. The TEMP-derivation rule cares about the former (the budget-slot attribute); incumbent-level surfaces (e.g., the 1040-hour gauge in Phase 2.2.19 `views/temp-limits/`) care about the latter.
+- **AskUserQuestion plain-English restate is a first-class flow.** Alex flagged Q #18's first phrasing ("PlannedAction.holdReason is currently free string. v2 narrows it to a categorical enum + free-text 'reason detail'") as too technical. Restated in plain English ("On the Hiring Plan, some planned hires get paused for a known reason — 'waiting for the CSC,' 'waiting for the DBI/CPC merger,' or 'waiting for Jimmy's approval.' Right now you can type any reason as free text. The proposal is to add a small set of pre-built TAGS...") — Alex answered immediately and decisively. Pattern: when a question gets pushback as too technical, restate in plain English with concrete examples and the user-facing benefit, not the data-model framing.
+
+### Brief audit (Alex's collaboration this session)
+
+Mix of synchronous + autonomous. 3 AskUserQuestion rounds; otherwise autonomous.
+
+- **Prompt quality (S28 handoff prompt that drove S29):** ✅ The Step-0 audit trigger fired on schedule (6th event-based trigger). A/B/C Phase 2.2.f pick was well-scoped. The Step-0.5 "triage S28 live-site bugs" block was high-value — it surfaced Bug 2 + Bug 3 explicitly before I even asked for input, so my first AskUserQuestion could batch Bug 2 chip + Phase 2.2.f pick efficiently.
+- **Scope discipline:** ✅ Strict one-PR-per-sub-phase honored. PR #84 (Bug 2 polish) shipped FIRST as a small standalone PR (~3 files), then PR #85 (Bug 3 + derived defaults) as the main Option C PR 1. Option C PR 2 (`PlannedActionDetail`) explicitly queued for S30 rather than bundled in.
+- **Verification habits:** ✅ Tests + build + preview-MCP walkthrough + screenshots on each PR. PR #85's preview verification caught the precedence bug (vacant Cat 18 was deriving as Pending instead of TEMP) — surfaced during walkthrough, root-caused to `appointment.cat1718` being undefined for vacant positions, fixed via the `Position.cat1718` lift, re-verified. **The walkthrough caught a real semantic bug the unit tests had glossed over** (test fixtures used the lifted field directly, so they passed even before the lift).
+- **Audit cadence:** ✅ 6th event-based trigger on time. Item A stays dropped (11 consecutive PRs auto-archived).
+- **Gap surfaced:** Tab 24 § Improvement #6 (holdReason enum) language in labor-report.md is now stale (Alex dropped the enum). Bundleable with items B + C in a future docs cleanup PR. Low priority.
