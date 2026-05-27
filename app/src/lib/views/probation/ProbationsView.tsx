@@ -1,0 +1,563 @@
+/**
+ * Probation workspace — Tab 10 surface. Phase 2.2.j (2.2.25).
+ *
+ * KosPos is the system of record for probation tracking (no upstream PS
+ * HCM source for DBI). Replaces the workbook's 26-row × 11-col hand-
+ * maintained Probation tab.
+ *
+ * Layout mirrors SeparationsView + InactiveView + StaffingPlanView:
+ *   - Summary header: total count + 5-status rollup chips + alert counts
+ *     for `approaching-end` and `past-end-without-completion` derived flags
+ *   - Add-probation form: employee name + hours + start date required
+ *   - Filter bar: needle search + status-chip radiogroup + alert-only toggle
+ *   - Table: name / position / hours / start / current end / status / supervisor / alerts
+ *   - Detail modal opens on row click
+ *
+ * No upstream importer — works without P&P loaded (the position field is
+ * optional in v1).
+ */
+
+import { useMemo, useState } from 'react';
+import { useAppStore } from '../../store';
+import { buildPositions } from '../../positions';
+import type { Position } from '../../positions';
+import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
+import type { PsHcmPpRow } from '../../importers/types';
+import { matchesNeedle } from '../../search/needle';
+import {
+  PROBATION_STATUS_ORDER,
+  PROBATIONARY_PERIOD_HOURS,
+  currentEndDate,
+  isApproachingEnd,
+  isPastEndWithoutCompletion,
+  rollupByStatus,
+  useProbations,
+} from '../../probation';
+import type {
+  Probation,
+  ProbationStatus,
+  ProbationaryPeriodHours,
+} from '../../probation';
+import { ProbationDetail } from './ProbationDetail';
+
+// ---------------------------------------------------------------------------
+// Display constants
+// ---------------------------------------------------------------------------
+
+const STATUS_LABEL: Record<ProbationStatus, string> = {
+  'open':     'Open',
+  'extended': 'Extended',
+  'cleared':  'Cleared',
+  'failed':   'Failed',
+  'resigned': 'Resigned',
+};
+
+const STATUS_COLOR: Record<ProbationStatus, [string, string]> = {
+  // [text, background]
+  'open':     ['#1f5fbf', '#e7f0fb'], // blue   — in progress
+  'extended': ['#b35a00', '#fed7aa'], // orange — needs attention
+  'cleared':  ['#1a7a3c', '#d4f4e3'], // green  — passed
+  'failed':   ['#7f1d1d', '#fecaca'], // red    — didn't pass
+  'resigned': ['#6b7280', '#f3f4f6'], // gray   — left
+};
+
+function StatusChip({ status }: { status: ProbationStatus }) {
+  const [color, bg] = STATUS_COLOR[status];
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700,
+      padding: '1px 7px', borderRadius: 10,
+      color, background: bg, whiteSpace: 'nowrap',
+    }}>{STATUS_LABEL[status]}</span>
+  );
+}
+
+function AlertChip({ kind }: { kind: 'approaching' | 'past-due' }) {
+  const [color, bg, label, title] = kind === 'approaching'
+    ? ['#7a4b1a', '#fde68a', '⏳ Approaching', 'Probation ends within 30 days']
+    : ['#7f1d1d', '#fecaca', '⚠ Past due',   'Probation end date is today or past with no completion'];
+  return (
+    <span title={title} style={{
+      fontSize: 10, fontWeight: 700,
+      padding: '1px 6px', borderRadius: 8,
+      color, background: bg, whiteSpace: 'nowrap',
+    }}>{label}</span>
+  );
+}
+
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 20, fontWeight: 700 }}>{value}</span>
+      {hint && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{hint}</span>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Add-probation form
+// ---------------------------------------------------------------------------
+
+/**
+ * Inline form to add a new Probation. `employeeName`,
+ * `probationaryPeriodHours`, and `startWorkDate` are required; the rest
+ * of the fields can be filled later via the detail editor. Datalist
+ * autocompletes position numbers from the loaded P&P.
+ */
+function AddProbationForm({ positions }: { positions: Position[] }) {
+  const addProbation = useProbations(s => s.addProbation);
+  const [employeeName, setEmployeeName] = useState('');
+  const [positionInput, setPositionInput] = useState('');
+  const [hours, setHours] = useState<ProbationaryPeriodHours>(2080);
+  const [startDate, setStartDate] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const positionByDisplay = useMemo(
+    () => new Map(positions.map(p => [p.displayNumber, p])),
+    [positions],
+  );
+
+  function submit() {
+    const name = employeeName.trim();
+    if (name === '') {
+      setError('Employee name is required.');
+      return;
+    }
+    if (startDate === '') {
+      setError('Start work date is required.');
+      return;
+    }
+    const matched = positionInput.trim()
+      ? positionByDisplay.get(positionInput.trim())
+      : undefined;
+    addProbation({
+      employeeName: name,
+      probationaryPeriodHours: hours,
+      startWorkDate: startDate,
+      positionId: matched?.id ?? (positionInput.trim() || undefined),
+      positionDisplayNumber: positionInput.trim() || undefined,
+      jobCode: matched?.jobCode,
+    });
+    setEmployeeName('');
+    setPositionInput('');
+    setStartDate('');
+    setError(null);
+  }
+
+  return (
+    <div className="card" style={{
+      display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end',
+    }}>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+          Employee name <span style={{ color: '#b91c1c' }}>*</span>
+        </span>
+        <input
+          type="text"
+          value={employeeName}
+          onChange={e => setEmployeeName(e.target.value)}
+          placeholder="e.g. Smith, A."
+          aria-label="Employee name"
+          onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+          style={{
+            padding: '5px 10px',
+            border: '1px solid var(--border)', borderRadius: 4,
+            fontSize: 13, fontFamily: 'inherit',
+            background: 'var(--surface)', color: 'inherit',
+            width: 220,
+          }}
+        />
+      </label>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+          Hours <span style={{ color: '#b91c1c' }}>*</span>
+        </span>
+        <select
+          value={hours}
+          onChange={e => setHours(Number(e.target.value) as ProbationaryPeriodHours)}
+          aria-label="Probationary period hours"
+          style={{
+            padding: '5px 10px',
+            border: '1px solid var(--border)', borderRadius: 4,
+            fontSize: 13, fontFamily: 'inherit',
+            background: 'var(--surface)', color: 'inherit',
+          }}
+        >
+          {PROBATIONARY_PERIOD_HOURS.map(h => (
+            <option key={h} value={h}>{h.toLocaleString('en-US')}</option>
+          ))}
+        </select>
+      </label>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+          Start date <span style={{ color: '#b91c1c' }}>*</span>
+        </span>
+        <input
+          type="date"
+          value={startDate}
+          onChange={e => setStartDate(e.target.value)}
+          aria-label="Start work date"
+          onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+          style={{
+            padding: '5px 10px',
+            border: '1px solid var(--border)', borderRadius: 4,
+            fontSize: 13, fontFamily: 'inherit',
+            background: 'var(--surface)', color: 'inherit',
+          }}
+        />
+      </label>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>Position # (optional)</span>
+        <input
+          type="search"
+          list="probations-add-positions-datalist"
+          value={positionInput}
+          onChange={e => setPositionInput(e.target.value)}
+          placeholder="e.g. 50001"
+          aria-label="Position number"
+          onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+          style={{
+            padding: '5px 10px',
+            border: '1px solid var(--border)', borderRadius: 4,
+            fontSize: 13, fontFamily: 'monospace',
+            background: 'var(--surface)', color: 'inherit',
+            width: 140,
+          }}
+        />
+        <datalist id="probations-add-positions-datalist">
+          {positions.map(p => (
+            <option key={p.id} value={p.displayNumber}>{p.jobCode} — {p.jobCodeDescription}</option>
+          ))}
+        </datalist>
+      </label>
+      <button
+        onClick={submit}
+        style={{
+          padding: '5px 16px', height: 30,
+          border: '1px solid var(--accent)', borderRadius: 14,
+          background: 'var(--accent)', color: '#fff', cursor: 'pointer',
+          fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+        }}
+      >
+        Add probation
+      </button>
+      <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+        Status defaults to <strong>open</strong> · base end date auto-computed from start + hours · edit details on the row
+      </span>
+      {error && (
+        <div style={{
+          flexBasis: '100%', fontSize: 12, color: '#7f1d1d',
+          background: '#fecaca', border: '1px solid #dc2626', borderRadius: 4,
+          padding: '4px 10px',
+        }}>
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main view
+// ---------------------------------------------------------------------------
+
+type StatusFilter = 'all' | ProbationStatus;
+
+export function ProbationsView() {
+  const loadedRows = useAppStore(s => s.loadedRows);
+  const probationsMap = useProbations(s => s.probations);
+
+  const positions = useMemo<Position[]>(() => {
+    const ppRows = loadedRows.filter((r): r is PsHcmPpRow => r._source === 'ps-hcm-pp');
+    if (ppRows.length === 0) return [];
+    return buildPositions(ppRows, DEFAULT_DEPT_TREE);
+  }, [loadedRows]);
+
+  const positionsById = useMemo(
+    () => new Map(positions.map(p => [p.id, p])),
+    [positions],
+  );
+
+  const probations = useMemo<Probation[]>(
+    () => [...probationsMap.values()].sort((a, b) =>
+      // Newest first (additions tend to be the most-actionable).
+      b.createdAt.localeCompare(a.createdAt),
+    ),
+    [probationsMap],
+  );
+
+  // Today's date pinned once per render — derived flags compute relative to
+  // this. Browser-local because the user thinks in local-date terms.
+  const todayIso = useMemo(() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }, [probationsMap]);
+
+  // Pre-compute derived flags per row so the table render is cheap and the
+  // filter / summary can share the same values.
+  const flagged = useMemo(() => {
+    return probations.map(p => ({
+      probation: p,
+      currentEnd: currentEndDate(p),
+      approaching: isApproachingEnd(p, todayIso),
+      pastDue: isPastEndWithoutCompletion(p, todayIso),
+    }));
+  }, [probations, todayIso]);
+
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [alertOnly, setAlertOnly] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const filtered = useMemo(() => {
+    let out = flagged;
+    if (statusFilter !== 'all') {
+      out = out.filter(f => f.probation.status === statusFilter);
+    }
+    if (alertOnly) {
+      out = out.filter(f => f.approaching || f.pastDue);
+    }
+    if (search.trim() !== '') {
+      out = out.filter(f => matchesNeedle(f.probation, search));
+    }
+    return out;
+  }, [flagged, statusFilter, alertOnly, search]);
+
+  const rollups = useMemo(() => rollupByStatus(probations), [probations]);
+
+  const alertCounts = useMemo(() => {
+    let approaching = 0;
+    let pastDue = 0;
+    for (const f of flagged) {
+      if (f.approaching) approaching += 1;
+      if (f.pastDue) pastDue += 1;
+    }
+    return { approaching, pastDue };
+  }, [flagged]);
+
+  const selectedProbation = useMemo(
+    () => selectedId ? probationsMap.get(selectedId) ?? null : null,
+    [selectedId, probationsMap],
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Summary header */}
+      <div className="card" style={{
+        display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center',
+      }}>
+        <Stat
+          label="Probations"
+          value={filtered.length.toLocaleString('en-US')}
+          hint={filtered.length !== probations.length
+            ? `of ${probations.length.toLocaleString('en-US')} total`
+            : undefined}
+        />
+        {rollups.map(r => (
+          <Stat
+            key={r.status}
+            label={STATUS_LABEL[r.status]}
+            value={String(r.count)}
+          />
+        ))}
+        <Stat
+          label="⏳ Approaching"
+          value={String(alertCounts.approaching)}
+          hint="ending ≤30d"
+        />
+        <Stat
+          label="⚠ Past due"
+          value={String(alertCounts.pastDue)}
+          hint="no completion"
+        />
+        <div style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }}>
+          {positions.length === 0
+            ? 'No P&P loaded — position cross-link disabled'
+            : `${positions.length.toLocaleString('en-US')} positions available for linking`}
+        </div>
+      </div>
+
+      {/* Add form */}
+      <AddProbationForm positions={positions} />
+
+      {/* Filter bar */}
+      <div className="card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input
+          type="search"
+          placeholder="Search any field (name, position #, supervisor, notes…)"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{
+            flex: '1 1 260px',
+            padding: '4px 10px',
+            border: '1px solid var(--border)', borderRadius: 4,
+            fontSize: 12, fontFamily: 'inherit',
+            background: 'var(--surface)', color: 'inherit',
+          }}
+          aria-label="Search probations"
+        />
+        <div role="radiogroup" aria-label="Filter by status" style={{ display: 'flex', gap: 6 }}>
+          {(['all', ...PROBATION_STATUS_ORDER] as const).map(s => {
+            const isActive = statusFilter === s;
+            const count = s === 'all'
+              ? probations.length
+              : (rollups.find(r => r.status === s)?.count ?? 0);
+            const label = s === 'all' ? `All · ${count}` : `${STATUS_LABEL[s]} · ${count}`;
+            return (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                role="radio"
+                aria-checked={isActive}
+                style={{
+                  fontSize: 11, padding: '3px 10px',
+                  border: '1px solid',
+                  borderColor: isActive ? 'var(--accent)' : 'var(--border)',
+                  borderRadius: 12,
+                  background: isActive ? 'var(--accent-soft)' : 'transparent',
+                  color: isActive ? 'var(--accent)' : 'var(--muted)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontWeight: isActive ? 600 : 400,
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+          <input
+            type="checkbox"
+            checked={alertOnly}
+            onChange={e => setAlertOnly(e.target.checked)}
+            aria-label="Show only alerted rows"
+          />
+          Alerted only ({alertCounts.approaching + alertCounts.pastDue})
+        </label>
+        {(search || statusFilter !== 'all' || alertOnly) && (
+          <button
+            onClick={() => { setSearch(''); setStatusFilter('all'); setAlertOnly(false); }}
+            style={{
+              fontSize: 11, padding: '3px 10px',
+              border: '1px solid var(--border)', borderRadius: 12,
+              background: 'transparent', color: 'var(--muted)', cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Reset
+          </button>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: 'var(--accent-soft)', borderBottom: '2px solid var(--border)' }}>
+              {['Employee', 'Position', 'Job', 'Hrs', 'Start', 'Current end', 'Status', 'Supervisor', 'Alerts'].map(h => (
+                <th key={h} style={{
+                  padding: '7px 10px',
+                  textAlign: 'left',
+                  fontWeight: 600, fontSize: 11,
+                  textTransform: 'uppercase', letterSpacing: 0.5,
+                  color: 'var(--accent)', whiteSpace: 'nowrap',
+                }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={9} style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>
+                  {probations.length === 0
+                    ? 'No probations yet — add one above to start tracking probationary employees.'
+                    : 'No probations match the current filters.'}
+                </td>
+              </tr>
+            ) : (
+              filtered.map(({ probation: p, currentEnd, approaching, pastDue }) => (
+                <tr
+                  key={p.id}
+                  onClick={() => setSelectedId(p.id)}
+                  aria-label={`Open details for probation ${p.employeeName}`}
+                  style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                >
+                  <td style={{ padding: '5px 10px', fontWeight: 600 }}>
+                    {p.employeeName}
+                    {p.employeeId && (
+                      <span style={{ marginLeft: 6, color: 'var(--muted)', fontFamily: 'monospace', fontSize: 11 }}>
+                        {p.employeeId}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ padding: '5px 10px', fontFamily: 'monospace' }}>
+                    {p.positionDisplayNumber || <span style={{ color: 'var(--muted)' }}>—</span>}
+                  </td>
+                  <td style={{ padding: '5px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                    {p.jobCode || <span style={{ color: 'var(--muted)' }}>—</span>}
+                    {p.positionId && positionsById.get(p.positionId)?.jobCodeDescription && (
+                      <span style={{ color: 'var(--muted)', fontFamily: 'inherit' }}>
+                        {' '}{positionsById.get(p.positionId)!.jobCodeDescription}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ padding: '5px 10px', fontFamily: 'monospace', textAlign: 'right' }}>
+                    {p.probationaryPeriodHours.toLocaleString('en-US')}
+                  </td>
+                  <td style={{ padding: '5px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                    {p.startWorkDate || <span style={{ color: 'var(--muted)' }}>—</span>}
+                  </td>
+                  <td style={{ padding: '5px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                    {currentEnd || <span style={{ color: 'var(--muted)' }}>—</span>}
+                    {p.extensions.length > 0 && (
+                      <span style={{ marginLeft: 6, color: 'var(--muted)', fontSize: 10 }}>
+                        ({p.extensions.length} ext)
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ padding: '5px 10px' }}><StatusChip status={p.status} /></td>
+                  <td style={{ padding: '5px 10px', color: 'var(--muted)' }}>
+                    {p.supervisor || <span>—</span>}
+                  </td>
+                  <td style={{ padding: '5px 10px' }}>
+                    <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {pastDue && <AlertChip kind="past-due" />}
+                      {approaching && !pastDue && <AlertChip kind="approaching" />}
+                      {!approaching && !pastDue && <span style={{ color: 'var(--muted)', fontSize: 11 }}>—</span>}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Detail modal */}
+      {selectedProbation && (
+        <ProbationDetail
+          probation={selectedProbation}
+          positions={positions}
+          onClose={() => setSelectedId(null)}
+        />
+      )}
+
+      <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+        Track DBI's probationary employees. KosPos is the system of record —
+        there is no upstream PS HCM source for probation. End-date auto-
+        computes from start + hours (assuming full-time equivalence); override
+        in the detail editor when FTE differs. Status workflow:
+        open → extended → cleared / failed / resigned. Alerts:
+        <strong> ⏳ Approaching</strong> = end date within 30 days;
+        <strong> ⚠ Past due</strong> = end today or past with no completion.
+        Rows are in-memory; persistence to IndexedDB lands in Phase 2.2.33 snapshots/.
+        Session JSON save/load preserves the list across page reloads.
+      </div>
+    </div>
+  );
+}
