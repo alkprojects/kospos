@@ -676,10 +676,19 @@ export function PositionDetail({
               <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>
                 {position.reportsTo.positionNumber}
               </span>
+              {position.reportsTo.positionNumber && (
+                <CopyButton value={position.reportsTo.positionNumber} label="Reports-to position number" />
+              )}
               {(position.reportsTo.managerFirstName || position.reportsTo.managerLastName) && (
-                <span style={{ marginLeft: 8 }}>
-                  — {position.reportsTo.managerFirstName} {position.reportsTo.managerLastName}
-                </span>
+                <>
+                  <span style={{ marginLeft: 8 }}>
+                    — {position.reportsTo.managerFirstName} {position.reportsTo.managerLastName}
+                  </span>
+                  <CopyButton
+                    value={`${position.reportsTo.managerFirstName} ${position.reportsTo.managerLastName}`.trim()}
+                    label="Manager name"
+                  />
+                </>
               )}
             </div>
           </section>
@@ -700,14 +709,17 @@ export function PositionDetail({
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <tbody>
                   {[
-                    ['RTF ID',          position.rtf.id || '—'],
-                    ['Status',          position.rtf.status || '—'],
-                    ['Submitted',       fmtDate(position.rtf.submittedDate)],
-                    ['Expected fill',   fmtDate(position.rtf.expectedFillDate)],
-                  ].map(([label, value]) => (
+                    ['RTF ID',          position.rtf.id || '—',         'RTF ID'],
+                    ['Status',          position.rtf.status || '—',     'RTF status'],
+                    ['Submitted',       fmtDate(position.rtf.submittedDate), 'Submitted date'],
+                    ['Expected fill',   fmtDate(position.rtf.expectedFillDate), 'Expected fill date'],
+                  ].map(([label, value, copyLabel]) => (
                     <tr key={label} style={{ borderBottom: '1px solid var(--border)' }}>
                       <td style={{ padding: '5px 0', color: 'var(--muted)', width: 140 }}>{label}</td>
-                      <td style={{ padding: '5px 0' }}>{value}</td>
+                      <td style={{ padding: '5px 0' }}>
+                        {value}
+                        {value && value !== '—' && <CopyButton value={value} label={copyLabel} />}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

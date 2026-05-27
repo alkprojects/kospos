@@ -22,6 +22,7 @@ import type { BfmPositionRow, ObiPayrollRow, PsHcmPpRow } from '../../importers/
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import { buildBudgetSnapshot } from '../../budget';
 import { matchesNeedle } from '../../search/needle';
+import { CopyButton } from '../../ui';
 import { PositionDetail } from './PositionDetail';
 
 function badge(label: string, color: string, bg: string) {
@@ -328,8 +329,12 @@ export function PositionsView({ onViewPayroll }: {
               >
                 <td style={{ padding: '7px 12px', fontFamily: 'monospace', fontWeight: 600 }}>
                   {p.displayNumber}
+                  <CopyButton value={p.displayNumber} label="Position number" />
                 </td>
-                <td style={{ padding: '7px 12px', fontFamily: 'monospace' }}>{p.jobCode}</td>
+                <td style={{ padding: '7px 12px', fontFamily: 'monospace' }}>
+                  {p.jobCode}
+                  {p.jobCode && <CopyButton value={p.jobCode} label="Job code" />}
+                </td>
                 <td style={{ padding: '7px 12px', whiteSpace: 'nowrap' }}>
                   {p.jobCodeDescription || <span style={{ color: 'var(--muted)' }}>—</span>}
                 </td>
@@ -337,6 +342,9 @@ export function PositionsView({ onViewPayroll }: {
                   <span style={{ fontFamily: 'monospace', fontSize: 11 }}>
                     {p.effectiveDept.code || '—'}
                   </span>
+                  {p.effectiveDept.code && (
+                    <CopyButton value={p.effectiveDept.code} label="Department code" />
+                  )}
                   {p.effectiveDept.name && (
                     <span style={{ marginLeft: 6, color: 'var(--muted)', fontSize: 12 }}>
                       {p.effectiveDept.name}
@@ -355,7 +363,9 @@ export function PositionsView({ onViewPayroll }: {
                   {hasDeptMismatch(p) && badge('Dept ≠', '#7a4b1a', '#fde68a')}
                 </td>
                 <td style={{ padding: '7px 12px' }}>
-                  {p.appointment?.name || <span style={{ color: 'var(--muted)' }}>—</span>}
+                  {p.appointment?.name
+                    ? <>{p.appointment.name}<CopyButton value={p.appointment.name} label="Incumbent name" /></>
+                    : <span style={{ color: 'var(--muted)' }}>—</span>}
                 </td>
                 <td style={{ padding: '7px 12px', color: 'var(--muted)', fontSize: 11 }}>
                   {p.userNotes ? '●' : ''}

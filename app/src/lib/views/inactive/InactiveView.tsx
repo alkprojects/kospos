@@ -24,6 +24,7 @@ import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import type { PsHcmPpRow, ObiPayrollRow } from '../../importers/types';
 import { matchesNeedle } from '../../search/needle';
+import { CopyButton } from '../../ui';
 import { buildInactiveSummary } from './build';
 import type { InactiveReasonHint } from './build';
 
@@ -274,20 +275,28 @@ export function InactiveView() {
           <tbody>
             {filtered.slice(0, 500).map(s => (
               <tr key={s.positionId} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '5px 10px', fontFamily: 'monospace' }}>{s.displayNumber}</td>
+                <td style={{ padding: '5px 10px', fontFamily: 'monospace' }}>
+                  {s.displayNumber}
+                  <CopyButton value={s.displayNumber} label="Position number" />
+                </td>
                 <td style={{ padding: '5px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                  {s.jobCode}{' '}
-                  <span style={{ color: 'var(--muted)', fontFamily: 'inherit' }}>{s.jobDescription}</span>
+                  {s.jobCode}
+                  {s.jobCode && <CopyButton value={s.jobCode} label="Job code" />}
+                  {' '}<span style={{ color: 'var(--muted)', fontFamily: 'inherit' }}>{s.jobDescription}</span>
                 </td>
                 <td style={{ padding: '5px 10px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
                   {s.departmentName || s.departmentCode || '—'}
                 </td>
                 <td style={{ padding: '5px 10px' }}>
                   {s.lastIncumbent || <span style={{ color: 'var(--muted)' }}>(no name)</span>}
+                  {s.lastIncumbent && <CopyButton value={s.lastIncumbent} label="Last incumbent" />}
                   {s.lastEmplId && (
-                    <span style={{ color: 'var(--muted)', fontFamily: 'monospace', fontSize: 11 }}>
-                      {' '}· {s.lastEmplId}
-                    </span>
+                    <>
+                      <span style={{ color: 'var(--muted)', fontFamily: 'monospace', fontSize: 11 }}>
+                        {' '}· {s.lastEmplId}
+                      </span>
+                      <CopyButton value={s.lastEmplId} label="Employee ID" />
+                    </>
                   )}
                 </td>
                 <td style={{ padding: '5px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{s.lastPpe}</td>

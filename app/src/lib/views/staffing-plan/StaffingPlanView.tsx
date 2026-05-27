@@ -46,6 +46,7 @@ import type {
 import { useSeparations } from '../../separations';
 import { PlannedActionDetail } from './PlannedActionDetail';
 import { matchesNeedle } from '../../search/needle';
+import { CopyButton } from '../../ui';
 
 function fmtMoney(n: number): string {
   return n.toLocaleString('en-US', {
@@ -147,6 +148,7 @@ function ActionRow({ action, position, linkedSeparationCount, onDelete, onHide, 
     >
       <td style={{ padding: '6px 10px', fontFamily: 'monospace', fontWeight: 600 }}>
         {action.displayNumber}
+        <CopyButton value={action.displayNumber} label="Position number" />
         {isDerived && (
           <span title="Auto-populated from P&P data — Hide to suppress" style={{
             marginLeft: 6,
