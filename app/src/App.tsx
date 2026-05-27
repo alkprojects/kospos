@@ -8,11 +8,12 @@ import { StaffingPlanView } from './lib/views/staffing-plan';
 import { SeparationsView } from './lib/views/separations';
 import { ProbationsView } from './lib/views/probation';
 import { InactiveView } from './lib/views/inactive';
+import { EligibilityView } from './lib/views/eligibility';
 import { SpecialClassView } from './modules/special-class/SpecialClassView';
 import { useAppStore } from './lib/store';
 import { resolveDevMode, disableDevMode } from './lib/dev-mode';
 
-type Tab = 'calculator' | 'importer' | 'positions' | 'labor' | 'staffing-plan' | 'separations' | 'probation' | 'inactive' | 'special-class';
+type Tab = 'calculator' | 'importer' | 'positions' | 'labor' | 'staffing-plan' | 'separations' | 'probation' | 'inactive' | 'eligibility' | 'special-class';
 
 type TabDef = { id: Tab; label: string; devOnly?: boolean };
 
@@ -24,6 +25,7 @@ const ALL_TABS: TabDef[] = [
   { id: 'separations',   label: 'Separations',           devOnly: true },
   { id: 'probation',     label: 'Probation',             devOnly: true },
   { id: 'inactive',      label: 'Inactive',              devOnly: true },
+  { id: 'eligibility',   label: 'Eligibility',           devOnly: true },
   { id: 'importer',      label: 'Load Reports',          devOnly: true },
   { id: 'special-class', label: 'Special Class',         devOnly: true },
 ];
@@ -170,6 +172,7 @@ export default function App() {
         {tab === 'separations'   && <SeparationsView />}
         {tab === 'probation'     && <ProbationsView />}
         {tab === 'inactive'      && <InactiveView />}
+        {tab === 'eligibility'   && <EligibilityView />}
         {tab === 'special-class' && <SpecialClassView />}
       </main>
 
