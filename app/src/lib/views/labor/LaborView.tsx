@@ -24,12 +24,83 @@ import { useAppStore } from '../../store';
 import { buildPositions } from '../../positions';
 import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
+import { normalizePositionKey } from '../../chartfields/resolve';
 import type { ObiPayrollRow, PsHcmPpRow } from '../../importers/types';
 import {
   EMPTY_FILTERS, aggregate, applyFilters, bucketOf, distinctValues,
 } from './aggregate';
 import type { LaborFilters } from './aggregate';
 import { useLaborScope } from './scope-store';
+
+/**
+ * Diagnostic for the "scoped to a position with 0 matching OBI rows" case.
+ * Surfaces what the snapshot does contain so the user can tell whether the
+ * absence is a real no-pay case, a normalize-key mismatch (e.g. internal
+ * whitespace the regex doesn't strip), or an OBI/HCM identifier divergence
+ * (TX history, position renumber). Reported by Alex S28 for position
+ * 1106950 — diagnostic ships now, root-cause fix lands when we see the
+ * actual identifiers the data carries.
+ */
+function ScopedEmptyDiagnostic({ scopedPositionId, snapshotRows }: {
+  scopedPositionId: string;
+  snapshotRows: ObiPayrollRow[];
+}) {
+  const distinctPositions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of snapshotRows) {
+      const k = normalizePositionKey(r.positionIdentifier);
+      if (k) set.add(k);
+    }
+    return [...set];
+  }, [snapshotRows]);
+
+  // Fuzzy match: same first 4 digits is a decent "did you mean" hint for
+  // renumbered or TX-history cases (most SF position numbers share a
+  // 4-digit dept prefix). Cheap O(N).
+  const prefix = scopedPositionId.slice(0, 4);
+  const nearby = useMemo(() => {
+    if (prefix.length < 3) return [];
+    return distinctPositions
+      .filter(p => p.startsWith(prefix) && p !== scopedPositionId)
+      .slice(0, 8);
+  }, [distinctPositions, prefix, scopedPositionId]);
+
+  return (
+    <div style={{ textAlign: 'left', display: 'inline-block', maxWidth: 540 }}>
+      <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>
+        No payroll rows match position{' '}
+        <span style={{ fontFamily: 'monospace' }}>{scopedPositionId}</span>.
+      </div>
+      <div style={{ marginBottom: 8 }}>
+        Snapshot has{' '}
+        <strong>{snapshotRows.length.toLocaleString('en-US')}</strong> rows
+        across <strong>{distinctPositions.length.toLocaleString('en-US')}</strong>{' '}
+        distinct positionIdentifiers. If you expect this position to have payroll
+        rows, common causes are (a) a positionIdentifier mismatch (whitespace,
+        internal punctuation, OBI vs HCM digit-format divergence), (b) the
+        position was renumbered and OBI still uses the old identifier, or
+        (c) the row is in a different fiscal-year snapshot than the one loaded.
+      </div>
+      {nearby.length > 0 && (
+        <div style={{ fontSize: 11, marginTop: 6 }}>
+          Nearby positionIdentifiers in snapshot (same{' '}
+          <span style={{ fontFamily: 'monospace' }}>{prefix}</span> prefix):
+          <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {nearby.map(p => (
+              <span key={p} style={{
+                padding: '2px 7px', borderRadius: 10,
+                background: 'var(--accent-soft)', color: 'var(--accent)',
+                fontFamily: 'monospace', fontSize: 11,
+              }}>
+                {p}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function fmtMoney(n: number): string {
   return n.toLocaleString('en-US', {
@@ -454,7 +525,14 @@ export function LaborView() {
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={9} style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>
-                  No rows match the current filters.
+                  {scopedPositionId ? (
+                    <ScopedEmptyDiagnostic
+                      scopedPositionId={scopedPositionId}
+                      snapshotRows={snapshotRows}
+                    />
+                  ) : (
+                    'No rows match the current filters.'
+                  )}
                 </td>
               </tr>
             )}
