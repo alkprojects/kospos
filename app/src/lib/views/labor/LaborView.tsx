@@ -20,6 +20,7 @@
  */
 
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useAppStore } from '../../store';
 import { buildPositions } from '../../positions';
 import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
@@ -30,6 +31,7 @@ import {
   EMPTY_FILTERS, aggregate, applyFilters, bucketOf, distinctValues,
 } from './aggregate';
 import type { LaborFilters } from './aggregate';
+import { coverageStats, findNearbyPositions } from './payroll-diagnostic';
 import { useLaborScope } from './scope-store';
 
 /**
@@ -37,13 +39,32 @@ import { useLaborScope } from './scope-store';
  * Surfaces what the snapshot does contain so the user can tell whether the
  * absence is a real no-pay case, a normalize-key mismatch (e.g. internal
  * whitespace the regex doesn't strip), or an OBI/HCM identifier divergence
- * (TX history, position renumber). Reported by Alex S28 for position
- * 1106950 — diagnostic ships now, root-cause fix lands when we see the
- * actual identifiers the data carries.
+ * (TX history, position renumber).
+ *
+ * Reported by Alex S28 for position 1106950. PR #82 shipped a first cut
+ * (same-4-digit-prefix nearby chips); the chip output showed only 1 nearby
+ * candidate (1106348) for 1106950, which on its own was hard to interpret
+ * — the snapshot in Alex's environment covers only 234 distinct positions
+ * across 42k rows, so 1106950 was almost certainly never in OBI. This
+ * upgrade adds:
+ *   - **Progressive prefix fallback** (4 → 3 → 2 digits) so the chip net
+ *     catches more renumber / TX-history candidates when the dept prefix is
+ *     sparsely represented in the OBI snapshot.
+ *   - **Coverage-gap stat** ("OBI covers 234 of 587 P&P positions; this
+ *     position is one of the 353 in P&P but not in OBI") so the user can
+ *     tell "expected empty" (P&P knows the position; OBI's snapshot is
+ *     narrower) from "unexpected empty" (P&P has it, OBI should too).
+ *   - **Snapshot meta line** (FY + asOf) so the user can confirm they
+ *     loaded the right OBI cut.
  */
-function ScopedEmptyDiagnostic({ scopedPositionId, snapshotRows }: {
+function ScopedEmptyDiagnostic({
+  scopedPositionId, snapshotRows,
+  pAndPPositionIds, snapshotMeta,
+}: {
   scopedPositionId: string;
   snapshotRows: ObiPayrollRow[];
+  pAndPPositionIds: readonly string[];
+  snapshotMeta: { fiscalYear: string; asOfDate: string };
 }) {
   const distinctPositions = useMemo(() => {
     const set = new Set<string>();
@@ -54,39 +75,85 @@ function ScopedEmptyDiagnostic({ scopedPositionId, snapshotRows }: {
     return [...set];
   }, [snapshotRows]);
 
-  // Fuzzy match: same first 4 digits is a decent "did you mean" hint for
-  // renumbered or TX-history cases (most SF position numbers share a
-  // 4-digit dept prefix). Cheap O(N).
-  const prefix = scopedPositionId.slice(0, 4);
-  const nearby = useMemo(() => {
-    if (prefix.length < 3) return [];
-    return distinctPositions
-      .filter(p => p.startsWith(prefix) && p !== scopedPositionId)
-      .slice(0, 8);
-  }, [distinctPositions, prefix, scopedPositionId]);
+  const nearby = useMemo(
+    () => findNearbyPositions(scopedPositionId, distinctPositions),
+    [scopedPositionId, distinctPositions],
+  );
+
+  const coverage = useMemo(
+    () => coverageStats(scopedPositionId, pAndPPositionIds, distinctPositions),
+    [scopedPositionId, pAndPPositionIds, distinctPositions],
+  );
+
+  // Render the coverage affirmation in plain English. Branches by the
+  // scoped position's classification — each branch tells the user
+  // unambiguously whether this empty result is expected or worth chasing.
+  let coverageMessage: ReactNode;
+  if (coverage.totalPAndP === 0) {
+    // P&P not loaded — can't compute the gap. Fall back to the legacy
+    // "common causes" explainer.
+    coverageMessage = (
+      <>
+        Snapshot has{' '}
+        <strong>{snapshotRows.length.toLocaleString('en-US')}</strong> rows
+        across <strong>{coverage.totalObi.toLocaleString('en-US')}</strong>{' '}
+        distinct positionIdentifiers. Common causes: (a) a positionIdentifier
+        mismatch (whitespace, internal punctuation, OBI vs HCM digit-format
+        divergence), (b) the position was renumbered and OBI still uses the
+        old identifier, or (c) the row is in a different fiscal-year snapshot
+        than the one loaded.
+      </>
+    );
+  } else if (coverage.scopedStatus === 'orphan') {
+    coverageMessage = (
+      <>
+        Position <span style={{ fontFamily: 'monospace' }}>{scopedPositionId}</span> is
+        in neither the loaded P&amp;P snapshot ({coverage.totalPAndP.toLocaleString('en-US')}{' '}
+        positions) nor the OBI snapshot ({coverage.totalObi.toLocaleString('en-US')}{' '}
+        positions). Likely a stale URL or a typo in the position number.
+      </>
+    );
+  } else if (coverage.scopedStatus === 'p-and-p-only') {
+    coverageMessage = (
+      <>
+        Position <span style={{ fontFamily: 'monospace' }}>{scopedPositionId}</span> is
+        in the loaded P&amp;P snapshot, but <strong>not</strong> in the OBI snapshot.
+        OBI covers <strong>{coverage.inBoth.toLocaleString('en-US')}</strong> of
+        the <strong>{coverage.totalPAndP.toLocaleString('en-US')}</strong> P&amp;P
+        positions; this is one of the{' '}
+        <strong>{coverage.pAndPOnly.toLocaleString('en-US')}</strong> P&amp;P-only
+        positions in this loaded pair. Typically this means no posted payroll
+        in the FY covered by the loaded OBI cut — confirm the snapshot meta
+        below matches the FY you expect.
+      </>
+    );
+  } else {
+    // scopedStatus === 'in-both' shouldn't happen here (we got 0 rows for
+    // a position that IS in distinctPositions). Defensive fallback.
+    coverageMessage = (
+      <>
+        Position <span style={{ fontFamily: 'monospace' }}>{scopedPositionId}</span> is
+        in both snapshots but the active filters yielded 0 rows. Try resetting
+        filters or widening the PPE range.
+      </>
+    );
+  }
 
   return (
-    <div style={{ textAlign: 'left', display: 'inline-block', maxWidth: 540 }}>
+    <div style={{ textAlign: 'left', display: 'inline-block', maxWidth: 560 }}>
       <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>
         No payroll rows match position{' '}
         <span style={{ fontFamily: 'monospace' }}>{scopedPositionId}</span>.
       </div>
       <div style={{ marginBottom: 8 }}>
-        Snapshot has{' '}
-        <strong>{snapshotRows.length.toLocaleString('en-US')}</strong> rows
-        across <strong>{distinctPositions.length.toLocaleString('en-US')}</strong>{' '}
-        distinct positionIdentifiers. If you expect this position to have payroll
-        rows, common causes are (a) a positionIdentifier mismatch (whitespace,
-        internal punctuation, OBI vs HCM digit-format divergence), (b) the
-        position was renumbered and OBI still uses the old identifier, or
-        (c) the row is in a different fiscal-year snapshot than the one loaded.
+        {coverageMessage}
       </div>
-      {nearby.length > 0 && (
+      {nearby.matches.length > 0 && (
         <div style={{ fontSize: 11, marginTop: 6 }}>
           Nearby positionIdentifiers in snapshot (same{' '}
-          <span style={{ fontFamily: 'monospace' }}>{prefix}</span> prefix):
+          <span style={{ fontFamily: 'monospace' }}>{nearby.prefix}</span> prefix):
           <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {nearby.map(p => (
+            {nearby.matches.map(p => (
               <span key={p} style={{
                 padding: '2px 7px', borderRadius: 10,
                 background: 'var(--accent-soft)', color: 'var(--accent)',
@@ -98,6 +165,16 @@ function ScopedEmptyDiagnostic({ scopedPositionId, snapshotRows }: {
           </div>
         </div>
       )}
+      <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 10 }}>
+        OBI snapshot · FY{' '}
+        <span style={{ fontFamily: 'monospace' }}>{snapshotMeta.fiscalYear || '—'}</span>
+        {' '}· asOf{' '}
+        <span style={{ fontFamily: 'monospace' }}>{snapshotMeta.asOfDate || '—'}</span>
+        {' '}·{' '}
+        <strong>{snapshotRows.length.toLocaleString('en-US')}</strong> rows ·{' '}
+        <strong>{coverage.totalObi.toLocaleString('en-US')}</strong> distinct
+        positionIdentifiers
+      </div>
     </div>
   );
 }
@@ -279,16 +356,25 @@ export function LaborView() {
 
   // Build a positionId → display label so the scoped banner can show a
   // human-readable position number + job code instead of just the bare id.
-  const positionLabels = useMemo(() => {
+  // Also expose the P&P position id set for the empty-state coverage stat.
+  const { positionLabels, pAndPPositionIds } = useMemo(() => {
     const ppRows = loadedRows.filter(
       (r): r is PsHcmPpRow => r._source === 'ps-hcm-pp',
     );
-    if (ppRows.length === 0) return new Map<string, string>();
+    if (ppRows.length === 0) {
+      return {
+        positionLabels: new Map<string, string>(),
+        pAndPPositionIds: [] as string[],
+      };
+    }
     const positions = buildPositions(ppRows, DEFAULT_DEPT_TREE);
-    return new Map(positions.map(p => [
-      p.id,
-      `${p.displayNumber} · ${p.jobCode}${p.jobCodeDescription ? ` ${p.jobCodeDescription}` : ''}`,
-    ]));
+    return {
+      positionLabels: new Map(positions.map(p => [
+        p.id,
+        `${p.displayNumber} · ${p.jobCode}${p.jobCodeDescription ? ` ${p.jobCodeDescription}` : ''}`,
+      ])),
+      pAndPPositionIds: positions.map(p => p.id),
+    };
   }, [loadedRows]);
 
   const [earningsCode, setEarningsCode] = useState('');
@@ -529,6 +615,11 @@ export function LaborView() {
                     <ScopedEmptyDiagnostic
                       scopedPositionId={scopedPositionId}
                       snapshotRows={snapshotRows}
+                      pAndPPositionIds={pAndPPositionIds}
+                      snapshotMeta={{
+                        fiscalYear: snapshot.fiscalYear,
+                        asOfDate: snapshot.asOfDate,
+                      }}
                     />
                   ) : (
                     'No rows match the current filters.'
