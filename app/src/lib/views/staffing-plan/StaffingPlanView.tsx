@@ -44,6 +44,7 @@ import type {
   UnifiedAction,
 } from '../../staffing-plan';
 import { PlannedActionDetail } from './PlannedActionDetail';
+import { matchesNeedle } from '../../search/needle';
 
 function fmtMoney(n: number): string {
   return n.toLocaleString('en-US', {
@@ -511,6 +512,11 @@ export function StaffingPlanView() {
   // the modal auto-closes via `selectedAction === undefined`.
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
 
+  // Global needle search across all action fields + the underlying position
+  // (so the user can search by job code / incumbent name / dept even though
+  // those live on the Position, not the PlannedAction).
+  const [search, setSearch] = useState('');
+
   const positions = useMemo<Position[]>(() => {
     const ppRows = loadedRows.filter((r): r is PsHcmPpRow => r._source === 'ps-hcm-pp');
     if (ppRows.length === 0) return [];
@@ -542,13 +548,24 @@ export function StaffingPlanView() {
 
   // Unified array for rendering. Manual rows get a `source: 'manual'` tag
   // so the Section + ActionRow components can dispatch on it.
-  const actions = useMemo<UnifiedAction[]>(
+  const allActions = useMemo<UnifiedAction[]>(
     () => [
       ...manualActions.map(a => ({ ...a, source: 'manual' as const })),
       ...derivedActions,
     ],
     [manualActions, derivedActions],
   );
+
+  // Apply the search needle across both the action itself + the underlying
+  // position record, so the user can find rows by job code / dept / incumbent
+  // name even though those fields live on Position, not PlannedAction.
+  const actions = useMemo<UnifiedAction[]>(() => {
+    if (search.trim() === '') return allActions;
+    return allActions.filter(a => {
+      const p = positionsById.get(a.positionId);
+      return matchesNeedle({ action: a, position: p }, search);
+    });
+  }, [allActions, positionsById, search]);
 
   const rollups   = useMemo(() => rollupByType(actions), [actions]);
   const net       = useMemo(() => netCostImpact(actions), [actions]);
@@ -612,6 +629,43 @@ export function StaffingPlanView() {
 
       {/* Add form */}
       <AddActionForm positions={positions} />
+
+      {/* Search */}
+      <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <input
+          type="search"
+          placeholder="Search any field (position #, job code, name, dept, notes, status, hold reason…)"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{
+            flex: '1 1 auto',
+            padding: '5px 10px',
+            border: '1px solid var(--border)', borderRadius: 4,
+            fontSize: 13, fontFamily: 'inherit',
+            background: 'var(--surface)', color: 'inherit',
+          }}
+          aria-label="Search planned actions"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            style={{
+              fontSize: 11, padding: '3px 10px',
+              border: '1px solid var(--border)', borderRadius: 12,
+              background: 'transparent', color: 'var(--muted)', cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+            aria-label="Clear search"
+          >
+            Clear
+          </button>
+        )}
+        <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+          {search.trim()
+            ? `${actions.length} of ${allActions.length} match`
+            : `${actions.length} action${actions.length === 1 ? '' : 's'}`}
+        </span>
+      </div>
 
       {/* 5 sections */}
       {ACTION_TYPE_ORDER.map(t => (

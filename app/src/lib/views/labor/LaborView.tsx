@@ -33,6 +33,7 @@ import {
 import type { LaborFilters } from './aggregate';
 import { coverageStats, findNearbyPositions } from './payroll-diagnostic';
 import { useLaborScope } from './scope-store';
+import { matchesNeedle } from '../../search/needle';
 
 /**
  * Diagnostic for the "scoped to a position with 0 matching OBI rows" case.
@@ -381,6 +382,7 @@ export function LaborView() {
   const [accountDescription, setAccountDescription] = useState('');
   const [pperStart, setPperStart] = useState('');
   const [pperEnd, setPperEnd] = useState('');
+  const [search, setSearch] = useState('');
   const [traceRow, setTraceRow] = useState<ObiPayrollRow | null>(null);
 
   const snapshotRows = snapshot?.rows ?? [];
@@ -389,7 +391,18 @@ export function LaborView() {
     earningsCode, accountDescription, pperStart, pperEnd,
   };
 
-  const filtered = useMemo(() => applyFilters(snapshotRows, filters), [snapshotRows, filters]);
+  // Filter pipeline: structured filters first (cheap, narrow the set), then
+  // the global needle over the remaining rows. Same `matchesNeedle` helper
+  // as Positions + Hiring Plan so all three surfaces match consistently.
+  const structuralFiltered = useMemo(
+    () => applyFilters(snapshotRows, filters), [snapshotRows, filters]
+  );
+  const filtered = useMemo(
+    () => search.trim() === ''
+      ? structuralFiltered
+      : structuralFiltered.filter(r => matchesNeedle(r, search)),
+    [structuralFiltered, search],
+  );
   const agg = useMemo(() => aggregate(filtered), [filtered]);
   const totalAgg = useMemo(() => aggregate(snapshotRows), [snapshotRows]);
 
@@ -401,6 +414,7 @@ export function LaborView() {
     setAccountDescription(EMPTY_FILTERS.accountDescription);
     setPperStart(EMPTY_FILTERS.pperStart);
     setPperEnd(EMPTY_FILTERS.pperEnd);
+    setSearch('');
   };
 
   // Empty state — no data loaded.
@@ -488,6 +502,20 @@ export function LaborView() {
 
       {/* Filters */}
       <div className="card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input
+          type="search"
+          placeholder="Search any field (name, account desc, fund, project, person #…)"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{
+            flex: '1 1 260px',
+            padding: '4px 10px',
+            border: '1px solid var(--border)', borderRadius: 4,
+            fontSize: 12, fontFamily: 'inherit',
+            background: 'var(--surface)', color: 'inherit',
+          }}
+          aria-label="Search payroll rows"
+        />
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
           <span style={{ color: 'var(--muted)' }}>Earnings:</span>
           <select
@@ -544,7 +572,7 @@ export function LaborView() {
             }}
           />
         </label>
-        {(earningsCode || accountDescription || pperStart || pperEnd) && (
+        {(earningsCode || accountDescription || pperStart || pperEnd || search) && (
           <button
             onClick={resetFilters}
             style={{

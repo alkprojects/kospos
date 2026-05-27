@@ -21,6 +21,7 @@ import { resolvePositionChartfields, normalizePositionKey } from '../../chartfie
 import type { BfmPositionRow, ObiPayrollRow, PsHcmPpRow } from '../../importers/types';
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import { buildBudgetSnapshot } from '../../budget';
+import { matchesNeedle } from '../../search/needle';
 import { PositionDetail } from './PositionDetail';
 
 function badge(label: string, color: string, bg: string) {
@@ -168,16 +169,12 @@ export function PositionsView({ onViewPayroll }: {
       if (fillFilter === 'over'    && p.fillStatus !== 'OVER FILLED') return false;
       if (deptGroupFilter !== 'all' && p.effectiveDept.node?.deptGroup !== deptGroupFilter) return false;
       if (tempOnly && !p.appointment?.cat1718) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        const haystack = [
-          p.displayNumber, p.jobCode, p.jobCodeDescription,
-          p.effectiveDept.name, p.effectiveDept.code,
-          p.budgetedDept.name, p.budgetedDept.code,
-          p.appointment?.name ?? '',
-        ].join(' ').toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
+      // Global needle: every whitespace-separated term must appear in some
+      // string/numeric leaf on the Position record. Covers all the
+      // previously-hardcoded fields (displayNumber, jobCode, dept name/code,
+      // incumbent name) AND every other field — RTF status, roster, vice,
+      // appointment.salaryStep, etc.
+      if (!matchesNeedle(p, search)) return false;
       return true;
     });
   }, [positions, fillFilter, deptGroupFilter, tempOnly, search]);
@@ -258,7 +255,7 @@ export function PositionsView({ onViewPayroll }: {
       <div className="card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           type="search"
-          placeholder="Search position #, job code, name…"
+          placeholder="Search any field (position #, job, name, dept, RTF, step, roster, vice…)"
           value={search}
           onChange={e => setSearch(e.target.value)}
           style={{
