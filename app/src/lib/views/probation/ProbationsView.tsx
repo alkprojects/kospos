@@ -132,6 +132,72 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 }
 
 // ---------------------------------------------------------------------------
+// Probation notification email — template generator
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the subject + body for a probation-completion notification email
+ * addressed to a probation row's supervisor + deputy. KosPos doesn't carry
+ * email addresses (we only have person names from PS HCM), so the mailto:
+ * To: field is left for the user to fill in their email client. The body
+ * names supervisor + deputy by name and instructs the recipients to email
+ * HR if there are any issues with the employee's probation completion.
+ *
+ * The same template flows into both the mailto: URI and the copy-to-
+ * clipboard text — the user can pick whichever workflow fits their email
+ * client.
+ *
+ * `currentEnd` is the row's effective end date (after extensions). When
+ * blank, the body uses "(no end date set)" so the email is still well-formed.
+ */
+export function buildProbationNotificationEmail(args: {
+  employeeName: string;
+  employeeId?: string;
+  positionDisplayNumber?: string;
+  supervisor: string;   // resolved (manual override > auto-from-reportsTo)
+  deputy?: string;
+  currentEnd: string;   // ISO YYYY-MM-DD or '' when unknown
+}): { subject: string; body: string } {
+  const empLine = args.employeeId
+    ? `${args.employeeName} (#${args.employeeId})`
+    : args.employeeName;
+  const posLine = args.positionDisplayNumber
+    ? ` on position ${args.positionDisplayNumber}`
+    : '';
+  const endLine = args.currentEnd || '(no end date set)';
+
+  // Greeting depends on whether deputy is set.
+  const greeting = args.deputy
+    ? `Hello ${args.supervisor || '(supervisor)'} and ${args.deputy},`
+    : `Hello ${args.supervisor || '(supervisor)'},`;
+
+  const subject = `Probation completion approaching — ${args.employeeName}`;
+  const body = [
+    greeting,
+    '',
+    `This is a reminder that ${empLine}'s probationary period${posLine} is approaching its completion date of ${endLine}.`,
+    '',
+    'Please review the probation status and confirm the completion outcome. If there are any issues — performance concerns, the need for an extension, or anything else that should be addressed before completion — please email HR.',
+    '',
+    'Thank you,',
+    'KosPos (Probation tracker)',
+  ].join('\n');
+
+  return { subject, body };
+}
+
+/** Build a `mailto:` URI for a probation-notification email. Leaves the
+ *  To: field blank — the user adds recipients in their email client. */
+export function buildProbationMailtoUri(args: Parameters<typeof buildProbationNotificationEmail>[0]): string {
+  const { subject, body } = buildProbationNotificationEmail(args);
+  const params = new URLSearchParams({ subject, body });
+  // URLSearchParams encodes spaces as '+' which is valid in query strings
+  // but mailto: expects '%20'. RFC 6068 says either is acceptable in
+  // practice, but Outlook in particular rejects '+'. Normalize.
+  return `mailto:?${params.toString().replace(/\+/g, '%20')}`;
+}
+
+// ---------------------------------------------------------------------------
 // Duration presets
 // ---------------------------------------------------------------------------
 
@@ -546,6 +612,150 @@ function AddProbationForm({
 }
 
 // ---------------------------------------------------------------------------
+// Notification panel — renders one card per selected probation, each with
+// a mailto: link button + a copy-template button. Mirrors the CopyButton
+// success-state pattern so the user gets visual confirmation when the
+// template is in the clipboard.
+// ---------------------------------------------------------------------------
+
+function NotificationPanel({
+  probations,
+  positionsById,
+  onClose,
+}: {
+  probations: Probation[];
+  positionsById: Map<string, Position>;
+  onClose: () => void;
+}) {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  async function copyTemplate(p: Probation): Promise<void> {
+    const resolved = resolveSupervisor(p, positionsById);
+    const { subject, body } = buildProbationNotificationEmail({
+      employeeName: p.employeeName,
+      employeeId: p.employeeId,
+      positionDisplayNumber: p.positionDisplayNumber,
+      supervisor: resolved.name,
+      deputy: p.deputy,
+      currentEnd: currentEndDate(p),
+    });
+    const text = `Subject: ${subject}\n\n${body}`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for insecure contexts — same pattern as CopyButton.
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopiedId(p.id);
+      setTimeout(() => setCopiedId(prev => prev === p.id ? null : prev), 1200);
+    } catch {
+      // Best-effort. Surfacing copy failures is low-priority — the mailto:
+      // button is the primary path.
+    }
+  }
+
+  return (
+    <div className="card" style={{
+      display: 'flex', flexDirection: 'column', gap: 10,
+      border: '1px solid var(--accent)',
+    }}>
+      <header style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <strong style={{ fontSize: 13 }}>
+          ✉ Notify supervisors & deputies — {probations.length} email{probations.length === 1 ? '' : 's'} ready
+        </strong>
+        <button
+          onClick={onClose}
+          aria-label="Close notification panel"
+          style={{
+            marginLeft: 'auto',
+            padding: '3px 10px',
+            border: '1px solid var(--border)', borderRadius: 12,
+            background: 'transparent', color: 'var(--muted)', cursor: 'pointer',
+            fontSize: 11, fontFamily: 'inherit',
+          }}
+        >
+          ✕ Close
+        </button>
+      </header>
+      <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+        KosPos doesn't carry email addresses — the mailto: button opens
+        your email client with the body pre-filled; add the supervisor +
+        deputy addresses in the To: field before sending. Or copy the
+        template and paste into your existing draft.
+      </span>
+      <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {probations.map(p => {
+          const resolved = resolveSupervisor(p, positionsById);
+          const endIso = currentEndDate(p);
+          const mailto = buildProbationMailtoUri({
+            employeeName: p.employeeName,
+            employeeId: p.employeeId,
+            positionDisplayNumber: p.positionDisplayNumber,
+            supervisor: resolved.name,
+            deputy: p.deputy,
+            currentEnd: endIso,
+          });
+          return (
+            <li
+              key={p.id}
+              style={{
+                padding: '8px 10px',
+                border: '1px solid var(--border)', borderRadius: 4,
+                display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center',
+              }}
+            >
+              <div style={{ flex: '1 1 280px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{p.employeeName}</span>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                  Supervisor: {resolved.name || <em>(unset)</em>}
+                  {p.deputy && <> · Deputy: {p.deputy}</>}
+                  {endIso && <> · ends {endIso}</>}
+                </span>
+              </div>
+              <a
+                href={mailto}
+                aria-label={`Open mailto for ${p.employeeName}`}
+                style={{
+                  padding: '4px 12px',
+                  border: '1px solid var(--accent)', borderRadius: 12,
+                  background: 'var(--accent)', color: '#fff',
+                  fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                  textDecoration: 'none',
+                }}
+              >
+                ✉ Open mailto
+              </a>
+              <button
+                onClick={() => copyTemplate(p)}
+                aria-label={`Copy email template for ${p.employeeName}`}
+                style={{
+                  padding: '4px 12px',
+                  border: '1px solid var(--border)', borderRadius: 12,
+                  background: copiedId === p.id ? 'var(--accent-soft)' : 'transparent',
+                  color: copiedId === p.id ? 'var(--accent)' : 'var(--muted)',
+                  cursor: 'pointer',
+                  fontSize: 12, fontFamily: 'inherit',
+                }}
+              >
+                {copiedId === p.id ? '✓ Copied' : '⧉ Copy template'}
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main view
 // ---------------------------------------------------------------------------
 
@@ -605,6 +815,28 @@ export function ProbationsView() {
    *  time. Clicking the cell sets this; blur/Enter clears it after save. */
   const [editingEndDateId, setEditingEndDateId] = useState<string | null>(null);
   const updateProbation = useProbations(s => s.updateProbation);
+
+  /** Multi-select state for the bulk notify-supervisor email action.
+   *  Row ids by Set; "Select all" toggles every currently-filtered row. */
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  /** When generate-emails has been clicked at least once: render the
+   *  notification panel below the table. Cleared on selection change. */
+  const [emailsGenerated, setEmailsGenerated] = useState(false);
+
+  function toggleSelected(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setEmailsGenerated(false);
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+    setEmailsGenerated(false);
+  }
 
   const filtered = useMemo(() => {
     let out = flagged;
@@ -757,6 +989,30 @@ export function ProbationsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ background: 'var(--accent-soft)', borderBottom: '2px solid var(--border)' }}>
+              <th style={{
+                padding: '7px 10px', textAlign: 'left',
+                fontWeight: 600, fontSize: 11,
+                color: 'var(--accent)', whiteSpace: 'nowrap',
+                width: 32,
+              }}>
+                <input
+                  type="checkbox"
+                  aria-label="Select all visible probations"
+                  checked={filtered.length > 0 && filtered.every(f => selectedIds.has(f.probation.id))}
+                  onChange={e => {
+                    if (e.target.checked) {
+                      const next = new Set(selectedIds);
+                      for (const f of filtered) next.add(f.probation.id);
+                      setSelectedIds(next);
+                    } else {
+                      const next = new Set(selectedIds);
+                      for (const f of filtered) next.delete(f.probation.id);
+                      setSelectedIds(next);
+                    }
+                    setEmailsGenerated(false);
+                  }}
+                />
+              </th>
               {['Employee', 'Position', 'Job', 'Hrs', 'Start', 'Current end', 'Status', 'Supervisor', 'Deputy', 'Alerts'].map(h => (
                 <th key={h} style={{
                   padding: '7px 10px',
@@ -771,7 +1027,7 @@ export function ProbationsView() {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>
+                <td colSpan={11} style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>
                   {probations.length === 0
                     ? 'No probations yet — add one above to start tracking probationary employees.'
                     : 'No probations match the current filters.'}
@@ -785,6 +1041,17 @@ export function ProbationsView() {
                   aria-label={`Open details for probation ${p.employeeName}`}
                   style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
                 >
+                  <td
+                    style={{ padding: '5px 10px', width: 32 }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      aria-label={`Select probation for ${p.employeeName}`}
+                      checked={selectedIds.has(p.id)}
+                      onChange={() => toggleSelected(p.id)}
+                    />
+                  </td>
                   <td style={{ padding: '5px 10px', fontWeight: 600 }}>
                     {p.employeeName}
                     <CopyButton value={p.employeeName} label="Employee name" />
@@ -903,6 +1170,59 @@ export function ProbationsView() {
           </tbody>
         </table>
       </div>
+
+      {/* Selection action bar — appears only when 1+ rows selected. */}
+      {selectedIds.size > 0 && (
+        <div
+          className="card"
+          role="region"
+          aria-label="Bulk actions for selected probations"
+          style={{
+            display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap',
+            position: 'sticky', bottom: 12,
+            background: 'var(--surface)', border: '1px solid var(--accent)',
+            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
+          }}
+        >
+          <span style={{ fontWeight: 600 }}>
+            {selectedIds.size} selected
+          </span>
+          <button
+            onClick={() => setEmailsGenerated(true)}
+            style={{
+              padding: '5px 14px',
+              border: '1px solid var(--accent)', borderRadius: 14,
+              background: 'var(--accent)', color: '#fff', cursor: 'pointer',
+              fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+            }}
+          >
+            ✉ Generate emails
+          </button>
+          <button
+            onClick={clearSelection}
+            style={{
+              padding: '5px 12px',
+              border: '1px solid var(--border)', borderRadius: 14,
+              background: 'transparent', color: 'var(--muted)', cursor: 'pointer',
+              fontSize: 12, fontFamily: 'inherit',
+            }}
+          >
+            Clear
+          </button>
+          <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>
+            Per row: one notification to supervisor + deputy
+          </span>
+        </div>
+      )}
+
+      {/* Notification panel — appears after Generate emails is clicked. */}
+      {emailsGenerated && selectedIds.size > 0 && (
+        <NotificationPanel
+          probations={probations.filter(p => selectedIds.has(p.id))}
+          positionsById={positionsById}
+          onClose={() => setEmailsGenerated(false)}
+        />
+      )}
 
       {/* Detail modal */}
       {selectedProbation && (
