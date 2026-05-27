@@ -76,6 +76,12 @@ interface StaffingPlanState {
   toArray: () => PlannedAction[];
   /** Reset to empty state — clears manual actions AND derivedRemoved. */
   clearAll: () => void;
+  /** Replace `actions` + `derivedRemoved` wholesale from a session-snapshot
+   *  restore. Used by `lib/session/snapshot.ts`. */
+  restoreFromSession: (
+    actions: ReadonlyArray<readonly [string, PlannedAction]>,
+    derivedRemoved: ReadonlyArray<string>,
+  ) => void;
 }
 
 /**
@@ -190,4 +196,10 @@ export const useStaffingPlan = create<StaffingPlanState>((set, get) => ({
   toArray: () => [...get().actions.values()],
 
   clearAll: () => set({ actions: new Map(), derivedRemoved: new Set() }),
+
+  restoreFromSession: (actions, derivedRemoved) =>
+    set({
+      actions: new Map(actions),
+      derivedRemoved: new Set(derivedRemoved),
+    }),
 }));

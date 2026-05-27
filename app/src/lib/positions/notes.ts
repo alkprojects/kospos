@@ -19,6 +19,9 @@ interface NotesState {
   notes: Map<string, string>;
   setNote: (positionId: string, note: string) => void;
   clearAll: () => void;
+  /** Replace `notes` wholesale from a session-snapshot restore. Used by
+   *  `lib/session/snapshot.ts`. */
+  restoreFromSession: (entries: ReadonlyArray<readonly [string, string]>) => void;
 }
 
 export const usePositionNotes = create<NotesState>((set) => ({
@@ -31,4 +34,6 @@ export const usePositionNotes = create<NotesState>((set) => ({
       return { notes: next };
     }),
   clearAll: () => set({ notes: new Map() }),
+  restoreFromSession: (entries) =>
+    set({ notes: new Map(entries) }),
 }));

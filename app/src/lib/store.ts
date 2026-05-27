@@ -22,6 +22,12 @@ interface AppState {
   lastBfmImportAt: string;
   addRows: (rows: ImportedRow[]) => void;
   clearAll: () => void;
+  /**
+   * Replace loadedRows + lastBfmImportAt wholesale from a session-snapshot
+   * restore. Re-runs the quality rules so `issues` stays consistent. Used
+   * by `lib/session/snapshot.ts`.
+   */
+  restoreFromSession: (loadedRows: ImportedRow[], lastBfmImportAt: string) => void;
 }
 
 function runRules(rows: ImportedRow[]): Issue[] {
@@ -49,4 +55,6 @@ export const useAppStore = create<AppState>((set) => ({
       };
     }),
   clearAll: () => set({ loadedRows: [], issues: [], lastBfmImportAt: '' }),
+  restoreFromSession: (loadedRows, lastBfmImportAt) =>
+    set({ loadedRows, lastBfmImportAt, issues: runRules(loadedRows) }),
 }));
