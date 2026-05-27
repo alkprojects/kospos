@@ -10,7 +10,9 @@
 
 import { calcEmployeeCost, CostCalcError } from '../cost';
 import { normalizePositionKey } from '../chartfields/resolve';
+import type { Position } from '../positions';
 import type {
+  DerivedAction,
   ExpectedCost,
   PlannedAction,
   PlannedActionType,
@@ -47,8 +49,11 @@ export function newActionId(): string {
  * all other types stay positive. The calculator always returns positive
  * totals — the negation lives here so the entity layer is the single
  * source of truth for the sign.
+ *
+ * Accepts derived rows too — derived `basis` is always null so the function
+ * returns null immediately. Keeps rollup code uniform across both kinds.
  */
-export function computeExpectedCost(action: PlannedAction): ExpectedCost | null {
+export function computeExpectedCost(action: PlannedAction | DerivedAction): ExpectedCost | null {
   if (!action.basis) return null;
   let res;
   try {
@@ -75,8 +80,11 @@ export function computeExpectedCost(action: PlannedAction): ExpectedCost | null 
  * Group actions by PlannedActionType, returning one rollup row per type
  * in `ACTION_TYPE_ORDER`. Empty buckets are included so the surface can
  * render the full section stack consistently.
+ *
+ * Accepts manual + derived rows mixed; derived rows always count as
+ * `unpriced` since their `basis` is null by definition.
  */
-export function rollupByType(actions: PlannedAction[]): StaffingPlanRollup[] {
+export function rollupByType(actions: (PlannedAction | DerivedAction)[]): StaffingPlanRollup[] {
   const buckets = new Map<PlannedActionType, StaffingPlanRollup>();
   for (const t of ACTION_TYPE_ORDER) {
     buckets.set(t, {
@@ -114,10 +122,10 @@ export function rollupByType(actions: PlannedAction[]): StaffingPlanRollup[] {
  * position number or a pre-normalized id and we normalize both sides
  * defensively.
  */
-export function actionsForPosition(
-  actions: PlannedAction[],
+export function actionsForPosition<T extends { positionId: string }>(
+  actions: T[],
   positionIdOrNumber: string,
-): PlannedAction[] {
+): T[] {
   const key = normalizePositionKey(positionIdOrNumber);
   if (!key) return [];
   return actions.filter(a => a.positionId === key);
@@ -128,7 +136,7 @@ export function actionsForPosition(
  * default). Walks the action list once; doesn't trigger cost re-projection
  * for unpriced rows since `basis === null` short-circuits.
  */
-export function pricingDiagnostic(actions: PlannedAction[]): {
+export function pricingDiagnostic(actions: (PlannedAction | DerivedAction)[]): {
   total: number;
   priced: number;
   unpriced: number;
@@ -147,7 +155,7 @@ export function pricingDiagnostic(actions: PlannedAction[]): {
  * The headline number in the Hiring Plan summary card per Tab 24 § UI
  * sketch.
  */
-export function netCostImpact(actions: PlannedAction[]): {
+export function netCostImpact(actions: (PlannedAction | DerivedAction)[]): {
   annual: number;
   perPp: number;
 } {
@@ -160,4 +168,166 @@ export function netCostImpact(actions: PlannedAction[]): {
     perPp += cost.perPp;
   }
   return { annual, perPp };
+}
+
+// ---------------------------------------------------------------------------
+// Derived action rules — Bug 3 (S29 Alex feedback). See types.ts § Derived
+// actions for the full design rationale.
+//
+//   Pending = vacant positions with no manual action
+//   TEMP    = Cat 17/18 positions with no manual action
+//
+// Precedence: TEMP > Pending (a vacant Cat 17/18 position derives as TEMP).
+// Per-position manual-wins: any manual action on a position suppresses ALL
+// derived defaults for that position.
+// ---------------------------------------------------------------------------
+
+/**
+ * For one position, return the derived action spec it would produce (per
+ * the rules in `types.ts`) OR null if no derived rule applies.
+ *
+ * Pure — doesn't consult the manual-actions / derived-removed sets; callers
+ * filter those out before calling this.
+ */
+function deriveSpec(p: Position): DerivedAction | null {
+  // TEMP precedence: Cat 17/18 wins regardless of fill status. A vacant
+  // Cat 17/18 position is still "TEMP" — that's the more specific signal.
+  // We check the position-level `cat1718` (set whenever the P&P row has a
+  // Cat 17/18 code, filled or not) rather than `appointment.cat1718` (only
+  // set when there's an incumbent).
+  if (p.cat1718) {
+    return {
+      source: 'derived',
+      id: `derived-${p.id}`,
+      positionId: p.id,
+      displayNumber: p.displayNumber,
+      type: 'temp-tracking',
+      derivedReason: `Cat ${p.cat1718.category} temp`,
+      basis: null,
+      status: null,
+      notes: '',
+      startPpe: undefined,
+    };
+  }
+  if (p.fillStatus === 'VACANT') {
+    return {
+      source: 'derived',
+      id: `derived-${p.id}`,
+      positionId: p.id,
+      displayNumber: p.displayNumber,
+      type: 'pending',
+      derivedReason: 'Vacant, no plan',
+      basis: null,
+      status: null,
+      notes: '',
+      startPpe: undefined,
+    };
+  }
+  return null;
+}
+
+/**
+ * Visible derived rows — these populate the Pending + TEMP sections at view
+ * time. A position contributes a derived row iff:
+ *   1. The derive rule applies (Cat 17/18 OR vacant), AND
+ *   2. No manual action exists on the position (per-position manual-wins), AND
+ *   3. The user hasn't explicitly hidden the position via `derivedRemoved`.
+ *
+ * Results are sorted alphabetically by displayNumber for stable rendering.
+ */
+export function computeDerivedActions(
+  positions: readonly Position[],
+  manualPositionIds: ReadonlySet<string>,
+  derivedRemoved: ReadonlySet<string>,
+): DerivedAction[] {
+  const out: DerivedAction[] = [];
+  for (const p of positions) {
+    if (manualPositionIds.has(p.id)) continue;
+    if (derivedRemoved.has(p.id)) continue;
+    const spec = deriveSpec(p);
+    if (spec) out.push(spec);
+  }
+  out.sort((a, b) => a.displayNumber.localeCompare(b.displayNumber));
+  return out;
+}
+
+/**
+ * "Manual user changes" section content — derived rows the user explicitly
+ * hid via the Hide button. A row appears here iff:
+ *   1. The derive rule STILL applies (Cat 17/18 OR vacant on the current
+ *      snapshot), AND
+ *   2. No manual action exists on the position (otherwise the manual won
+ *      and the omission is moot — auto-pruned for clarity), AND
+ *   3. The position is in `derivedRemoved`.
+ *
+ * Auto-pruning condition 1 means: if a previously-vacant position got
+ * filled in a newer snapshot, its omission disappears from this section
+ * (the rule no longer fires). The omission entry persists in the store
+ * (so if the position becomes vacant again, the user's hide intent is
+ * remembered), but it's invisible while the rule doesn't apply.
+ */
+export function computeOmittedDerivedActions(
+  positions: readonly Position[],
+  manualPositionIds: ReadonlySet<string>,
+  derivedRemoved: ReadonlySet<string>,
+): DerivedAction[] {
+  const out: DerivedAction[] = [];
+  for (const p of positions) {
+    if (!derivedRemoved.has(p.id)) continue;
+    if (manualPositionIds.has(p.id)) continue;
+    const spec = deriveSpec(p);
+    if (spec) out.push(spec);
+  }
+  out.sort((a, b) => a.displayNumber.localeCompare(b.displayNumber));
+  return out;
+}
+
+/**
+ * Status-transition guard for the Hiring Plan workflow. Returns true if the
+ * transition from `from` → `to` is allowed without an override per S29
+ * Alex pick (guarded forward-only + csc-hold/finished branches).
+ *
+ *   not-started → posted → list → exam → interviews → offer → final → finished
+ *
+ *   csc-hold reachable from any state, and any state reachable from csc-hold
+ *   (a hold pauses the flow; clearing it can resume from any prior point).
+ *
+ *   finished is terminal (no forward transitions out of it).
+ *
+ * Same-state is allowed (idempotent — e.g. user re-selecting the current
+ * status is not an error).
+ *
+ * The PlannedActionDetail editor in PR 2 will surface a "force-override"
+ * affordance for transitions this guard rejects, with the override logged
+ * to the action's history audit log.
+ */
+export function isAllowedStatusTransition(
+  from: PlannedAction['status'],
+  to: PlannedAction['status'],
+): boolean {
+  if (from === to) return true;
+  // csc-hold is a bidirectional branch — to/from any state.
+  if (from === 'csc-hold' || to === 'csc-hold') return true;
+
+  // Define the linear pipeline order.
+  const order: Array<NonNullable<PlannedAction['status']>> = [
+    'not-started',
+    'posted',
+    'list',
+    'exam',
+    'interviews',
+    'offer',
+    'final',
+    'finished',
+  ];
+  // Null status (separation / pending / unfunded) → allowed to anything;
+  // those types don't use the pipeline so there's nothing to guard against.
+  if (from === null || to === null) return true;
+
+  const fi = order.indexOf(from);
+  const ti = order.indexOf(to);
+  // Unknown states (shouldn't happen with the typed enum) — allow.
+  if (fi < 0 || ti < 0) return true;
+  // Forward-only otherwise.
+  return ti > fi;
 }

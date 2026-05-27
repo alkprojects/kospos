@@ -51,8 +51,14 @@ export interface NewPlannedActionInput {
 }
 
 interface StaffingPlanState {
-  /** All actions keyed by id. */
+  /** All manual actions keyed by id. */
   actions: Map<string, PlannedAction>;
+  /**
+   * Set of position ids for which the user explicitly hid the derived
+   * default (Bug 3 S29). Persisted; auto-pruned at view time when the
+   * derive rule no longer fires (see `computeOmittedDerivedActions`).
+   */
+  derivedRemoved: Set<string>;
   /** Add a new action. Returns the generated id. */
   addAction: (input: NewPlannedActionInput) => string;
   /** Update an existing action; appends history entries for changed
@@ -60,9 +66,15 @@ interface StaffingPlanState {
   updateAction: (id: string, patch: PlannedActionPatch) => void;
   /** Delete an action by id. Returns true if a row was removed. */
   deleteAction: (id: string) => boolean;
+  /** Hide a derived row by position id. Position id is normalized
+   *  defensively. Adding a manual action on the same position is a more
+   *  expressive way to "hide" — this is the no-additional-info path. */
+  hideDerivedAction: (positionIdOrNumber: string) => void;
+  /** Restore a previously-hidden derived row (lets the rule re-fire). */
+  restoreDerivedAction: (positionIdOrNumber: string) => void;
   /** Snapshot of all actions as an array (in insertion order). */
   toArray: () => PlannedAction[];
-  /** Reset to empty state. */
+  /** Reset to empty state — clears manual actions AND derivedRemoved. */
   clearAll: () => void;
 }
 
@@ -81,6 +93,7 @@ function diffField(field: string, before: unknown, after: unknown, at: string): 
 
 export const useStaffingPlan = create<StaffingPlanState>((set, get) => ({
   actions: new Map<string, PlannedAction>(),
+  derivedRemoved: new Set<string>(),
 
   addAction: (input) => {
     const id = newActionId();
@@ -152,7 +165,29 @@ export const useStaffingPlan = create<StaffingPlanState>((set, get) => ({
     return true;
   },
 
+  hideDerivedAction: (positionIdOrNumber) => {
+    const key = normalizePositionKey(positionIdOrNumber);
+    if (!key) return;
+    set(state => {
+      if (state.derivedRemoved.has(key)) return state;
+      const next = new Set(state.derivedRemoved);
+      next.add(key);
+      return { derivedRemoved: next };
+    });
+  },
+
+  restoreDerivedAction: (positionIdOrNumber) => {
+    const key = normalizePositionKey(positionIdOrNumber);
+    if (!key) return;
+    set(state => {
+      if (!state.derivedRemoved.has(key)) return state;
+      const next = new Set(state.derivedRemoved);
+      next.delete(key);
+      return { derivedRemoved: next };
+    });
+  },
+
   toArray: () => [...get().actions.values()],
 
-  clearAll: () => set({ actions: new Map() }),
+  clearAll: () => set({ actions: new Map(), derivedRemoved: new Set() }),
 }));

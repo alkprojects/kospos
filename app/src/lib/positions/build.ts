@@ -48,6 +48,16 @@ function deptRef(
   return { code, name: resolvedName, node, hierarchy };
 }
 
+function buildCat1718(row: PsHcmPpRow): Cat1718Tracking | undefined {
+  if (row.cat1718ExemptCode !== '17' && row.cat1718ExemptCode !== '18') return undefined;
+  return {
+    category: row.cat1718ExemptCode,
+    appointmentDate: row.cat1718AppointmentDate,
+    months: row.cat1718ExemptMonths,
+    expiredDate: row.cat1718TxExpiredDate,
+  };
+}
+
 function buildAppointment(row: PsHcmPpRow): Appointment | undefined {
   // Vacant position when no incumbent.
   if (!row.emplId) return undefined;
@@ -64,15 +74,8 @@ function buildAppointment(row: PsHcmPpRow): Appointment | undefined {
     meritIncreaseDate: row.meritIncreaseDate,
   };
 
-  if (row.cat1718ExemptCode === '17' || row.cat1718ExemptCode === '18') {
-    const cat: Cat1718Tracking = {
-      category: row.cat1718ExemptCode,
-      appointmentDate: row.cat1718AppointmentDate,
-      months: row.cat1718ExemptMonths,
-      expiredDate: row.cat1718TxExpiredDate,
-    };
-    appointment.cat1718 = cat;
-  }
+  const cat = buildCat1718(row);
+  if (cat) appointment.cat1718 = cat;
 
   return appointment;
 }
@@ -158,6 +161,7 @@ export function buildPositions(
       snapshotDate: row.snapshotDate,
       vacantDate: row.vacantDate,
       appointment: buildAppointment(row),
+      cat1718: buildCat1718(row),
       vice1: buildVice1(row),
       previousEmployee: row.previousEmployee,
       reportsTo,

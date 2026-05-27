@@ -183,3 +183,71 @@ export interface StaffingPlanRollup {
   /** Sum of all priced actions' per-PP cost. */
   perPpCost: number;
 }
+
+// ---------------------------------------------------------------------------
+// Derived actions — Bug 3 (S29 Alex feedback): Pending + TEMP sections should
+// default-populate from data; user can hide individual derived rows; hidden
+// rows surface in a "Manual user changes" section. Rules:
+//
+//   Pending = vacant positions with no manual action  (one of the 5 types)
+//   TEMP    = Cat 17/18 positions with no manual action
+//
+// Precedence: when a position is BOTH vacant AND Cat 17/18, derive as TEMP
+// (the more specific signal — vacant Cat 17/18 is a specific case of "no
+// permanent plan to fill it").
+//
+// **Override scope per S29 Alex pick — per-position manual-wins.** Any
+// manual PlannedAction on a position suppresses ALL derived defaults for
+// that position. Simple mental model: "manual wins." Cleanest dedup. If
+// the user wants both flavors visible (e.g. TEMP + Separation on the same
+// Cat 17/18 position), they add a manual TEMP row + a manual Separation
+// row explicitly.
+//
+// **Storage model.** Derived rows are *virtual* — computed at view time
+// from the P&P spine + the current `derivedRemoved` set + the current
+// manual-action positionId set. The store only persists manual actions
+// (`PlannedAction`) and the omission set (`derivedRemoved`); derived rows
+// themselves are never written down.
+// ---------------------------------------------------------------------------
+
+/**
+ * A virtual row computed from the P&P spine. Render-only — never stored.
+ * Identity is the synthetic `derived-${positionId}` so React keys are stable
+ * across renders; the row itself can be recomputed safely between snapshots
+ * (the rule fires on whatever the current snapshot looks like).
+ *
+ * Carries the same display fields as PlannedAction so the existing section
+ * row component can render both kinds uniformly.
+ */
+export interface DerivedAction {
+  /** Discriminator for the UnifiedAction union. */
+  source: 'derived';
+  /** Synthetic id: `derived-${positionId}`. Stable across renders. */
+  id: string;
+  /** Normalized position key (joins to Position.id). */
+  positionId: string;
+  /** Original (display) form for the UI. */
+  displayNumber: string;
+  /** Always one of the two derived types in v1. */
+  type: 'pending' | 'temp-tracking';
+  /** Human-readable reason chip ("Vacant" or "Cat 17 temp" / "Cat 18 temp"). */
+  derivedReason: string;
+  /** Always null — derived rows aren't priced in v1. Manual conversion lets
+   *  the user supply a `basis` (the row stops being virtual at that point). */
+  basis: null;
+  /** Always null — derived rows don't have a hiring-stage status. */
+  status: null;
+  /** Empty — derived rows don't carry user notes. */
+  notes: string;
+  /** Undefined — derived rows don't have a planned start PPE. */
+  startPpe: undefined;
+}
+
+/**
+ * Discriminated union for view-time row rendering. Manual actions get a
+ * synthetic `source: 'manual'` tag added at the view layer; derived rows
+ * carry their own `source: 'derived'`.
+ */
+export type UnifiedAction =
+  | (PlannedAction & { source: 'manual' })
+  | DerivedAction;

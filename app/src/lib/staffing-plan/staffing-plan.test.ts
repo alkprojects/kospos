@@ -11,7 +11,10 @@ import type { PlannedAction } from './types';
 import {
   ACTION_TYPE_ORDER,
   actionsForPosition,
+  computeDerivedActions,
   computeExpectedCost,
+  computeOmittedDerivedActions,
+  isAllowedStatusTransition,
   netCostImpact,
   newActionId,
   pricingDiagnostic,
@@ -19,6 +22,7 @@ import {
 } from './build';
 import { useStaffingPlan } from './store';
 import type { CostInput } from '../cost';
+import type { Position } from '../positions';
 
 // ----------------------------------------------------------------------------
 // Fixtures
@@ -47,6 +51,81 @@ function action(partial: Partial<PlannedAction> & { positionId: string }): Plann
     plannedAt: '2026-05-26T12:00:00.000Z',
     history: [],
     ...partial,
+  };
+}
+
+/**
+ * Minimal Position factory for derived-action tests. Only the fields the
+ * derive rules consult (`id`, `displayNumber`, `fillStatus`, `appointment.cat1718`)
+ * are meaningful; the rest are stubbed with sensible defaults so the type
+ * shape is satisfied.
+ */
+function position(partial: {
+  id: string;
+  displayNumber?: string;
+  fillStatus?: string;
+  cat1718?: { category: '17' | '18'; expiredDate?: string };
+}): Position {
+  const id = partial.id;
+  const fillStatus = partial.fillStatus ?? 'FILLED';
+  const isFilled = fillStatus !== 'VACANT';
+  return {
+    id,
+    displayNumber: partial.displayNumber ?? id,
+    jobCode: '1234',
+    jobCodeDescription: 'Test',
+    positionStatus: 'Approved',
+    fillStatus,
+    maxHeadcount: 1,
+    effectiveDept: { code: '229000', name: 'DBI', node: null, hierarchy: [] },
+    budgetedDept:  { code: '229000', name: 'DBI', node: null, hierarchy: [] },
+    positionDivision: '',
+    fte: 1,
+    budgetJobCode: '1234',
+    snapshotDate: '2026-05-20',
+    vacantDate: isFilled ? '' : '2025-12-01',
+    // Position-level cat1718 is set whenever the row has the code — filled or
+    // vacant. Matches the lifted-attribute model in lib/positions/types.ts.
+    cat1718: partial.cat1718
+      ? {
+          category: partial.cat1718.category,
+          appointmentDate: '2025-01-01',
+          months: 24,
+          expiredDate: partial.cat1718.expiredDate ?? '2027-01-01',
+        }
+      : undefined,
+    // Appointment-level cat1718 mirrors the incumbent's attributes — only
+    // when filled. Vacant Cat 17/18 positions have position.cat1718 set but
+    // no appointment.
+    appointment: isFilled
+      ? {
+          emplId: '12345',
+          name: 'Temp, Tester',
+          status: 'A',
+          type: partial.cat1718 ? 'TEX' : 'PCS',
+          exemptCategory: partial.cat1718
+            ? partial.cat1718.category === '17'
+              ? '17 Special Proj - Limited Term'
+              : '18 Special Proj - Limited Term'
+            : '',
+          jobCode: '1234',
+          salaryStep: '5',
+          hourlyRate: 50,
+          meritIncreaseDate: '',
+          cat1718: partial.cat1718
+            ? {
+                category: partial.cat1718.category,
+                appointmentDate: '2025-01-01',
+                months: 24,
+                expiredDate: partial.cat1718.expiredDate ?? '2027-01-01',
+              }
+            : undefined,
+        }
+      : undefined,
+    previousEmployee: '',
+    userNotes: '',
+    roster: { code: '', description: '' },
+    sourceRow: 1,
   };
 }
 
@@ -330,5 +409,190 @@ describe('useStaffingPlan store', () => {
     expect(all).toHaveLength(4);
     expect(actionsForPosition(all, '1115135')).toHaveLength(3);
     expect(actionsForPosition(all, '50001')).toHaveLength(1);
+  });
+
+  it('hideDerivedAction adds to derivedRemoved; restore removes it', () => {
+    const store = useStaffingPlan.getState();
+    store.hideDerivedAction('50001');
+    expect(useStaffingPlan.getState().derivedRemoved.has('50001')).toBe(true);
+    store.restoreDerivedAction('50001');
+    expect(useStaffingPlan.getState().derivedRemoved.has('50001')).toBe(false);
+  });
+
+  it('hideDerivedAction normalizes the position key (leading zeros stripped)', () => {
+    const store = useStaffingPlan.getState();
+    store.hideDerivedAction('0050001');
+    expect(useStaffingPlan.getState().derivedRemoved.has('50001')).toBe(true);
+  });
+
+  it('hideDerivedAction is a no-op when the position is already hidden (no rerender)', () => {
+    const store = useStaffingPlan.getState();
+    store.hideDerivedAction('50001');
+    const setRef = useStaffingPlan.getState().derivedRemoved;
+    store.hideDerivedAction('50001'); // no-op
+    expect(useStaffingPlan.getState().derivedRemoved).toBe(setRef);
+  });
+
+  it('clearAll clears derivedRemoved too', () => {
+    const store = useStaffingPlan.getState();
+    store.hideDerivedAction('50001');
+    store.clearAll();
+    expect(useStaffingPlan.getState().derivedRemoved.size).toBe(0);
+  });
+});
+
+// ----------------------------------------------------------------------------
+// computeDerivedActions — Bug 3 (S29 Alex) derived-from-data defaults
+// ----------------------------------------------------------------------------
+
+describe('computeDerivedActions', () => {
+  it('derives Pending for vacant positions with no manual action', () => {
+    const positions = [position({ id: '50001', fillStatus: 'VACANT' })];
+    const derived = computeDerivedActions(positions, new Set(), new Set());
+    expect(derived).toHaveLength(1);
+    expect(derived[0].type).toBe('pending');
+    expect(derived[0].derivedReason).toBe('Vacant, no plan');
+    expect(derived[0].positionId).toBe('50001');
+    expect(derived[0].id).toBe('derived-50001');
+    expect(derived[0].source).toBe('derived');
+    expect(derived[0].basis).toBeNull();
+  });
+
+  it('derives TEMP for Cat 17/18 positions (carries the category in the reason)', () => {
+    const positions = [
+      position({ id: '60001', cat1718: { category: '17' } }),
+      position({ id: '60002', cat1718: { category: '18' } }),
+    ];
+    const derived = computeDerivedActions(positions, new Set(), new Set());
+    expect(derived).toHaveLength(2);
+    expect(derived.find(d => d.positionId === '60001')!.type).toBe('temp-tracking');
+    expect(derived.find(d => d.positionId === '60001')!.derivedReason).toBe('Cat 17 temp');
+    expect(derived.find(d => d.positionId === '60002')!.derivedReason).toBe('Cat 18 temp');
+  });
+
+  it('precedence: TEMP wins over Pending when position is both vacant AND Cat 17/18', () => {
+    const positions = [
+      position({ id: '70001', fillStatus: 'VACANT', cat1718: { category: '17' } }),
+    ];
+    const derived = computeDerivedActions(positions, new Set(), new Set());
+    expect(derived).toHaveLength(1);
+    expect(derived[0].type).toBe('temp-tracking');
+  });
+
+  it('skips positions that have ANY manual action (per-position manual-wins)', () => {
+    const positions = [
+      position({ id: '50001', fillStatus: 'VACANT' }),
+      position({ id: '50002', fillStatus: 'VACANT' }),
+    ];
+    const derived = computeDerivedActions(positions, new Set(['50001']), new Set());
+    expect(derived).toHaveLength(1);
+    expect(derived[0].positionId).toBe('50002');
+  });
+
+  it('skips positions in the derivedRemoved set', () => {
+    const positions = [
+      position({ id: '50001', fillStatus: 'VACANT' }),
+      position({ id: '50002', fillStatus: 'VACANT' }),
+    ];
+    const derived = computeDerivedActions(positions, new Set(), new Set(['50001']));
+    expect(derived).toHaveLength(1);
+    expect(derived[0].positionId).toBe('50002');
+  });
+
+  it('omits filled non-Cat-17/18 positions entirely (no rule fires)', () => {
+    const positions = [position({ id: '50001', fillStatus: 'FILLED' })];
+    expect(computeDerivedActions(positions, new Set(), new Set())).toEqual([]);
+  });
+
+  it('sorts results alphabetically by displayNumber for stable rendering', () => {
+    const positions = [
+      position({ id: '50003', displayNumber: '50003', fillStatus: 'VACANT' }),
+      position({ id: '50001', displayNumber: '50001', fillStatus: 'VACANT' }),
+      position({ id: '50002', displayNumber: '50002', fillStatus: 'VACANT' }),
+    ];
+    const derived = computeDerivedActions(positions, new Set(), new Set());
+    expect(derived.map(d => d.displayNumber)).toEqual(['50001', '50002', '50003']);
+  });
+});
+
+// ----------------------------------------------------------------------------
+// computeOmittedDerivedActions — "Manual user changes" section content
+// ----------------------------------------------------------------------------
+
+describe('computeOmittedDerivedActions', () => {
+  it('surfaces a hidden derived row when the rule still applies', () => {
+    const positions = [position({ id: '50001', fillStatus: 'VACANT' })];
+    const omitted = computeOmittedDerivedActions(positions, new Set(), new Set(['50001']));
+    expect(omitted).toHaveLength(1);
+    expect(omitted[0].type).toBe('pending');
+  });
+
+  it('auto-prunes a hidden row when the rule no longer fires (e.g. position got filled)', () => {
+    // User previously hid 50001 when it was vacant. Snapshot now shows FILLED.
+    // Omission stays in the store (derivedRemoved still has 50001) but the
+    // section auto-hides it since no derive rule applies.
+    const positions = [position({ id: '50001', fillStatus: 'FILLED' })];
+    const omitted = computeOmittedDerivedActions(positions, new Set(), new Set(['50001']));
+    expect(omitted).toHaveLength(0);
+  });
+
+  it('auto-prunes when the user added a manual action (manual-wins; omission moot)', () => {
+    const positions = [position({ id: '50001', fillStatus: 'VACANT' })];
+    const omitted = computeOmittedDerivedActions(
+      positions,
+      new Set(['50001']),
+      new Set(['50001']),
+    );
+    expect(omitted).toHaveLength(0);
+  });
+});
+
+// ----------------------------------------------------------------------------
+// isAllowedStatusTransition — S29 Alex pick: guarded forward-only + csc-hold
+// branches
+// ----------------------------------------------------------------------------
+
+describe('isAllowedStatusTransition', () => {
+  it('allows the forward pipeline: not-started → posted → ... → finished', () => {
+    expect(isAllowedStatusTransition('not-started', 'posted')).toBe(true);
+    expect(isAllowedStatusTransition('posted', 'list')).toBe(true);
+    expect(isAllowedStatusTransition('list', 'exam')).toBe(true);
+    expect(isAllowedStatusTransition('exam', 'interviews')).toBe(true);
+    expect(isAllowedStatusTransition('interviews', 'offer')).toBe(true);
+    expect(isAllowedStatusTransition('offer', 'final')).toBe(true);
+    expect(isAllowedStatusTransition('final', 'finished')).toBe(true);
+  });
+
+  it('allows skipping forward (e.g. not-started → final)', () => {
+    expect(isAllowedStatusTransition('not-started', 'final')).toBe(true);
+  });
+
+  it('rejects backward transitions in the linear pipeline', () => {
+    expect(isAllowedStatusTransition('finished', 'final')).toBe(false);
+    expect(isAllowedStatusTransition('offer', 'posted')).toBe(false);
+    expect(isAllowedStatusTransition('exam', 'not-started')).toBe(false);
+  });
+
+  it('allows same-state (idempotent)', () => {
+    expect(isAllowedStatusTransition('posted', 'posted')).toBe(true);
+    expect(isAllowedStatusTransition('finished', 'finished')).toBe(true);
+  });
+
+  it('allows csc-hold from any state', () => {
+    expect(isAllowedStatusTransition('not-started', 'csc-hold')).toBe(true);
+    expect(isAllowedStatusTransition('offer', 'csc-hold')).toBe(true);
+    expect(isAllowedStatusTransition('finished', 'csc-hold')).toBe(true);
+  });
+
+  it('allows clearing csc-hold to any state (the hold resolves to wherever)', () => {
+    expect(isAllowedStatusTransition('csc-hold', 'posted')).toBe(true);
+    expect(isAllowedStatusTransition('csc-hold', 'interviews')).toBe(true);
+    expect(isAllowedStatusTransition('csc-hold', 'finished')).toBe(true);
+  });
+
+  it('treats null status (separation / pending / unfunded types) as unconstrained', () => {
+    expect(isAllowedStatusTransition(null, 'posted')).toBe(true);
+    expect(isAllowedStatusTransition('offer', null)).toBe(true);
+    expect(isAllowedStatusTransition(null, null)).toBe(true);
   });
 });
