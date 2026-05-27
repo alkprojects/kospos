@@ -1,4 +1,5 @@
 import { FilePicker } from './FilePicker';
+import { SessionExportImport } from './SessionExportImport';
 import { DataIssuesPanel } from '../issues/DataIssuesPanel';
 import { useAppStore } from '../../lib/store';
 
@@ -13,6 +14,8 @@ export function ImporterView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <SessionExportImport />
+
       <div className="card">
         <h2>Load Reports</h2>
         <FilePicker />
