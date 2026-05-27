@@ -64,6 +64,7 @@ interface DraftState {
   baseEndDate: string;
   status: ProbationStatus;
   supervisor: string;
+  deputy: string;
   completionDate: string;
   notes: string;
 }
@@ -79,6 +80,7 @@ function draftFrom(p: Probation): DraftState {
     baseEndDate: p.baseEndDate ?? '',
     status: p.status,
     supervisor: p.supervisor ?? '',
+    deputy: p.deputy ?? '',
     completionDate: p.completionDate ?? '',
     notes: p.notes,
   };
@@ -131,6 +133,19 @@ export function ProbationDetail({
     [positions],
   );
 
+  // Auto-resolved supervisor from the linked Position's reportsTo. Shown as
+  // a placeholder + hint when the draft's supervisor field is blank, so the
+  // user sees who would be used by default without having to dig. The free-
+  // text `supervisor` field, when set, always wins.
+  const autoSupervisor = useMemo(() => {
+    const matched = draft.positionDisplayNumber.trim()
+      ? positionByDisplay.get(draft.positionDisplayNumber.trim())
+      : undefined;
+    const mfn = matched?.reportsTo?.managerFirstName ?? '';
+    const mln = matched?.reportsTo?.managerLastName ?? '';
+    return `${mfn} ${mln}`.trim();
+  }, [draft.positionDisplayNumber, positionByDisplay]);
+
   // Computed baseEndDate hint — shown next to the override input so the
   // user can compare their stored value to the FT-equivalent computation.
   const computedBaseEnd = useMemo(
@@ -179,6 +194,7 @@ export function ProbationDetail({
         baseEndDate: draft.baseEndDate || undefined,
         status: draft.status,
         supervisor: draft.supervisor.trim() || undefined,
+        deputy: draft.deputy.trim() || undefined,
         completionDate: draft.completionDate || undefined,
         notes: draft.notes,
       },
@@ -398,8 +414,23 @@ export function ProbationDetail({
               type="text"
               value={draft.supervisor}
               onChange={e => setDraft({ ...draft, supervisor: e.target.value })}
-              placeholder="optional"
+              placeholder={autoSupervisor || 'optional'}
               aria-label="Supervisor"
+              style={inputStyle()}
+            />
+            {autoSupervisor && draft.supervisor.trim() === '' && (
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>
+                Auto: <span style={{ fontFamily: 'monospace' }}>{autoSupervisor}</span> (from position.reportsTo)
+              </span>
+            )}
+          </Field>
+          <Field label="Deputy">
+            <input
+              type="text"
+              value={draft.deputy}
+              onChange={e => setDraft({ ...draft, deputy: e.target.value })}
+              placeholder="optional — section deputy / coverage"
+              aria-label="Deputy"
               style={inputStyle()}
             />
           </Field>

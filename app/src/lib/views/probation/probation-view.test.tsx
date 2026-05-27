@@ -329,6 +329,87 @@ describe('ProbationsView', () => {
     expect((idInput as HTMLInputElement).value).toBe('222222');
   });
 
+  it('table row auto-resolves supervisor from the linked position.reportsTo when probation.supervisor is blank', () => {
+    useAppStore.getState().addRows([
+      ppRow('50001', {
+        employeeName: 'Smith, John',
+        emplId: '111111',
+        jobCode: '1820',
+        reportsToPosition: '40001',
+        managerFirstName: 'Carey',
+        managerLastName: 'McElroy',
+      }),
+    ]);
+    useProbations.getState().addProbation({
+      employeeName: 'Smith, John',
+      employeeId: '111111',
+      positionId: '50001',
+      positionDisplayNumber: '50001',
+      jobCode: '1820',
+      probationaryPeriodHours: 2080,
+      startWorkDate: '2026-01-01',
+      // supervisor intentionally left blank → expect auto-resolution
+    });
+    render(<ProbationsView />);
+    // The auto-resolved label "(auto)" only appears when supervisor is auto-
+    // resolved (not when manually set).
+    expect(screen.getByText('Carey McElroy')).toBeInTheDocument();
+    expect(screen.getByText('(auto)')).toBeInTheDocument();
+  });
+
+  it('table row uses manual supervisor when set (overrides auto-resolution)', () => {
+    useAppStore.getState().addRows([
+      ppRow('50001', {
+        employeeName: 'Smith, John',
+        emplId: '111111',
+        jobCode: '1820',
+        reportsToPosition: '40001',
+        managerFirstName: 'Carey',
+        managerLastName: 'McElroy',
+      }),
+    ]);
+    useProbations.getState().addProbation({
+      employeeName: 'Smith, John',
+      employeeId: '111111',
+      positionId: '50001',
+      positionDisplayNumber: '50001',
+      jobCode: '1820',
+      probationaryPeriodHours: 2080,
+      startWorkDate: '2026-01-01',
+      supervisor: 'Acting Supervisor, J.',
+    });
+    render(<ProbationsView />);
+    // Manual value wins; no "(auto)" annotation.
+    expect(screen.getByText('Acting Supervisor, J.')).toBeInTheDocument();
+    expect(screen.queryByText('(auto)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Carey McElroy')).not.toBeInTheDocument();
+  });
+
+  it('table renders deputy column with free-text value when set', () => {
+    useProbations.getState().addProbation({
+      employeeName: 'Smith, John',
+      probationaryPeriodHours: 2080,
+      startWorkDate: '2026-01-01',
+      deputy: 'Lee, Deputy',
+    });
+    render(<ProbationsView />);
+    expect(screen.getByText('Lee, Deputy')).toBeInTheDocument();
+  });
+
+  it('add form: supervisor + deputy fields populate the new row', () => {
+    render(<ProbationsView />);
+    fireEvent.change(screen.getByLabelText(/Employee name/i), { target: { value: 'Newhire, Just' } });
+    fireEvent.change(screen.getByLabelText(/Start work date/i), { target: { value: '2026-05-15' } });
+    fireEvent.change(screen.getByLabelText(/^Supervisor$/i), { target: { value: 'Sup, A.' } });
+    fireEvent.change(screen.getByLabelText(/^Deputy$/i), { target: { value: 'Dep, B.' } });
+    fireEvent.click(screen.getByRole('button', { name: /Add probation/i }));
+
+    const rows = useProbations.getState().toArray();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].supervisor).toBe('Sup, A.');
+    expect(rows[0].deputy).toBe('Dep, B.');
+  });
+
   it('add extension from detail modal auto-transitions open → extended', () => {
     const id = useProbations.getState().addProbation({
       employeeName: 'ExtCase, E',

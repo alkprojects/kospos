@@ -316,6 +316,7 @@ describe('useProbations store', () => {
       baseEndDate: '2026-07-02',
       status: 'extended',
       supervisor: 'Carey McElroy',
+      deputy: 'Park, Deputy',
       notes: 'Cat 16 part-time',
     });
     const rec = useProbations.getState().probations.get(id)!;
@@ -326,7 +327,22 @@ describe('useProbations store', () => {
     expect(rec.startWorkDate).toBe('2026-01-01');
     expect(rec.baseEndDate).toBe('2026-07-02');
     expect(rec.supervisor).toBe('Carey McElroy');
+    expect(rec.deputy).toBe('Park, Deputy');
     expect(rec.notes).toBe('Cat 16 part-time');
+  });
+
+  it('updateProbation logs deputy field changes in history audit', () => {
+    const id = useProbations.getState().addProbation({
+      employeeName: 'Test, A.',
+      probationaryPeriodHours: 2080,
+      startWorkDate: '2026-01-01',
+    });
+    useProbations.getState().updateProbation(id, { deputy: 'Lee, J.' });
+    const rec = useProbations.getState().probations.get(id)!;
+    expect(rec.deputy).toBe('Lee, J.');
+    const deputyEntry = rec.history.find(h => h.field === 'deputy');
+    expect(deputyEntry).toBeDefined();
+    expect(deputyEntry?.after).toBe('Lee, J.');
   });
 
   it('updateProbation appends history entries for changed fields', () => {

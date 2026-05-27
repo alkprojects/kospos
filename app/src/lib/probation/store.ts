@@ -52,6 +52,7 @@ export interface NewProbationInput {
   baseEndDate?: string;
   status?: ProbationStatus;
   supervisor?: string;
+  deputy?: string;
   completionDate?: string;
   notes?: string;
 }
@@ -139,6 +140,7 @@ export const useProbations = create<ProbationsState>((set, get) => ({
       extensions: [],
       status,
       supervisor: input.supervisor,
+      deputy: input.deputy,
       completionDate: input.completionDate,
       notes: input.notes ?? '',
       history: [{ at: now, field: '__created', before: null, after: status }],

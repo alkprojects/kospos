@@ -42,6 +42,40 @@ import type {
 import { ProbationDetail } from './ProbationDetail';
 
 // ---------------------------------------------------------------------------
+// Supervisor resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the displayed supervisor name for a probation row.
+ *
+ * Priority:
+ *   1. `probation.supervisor` (free-text, manually entered) — wins if set.
+ *   2. The linked Position's `reportsTo.managerFirstName + managerLastName` —
+ *      auto-resolved from the P&P snapshot.
+ *   3. Neither — return empty.
+ *
+ * The auto-resolved path is annotated as `source: 'auto'` so the UI can
+ * surface a subtle "(auto)" hint, signalling the value is data-driven and
+ * may change when a new P&P is loaded. Manual values render verbatim.
+ */
+function resolveSupervisor(
+  p: Probation,
+  positionsById: Map<string, Position>,
+): { name: string; source: 'manual' | 'auto' | 'none' } {
+  if (p.supervisor && p.supervisor.trim() !== '') {
+    return { name: p.supervisor.trim(), source: 'manual' };
+  }
+  if (p.positionId) {
+    const pos = positionsById.get(p.positionId);
+    const mfn = pos?.reportsTo?.managerFirstName ?? '';
+    const mln = pos?.reportsTo?.managerLastName ?? '';
+    const joined = `${mfn} ${mln}`.trim();
+    if (joined !== '') return { name: joined, source: 'auto' };
+  }
+  return { name: '', source: 'none' };
+}
+
+// ---------------------------------------------------------------------------
 // Display constants
 // ---------------------------------------------------------------------------
 
@@ -133,6 +167,8 @@ function AddProbationForm({
   const [jobCodeFromMatch, setJobCodeFromMatch] = useState<string | undefined>(undefined);
   const [hours, setHours] = useState<ProbationaryPeriodHours>(2080);
   const [startDate, setStartDate] = useState('');
+  const [supervisor, setSupervisor] = useState('');
+  const [deputy, setDeputy] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const positionByDisplay = useMemo(
@@ -190,12 +226,16 @@ function AddProbationForm({
       positionId: matchedPosition?.id ?? (positionDisplay || undefined),
       positionDisplayNumber: positionDisplay || undefined,
       jobCode: matchedPosition?.jobCode ?? jobCodeFromMatch,
+      supervisor: supervisor.trim() || undefined,
+      deputy: deputy.trim() || undefined,
     });
     setEmployeeName('');
     setEmployeeId('');
     setPositionInput('');
     setJobCodeFromMatch(undefined);
     setStartDate('');
+    setSupervisor('');
+    setDeputy('');
     setError(null);
   }
 
@@ -314,6 +354,42 @@ function AddProbationForm({
             <option key={p.id} value={p.displayNumber}>{p.jobCode} — {p.jobCodeDescription}</option>
           ))}
         </datalist>
+      </label>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>Supervisor (optional)</span>
+        <input
+          type="text"
+          value={supervisor}
+          onChange={e => setSupervisor(e.target.value)}
+          placeholder="auto from position.reportsTo when blank"
+          aria-label="Supervisor"
+          onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+          style={{
+            padding: '5px 10px',
+            border: '1px solid var(--border)', borderRadius: 4,
+            fontSize: 13, fontFamily: 'inherit',
+            background: 'var(--surface)', color: 'inherit',
+            width: 180,
+          }}
+        />
+      </label>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>Deputy (optional)</span>
+        <input
+          type="text"
+          value={deputy}
+          onChange={e => setDeputy(e.target.value)}
+          placeholder="e.g. section deputy"
+          aria-label="Deputy"
+          onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+          style={{
+            padding: '5px 10px',
+            border: '1px solid var(--border)', borderRadius: 4,
+            fontSize: 13, fontFamily: 'inherit',
+            background: 'var(--surface)', color: 'inherit',
+            width: 180,
+          }}
+        />
       </label>
       <button
         onClick={submit}
@@ -550,7 +626,7 @@ export function ProbationsView() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ background: 'var(--accent-soft)', borderBottom: '2px solid var(--border)' }}>
-              {['Employee', 'Position', 'Job', 'Hrs', 'Start', 'Current end', 'Status', 'Supervisor', 'Alerts'].map(h => (
+              {['Employee', 'Position', 'Job', 'Hrs', 'Start', 'Current end', 'Status', 'Supervisor', 'Deputy', 'Alerts'].map(h => (
                 <th key={h} style={{
                   padding: '7px 10px',
                   textAlign: 'left',
@@ -564,7 +640,7 @@ export function ProbationsView() {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>
+                <td colSpan={10} style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>
                   {probations.length === 0
                     ? 'No probations yet — add one above to start tracking probationary employees.'
                     : 'No probations match the current filters.'}
@@ -619,7 +695,25 @@ export function ProbationsView() {
                   </td>
                   <td style={{ padding: '5px 10px' }}><StatusChip status={p.status} /></td>
                   <td style={{ padding: '5px 10px', color: 'var(--muted)' }}>
-                    {p.supervisor || <span>—</span>}
+                    {(() => {
+                      const resolved = resolveSupervisor(p, positionsById);
+                      if (!resolved.name) return <span>—</span>;
+                      return (
+                        <span title={resolved.source === 'auto'
+                          ? 'Auto-resolved from position.reportsTo'
+                          : 'Manually entered supervisor'}>
+                          {resolved.name}
+                          {resolved.source === 'auto' && (
+                            <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 4 }}>
+                              (auto)
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
+                  </td>
+                  <td style={{ padding: '5px 10px', color: 'var(--muted)' }}>
+                    {p.deputy || <span>—</span>}
                   </td>
                   <td style={{ padding: '5px 10px' }}>
                     <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
