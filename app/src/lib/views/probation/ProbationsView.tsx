@@ -19,8 +19,8 @@
 
 import { useMemo, useState } from 'react';
 import { useAppStore } from '../../store';
-import { buildPositions } from '../../positions';
-import type { Position } from '../../positions';
+import { buildPositions, buildPeopleIndex } from '../../positions';
+import type { Position, PersonRef } from '../../positions';
 import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import type { PsHcmPpRow } from '../../importers/types';
 import { matchesNeedle } from '../../search/needle';
@@ -105,12 +105,31 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
  * Inline form to add a new Probation. `employeeName`,
  * `probationaryPeriodHours`, and `startWorkDate` are required; the rest
  * of the fields can be filled later via the detail editor. Datalist
- * autocompletes position numbers from the loaded P&P.
+ * autocompletes:
+ *   - Employee name → all known people from the loaded P&P (alphabetical)
+ *   - Employee #    → all known people from the loaded P&P (by emplId)
+ *   - Position #    → all positions from the loaded P&P (by display number)
+ *
+ * Picking a known person from either Name or Employee # autocompletes the
+ * *other* field plus position + job code (first position the person was
+ * seen on, for at-a-glance triage).
  */
-function AddProbationForm({ positions }: { positions: Position[] }) {
+function AddProbationForm({
+  positions,
+  peopleByName,
+  peopleByEmplId,
+  peopleList,
+}: {
+  positions: Position[];
+  peopleByName: Map<string, PersonRef>;
+  peopleByEmplId: Map<string, PersonRef>;
+  peopleList: PersonRef[];
+}) {
   const addProbation = useProbations(s => s.addProbation);
   const [employeeName, setEmployeeName] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
   const [positionInput, setPositionInput] = useState('');
+  const [jobCodeFromMatch, setJobCodeFromMatch] = useState<string | undefined>(undefined);
   const [hours, setHours] = useState<ProbationaryPeriodHours>(2080);
   const [startDate, setStartDate] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -119,6 +138,30 @@ function AddProbationForm({ positions }: { positions: Position[] }) {
     () => new Map(positions.map(p => [p.displayNumber, p])),
     [positions],
   );
+
+  /** Auto-fill from a matched person — fills any blank field that the match
+   *  resolved + jobCode (for downstream submit). Does not overwrite fields
+   *  the user has already typed into. */
+  function applyPersonMatch(p: PersonRef) {
+    setEmployeeName(prev => prev.trim() === '' || prev === p.name ? p.name : prev);
+    setEmployeeId(prev => prev.trim() === '' || prev === p.emplId ? p.emplId : prev);
+    setPositionInput(prev =>
+      (prev.trim() === '' && p.positionDisplayNumber) ? p.positionDisplayNumber : prev,
+    );
+    setJobCodeFromMatch(p.jobCode);
+  }
+
+  function handleNameChange(v: string) {
+    setEmployeeName(v);
+    const match = peopleByName.get(v.trim());
+    if (match) applyPersonMatch(match);
+  }
+
+  function handleIdChange(v: string) {
+    setEmployeeId(v);
+    const match = peopleByEmplId.get(v.trim());
+    if (match) applyPersonMatch(match);
+  }
 
   function submit() {
     const name = employeeName.trim();
@@ -130,19 +173,23 @@ function AddProbationForm({ positions }: { positions: Position[] }) {
       setError('Start work date is required.');
       return;
     }
-    const matched = positionInput.trim()
-      ? positionByDisplay.get(positionInput.trim())
+    const positionDisplay = positionInput.trim();
+    const matchedPosition = positionDisplay
+      ? positionByDisplay.get(positionDisplay)
       : undefined;
     addProbation({
       employeeName: name,
+      employeeId: employeeId.trim() || undefined,
       probationaryPeriodHours: hours,
       startWorkDate: startDate,
-      positionId: matched?.id ?? (positionInput.trim() || undefined),
-      positionDisplayNumber: positionInput.trim() || undefined,
-      jobCode: matched?.jobCode,
+      positionId: matchedPosition?.id ?? (positionDisplay || undefined),
+      positionDisplayNumber: positionDisplay || undefined,
+      jobCode: matchedPosition?.jobCode ?? jobCodeFromMatch,
     });
     setEmployeeName('');
+    setEmployeeId('');
     setPositionInput('');
+    setJobCodeFromMatch(undefined);
     setStartDate('');
     setError(null);
   }
@@ -157,8 +204,9 @@ function AddProbationForm({ positions }: { positions: Position[] }) {
         </span>
         <input
           type="text"
+          list="probations-add-people-name-datalist"
           value={employeeName}
-          onChange={e => setEmployeeName(e.target.value)}
+          onChange={e => handleNameChange(e.target.value)}
           placeholder="e.g. Smith, A."
           aria-label="Employee name"
           onKeyDown={e => { if (e.key === 'Enter') submit(); }}
@@ -170,6 +218,35 @@ function AddProbationForm({ positions }: { positions: Position[] }) {
             width: 220,
           }}
         />
+        <datalist id="probations-add-people-name-datalist">
+          {peopleList.map(p => (
+            <option key={p.emplId} value={p.name}>{p.emplId} — {p.jobCode}</option>
+          ))}
+        </datalist>
+      </label>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>Employee # (optional)</span>
+        <input
+          type="text"
+          list="probations-add-people-id-datalist"
+          value={employeeId}
+          onChange={e => handleIdChange(e.target.value)}
+          placeholder="e.g. 187518"
+          aria-label="Employee number"
+          onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+          style={{
+            padding: '5px 10px',
+            border: '1px solid var(--border)', borderRadius: 4,
+            fontSize: 13, fontFamily: 'monospace',
+            background: 'var(--surface)', color: 'inherit',
+            width: 140,
+          }}
+        />
+        <datalist id="probations-add-people-id-datalist">
+          {peopleList.map(p => (
+            <option key={p.emplId} value={p.emplId}>{p.name} — {p.jobCode}</option>
+          ))}
+        </datalist>
       </label>
       <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>
@@ -281,6 +358,10 @@ export function ProbationsView() {
     [positions],
   );
 
+  // People index for employee-name + employee-# autocomplete (shared with
+  // Separations via `lib/positions/people.ts`).
+  const peopleIndex = useMemo(() => buildPeopleIndex(positions), [positions]);
+
   const probations = useMemo<Probation[]>(
     () => [...probationsMap.values()].sort((a, b) =>
       // Newest first (additions tend to be the most-actionable).
@@ -382,7 +463,12 @@ export function ProbationsView() {
       </div>
 
       {/* Add form */}
-      <AddProbationForm positions={positions} />
+      <AddProbationForm
+        positions={positions}
+        peopleByName={peopleIndex.byName}
+        peopleByEmplId={peopleIndex.byEmplId}
+        peopleList={peopleIndex.list}
+      />
 
       {/* Filter bar */}
       <div className="card" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -543,6 +629,9 @@ export function ProbationsView() {
         <ProbationDetail
           probation={selectedProbation}
           positions={positions}
+          peopleByName={peopleIndex.byName}
+          peopleByEmplId={peopleIndex.byEmplId}
+          peopleList={peopleIndex.list}
           onClose={() => setSelectedId(null)}
         />
       )}
