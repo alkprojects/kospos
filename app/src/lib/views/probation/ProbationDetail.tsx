@@ -35,7 +35,7 @@ import type {
   ProbationStatus,
   ProbationaryPeriodHours,
 } from '../../probation';
-import type { Position } from '../../positions';
+import type { Position, PersonRef } from '../../positions';
 
 interface ProbationDetailProps {
   probation: Probation;
@@ -43,6 +43,14 @@ interface ProbationDetailProps {
    *  empty if no P&P snapshot is loaded — picker still works, the field
    *  just becomes plain text. */
   positions: Position[];
+  /** Lookup by name → person ref. Drives the employee-name autocomplete +
+   *  the auto-fill of employee # / position when a known name is picked. */
+  peopleByName: Map<string, PersonRef>;
+  /** Lookup by emplId → person ref. Drives the employee-# autocomplete +
+   *  the auto-fill of name / position when a known emplId is picked. */
+  peopleByEmplId: Map<string, PersonRef>;
+  /** Alphabetical list for the datalist options. */
+  peopleList: PersonRef[];
   onClose: () => void;
 }
 
@@ -76,7 +84,14 @@ function draftFrom(p: Probation): DraftState {
   };
 }
 
-export function ProbationDetail({ probation, positions, onClose }: ProbationDetailProps) {
+export function ProbationDetail({
+  probation,
+  positions,
+  peopleByName,
+  peopleByEmplId,
+  peopleList,
+  onClose,
+}: ProbationDetailProps) {
   const updateProbation = useProbations(s => s.updateProbation);
   const deleteProbation = useProbations(s => s.deleteProbation);
   const addExtension = useProbations(s => s.addExtension);
@@ -243,21 +258,67 @@ export function ProbationDetail({ probation, positions, onClose }: ProbationDeta
           <Field label="Employee name" required>
             <input
               type="text"
+              list="probation-detail-people-name-datalist"
               value={draft.employeeName}
-              onChange={e => setDraft({ ...draft, employeeName: e.target.value })}
+              onChange={e => {
+                const v = e.target.value;
+                const match = peopleByName.get(v.trim());
+                if (match) {
+                  setDraft({
+                    ...draft,
+                    employeeName: match.name,
+                    employeeId: draft.employeeId.trim() === '' ? match.emplId : draft.employeeId,
+                    positionDisplayNumber:
+                      draft.positionDisplayNumber.trim() === ''
+                        ? match.positionDisplayNumber
+                        : draft.positionDisplayNumber,
+                    jobCode: draft.jobCode.trim() === '' ? match.jobCode : draft.jobCode,
+                  });
+                } else {
+                  setDraft({ ...draft, employeeName: v });
+                }
+              }}
               aria-label="Employee name"
               style={inputStyle()}
             />
+            <datalist id="probation-detail-people-name-datalist">
+              {peopleList.map(p => (
+                <option key={p.emplId} value={p.name}>{p.emplId} — {p.jobCode}</option>
+              ))}
+            </datalist>
           </Field>
           <Field label="Employee #">
             <input
               type="text"
+              list="probation-detail-people-id-datalist"
               value={draft.employeeId}
-              onChange={e => setDraft({ ...draft, employeeId: e.target.value })}
+              onChange={e => {
+                const v = e.target.value;
+                const match = peopleByEmplId.get(v.trim());
+                if (match) {
+                  setDraft({
+                    ...draft,
+                    employeeId: match.emplId,
+                    employeeName: draft.employeeName.trim() === '' ? match.name : draft.employeeName,
+                    positionDisplayNumber:
+                      draft.positionDisplayNumber.trim() === ''
+                        ? match.positionDisplayNumber
+                        : draft.positionDisplayNumber,
+                    jobCode: draft.jobCode.trim() === '' ? match.jobCode : draft.jobCode,
+                  });
+                } else {
+                  setDraft({ ...draft, employeeId: v });
+                }
+              }}
               placeholder="optional"
               aria-label="Employee number"
               style={{ ...inputStyle(), fontFamily: 'monospace', width: 120 }}
             />
+            <datalist id="probation-detail-people-id-datalist">
+              {peopleList.map(p => (
+                <option key={p.emplId} value={p.emplId}>{p.name} — {p.jobCode}</option>
+              ))}
+            </datalist>
           </Field>
           <Field label="Position #">
             <input
