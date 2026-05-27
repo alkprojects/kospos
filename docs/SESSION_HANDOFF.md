@@ -4,15 +4,48 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
-## Current status (end of Session 28 — Phase 2.2.e lib/staffing-plan/ + Hiring Plan workspace + UI fix, 2026-05-26)
+## Current status (end of Session 28 — Phase 2.2.e lib/staffing-plan/ + Hiring Plan workspace + UI fixes, 2026-05-26)
 
-**Phase:** Phase 2.2.e — **`lib/staffing-plan/` entity layer ([PR #79](https://github.com/alkprojects/kospos/pull/79)) + Hiring Plan workspace surface ([PR #80](https://github.com/alkprojects/kospos/pull/80))** plus a small UI fix ([PR #78](https://github.com/alkprojects/kospos/pull/78) — Labor → Payroll rename + always-show "View payroll →" button) that resolves two bugs Alex flagged on the live site at session open. Phase 2.2.e close audit fired on schedule (5th event-based trigger).
-**Last main commit:** `23d8ed7` ([PR #80](https://github.com/alkprojects/kospos/pull/80) — Hiring Plan surface) → `8f92115` ([PR #79](https://github.com/alkprojects/kospos/pull/79) — staffing-plan entity) → `3cdf2c8` ([PR #78](https://github.com/alkprojects/kospos/pull/78) — Payroll rename + always-show button) → `b23e4f8` ([PR #77](https://github.com/alkprojects/kospos/pull/77) — S27 handoff) → `abbf7a4` ([PR #76](https://github.com/alkprojects/kospos/pull/76) — polish)
-**Tests:** 263 / 263 passing (227 baseline + 27 entity-layer cases covering id uniqueness + sign convention across all 5 types + multi-action Marco Jacobo pattern + store CRUD + history audit + 9 React-render cases for the surface).
-**Branches in flight:** `chore/phase-2-2-e-close-audit-and-handoff` (this docs PR)
-**Worktree hygiene:** auto-archive working across **8 consecutive PRs** (PR #71, #73, #74, #75, #76, #78, #79, #80 all swept cleanly). Carry-forward Item A stays dropped. Any stale worktree in S29+ is a regression.
+**Phase:** Phase 2.2.e — **`lib/staffing-plan/` entity layer ([PR #79](https://github.com/alkprojects/kospos/pull/79)) + Hiring Plan workspace surface ([PR #80](https://github.com/alkprojects/kospos/pull/80))** plus two small UI fixes ([PR #78](https://github.com/alkprojects/kospos/pull/78) — Labor → Payroll rename + always-show "View payroll →" button; [PR #82](https://github.com/alkprojects/kospos/pull/82) — Hiring Plan dropdown shows all positions + Payroll scoped-empty diagnostic). Phase 2.2.e close audit fired on schedule (5th event-based trigger).
+**Last main commit:** `<PR #82 hash>` ([PR #82](https://github.com/alkprojects/kospos/pull/82) — UI hotfix) → `63bba32` ([PR #81](https://github.com/alkprojects/kospos/pull/81) — Phase 2.2.e close audit + S28 handoff) → `23d8ed7` ([PR #80](https://github.com/alkprojects/kospos/pull/80) — Hiring Plan surface) → `8f92115` ([PR #79](https://github.com/alkprojects/kospos/pull/79) — staffing-plan entity) → `3cdf2c8` ([PR #78](https://github.com/alkprojects/kospos/pull/78) — Payroll rename + always-show button)
+**Tests:** 263 / 263 passing (PR #82 added no tests — pure UI / diagnostic shipping).
+**Branches in flight:** none post-merge.
+**Worktree hygiene:** auto-archive working across **9 consecutive PRs** (PR #71, #73, #74, #75, #76, #78, #79, #80, #82). Carry-forward Item A stays dropped. Any stale worktree in S29+ is a regression.
 
-### What landed this session — three PRs (plus docs PR)
+### ⚠️ Three live-site bugs Alex flagged at session close — fix first in S29
+
+After the Phase 2.2.e close, Alex reviewed the live site and reported three bugs. Two shipped a fix in [PR #82](https://github.com/alkprojects/kospos/pull/82); **one needs design work in S29**:
+
+**(fixed in PR #82) Bug 1 — Hiring Plan dropdown was capped at 200 positions.** Marco Jacobo's position 1115135 didn't appear in autocomplete because `positions.slice(0, 200)` truncated the datalist. Fix: drop the slice. **Validate on live site:** `?dev=1` → Hiring Plan → start typing `111` in Position #; 1115135 should appear in the dropdown.
+
+**(diagnostic in PR #82, root-cause pending) Bug 2 — Payroll scope to position 1106950 shows 0 rows, but Alex confirms position has payroll data.** Most likely a `positionIdentifier` mismatch between P&P (`1106950`) and OBI (probably `1106950 ` with whitespace, or a renumbered identifier, or a TX-history identifier). PR #82 adds a diagnostic to the Payroll scoped-empty state showing snapshot stats + "nearby positionIdentifiers" chips with the same 4-digit prefix. **NEXT SESSION:** Alex opens the live site → `?dev=1` → Positions → 1106950 → View payroll → reports which chip (if any) is "the real one" → S29 ships the fix (extend `normalizePositionKey` to strip internal whitespace? add an alias-map? change the join to fuzzy-match?). **Don't ship the fix blindly — wait for the diagnostic's chip output.**
+
+**(deferred to S29) Bug 3 — Pending + TEMP sections should default-populate from data, with a "Manual user changes" override section.** Significant design change to `lib/staffing-plan/`. Alex's exact ask:
+
+> "everything should be user editable and addable, but pending positions should by default show all vacant positions that are not active and the temp section should by default show all temp positions. if a user removes a position from pending without adding it to active it should go in a section at the bottom, something like manual user changes. same with temp, if a user removes something from that section it should show up in the manual changes section."
+
+**Proposed design** (for S29 to confirm/correct via AskUserQuestion):
+
+- **Derived actions** are computed at render time, not stored. Source: the P&P spine. Rules:
+  - `Pending` = positions with `fillStatus === 'VACANT'` AND no manual `active-hire` or `separation` action
+  - `TEMP` = positions with a Cat 17/18 appointment AND no manual override
+- **Manual actions** (the existing `PlannedAction` shape from PR #79) override derived defaults on the same position. Adding an Active action for a vacant position removes that position from the auto-Pending list.
+- **Manual omissions** — a new entity type (or a `'derived-removed'` source enum on `PlannedAction`) records "user removed this from the default list." When set, the position no longer appears in derived Pending/TEMP — it appears in a new **"Manual user changes"** section at the bottom of the workspace.
+- **Implementation:** extend `PlannedAction` types with `source: 'manual' | 'derived' | 'derived-removed'`. Derived rows are virtual (computed at view time). Derived-removed rows are stored but marked. Sections render `manual ⊕ derived` then subtract `derived-removed`.
+- **Persistence:** unchanged (in-memory v1; manual + derived-removed persist; derived are recomputed).
+
+This is the right scope for Phase 2.2.f Option C (staffing-plan v2) — combine with the per-action detail editor + status workflow + holdReason narrowing that were already queued. **Recommend Phase 2.2.f Option C be expanded to include this Bug 3 design, and that it become the recommended pick** since it's the most user-visible gap on the workspace.
+
+### What landed this session — four PRs (plus docs PR)
+
+#### [PR #82](https://github.com/alkprojects/kospos/pull/82) — UI hotfix: Hiring Plan dropdown shows all positions + Payroll scoped-empty diagnostic
+
+Two post-deploy bugs Alex spotted on the live site after PR #80 (Hiring Plan surface). 2 files changed (+83 / −2).
+
+- **Dropdown cap removed.** `positions.slice(0, 200)` truncated the datalist — Marco Jacobo's 1115135 didn't appear in autocomplete. Removed the slice; browsers handle long `<datalist>` lists fine.
+- **Payroll scoped-empty diagnostic.** When the user scopes to a position with 0 OBI rows, the table previously just said "No rows match." Now surfaces: snapshot row + distinct-positionIdentifier counts; common causes (whitespace / digit-format divergence / position renumber / wrong FY); "nearby positionIdentifiers" chips for same 4-digit prefix (catches TX-history + renumber cases). When Alex opens this on his data for 1106950 the chips will surface the actual variant identifier OBI is using.
+
+**Bug 3 from Alex's report (Pending/TEMP defaults-from-data + Manual user changes section) is deferred to S29** as the recommended Phase 2.2.f Option C scope expansion.
 
 #### [PR #78](https://github.com/alkprojects/kospos/pull/78) — UI fix: Labor → Payroll rename + always-show "View payroll →" button
 
@@ -226,6 +259,32 @@ DO fire the 2.2.f audit before this session ends. Use the Phase 2.2.e
 close audit format; mirror the prior audit's table of carry-forwards.
 
 ==============================================================================
+STEP 0.5 — Triage the S28 live-site bugs Alex flagged at session close
+==============================================================================
+Alex reported three bugs after Phase 2.2.e shipped. PR #82 fixed two of
+them; one needs Alex's input + design work. Before picking 2.2.f,
+RESOLVE these two:
+
+  Bug 2 (Payroll scope to position 1106950 shows 0 rows) — Alex needs
+  to open the live site (?dev=1 → Positions → 1106950 → View payroll)
+  and report what the diagnostic chips show. The chips list nearby
+  positionIdentifiers in the snapshot for the same 1106 prefix. The
+  fix lands once we know which chip (if any) is "the real one":
+    - whitespace variant ("1106950 ") → tighten normalizePositionKey
+    - renumbered identifier ("1106950A" or "5106950") → alias map
+    - position not in OBI at all → real no-pay case; no fix needed
+  Use AskUserQuestion to surface this to Alex up front.
+
+  Bug 3 (Pending/TEMP sections should default from data + manual
+  override + Manual user changes section) — the design is sketched in
+  SESSION_HANDOFF.md § "Three live-site bugs Alex flagged at session
+  close — fix first in S29". Strong recommendation: fold this into
+  Phase 2.2.f Option C (staffing-plan v2) scope and make C the
+  recommended pick. This is the biggest user-visible gap on the
+  workspace and gets the Hiring Plan from "blank slate" to "useful
+  out of the box" — much higher payoff than Options A or B.
+
+==============================================================================
 STEP 1 — Ask Alex to pick Phase 2.2.f
 ==============================================================================
 Use AskUserQuestion. Three options in SESSION_HANDOFF.md § "Recommendation
@@ -240,10 +299,13 @@ for Phase 2.2.f":
      — smallest sub-phase, no importer expansion, fast win. Pure
      query view (active roster ⋈ paid-this-FY). No gating questions.
 
-  C. staffing-plan v2 — per-action detail editor + status workflow +
-     holdReason enum narrowing.
+  C. (RECOMMENDED) staffing-plan v2 — per-action detail editor +
+     status workflow + holdReason enum narrowing + **Bug 3 design
+     (Pending/TEMP defaults from data + Manual user changes section)**.
      GATING: Restated Q #18 (holdReason enum values) + Q #19 (status
-     workflow transitions free vs guarded) must be answered up front.
+     workflow transitions free vs guarded) + new Q (Bug 3 design
+     details) must be answered up front. This is the recommended pick
+     because Bug 3 is the most-visible gap on the workspace.
 
   (Escape hatch: Alex names something else from the dependency graph.)
 
@@ -277,11 +339,18 @@ If B — views/inactive:
     - Add the tab to App.tsx (devOnly initially)
     - Tests
 
-If C — staffing-plan v2:
-  Branch: feat/staffing-plan-v2
+If C — staffing-plan v2 (RECOMMENDED — includes Bug 3 design):
+  Branch: feat/staffing-plan-v2 (likely split into 2-3 PRs given scope)
   Scope:
-    - Resolve Q #18 (holdReason enum) + Q #19 (status transitions)
-      via AskUserQuestion at the start
+    - Resolve Q #18 (holdReason enum) + Q #19 (status transitions) +
+      Bug 3 design questions via AskUserQuestion at the start
+    - Bug 3 design: derived defaults from data
+        * Pending = vacant positions with no manual active/separation
+        * TEMP = Cat 17/18 positions with no manual override
+        * 'Manual user changes' section at bottom for derived-removed rows
+        * Extend PlannedAction with source: 'manual' | 'derived' | 'derived-removed'
+        * Render = (manual rows) ⊕ (derived rows) − (derived-removed rows)
+        * derived-removed persists; derived is virtual (recomputed)
     - Narrow holdReason to a typed enum in lib/staffing-plan/types.ts
     - Add status-transition guard helper to lib/staffing-plan/build.ts
     - Build PlannedActionDetail.tsx — full CostInput exposure so
@@ -289,6 +358,9 @@ If C — staffing-plan v2:
       selector
     - Wire row-click on the section table → PlannedActionDetail
     - Tests + preview-MCP walkthrough
+  Plus Bug 2 (positionIdentifier mismatch for 1106950):
+    - Use Alex's diagnostic chip output from STEP 0.5 to pick the fix
+    - Ship as a separate small PR before the v2 work begins
 
 ==============================================================================
 Hard constraints
