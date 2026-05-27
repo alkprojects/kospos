@@ -20,7 +20,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ProbationsView } from './ProbationsView';
+import { ProbationsView, buildProbationNotificationEmail, buildProbationMailtoUri } from './ProbationsView';
 import { useProbations } from '../../probation';
 import { useAppStore } from '../../store';
 import type { PsHcmPpRow } from '../../importers/types';
@@ -488,6 +488,154 @@ describe('ProbationsView', () => {
     expect(screen.queryByLabelText(/End date for HasExt, Row/i)).not.toBeInTheDocument();
     // The row's onClick should have run, opening detail modal
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  describe('buildProbationNotificationEmail', () => {
+    it('addresses supervisor + deputy when both are set', () => {
+      const { subject, body } = buildProbationNotificationEmail({
+        employeeName: 'Smith, John',
+        employeeId: '111111',
+        positionDisplayNumber: '50001',
+        supervisor: 'Carey McElroy',
+        deputy: 'Park, Deputy',
+        currentEnd: '2026-09-30',
+      });
+      expect(subject).toBe('Probation completion approaching — Smith, John');
+      expect(body).toContain('Hello Carey McElroy and Park, Deputy,');
+      expect(body).toContain("Smith, John (#111111)");
+      expect(body).toContain('on position 50001');
+      expect(body).toContain('completion date of 2026-09-30');
+      expect(body).toContain('email HR');
+    });
+
+    it('addresses supervisor only when deputy is unset', () => {
+      const { body } = buildProbationNotificationEmail({
+        employeeName: 'Smith, Jane',
+        supervisor: 'Carey McElroy',
+        currentEnd: '2026-09-30',
+      });
+      // Greeting line specifically — body has unrelated " and " elsewhere
+      // (e.g. "anything else that should be…"), so anchor to the start.
+      expect(body.split('\n')[0]).toBe('Hello Carey McElroy,');
+    });
+
+    it('handles unknown supervisor + blank end date gracefully', () => {
+      const { subject, body } = buildProbationNotificationEmail({
+        employeeName: 'Unknown, Person',
+        supervisor: '',
+        currentEnd: '',
+      });
+      expect(subject).toBe('Probation completion approaching — Unknown, Person');
+      expect(body).toContain('Hello (supervisor),');
+      expect(body).toContain('(no end date set)');
+    });
+  });
+
+  describe('buildProbationMailtoUri', () => {
+    it('produces a well-formed mailto: URI with subject + body params', () => {
+      const uri = buildProbationMailtoUri({
+        employeeName: 'Smith, John',
+        supervisor: 'Carey McElroy',
+        currentEnd: '2026-09-30',
+      });
+      expect(uri.startsWith('mailto:?')).toBe(true);
+      expect(uri).toContain('subject=Probation+completion+approaching'.replace(/\+/g, '%20'));
+      // body= portion present
+      expect(uri).toContain('body=');
+    });
+
+    it('encodes spaces as %20 (Outlook-safe), not +', () => {
+      const uri = buildProbationMailtoUri({
+        employeeName: 'Smith, John',
+        supervisor: 'Carey McElroy',
+        currentEnd: '2026-09-30',
+      });
+      // No raw '+' should appear in the URI body — all spaces are %20.
+      expect(uri).not.toContain('+');
+    });
+  });
+
+  describe('row selection + notification panel', () => {
+    it('renders a select-all checkbox in the header and per-row checkboxes', () => {
+      useProbations.getState().addProbation({
+        employeeName: 'Row, One',
+        probationaryPeriodHours: 2080,
+        startWorkDate: '2026-01-01',
+      });
+      render(<ProbationsView />);
+      expect(screen.getByLabelText(/Select all visible probations/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Select probation for Row, One/i)).toBeInTheDocument();
+    });
+
+    it('Generate emails button is hidden until 1+ rows are selected', () => {
+      useProbations.getState().addProbation({
+        employeeName: 'Row, One',
+        probationaryPeriodHours: 2080,
+        startWorkDate: '2026-01-01',
+      });
+      render(<ProbationsView />);
+      expect(screen.queryByRole('button', { name: /Generate emails/i })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByLabelText(/Select probation for Row, One/i));
+      expect(screen.getByRole('button', { name: /Generate emails/i })).toBeInTheDocument();
+      expect(screen.getByText(/1 selected/i)).toBeInTheDocument();
+    });
+
+    it('selecting via row checkbox does NOT open the detail modal (stopPropagation)', () => {
+      useProbations.getState().addProbation({
+        employeeName: 'Row, One',
+        probationaryPeriodHours: 2080,
+        startWorkDate: '2026-01-01',
+      });
+      render(<ProbationsView />);
+      fireEvent.click(screen.getByLabelText(/Select probation for Row, One/i));
+      // Detail modal should NOT have opened
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('Clear button resets the selection', () => {
+      useProbations.getState().addProbation({
+        employeeName: 'Row, One',
+        probationaryPeriodHours: 2080,
+        startWorkDate: '2026-01-01',
+      });
+      render(<ProbationsView />);
+      fireEvent.click(screen.getByLabelText(/Select probation for Row, One/i));
+      expect(screen.getByText(/1 selected/i)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /^Clear$/i }));
+      expect(screen.queryByText(/1 selected/i)).not.toBeInTheDocument();
+    });
+
+    it('clicking Generate emails opens the notification panel with mailto: + copy buttons per selected row', () => {
+      useProbations.getState().addProbation({
+        employeeName: 'Smith, John',
+        probationaryPeriodHours: 2080,
+        startWorkDate: '2026-01-01',
+        supervisor: 'Carey McElroy',
+        deputy: 'Park, Deputy',
+      });
+      useProbations.getState().addProbation({
+        employeeName: 'Smith, Jane',
+        probationaryPeriodHours: 2080,
+        startWorkDate: '2026-01-01',
+        supervisor: 'Carey McElroy',
+      });
+      render(<ProbationsView />);
+
+      // Select all
+      fireEvent.click(screen.getByLabelText(/Select all visible probations/i));
+      expect(screen.getByText(/2 selected/i)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /Generate emails/i }));
+
+      // Panel header
+      expect(screen.getByText(/Notify supervisors & deputies/i)).toBeInTheDocument();
+      // One mailto: per row
+      expect(screen.getByLabelText(/Open mailto for Smith, John/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Open mailto for Smith, Jane/i)).toBeInTheDocument();
+      // One copy-template per row
+      expect(screen.getByLabelText(/Copy email template for Smith, John/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Copy email template for Smith, Jane/i)).toBeInTheDocument();
+    });
   });
 
   it('add extension from detail modal auto-transitions open → extended', () => {
