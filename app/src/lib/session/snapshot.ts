@@ -42,6 +42,7 @@ import type { ImportedRow } from '../importers/types';
 import type { PlannedAction } from '../staffing-plan';
 import type { PendingSeparation } from '../separations';
 import type { Probation } from '../probation';
+import type { EligibilityList, JobPosting, PdfExtract } from '../scrapers/types';
 
 /**
  * Schema version. Increment when the payload shape changes incompatibly.
@@ -57,6 +58,14 @@ import type { Probation } from '../probation';
  *        Same back-compat rule: pre-Phase-2.2.j files load with the
  *        field undefined; restore defaults to []. New v1 files always
  *        include the field.
+ *   v1 — extended (Phase 2.2.q) — added optional scraper-state fields:
+ *        `jobPostings`, `jobPostingsRefreshedAt`, `eligibilityLists`,
+ *        `eligibilityListsRefreshedAt`, `pdfCache`. Same back-compat
+ *        rule: pre-Phase-2.2.q files load with each field undefined;
+ *        the restore defaults to [] / '' / {}. This lets the auto-save
+ *        path persist the Eligibility scrape + 100+ PDF extracts so a
+ *        page reload doesn't force the user to re-paste DHR HTML +
+ *        re-fetch every PDF.
  */
 export const SESSION_SCHEMA_VERSION = 1;
 
@@ -100,6 +109,34 @@ export interface SessionPayload {
    * to []. New v1 files always include the field.
    */
   probations?: Array<[string, Probation]>;
+  /**
+   * SmartRecruiters job postings (Phase 2.2.q). Optional for backward
+   * compatibility: v1 files saved before this field was added load with
+   * `jobPostings` undefined; the restore code defaults to []. Pairs with
+   * `jobPostingsRefreshedAt`.
+   */
+  jobPostings?: JobPosting[];
+  /** ISO timestamp of the last SmartRecruiters fetch. Empty string when
+   *  no fetch has happened yet. */
+  jobPostingsRefreshedAt?: string;
+  /**
+   * DHR eligibility lists (Phase 2.2.q). Optional for backward
+   * compatibility: v1 files saved before this field was added load with
+   * `eligibilityLists` undefined; the restore code defaults to []. Pairs
+   * with `eligibilityListsRefreshedAt`.
+   */
+  eligibilityLists?: EligibilityList[];
+  /** ISO timestamp of the last DHR scrape / paste. Empty string when no
+   *  data has loaded yet. */
+  eligibilityListsRefreshedAt?: string;
+  /**
+   * Tuple-of-entries form of `useScrapers.pdfCache` (Phase 2.2.q).
+   * Persisting the PDF extract cache avoids re-fetching 100+ PDFs through
+   * the CORS-proxy chain on every reload. Optional for backward
+   * compatibility: v1 files saved before this field was added load with
+   * `pdfCache` undefined; the restore code defaults to {}.
+   */
+  pdfCache?: Array<[string, PdfExtract]>;
 }
 
 /**
@@ -187,6 +224,25 @@ export function parseSessionFile(raw: string): ParseResult {
   if (p.probations !== undefined && !Array.isArray(p.probations)) {
     return { ok: false, reason: 'not-a-session-file', detail: 'payload.probations must be an array if present.' };
   }
+  // Phase 2.2.q scraper-state fields — same back-compat rule. Each is
+  // optional; if present it must be the correct shape (arrays for
+  // jobPostings / eligibilityLists / pdfCache, string for the *RefreshedAt
+  // timestamps).
+  if (p.jobPostings !== undefined && !Array.isArray(p.jobPostings)) {
+    return { ok: false, reason: 'not-a-session-file', detail: 'payload.jobPostings must be an array if present.' };
+  }
+  if (p.jobPostingsRefreshedAt !== undefined && typeof p.jobPostingsRefreshedAt !== 'string') {
+    return { ok: false, reason: 'not-a-session-file', detail: 'payload.jobPostingsRefreshedAt must be a string if present.' };
+  }
+  if (p.eligibilityLists !== undefined && !Array.isArray(p.eligibilityLists)) {
+    return { ok: false, reason: 'not-a-session-file', detail: 'payload.eligibilityLists must be an array if present.' };
+  }
+  if (p.eligibilityListsRefreshedAt !== undefined && typeof p.eligibilityListsRefreshedAt !== 'string') {
+    return { ok: false, reason: 'not-a-session-file', detail: 'payload.eligibilityListsRefreshedAt must be a string if present.' };
+  }
+  if (p.pdfCache !== undefined && !Array.isArray(p.pdfCache)) {
+    return { ok: false, reason: 'not-a-session-file', detail: 'payload.pdfCache must be an array if present.' };
+  }
   return { ok: true, file: parsed as unknown as SessionFile };
 }
 
@@ -204,6 +260,12 @@ export function buildSessionFile(input: {
   pendingSeparations?: Map<string, PendingSeparation>;
   /** Optional — backward compatible with pre-Phase 2.2.j callers. */
   probations?: Map<string, Probation>;
+  /** Optional — backward compatible with pre-Phase 2.2.q callers. */
+  jobPostings?: JobPosting[];
+  jobPostingsRefreshedAt?: string;
+  eligibilityLists?: EligibilityList[];
+  eligibilityListsRefreshedAt?: string;
+  pdfCache?: Record<string, PdfExtract>;
   label?: string;
 }): SessionFile {
   return {
@@ -222,6 +284,13 @@ export function buildSessionFile(input: {
         : [],
       probations: input.probations
         ? [...input.probations.entries()]
+        : [],
+      jobPostings: input.jobPostings ?? [],
+      jobPostingsRefreshedAt: input.jobPostingsRefreshedAt ?? '',
+      eligibilityLists: input.eligibilityLists ?? [],
+      eligibilityListsRefreshedAt: input.eligibilityListsRefreshedAt ?? '',
+      pdfCache: input.pdfCache
+        ? Object.entries(input.pdfCache)
         : [],
     },
   };

@@ -15,6 +15,7 @@ import type { ImportedRow } from '../importers/types';
 import type { PlannedAction } from '../staffing-plan';
 import type { PendingSeparation } from '../separations';
 import type { Probation } from '../probation';
+import type { EligibilityList, JobPosting, PdfExtract } from '../scrapers/types';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -318,6 +319,147 @@ describe('session snapshot round-trip', () => {
     }));
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe('not-a-session-file');
+  });
+
+  // -------------------------------------------------------------------------
+  // Phase 2.2.q — scraper-state fields (jobPostings / eligibilityLists /
+  // pdfCache + their refreshedAt timestamps). All additive on v1 schema.
+  // -------------------------------------------------------------------------
+
+  function jobPosting(id: string, jobCode: string): JobPosting {
+    return {
+      id,
+      name: `Title (${jobCode} Test Class) - Dept`,
+      jobCode,
+      classTitle: 'Test Class',
+      department: 'TST',
+      location: '',
+      releasedDate: '2026-05-27T15:00:00Z',
+      url: `https://example.test/${id}`,
+    };
+  }
+
+  function eligList(jobCode: string, listId: string): EligibilityList {
+    return {
+      jobCode,
+      classTitle: 'Test Class',
+      listId,
+      postDate: '2026-05-15',
+      fileUrl: `https://example.test/${jobCode}-${listId}.pdf`,
+      type: 'score-report',
+    };
+  }
+
+  function pdfExtract(): PdfExtract {
+    return {
+      certRule: 'Rule of the List',
+      listDepartment: 'Citywide',
+      examSubType: 'CPE',
+      examType: 'PBT',
+      duration: '12 Months',
+      extractedAt: '2026-05-28T12:00:00Z',
+      success: true,
+    };
+  }
+
+  it('round-trips jobPostings + eligibilityLists + pdfCache through build → parse', () => {
+    const file = buildSessionFile({
+      loadedRows: [],
+      lastBfmImportAt: '',
+      staffingPlanActions: new Map(),
+      staffingPlanDerivedRemoved: new Set(),
+      positionNotes: new Map(),
+      jobPostings: [jobPosting('p1', '0932'), jobPosting('p2', '1820')],
+      jobPostingsRefreshedAt: '2026-05-28T14:30:00Z',
+      eligibilityLists: [eligList('0932', '140556'), eligList('1820', 'A00026')],
+      eligibilityListsRefreshedAt: '2026-05-28T14:31:00Z',
+      pdfCache: {
+        '0932|140556|2026-05-15': pdfExtract(),
+        '1820|A00026|2026-05-15': pdfExtract(),
+      },
+    });
+    expect(file.payload.jobPostings).toHaveLength(2);
+    expect(file.payload.jobPostingsRefreshedAt).toBe('2026-05-28T14:30:00Z');
+    expect(file.payload.eligibilityLists).toHaveLength(2);
+    expect(file.payload.eligibilityListsRefreshedAt).toBe('2026-05-28T14:31:00Z');
+    expect(file.payload.pdfCache).toHaveLength(2);
+
+    const json = JSON.stringify(file);
+    const parsed = parseSessionFile(json);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.file.payload.jobPostings).toHaveLength(2);
+    expect(parsed.file.payload.jobPostings![0].jobCode).toBe('0932');
+    expect(parsed.file.payload.eligibilityLists![1].listId).toBe('A00026');
+    expect(parsed.file.payload.pdfCache).toHaveLength(2);
+    expect(parsed.file.payload.pdfCache![0][1].duration).toBe('12 Months');
+  });
+
+  it('defaults Phase 2.2.q scraper fields to [] / "" when omitted (back-compat)', () => {
+    const file = buildSessionFile({
+      loadedRows: [],
+      lastBfmImportAt: '',
+      staffingPlanActions: new Map(),
+      staffingPlanDerivedRemoved: new Set(),
+      positionNotes: new Map(),
+      // jobPostings / eligibilityLists / pdfCache / *RefreshedAt all omitted
+    });
+    expect(file.payload.jobPostings).toEqual([]);
+    expect(file.payload.jobPostingsRefreshedAt).toBe('');
+    expect(file.payload.eligibilityLists).toEqual([]);
+    expect(file.payload.eligibilityListsRefreshedAt).toBe('');
+    expect(file.payload.pdfCache).toEqual([]);
+  });
+
+  it('parseSessionFile accepts a v1 file with Phase 2.2.q scraper fields missing entirely', () => {
+    // Simulates a session file saved on a build prior to Phase 2.2.q.
+    const result = parseSessionFile(JSON.stringify({
+      kind: 'kospos-session',
+      schemaVersion: SESSION_SCHEMA_VERSION,
+      savedAt: '2026-05-27T00:00:00.000Z',
+      payload: {
+        loadedRows: [],
+        lastBfmImportAt: '',
+        staffingPlanActions: [],
+        staffingPlanDerivedRemoved: [],
+        positionNotes: [],
+        // Phase 2.2.q fields all omitted (pre-Phase-2.2.q save)
+      },
+    }));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.file.payload.jobPostings).toBeUndefined();
+      expect(result.file.payload.eligibilityLists).toBeUndefined();
+      expect(result.file.payload.pdfCache).toBeUndefined();
+    }
+  });
+
+  it('parseSessionFile rejects Phase 2.2.q scraper fields with wrong types', () => {
+    const baseValid = {
+      kind: 'kospos-session',
+      schemaVersion: SESSION_SCHEMA_VERSION,
+      savedAt: '2026-05-28T00:00:00.000Z',
+      payload: {
+        loadedRows: [],
+        lastBfmImportAt: '',
+        staffingPlanActions: [],
+        staffingPlanDerivedRemoved: [],
+        positionNotes: [],
+      },
+    };
+    // jobPostings wrong type
+    let r = parseSessionFile(JSON.stringify({ ...baseValid, payload: { ...baseValid.payload, jobPostings: 'nope' } }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toBe('not-a-session-file');
+    // jobPostingsRefreshedAt wrong type
+    r = parseSessionFile(JSON.stringify({ ...baseValid, payload: { ...baseValid.payload, jobPostingsRefreshedAt: 42 } }));
+    expect(r.ok).toBe(false);
+    // eligibilityLists wrong type
+    r = parseSessionFile(JSON.stringify({ ...baseValid, payload: { ...baseValid.payload, eligibilityLists: { wrong: true } } }));
+    expect(r.ok).toBe(false);
+    // pdfCache wrong type
+    r = parseSessionFile(JSON.stringify({ ...baseValid, payload: { ...baseValid.payload, pdfCache: 'string-not-array' } }));
+    expect(r.ok).toBe(false);
   });
 
   it('savedAt is an ISO timestamp at build time', () => {

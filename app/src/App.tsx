@@ -9,15 +9,29 @@ import { SeparationsView } from './lib/views/separations';
 import { ProbationsView } from './lib/views/probation';
 import { InactiveView } from './lib/views/inactive';
 import { EligibilityView } from './lib/views/eligibility';
+import { LandingView } from './lib/views/landing';
 import { SpecialClassView } from './modules/special-class/SpecialClassView';
 import { useAppStore } from './lib/store';
 import { resolveDevMode, disableDevMode } from './lib/dev-mode';
+import { useAutoSessionPersistence } from './lib/session/use-auto-persistence';
 
-type Tab = 'calculator' | 'importer' | 'positions' | 'labor' | 'staffing-plan' | 'separations' | 'probation' | 'inactive' | 'eligibility' | 'special-class';
+type Tab =
+  | 'landing'
+  | 'calculator'
+  | 'importer'
+  | 'positions'
+  | 'labor'
+  | 'staffing-plan'
+  | 'separations'
+  | 'probation'
+  | 'inactive'
+  | 'eligibility'
+  | 'special-class';
 
 type TabDef = { id: Tab; label: string; devOnly?: boolean };
 
 const ALL_TABS: TabDef[] = [
+  { id: 'landing',       label: 'Welcome' },
   { id: 'calculator',    label: 'Job Class Calculator' },
   { id: 'positions',     label: 'Positions' },
   { id: 'labor',         label: 'Payroll',               devOnly: true },
@@ -51,6 +65,11 @@ export default function App() {
   );
   const [tab, setTab] = useState<Tab>(visibleTabs[0].id);
   const issueCount = useAppStore(s => s.issues.length);
+  // Wire IndexedDB auto-persistence. Runs once on mount; subscribes to
+  // all six Zustand stores; debounces saves to coalesce bulk imports.
+  // Status flows into LandingView so the user knows when a snapshot
+  // restored vs. saved.
+  const persistence = useAutoSessionPersistence();
 
   // Expose / unexpose the dev hook in lockstep with devMode.
   useEffect(() => {
@@ -162,6 +181,9 @@ export default function App() {
       </header>
 
       <main className="main" style={{ padding: 0 }}>
+        {tab === 'landing'       && (
+          <LandingView persistence={persistence} onNavigate={setTab} />
+        )}
         {tab === 'calculator'    && <CalculatorView />}
         {tab === 'importer'      && <ImporterView />}
         {tab === 'positions'     && (

@@ -88,6 +88,19 @@ interface ScrapersState {
     extractImpl?: (fileUrl: string, workerUrl?: string) => Promise<PdfExtract>,
   ) => void;
   clearAll: () => void;
+  /**
+   * Replace scraper state wholesale from a session-snapshot restore
+   * (Phase 2.2.q). `dhrWorkerUrl` is *not* touched — it's a user setting
+   * persisted to localStorage independently. Used by
+   * `lib/session/use-auto-persistence.ts` on app open.
+   */
+  restoreFromSession: (input: {
+    jobPostings: JobPosting[];
+    jobPostingsRefreshedAt: string;
+    eligibilityLists: EligibilityList[];
+    eligibilityListsRefreshedAt: string;
+    pdfCache: Record<string, PdfExtract>;
+  }) => void;
 }
 
 /**
@@ -208,5 +221,19 @@ export const useScrapers = create<ScrapersState>((set, get) => ({
     eligibilityLists: [],
     eligibilityListsRefreshedAt: '',
     pdfCache: {},
+  }),
+
+  restoreFromSession: ({
+    jobPostings,
+    jobPostingsRefreshedAt,
+    eligibilityLists,
+    eligibilityListsRefreshedAt,
+    pdfCache,
+  }) => set({
+    jobPostings,
+    jobPostingsRefreshedAt,
+    eligibilityLists,
+    eligibilityListsRefreshedAt,
+    pdfCache,
   }),
 }));
