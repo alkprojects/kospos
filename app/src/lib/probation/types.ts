@@ -151,15 +151,23 @@ export interface Probation {
    *  explicitly to override the auto-resolved value (e.g. when the
    *  immediate supervisor is acting / vice / on leave). */
   supervisor?: string;
-  /** Optional free-text deputy — the second person who should be looped in
-   *  on probation-related communications (typically a section deputy, a
-   *  Deputy Director, or someone covering for the supervisor).
+  /** Optional list of deputies — people looped in on probation-related
+   *  communications above the immediate supervisor (typically Deputy
+   *  Directors / section deputies). Stored as an array because a probation
+   *  in a deep org may legitimately have multiple deputies in the reports-
+   *  to chain (section deputy → division deputy → division head).
    *
-   *  Not auto-resolved from position data (no canonical "deputy" field on
-   *  Position in v1 — would require walking the reportsTo chain or
-   *  modeling secondary-supervisor relationships). Manual entry only;
-   *  carried through Session JSON like every other Probation field. */
-  deputy?: string;
+   *  Auto-resolved on add: when the position is set, KosPos walks up the
+   *  reportsTo chain and pre-fills any ancestor whose `jobCodeDescription`
+   *  contains "Deputy" (case-insensitive). The user can remove pre-filled
+   *  entries from the chip list and add more people freely — the stored
+   *  array is the source of truth (the auto-resolve is one-shot at fill
+   *  time, not re-derived on every render).
+   *
+   *  Back-compat: session JSON files saved before Phase 2.2.l carry a
+   *  single-string `deputy` field instead. `restoreFromSession` promotes
+   *  it to `deputies: [deputy]` so old saves don't lose data. */
+  deputies?: string[];
   /** Date the probation reached a terminal status (cleared / failed /
    *  resigned). Optional — only meaningful when status ∈ terminal set. */
   completionDate?: string;
