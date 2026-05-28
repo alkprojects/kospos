@@ -169,7 +169,16 @@ which is the actual results table.
 For the "which positions have active eligibility lists" question, the
 **metadata** is what matters — class code, list ID, post date — not the
 PDF contents (candidate names, scores). The metadata is in the HTML
-table rows; no PDF parsing required.
+table rows.
+
+**Update (Phase 2.2.o + 2.2.p):** the original "no PDF parsing required"
+framing was correct for the rollup-level question, but the per-list
+detail modal does benefit from PDF cover-sheet text. Phase 2.2.o added
+lazy on-demand PDF text extraction (cert rule · scope · list type) via
+`pdfjs-dist`; Phase 2.2.p extended it (Duration · Exam Type) and surfaced
+the fields as new modal columns. The PDFs are fetched through the same
+CORS-proxy chain as the HTML table. See
+[`app/src/lib/scrapers/sf-dhr-exam/pdf-parse.ts`](../../app/src/lib/scrapers/sf-dhr-exam/pdf-parse.ts).
 
 For the "active" determination: a list is typically active for 1–2 years
 from post date (CSC Rule 411A / 412 governs the rule). KosPos can

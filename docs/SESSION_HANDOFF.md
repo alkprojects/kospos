@@ -4,6 +4,400 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
+## Current status (end of Session 40 — Phase 2.2.q: IndexedDB persistence + Welcome landing + Cloudflare publish/fetch code, 2026-05-28)
+
+**Phase:** Phase 2.2.q — **A+B combo: IndexedDB auto-persistence + Welcome landing dashboard ([PR #125](https://github.com/alkprojects/kospos/pull/125)) + Cloudflare Pages Worker + cross-device publish/fetch code ([PR #126](https://github.com/alkprojects/kospos/pull/126))**. Phase 2.2.q close audit fired on schedule (17th event-based trigger).
+**Last main commit:** [PR #126](https://github.com/alkprojects/kospos/pull/126) (Phase 2.2.q PR 2 — Cloudflare code) → [PR #125](https://github.com/alkprojects/kospos/pull/125) (Phase 2.2.q PR 1 — IndexedDB + landing) → [PR #124](https://github.com/alkprojects/kospos/pull/124) (S39 audit + S40 handoff) → [PR #123](https://github.com/alkprojects/kospos/pull/123) (Phase 2.2.p drill-modal UX).
+**Tests:** 813 / 813 passing (+51 net from S40 baseline of 762; +24 in PR #125 + +27 in PR #126).
+**Branches in flight:** none post-merge (this docs PR pending).
+**Worktree hygiene:** PR #125 + PR #126 auto-archived on merge.
+
+### What landed this session — 2 code PRs + this docs PR
+
+Alex went to bed shortly after kicking off and asked Claude to "ask the questions you need for this session up front so you can continue working while I'm away" + "try to work for as long as you can" on Opus 4.7 Max. A single AskUserQuestion batched 4 design decisions (Phase 2.2.q pick + 3 Cloudflare-specific picks); Alex chose the recommended A+B combo plus a richer landing-page UX than the menu's default.
+
+#### [PR #125](https://github.com/alkprojects/kospos/pull/125) — Phase 2.2.q PR 1: IndexedDB auto-persistence + Welcome landing dashboard
+
+- **`lib/session/idb-persistence.ts`** — thin `idb` wrapper. Singleton snapshot key in DB `kospos` / store `snapshots`.
+- **`lib/session/use-auto-persistence.ts`** — React hook firing on App mount: loads + restores any prior snapshot, subscribes to all 6 Zustand stores, debounces 500ms.
+- **Schema extension** — 5 new optional payload fields (jobPostings, jobPostingsRefreshedAt, eligibilityLists, eligibilityListsRefreshedAt, pdfCache). Additive on v1; back-compat per the pendingSeparations + probations precedent.
+- **`useScrapers.restoreFromSession`** — new action; preserves `dhrWorkerUrl` (user setting, not scrape data).
+- **`lib/views/landing/` — Welcome tab dashboard.** Per-source counts + source-appropriate freshness labels: P&P shows `snapshot YYYY-MM-DD`, OBI shows `latest PP YYYY-MM-DD`, BFM shows `imported YYYY-MM-DD`, scrapers show `refreshed HH:MM`. Empty-state CTA + persistence-status banner ("Restored from this browser (saved HH:MM)" / "Last auto-save HH:MM").
+- **App.tsx integration** — `landing` tab promoted as default (was Calculator).
+- **Tests +24 (762 → 786).**
+- **Live verification** — 5 synth P&P rows → reload → "Restored from this browser (saved 01:11)" + Positions tab showed all 5 rows. Zero console errors.
+
+#### [PR #126](https://github.com/alkprojects/kospos/pull/126) — Phase 2.2.q PR 2: Cloudflare Pages Worker + cross-device publish/fetch (code-only)
+
+- **`app/functions/api/snapshot.ts`** — Pages Function: GET (public KV read), POST (X-Publish-Secret gate against PUBLISH_SECRET env var), OPTIONS (CORS). Self-contained (no src/ imports) so Cloudflare bundler is happy.
+- **`lib/session/cloudflare-publish.ts`** — client publish/fetch helpers. localStorage-backed per-device config. Tagged result types for every failure mode.
+- **Auto-load extended** — reads IDB + Cloudflare in parallel; newer-`savedAt` wins. Source surfaces as `'idb'` or `'cloudflare'` for the Landing banner ("Restored from **shared (Cloudflare)** (saved HH:MM)").
+- **Publish UI in SessionExportImport** — ☁ Publish snapshot button (disabled when not configured) + ⚙ Cloudflare settings panel (URL + secret inputs + Save / Clear).
+- **Setup runbook** — new `docs/runbooks/cloudflare-pages-setup.md` (9 steps, ~15-20 min). New `docs/runbooks/` convention.
+- **Bug fix mid-verification** — `useScrapers(s => ({...}))` returned a fresh object each render → infinite loop. Switched to per-field selectors (matches codebase pattern). Lesson documented inline.
+- **Tests +27 (786 → 813).** Includes 13 Worker function tests against a faked KV namespace.
+
+#### This docs PR — Phase 2.2.q close audit + S40 SESSION_LOG entry + S41 SESSION_HANDOFF + dhr-eligibility-and-jobs-scraping-plan.md stale-framing fix
+
+- `docs/audits/phase-2-2-q-close-audit.md` — 14 findings + 5 carry-forwards + 12 recommendations.
+- `docs/research/dhr-eligibility-and-jobs-scraping-plan.md` — "no PDF parsing required" framing updated to reference Phase 2.2.o + 2.2.p (carries 2 sessions; resolved).
+
+### Items surfaced for Alex's review (carry forward)
+
+Per [memory `feedback_dont_reremind.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_dont_reremind.md): **dropped items this session** —
+
+- **Cross-device persistence implementation (Phase 2.2.q queued in S39) — SHIPPED in PR #125 + PR #126.** Drops from carry-forward.
+- **Cloudflare account state / publish-secret / cutover preference / first-load UX (the 4 questions queued in S39's persistence doc) — ANSWERED inline at S40 kickoff.** Drops from carry-forward; runbook captures Alex's choices for posterity.
+- **`research/dhr-eligibility-and-jobs-scraping-plan.md` "no PDF in v1" framing (carries from S38, second session) — RESOLVED this session** in the docs PR.
+
+#### Restated questions for Alex (5 — unchanged from S39)
+
+Items 1-5 carry from S32/S33/S34/S35/S36/S37/S38/S39/S40.
+
+1. **Attribution rate on Operating Report Summary.** Three different things on the Operating Report Summary page look like they're called "attrition rate" at the DBI / CPC dept-group level — G42 / H42 (9993 ÷ non-9993 labor), L23 / L32 (projected balance ÷ total budget), H43 (hand-keyed "Calculated, Questionable"). Which is "the attrition rate" for CON / MYR reporting? **My current default:** G42 / H42 is canonical; L23 / L32 gets renamed to "leftover %" in KosPos. **Confirm or correct?**
+
+2. **`Department Group` pivot label.** When KosPos emits the labor-report-shaped .xlsx for downstream consumers, preserve the `Department Group` GETPIVOTDATA label so other people's formulas still work? **My current default:** yes, preserve it.
+
+3. **OPS Detail snapshot-diff key.** Options: (a) Position Number alone, (b) `(Effective Dept, Position Number, Fill Status, Budget Job Code)`, (c) Position Number + a separate tracker for "who occupied it when". **My current default:** option (b).
+
+4. **Step variance merit-event aware.** The Step (Tab 18) walkthrough proposed making per-PP step variance "merit-event aware." Implement in Phase 2.4 importer, or defer to a Phase 2.2 sub-phase? **Default: defer.**
+
+5. **TX (Temporary Exchange) rules — still gates Phase 2.2.19 `views/temp-limits/`.** Four follow-up rules need confirmation (5a CSC vs negotiated, 5b Cat 16 eligibility, 5c TX vs limited-duration appointment, 5d renewal). See [memory `temporary_exchange_tx.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/temporary_exchange_tx.md).
+
+18. **Filterable + multi-selectable on every field, every tab** (Alex's reiterated UI directive). **Partial progress in S36 + S39:** the Eligibility tab + the EligibilityDetail modal both have the full filter shape. Roll-out to the other tabs is still pending. Two implementation paths:
+   (a) **Add per-column filter chips** to each table (homemade, incremental).
+   (b) **Adopt a table library** (TanStack Table v8, AG Grid Community).
+   **My current default:** option (a) incrementally per-tab. **Confirm or correct?**
+
+#### Reasonable-default calls deferred (12 — unchanged from S39)
+
+**8 from Session 20 (Tab 23-25 walkthroughs):**
+
+6. **(Tab 23)** 6 slicer-chip semantics reverse-engineered — confirm or correct?
+7. **(Tab 23)** Where does `Vacant Date` come from?
+8. **(Tab 23)** `Previous Employee2` vs `Previous Employee` — which is which?
+9. **(Tab 24)** `V Check` semantics for TEMPM-budgeted rows — `IF(P="TEMPM", "", ...)` skips check.
+10. **(Tab 24)** Cost-basis for blank `W` cells — **Default:** KosPos always computes expected cost.
+11. **(Tab 24)** PlannedAction history retention — **Default:** 18 months with summary roll-up.
+12. **(Tab 24)** DBI→CPC transfer-of-function propagation — **Default:** stays on originating dept until EOY.
+13. **(Tab 24 + Tab 25)** Active-row blank-`W` "X of Y priced ⚠" diagnostic chip — placement OK?
+
+**4 from Session 21 (Tab 1-22 walkthroughs):**
+
+14. **(Tab 12)** `E2P` = "Eligible to Promote" — what does it mean exactly?
+15. **(Tab 21)** `PARTIALLY FILLED` semantics — used for pool positions. Map to `is_pool_position = true`?
+16. **(Tab 21)** Reporting Tree change-proposal cols — workflow today?
+17. **(Tab 15)** Succession plan scope priority — Phase 2 (current-year) or Phase 7 (talent)?
+
+#### Open action items (1 — S32/S33 #19 carries)
+
+19. **The 5 vacant-no-RTF positions.** 5 positions show **Fill Status = VACANT** and **Latest RTF Submitted Date = blank/null**. Per [memory `staffing_plan_types.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/staffing_plan_types.md), "no RTF" is not always accurate in practice. **Disposition needed per position: data bug vs intentional hold.**
+
+#### Audit-surfaced items (carry-forward update — items A-F)
+
+From [Phase 2.2.q close audit](audits/phase-2-2-q-close-audit.md):
+
+A. ~~Auto-archive monitoring~~ — **stays dropped** (resolved S33).
+
+B. **Trim `SESSION_LOG.md` Sessions 1–16 to one-paragraph digests.** ~3,450 lines after S40 entry (est.). Past the 2,000-line trim trigger. Bundleable with C + Tab 24 Improvement #6 holdReason language drift + OBI serial doc note + research-doc-location WORKFLOW.md note + TS-param-property tip. ~2 hours combined.
+
+C. **Migrate the memory-file citation anti-pattern in `labor-report.md`.** **12 instances unchanged** (no labor-report.md edits this session). Bundleable with B.
+
+D. **Defer the `labor-report.md` split until Phase 2.4.** Still 8,518 lines. Defer holds.
+
+E. ~~Phase 2.2 first sub-phase pick.~~ Resolved S24; **stays dropped**.
+
+F. **Audit cadence — working as designed.** 17th event-based trigger fired on schedule this session.
+
+### Top 3 findings to surface for Alex this session
+
+1. **Same-browser persistence ships AUTO-VERIFIED.** Visit `https://alkprojects.github.io/kospos/?dev=1` → Welcome tab is the new default → load any data via Load Reports → reload page → banner reads "Restored from this browser (saved HH:MM)" + dashboard reflects what was loaded. No manual save/load needed; IndexedDB auto-persists every change.
+
+2. **Cross-device persistence is CODE-COMPLETE; awaiting your Cloudflare setup.** PR #126 ships the Worker function + publish/fetch helpers + UI. To enable: follow [`docs/runbooks/cloudflare-pages-setup.md`](runbooks/cloudflare-pages-setup.md) (~15-20 min) → paste the Pages URL + publish secret into the Cloudflare settings panel in Load Reports → click ☁ Publish snapshot → open in a second browser to verify "Restored from shared (Cloudflare)" appears.
+
+3. **Welcome tab is the new default surface.** Replaces Calculator as the first tab. Shows source-appropriate freshness signals (P&P snapshot date, OBI latest PP, BFM import date, scraper refreshedAt timestamps). If you'd rather Calculator stay default, it's a 1-line change in [`App.tsx`](app/src/App.tsx) — reorder the `landing` and `calculator` entries in `ALL_TABS`.
+
+### Cumulative state of the labor-report walkthrough
+
+| Phase | Tab | Status |
+|---|---|---|
+| 2.0a-h | All 27 tabs | done 2026-05-25 |
+| 2.0i | DSI final + Phase 2.2 sub-phase enumeration + Phase 2.0 close audit | done 2026-05-25 |
+| 2.1 | `?dev=1` route guard + Phase 2.1 close audit | done 2026-05-25 |
+| 2.2.a | Position spine bundle | done 2026-05-25 |
+| 2.2.b | obi-payroll full + lib/payroll/ rollup cube | done 2026-05-26 |
+| 2.2.b+c | Combined close audit + PR #68 docs sync | done 2026-05-27 |
+| 2.2.c | `2.2.17` `views/labor/` | done 2026-05-27 |
+| 2.2.d | `2.2.13` `bfm-eturn/` full + `lib/budget/` + Budget vs Actual | done 2026-05-26 |
+| 2.2.e | `2.2.21` `staffing-plan/` v1 + Hiring Plan workspace | done 2026-05-26 |
+| 2.2.f | `2.2.21` v2 PR 1 + status-transition guard | done 2026-05-26 |
+| 2.2.g | `2.2.21` v2 PR 2 + delta-pay + asOf-serial fix | done 2026-05-26 |
+| 2.2.h | `2.2.20` `views/inactive/` — Tab 13 INACTIVE live query | done 2026-05-27 |
+| 2.2.i | `2.2.26` `lib/separations/` + `views/separations/` | done 2026-05-27 |
+| 2.2.j | `2.2.25` `lib/probation/` + `views/probation/` + 4 follow-ups | done 2026-05-28 |
+| 2.2.k | `2.2.28` `lib/scrapers/` + `views/eligibility/` | done 2026-05-27 |
+| 2.2.l | DHR live fetch via CORS proxy + Probation deputy multi-resolve | done 2026-05-27 |
+| 2.2.m | Eligibility summary-row redesign + filter toolbar + detail modal | done 2026-05-27 |
+| 2.2.n | Eligibility detail field enrichment (Duration · Expires · Status · type-breakdown) | done 2026-05-27 |
+| 2.2.o | Lazy PDF text extraction (Cert rule · Scope · List Type columns) | done 2026-05-27 |
+| 2.2.p | Drill-modal UX overhaul (Duration column · Exam Type · in-modal filter · sortable headers · progress bar) + persistence-architecture decision doc | done 2026-05-28 |
+| **2.2.q** | **A+B combo: IndexedDB auto-persistence + Welcome landing dashboard + Cloudflare Pages Worker + cross-device publish/fetch code (Alex's S40 A+B pick)** | **done 2026-05-28** |
+| **2.2.r** | **Next sub-phase** — recommended: **cross-tab nav from Eligibility → Positions + lift devOnly on Eligibility + Probation** (carries from S39, blocking Eligibility/Probation promotion). Alternatives: D `2.2.18 views/reporting-tree/` · E `2.2.19 views/temp-limits/` (still gated on TX TODOs) · F `2.2.22 views/vacancies/` · G filter-pattern rollout to Separations · H Alex's freeform feedback. | **NEXT** |
+| 2.2.r-rest | Remaining Tier-4 sub-phases | pending |
+| 2.3 | Excel export | pending |
+| 2.4 | Importer wiring (6 ADRs queued including the Cloudflare-Pages-+-KV ADR for when it deploy-verifies) | pending |
+
+## Blockers for Alex
+
+None landing-related. Live site: <https://alkprojects.github.io/kospos/>. Spot-check once the deploy completes:
+
+- **Welcome tab as default** — `/kospos/?dev=1` lands on the Welcome dashboard. Empty state initially; if you load data via Load Reports, the dashboard fills in + the auto-save banner appears.
+- **IndexedDB auto-persistence** — load any data → reload page → "Restored from this browser (saved HH:MM)" banner + Positions/Payroll/etc. tabs show the same data without re-importing.
+- **No regression on prior surfaces** — Positions / Payroll / Hiring Plan / Inactive / Separations / Probation / Eligibility / Calculator / Special Class still render.
+- **Cloudflare cross-device** — follow the runbook to set up the Cloudflare side; verify cross-browser publish/fetch when ready.
+
+**One decision pending — pick the next Phase 2.2 sub-phase (2.2.r).** See Recommendations.
+
+### Recommendation for Phase 2.2.r
+
+**Option C (top pick) — Cross-tab nav from Eligibility → Positions + lift devOnly on Eligibility + Probation.** Carries from S39. ~1-2 hours. Unlocks promoting Eligibility + Probation to non-dev. Clicking a job code in EligibilityView's summary table should filter Positions to that jobCode. Implementation: shared Zustand "active filter" slice or URL hash route. **Recommended** — this has carried 3+ sessions and is the explicit gate for Eligibility/Probation promotion.
+
+**Option A — Verify Cloudflare cross-device.** Alex completes the runbook setup, publishes from one browser, opens in another to verify "Restored from shared (Cloudflare)" appears. ~15-20 min. Not a Phase sub-phase per se; more a follow-through on this session's Cloudflare code shipping.
+
+**Option D (carries) — `2.2.18` `lib/views/reporting-tree/`.** Tab 21. Feeds Phase 7 org chart. `lib/changes/` stub lift needs to land alongside (scope risk).
+
+**Option E (carries) — `2.2.19` `lib/views/temp-limits/` (Cat 17/18 + TX).** Still gated on the 4 TX TODOs (Restated Q #5a-d).
+
+**Option F (carries) — `2.2.22` `lib/views/vacancies/`** (Tab 23). Light-weight; filtered position list with cross-check against Staffing Plan.
+
+**Option G (carries) — Roll the Eligibility v1+v2 filter pattern to Separations** as a proof, then file per-tab follow-ups (Restated Q #18).
+
+**Option H — Paste freeform feedback on what shipped this session.** Alex's freeform feedback has produced the highest-leverage scope in 5 of the last 6 sessions.
+
+**My pick: Option C.** Smallest, highest-leverage, removes a 3-session carry-forward, and unlocks the Eligibility + Probation promotion. If you'd rather verify Cloudflare first (Option A) that's also valuable but smaller-scope.
+
+## Next session prompt — Phase 2.2.r (Alex picks A, C, D, E, F, G, H, or another sub-phase)
+
+Paste this verbatim to start Session 41:
+
+````
+This session asks Alex to pick the next Phase 2.2 sub-phase (2.2.r),
+then ships it. Phase 2.2.q shipped 2 code PRs + 1 docs PR:
+#125 (PR 1 — IndexedDB auto-persistence + Welcome landing dashboard:
+new lib/session/idb-persistence.ts + use-auto-persistence.ts hook +
+landing tab with per-source counts and freshness labels; auto-saves
+every store change on a 500ms debounce; auto-restores silently on
+mount per Alex's S40 directive; +24 tests) and #126 (PR 2 —
+Cloudflare Pages Worker + cross-device publish/fetch code-only:
+app/functions/api/snapshot.ts Worker with GET/POST/OPTIONS handlers,
+KV-backed singleton snapshot key; client publish/fetch helpers with
+tagged result types; Publish button + Settings panel in
+SessionExportImport; newer-savedAt-wins envelope merge between IDB
+and Cloudflare on load; +27 tests including 13 Worker tests against
+a faked KV namespace). Plus docs/runbooks/cloudflare-pages-setup.md
+(new convention dir) so Alex can complete the Cloudflare side.
+
+Read first, in order:
+  docs/CLAUDE.md
+  docs/SESSION_HANDOFF.md (this file — recommendation + carry-forwards)
+  docs/SESSION_LOG.md (Session 40 entry — 2 code PRs + 1 docs PR)
+  memory/MEMORY.md + the 10 memory files
+  docs/audits/phase-2-2-q-close-audit.md (carry-forwards B-F; A stays
+    dropped; 0 NEW Phase 2.2.r follow-ups beyond Alex's manual
+    Cloudflare setup)
+  docs/runbooks/cloudflare-pages-setup.md (the runbook Alex follows
+    on wake to verify cross-device persistence)
+  docs/domain/labor-report.md § "Phase 2.2 sub-phases" — dependency graph
+
+Confirm state on main:
+  git log --oneline origin/main -8
+
+==============================================================================
+STEP 0 — Phase 2.2.r close audit cadence check
+==============================================================================
+Per WORKFLOW.md § Audit cadence, the Phase 2.2.q close audit fired
+in S40. This session, the audit cadence check is only the Phase
+2.2.r close audit when 2.2.r ships. Don't re-audit 2.2.q.
+
+DO fire the 2.2.r audit before this session ends. Use the Phase
+2.2.q close audit format; mirror the prior audit's table of
+carry-forwards.
+
+==============================================================================
+STEP 1 — Cloudflare setup follow-through (if applicable)
+==============================================================================
+
+Phase 2.2.q PR 2 shipped CODE only — Alex's manual setup tasks were
+queued for his wake-up. If Alex hasn't done them yet:
+  1. Follow docs/runbooks/cloudflare-pages-setup.md (~15-20 min).
+  2. Verify cross-device: publish from one browser, open in a private
+     window, confirm "Restored from shared (Cloudflare)" banner.
+  3. File the ADR for cross-device persistence via Cloudflare Pages + KV
+     (Phase 2.4 ADR queue grew 5 → 6).
+
+If Alex has already verified, surface the result in his answer to STEP 2
+and skip ahead.
+
+==============================================================================
+STEP 2 — Ask Alex to pick Phase 2.2.r
+==============================================================================
+Use AskUserQuestion. Recommended options (Option C is the top pick —
+carries from S39 and is the explicit unlock for Eligibility +
+Probation promotion):
+
+  C. Cross-tab nav from Eligibility → Positions + lift devOnly
+     (Recommended) — Clicking a job code in Eligibility filters the
+     Positions tab. ~1-2 hours. Unlocks promoting Eligibility +
+     Probation tabs to non-dev. CARRIES 3+ SESSIONS.
+
+  A. Verify Cloudflare cross-device. ~15-20 min runbook + verification.
+     Not a Phase sub-phase per se; follow-through on the Phase 2.2.q
+     Cloudflare code shipping.
+
+  D. 2.2.18 lib/views/reporting-tree/ + Change Mode precursor.
+     Tab 21. lib/changes/ stub needs to lift alongside (scope risk).
+
+  E. 2.2.19 lib/views/temp-limits/ + TemporaryExchange typed entity.
+     Cat 17/18 expiry + 1040-hour gauges. STILL GATED on the 4 TX
+     TODOs (5a-d in Restated Q #5).
+
+  F. 2.2.22 lib/views/vacancies/ — Tab 23 light-weight filtered
+     position list. ~2-3 hours.
+
+  G. Roll the Eligibility v1+v2 filter pattern to Separations as
+     a proof (Restated Q #18). Build chip-row pattern as a small
+     reusable component; apply to Separations.
+
+  H. Paste freeform feedback on what shipped this session
+     (Welcome landing UX, IndexedDB behavior, Cloudflare runbook
+     clarity). Alex's freeform feedback has driven 5 of 6 last
+     sessions' top scope.
+
+  (Escape hatch: Alex names something else from the dependency graph.)
+
+==============================================================================
+STEP 3 — Start Phase 2.2.r (the picked sub-phase)
+==============================================================================
+Branch + scope depend on the pick:
+
+If C — eligibility-positions-crosstabnav-and-promote:
+  Branch: feat/eligibility-positions-crosstabnav-and-promote
+  Scope:
+    - Cross-tab nav (shared Zustand "active filter" slice OR URL
+      hash route — design pick at top of session)
+    - Lift devOnly: true on Eligibility + Probation tabs in App.tsx
+    - Tests + preview-MCP walkthrough
+
+If A — Cloudflare verification:
+  No new branch needed; this is Alex's manual task plus optional ADR.
+  Scope:
+    - Walk through the runbook with Alex.
+    - On success, draft docs/DECISIONS.md ADR for the Cloudflare-Pages-+-KV
+      decision (Phase 2.4 prep).
+    - File any setup-runbook improvements as a tiny docs PR.
+
+If D — views/reporting-tree/:
+  Branch: feat/views-reporting-tree
+  Scope:
+    - lib/views/reporting-tree/ — Tab 21 surface
+    - Surface Scenario 1 flags via lib/quality/
+    - Optionally lift lib/changes/ from stub
+    - Tab to App.tsx (devOnly initially)
+    - Tests
+
+If E — views/temp-limits/:
+  Branch: feat/temp-limits-view
+  Scope:
+    - Resolve the 4 TX TODOs via AskUserQuestion at the start
+    - Add lib/temp-exchange/ typed entity
+    - Build lib/views/temp-limits/ — Tab 12 surface
+    - Surface temp-tx-expiration-imminent + temp-tx-expired flags
+    - Tab to App.tsx (devOnly until ready)
+    - Tests + preview-MCP walkthrough
+
+If F — views/vacancies/:
+  Branch: feat/views-vacancies
+  Scope:
+    - lib/views/vacancies/ — Tab 23 filtered position list
+    - Cross-check against Hiring Plan PlannedActions
+    - Tab to App.tsx (devOnly initially)
+    - Tests
+
+If G — filter-pattern rollout to Separations:
+  Branch: feat/filterable-tables-pattern-separations
+  Scope:
+    - Lift the Eligibility v1+v2 FilterToolbar shape into a small
+      reusable shell (or keep per-table for v3 — design pick at start)
+    - Apply to Separations as a proof
+    - DO NOT roll out to all tabs in one session
+    - File the per-tab rollout as carry-forward
+
+If H — Alex's freeform feedback:
+  Scope depends on what Alex says. Treat as the primary scope; queue
+  the original menu options as the next session's fallback.
+
+==============================================================================
+Hard constraints
+==============================================================================
+
+  - Branch from main, single-purpose name (or use the worktree
+    branch — the recent PRs ship from claude/<worktree> branches).
+  - Strict one-sub-phase-per-PR.
+  - npm test stays green (currently 813 / 813).
+  - One PR per logical change; merge after CI passes; fast-forward main.
+  - Commit messages end with the Co-Authored-By line per CLAUDE.md.
+  - **Run `npm run build` before opening PR** — 11 of 11 practical
+    clean first-run streak (S38 caught 1 same-session; S39 + S40 clean).
+
+==============================================================================
+What we are NOT doing
+==============================================================================
+
+  - No bundling.
+  - No tab walkthroughs. Phase 2.0 is closed.
+  - No ADR amendments. Phase 2.4 (6 ADRs queued including the
+    Cloudflare-Pages-+-KV ADR).
+  - No tool / setting / hook changes unless surfaced by audit.
+  - No promotion of Payroll / Hiring Plan / Inactive / Separations /
+    Temp Limits / Reporting Tree to non-dev yet — wait until cross-tab
+    nav has been used end-to-end on real data (Option C above is the
+    explicit unlock for Eligibility + Probation).
+  - Don't lift the modal overlay-frame to lib/ui/Modal.tsx in the same
+    PR as Option C/D/F/G — that's a separate refactor (filed as
+    follow-up).
+  - Named workspaces / multi-user editing — OUT of scope for Phase
+    2.2.r. v1 is anyone-with-the-link, single shared snapshot. Named
+    workspaces is a Phase 2.2.s+ candidate.
+
+==============================================================================
+Session-end checklist
+==============================================================================
+
+Before ending, update SESSION_HANDOFF.md with:
+  - Phase 2.2.r status + next-session prompt for Phase 2.2.s.
+  - Re-ask the 5 restated questions + 12 reasonable-default calls
+    (#6-17) + 1 open action item (#19). DROP items Alex acknowledges
+    this session.
+  - Carry-forward update on items B-F (A resolved S33, off the list).
+  - Fire the Phase 2.2.r close audit (mirrors Phase 2.2.q audit format).
+````
+
+### Recommended model (Phase 2.2.r)
+
+`claude-sonnet-4-6` for C (well-defined cross-tab nav), A (runbook verification), F (smallest), G (small if scoped to primitive + one application). `claude-opus-4-7` for D (cross-cutting quality wiring), E (TX policy + entity design), H (depends on Alex's freeform scope). Effort: low-to-medium for C/F/G/A; medium-to-high for D/E.
+
+### S40 follow-ups (new — low priority)
+
+- **GitHub Pages redirect to Cloudflare** — Alex picked "redirect immediately" but the practical implementation needs its own PR (meta-refresh + Cloudflare _redirects file). ~30 min. Filed for after Cloudflare verifies.
+- **ADR for Cloudflare Pages + KV** — should land when the deploy verifies. ~30 min. Filed for after Cloudflare verifies.
+- **Per-field-selector pattern note for CLAUDE.md** — if a future session hits the same `useSyncExternalStore` trap with `useStore(s => ({...}))`, the lesson should be a CLAUDE.md note. Low priority; the inline comment in `SessionExportImport.tsx` is enough for now.
+- **Lift modal overlay-frame to `lib/ui/Modal.tsx`** — still 5 instances (unchanged from S37/S38/S39). ~1-2 hours.
+- **Remove the now-unused `filterRollups` export** (carries from S36) — `applyEligibilityFilters` subsumes it. ~5 minutes; bundle with the next scrapers touch.
+- **Switch `computeListExpiration` to calendar arithmetic** (carries from S37) — eliminates leap-year drift.
+- **Tighten Worker function CORS to a specific origin** once GitHub Pages redirect lands. ~5 minutes; bundle with the cutover PR.
+
+---
+
 ## Current status (end of Session 39 — Phase 2.2.p: Eligibility drill-modal UX overhaul + persistence architecture decision doc, 2026-05-28)
 
 **Phase:** Phase 2.2.p — **Drill-modal UX overhaul: Duration column · Exam Type replaces Sub-type · in-modal filter chip row · sortable column headers · top-of-modal extraction progress bar** ([PR #123](https://github.com/alkprojects/kospos/pull/123)). Plus `docs/research/persistence-architecture-options.md` — 4-option comparison + recommendation (Cloudflare Pages + KV) for cross-device data sharing. Phase 2.2.p close audit fired on schedule (16th event-based trigger).

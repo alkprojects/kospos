@@ -3511,3 +3511,99 @@ Recommendation: **Option α — Cloudflare Pages + Workers KV.** Cleanest deploy
 - **Audit cadence:** ✅ 16th event-based trigger fires on schedule.
 - **Test count discipline:** ✅ Baseline `npm test` at session start confirmed 718 (no recount drift). +44 net.
 - **Design-pick conversation discipline:** ✅ Used AskUserQuestion for 3 axes (session scope, exam-type design, filter scope). Each had a clear "Recommended" tag + non-recommended options Alex could pick anyway. He picked the most aggressive on 2 of 3 — exactly what the user-role memory predicts when described trade-offs.
+
+---
+
+## Session 40 — Phase 2.2.q: IndexedDB persistence + Welcome landing + Cloudflare publish/fetch code (2026-05-28)
+
+**Phase 2.2.q complete (A+B combo).** Alex went to bed shortly after kicking off and asked Claude to "try to ask the questions you need for this session up front so you can continue working while I'm away" and "try to work for as long as you can" on Opus 4.7 Max. A single AskUserQuestion batched 4 design decisions (Phase 2.2.q sub-phase pick + 3 Cloudflare-specific design picks); Alex picked the recommended A+B combo plus a richer landing-page UX than the menu's default. Code shipped on both fronts.
+
+### Branch: `claude/bold-nightingale-453ed5` (worktree)
+
+### Up-front design questions (4 axes, single AskUserQuestion call)
+
+1. **Phase 2.2.q pick** — A+B combo (recommended) / B alone / C cross-tab nav / G filter rollout. Alex picked **A+B combo** = IndexedDB ships + verifies fully tonight + Cloudflare ships as code-only awaiting his account setup.
+2. **Cloudflare account state** — Alex doesn't have one yet, will create when he wakes; runbook drafted accordingly.
+3. **First-load UX** — Alex picked **richer than the menu option**: "auto load silently, have a landing page that shows what data is loaded, when it was loaded, and for data like P&P and Payroll show the snapshot date / latest pp / etc."
+4. **Cutover preference** — Alex picked **redirect immediately** once Cloudflare verified (vs the parallel-run default).
+
+### What shipped — 2 code PRs + 1 docs PR (this one)
+
+[PR #125](https://github.com/alkprojects/kospos/pull/125) — `feat(session): Phase 2.2.q PR 1 — IndexedDB auto-persistence + Welcome landing dashboard`.
+
+- **New `lib/session/idb-persistence.ts`** — thin `idb` wrapper. Singleton snapshot key in DB `kospos` / store `snapshots`. Latest write wins.
+- **New `lib/session/use-auto-persistence.ts`** — React hook firing on App mount: loads + restores any prior snapshot, subscribes to all 6 Zustand stores, debounces 500ms, writes on each meaningful change.
+- **Extended `SessionFile` schema** (additive, v1 stays — backward compatible) with 5 optional scraper fields: `jobPostings`, `jobPostingsRefreshedAt`, `eligibilityLists`, `eligibilityListsRefreshedAt`, `pdfCache`. Same back-compat pattern as pendingSeparations (Phase 2.2.i) + probations (Phase 2.2.j).
+- **New `restoreFromSession` on `useScrapers`** — the only store that didn't have one. `dhrWorkerUrl` intentionally preserved across restore (user setting, not scrape data).
+- **New `lib/views/landing/` module** — Welcome tab dashboard. Per-source counts + freshness signals: P&P shows `snapshot YYYY-MM-DD`, OBI shows `latest PP YYYY-MM-DD`, BFM shows `imported YYYY-MM-DD`, scrapers show `refreshed HH:MM`. Empty-state CTA + persistence-status banner.
+- **App.tsx integration** — `landing` tab promoted as default (was `calculator`). Auto-persistence hook fires on mount; status flows into LandingView.
+- **Tests +24 (762 → 786):** session.test.ts +4 (scraper-field round-trip + back-compat + wrong-type), landing.test.ts +12 (buildDataSummary + formatRefreshedAt branches), auto-persistence.test.ts +9 (capture/restore round-trip + tryRestoreSnapshot validation + dhrWorkerUrl preservation).
+- **Live preview-MCP verification:** added 5 synth P&P rows → banner showed "Last auto-save 01:11" → page reload → banner switched to "Restored from this browser (saved 01:11)" + Positions tab showed all 5 rows restored. Zero console errors. `npm run build` clean first-run.
+
+[PR #126](https://github.com/alkprojects/kospos/pull/126) — `feat(session): Phase 2.2.q PR 2 — Cloudflare Pages Worker + cross-device publish/fetch (code-only)`.
+
+- **New `app/functions/api/snapshot.ts`** — Cloudflare Pages Function. GET (public read from KV), POST (gated by X-Publish-Secret header matching PUBLISH_SECRET env var), OPTIONS (CORS). Self-contained (inline type definitions; no src/ imports) so Cloudflare bundler is happy.
+- **New `lib/session/cloudflare-publish.ts`** — client publish/fetch helpers. localStorage-backed per-device config (pagesUrl + publishSecret). Tagged result types covering all failure modes.
+- **Auto-load extended** — `useAutoSessionPersistence` now reads IDB + Cloudflare in parallel; newer-wins envelope merge strategy. Both directions covered (published-elsewhere updates appear locally; local edits win when newer than published copy). Source surfaces as `loadedSnapshotSource: 'idb' | 'cloudflare'` for the banner.
+- **Publish UI in SessionExportImport** — ☁ Publish snapshot button (disabled when not configured) + ⚙ Cloudflare settings panel (URL + secret inputs + Save / Clear). Status messages for every state.
+- **Landing banner extended** — "Restored from this browser" vs "Restored from **shared (Cloudflare)**".
+- **Setup runbook** — new `docs/runbooks/cloudflare-pages-setup.md`. 9-step walkthrough: account → Pages project → KV namespace → binding → secret → in-app config → first publish → cross-device verification → cutover.
+- **Bug fix caught mid-verification:** `useScrapers(s => ({ ... }))` returned a fresh object per render → `useSyncExternalStore` infinite loop → `Maximum update depth exceeded` errors. Fix: switched to per-field selectors (matches the codebase pattern). Lesson documented inline.
+- **Tests +27 (786 → 813):** cloudflare-publish.test.ts +14 (config read/write/trim + fetch branches + publish branches with header verification), cloudflare-worker.test.ts +13 (GET/POST/OPTIONS handlers + every documented failure mode against a faked KV namespace).
+- **Live preview-MCP verification (UI level):** settings panel renders + Save / Clear work; fake URL + fake secret + Publish → "Publish failed (network): Failed to fetch" (expected). Real Cloudflare verification deferred to Alex's setup.
+
+### What shipped — this docs PR
+
+`docs/audits/phase-2-2-q-close-audit.md` (14 findings, 5 carry-forwards, 12 recommendations). `docs/research/dhr-eligibility-and-jobs-scraping-plan.md` "no PDF parsing in v1" framing fix (carry-forward from S38, second session — now resolved). This SESSION_LOG entry. S41 SESSION_HANDOFF.
+
+### Top decisions surfaced for Alex
+
+1. **A+B combo throughput pattern** — first time used. The "ship part 1 fully verified + part 2 as code-only" split worked because Part 1 (IndexedDB) has zero external deps + Part 2 (Cloudflare) is verifiable via mocked HTTP + fake KV. Pattern reusable when a future PR is gated on external account setup.
+2. **Auto-load silently + landing page** is meaningfully better than the menu's default "prompt with date." No modal, no friction; the data dashboard surfaces what loaded + when + from where.
+3. **Newer-wins envelope merge strategy** for IDB + Cloudflare merge. Only strategy compatible with "auto-load silently" + "published updates should appear."
+4. **Per-field-selector pattern for Zustand multi-field reads** — `useScrapers(s => ({...}))` causes infinite loops. The codebase doesn't use `zustand/shallow`; per-field selectors are the consistent pattern.
+5. **Worker function self-contained with two-layer validation** — Worker validates envelope shape; client re-validates payload via existing `parseSessionFile`. A corrupt server can't poison the client.
+6. **`landing` tab promoted as default** — minor UX shift; if Alex prefers Calculator-as-default, change is 1 line in App.tsx.
+7. **`docs/runbooks/` is a new convention** — parallels `docs/research/` but for procedural one-time setup. Future runbook candidates: schema-v2 migration, Cloudflare secret rotation.
+
+### Carry-forward audit (from [`phase-2-2-q-close-audit.md`](audits/phase-2-2-q-close-audit.md))
+
+- A — Auto-archive monitoring: ~~resolved S33~~. Stays dropped.
+- B — SESSION_LOG.md trim: **~3,450 lines after S40 entry (est.).** Past 2,000-line trim trigger; bundleable with C.
+- C — Memory-file citation anti-pattern in labor-report.md: 12 instances unchanged.
+- D — labor-report.md split: 8,518 lines unchanged. Defer until Phase 2.4.
+- E — Phase 2.2 first sub-phase pick: ~~resolved S24~~. Stays dropped.
+- F — Audit cadence: **17th event-based trigger** fired on schedule.
+
+### What's NOT done
+
+- **Cloudflare account + Pages + KV setup** — Alex's manual task on wake-up. Runbook: `docs/runbooks/cloudflare-pages-setup.md` (~15-20 min).
+- **Cross-device live verification** — depends on Cloudflare setup. PR 2 code is tested against fakes; the contract is in place.
+- **Phase 2.4 ADR for Cloudflare Pages + KV** — should ship when the actual deploy verifies (queue grew 5 → 6).
+- **GitHub Pages redirect** — Alex picked "redirect immediately" but the actual redirect-setup work is filed as a small follow-up PR.
+- **Cross-tab nav from Eligibility → Positions** (carries from S39).
+- **Modal overlay-frame to `lib/ui/Modal.tsx`** (carries).
+- **`filterRollups` unused export removal** (carries from S36).
+
+### Outcome
+
+2 code PRs shipped (PR #125 + #126) + 1 docs PR (this one). 813/813 tests passing. `npm run build` clean first-run on both PRs (11 of 11 practical / 10 of 11 strict — S38 was the one strict miss). Phase 2.2.q close audit fired on schedule (17th event-based trigger). 2 carry-forwards resolved this session (dhr-eligibility-and-jobs-scraping-plan.md stale framing + the infinite-loop bug). Same-browser persistence verified live; cross-device persistence code ready for Alex's account setup.
+
+### Lessons / improvements for next phase
+
+- **A+B combo is a new pattern worth keeping.** When a sub-phase has a "needs external account" gate, splitting into "ship code + tests, defer account setup" + a runbook means the session can ship full code value while the human is asleep, then the human completes verification on wake. The pattern requires: (a) the code half is fully testable against fakes/mocks, (b) the human half has a written runbook, (c) the PR description names the gap explicitly.
+- **Up-front question batching enables long autonomous runs.** Alex's "try to ask the questions you need up front" + "try to work for as long as you can" is the cleanest unattended-session contract yet. The 4-question AskUserQuestion bundled the option pick + 3 Cloudflare design picks, after which Claude worked autonomously through 2 PRs + 1 docs PR + the close audit.
+- **`useSyncExternalStore` infinite loops are a real trap.** Zustand's `useStore(selector)` calls the selector on every render. Object-returning selectors return a fresh reference each time, which React interprets as "state changed" → re-render → selector → fresh reference → infinite loop. The fix is per-field selectors. The codebase doesn't use `zustand/shallow` (which would also fix it); per-field is the established pattern.
+- **Auto-load silently + landing dashboard is the right pattern for cross-device.** Per the S40 verification, the user opens the app + sees their data without doing anything; the banner tells them what loaded and from where. No modal. No "click yes to load." This UX would have been wrong for cross-browser sharing (where you might want to confirm before loading) but is right for the "single owner publishing to themselves across devices" v1 shape.
+- **Newer-wins envelope merge eliminates the published-vs-local conflict question.** Could have asked for `savedAt` parity at byte level; instead used string comparison on the ISO timestamp. Works because both IDB and Cloudflare writes go through `buildSessionFile` which stamps `savedAt: new Date().toISOString()` — same format, lexically sortable.
+- **Same-branch multi-PR shipping has a known merge-conflict pattern.** After squash-merging PR 1, the same branch's next push for PR 2 will show DIRTY because the original PR 1 commit ≠ the squashed commit on main. Fix: `git merge origin/main`, resolve add/add conflicts by keeping HEAD (PR 2 is a superset of PR 1), commit. The merge commit gets squashed when PR 2 merges.
+
+### Brief audit (Alex's collaboration this session)
+
+- **Prompt quality:** ✅ The "ask up front so I can sleep" framing is the cleanest unattended-work contract yet — implicit trust + explicit time/usage constraints. The richer first-load UX directive ("auto load silently, landing page that shows…") was 1 paragraph in the AskUserQuestion answer and drove a meaningful design upgrade.
+- **Scope discipline:** ✅ 2 code PRs (each single-purpose) + 1 docs PR. The A+B combo intentionally split a single architecture into 2 PRs rather than bundling.
+- **Verification habits:** ✅ Preview-MCP confirmed PR 1 end-to-end (data persistence across reload, banner state transitions). PR 2 verified at the UI level (settings panel + error states) with the cross-device piece explicitly deferred.
+- **Audit cadence:** ✅ 17th event-based trigger fires on schedule.
+- **Test count discipline:** ✅ Baseline `npm test` at session start confirmed 762 (no recount drift). +51 net.
+- **Up-front question batching:** ✅ Single AskUserQuestion with 4 questions covered the 7-option menu pick + 3 Cloudflare design picks. Alex was offline within ~5 minutes of session start; everything else was autonomous.
+- **Trust + delegation:** ✅ Alex's "max plan + try to work for as long as you can + bonus deep-dives if context remains" → roughly 6 hours of unattended Opus 4.7 time. Worked because the up-front questions removed all dependencies on his return.
