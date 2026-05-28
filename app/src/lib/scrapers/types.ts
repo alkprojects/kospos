@@ -63,8 +63,10 @@ export interface JobPosting {
  *
  * The data here is the *metadata* from the listing page — class code,
  * list id, post date, file URL. We do NOT parse the PDF contents
- * (candidate names + scores live there); KosPos only needs to answer
- * "does an active list exist for this job code?"
+ * for candidate names + scores (KosPos only needs aggregate "does an
+ * active list exist?" answers). Phase 2.2.o adds the **header-only**
+ * PDF text extraction for the cover-sheet fields (cert rule, list
+ * department, exam sub-type) — see {@link PdfExtract}.
  */
 export interface EligibilityList {
   /** SF Job Code — first segment of the filename (e.g. `'0932'`). */
@@ -82,6 +84,73 @@ export interface EligibilityList {
   /** Which DHR section the row came from. Both are "people who passed
    *  the exam"; uniformed ranks just use a different page region. */
   type: 'score-report' | 'eligible-list';
+}
+
+/**
+ * PDF cover-sheet fields extracted on demand from a single eligibility
+ * list PDF — Phase 2.2.o.
+ *
+ * Why this is a SEPARATE side-table (rather than embedded on
+ * `EligibilityList`):
+ *   1. Extraction is **lazy** — only fires when the user opens the
+ *      detail modal for a job code. We don't pay the bandwidth + parse
+ *      cost for the ~6,729 lists that never get opened.
+ *   2. Extraction is **per-PDF** (1-3 PDFs per modal open) so the cache
+ *      grows organically; embedding would force us to either populate
+ *      the field upfront (defeats laziness) or leave it dangling
+ *      `undefined` on every list (less type-honest than a side-cache
+ *      where presence implies an extraction attempt happened).
+ *   3. Older scanned PDFs may parse to empty strings; the `success`
+ *      flag distinguishes "we tried and got nothing" from "we haven't
+ *      tried yet" — important so the UI doesn't re-extract on every
+ *      modal re-open.
+ *
+ * Side-cache lives in `useScrapers.pdfCache` keyed by
+ * `(jobCode|listId|postDate)` — same identity key the
+ * `appendEligibilityLists` setter dedupes on.
+ *
+ * All three extracted fields are `string | undefined` — undefined means
+ * the regex/heuristic chain didn't find a match in the cover sheet (the
+ * PDF was scanned, the layout was atypical, or the field genuinely
+ * isn't present). The user can click `↗ PDF` to see for themselves.
+ */
+export interface PdfExtract {
+  /** Certification rule from PDF cover sheet's `Cert Rule:` label, e.g.
+   *  `'Rule of the List'` or `'Rule of 3 Names'`. Undefined when no
+   *  match. */
+  certRule?: string;
+  /** List department from PDF cover sheet's `Scope:` label, e.g.
+   *  `'Citywide'` (DHR uses `CTW` which we normalize), `'DBI'`,
+   *  `'DPH'`, `'PUC'`, or a longer name on legacy PDFs. Undefined when
+   *  no match. */
+  listDepartment?: string;
+  /** Exam sub-type from PDF cover sheet's `List Type:` label, e.g.
+   *  `'CPE'` (Combined Promotive Entrance), `'PCS'`, `'Promotional'`,
+   *  `'Entrance'`. Undefined when no match. */
+  examSubType?: string;
+  /** Exam testing methodology from PDF cover sheet's `Exam Type:`
+   *  label, e.g. `'PBT'` (Performance-Based Test), `'ETP'` (Education /
+   *  Training / Promotive), `'CBT'`, `'Q&E'`. Distinct from
+   *  `examSubType` (which is the classification). Captured here for
+   *  future use; not yet surfaced in the column UI as of Phase 2.2.o
+   *  (filed as Phase 2.2.p follow-up). Undefined when no match. */
+  examType?: string;
+  /** Per-list duration from PDF cover sheet's `Duration:` label, e.g.
+   *  `'12 Months'` or `'6 Months'`. **Important**: contradicts the
+   *  Phase 2.2.n "constant 2yr per CSC Rule 411A/412" assumption;
+   *  real DHR lists vary from 6mo to 24mo+. Captured here so a future
+   *  PR can replace the constant Duration chip + per-row Expires
+   *  computation with the actual value. Undefined when no match. */
+  duration?: string;
+  /** ISO timestamp of the extraction attempt. */
+  extractedAt: string;
+  /** True when the PDF was fetched + parsed without error (even if one
+   *  or more individual fields didn't match). False when the fetch
+   *  failed (all CORS proxies down) or pdfjs threw. */
+  success: boolean;
+  /** Error message when `success === false`; surfaced as a tooltip on
+   *  the failed-cell `—`. Undefined when `success === true`. */
+  error?: string;
 }
 
 /**

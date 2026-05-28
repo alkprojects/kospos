@@ -19,11 +19,11 @@
  * clearAll preserves dhrWorkerUrl per store.ts:103-108 (intentional).
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { act, render, screen, fireEvent, within } from '@testing-library/react';
 import { EligibilityView } from './EligibilityView';
 import { useScrapers } from '../../scrapers';
-import type { EligibilityList, JobPosting } from '../../scrapers';
+import type { EligibilityList, JobPosting, PdfExtract } from '../../scrapers';
 
 // ---------------------------------------------------------------------------
 // Test fixtures — 4 job codes mirroring the applyEligibilityFilters test
@@ -76,6 +76,12 @@ function seedFourRollups() {
 
 beforeEach(() => {
   useScrapers.getState().clearAll();
+  // Phase 2.2.o: opening the modal triggers a useEffect that calls
+  // fetchPdfExtractIfNeeded, which by default dynamic-imports pdfjs and
+  // spawns a Worker — neither works in jsdom. Tests that want to verify
+  // a specific PDF state seed pdfCache directly via setPdfExtract; tests
+  // that want to assert call arguments override this with vi.fn().
+  useScrapers.setState({ fetchPdfExtractIfNeeded: () => {} });
 });
 
 // ---------------------------------------------------------------------------
@@ -165,19 +171,30 @@ describe('EligibilityView — detail modal', () => {
     expect(within(modal).getByText(/2 yr.*CSC.*411A.*412/)).toBeInTheDocument();
   });
 
-  it('lists table column shape is Post date / List ID / Expires / Status / File (Type dropped)', () => {
+  it('lists table column shape is Post date / List ID / Expires / Status / Cert rule / Dept / Sub-type / File', () => {
     seedFourRollups();
     render(<EligibilityView />);
     fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
     const modal = screen.getByRole('dialog');
-    expect(within(modal).getByText(/Post date/i)).toBeInTheDocument();
-    expect(within(modal).getAllByText(/List ID/i).length).toBeGreaterThan(0);
-    expect(within(modal).getByText(/Expires/i)).toBeInTheDocument();
-    expect(within(modal).getByText(/Status/i)).toBeInTheDocument();
-    expect(within(modal).getByText(/File/i)).toBeInTheDocument();
-    // Type column dropped per Alex's S37 directive — the "Score report
-    // (civil service)" label should NOT appear anywhere in the modal.
+    // Scope to <th> elements so the assertions don't collide with the
+    // footnote that also names the new columns ("Cert rule · Dept ·
+    // Sub-type: extracted on demand…").
+    const headerTexts = within(modal).getAllByRole('columnheader')
+      .map(h => h.textContent?.trim() ?? '');
+    expect(headerTexts).toContain('Post date');
+    expect(headerTexts).toContain('List ID');
+    expect(headerTexts).toContain('Expires');
+    expect(headerTexts).toContain('Status');
+    // Phase 2.2.o columns
+    expect(headerTexts).toContain('Cert rule');
+    expect(headerTexts).toContain('Dept');
+    expect(headerTexts).toContain('Sub-type');
+    expect(headerTexts).toContain('File');
+    // Type column dropped per Alex's S37 directive (Phase 2.2.n) — the
+    // "Score report (civil service)" label should NOT appear anywhere
+    // in the modal.
     expect(within(modal).queryByText(/Score report \(civil service\)/i)).not.toBeInTheDocument();
+    expect(headerTexts).not.toContain('Type');
   });
 
   it('lists table renders the derived expiration date for each row', () => {
@@ -209,15 +226,16 @@ describe('EligibilityView — detail modal', () => {
     expect(within(modal).getByText(/1 eligible list/i)).toBeInTheDocument();
   });
 
-  it('modal footnote calls out fields that live on the PDF cover sheet', () => {
+  it('modal footnote describes the PDF columns + their loading/failure states', () => {
     seedFourRollups();
     render(<EligibilityView />);
     fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
     const modal = screen.getByRole('dialog');
-    // The "Not shown here" footnote names cert rule, dept, exam sub-type.
-    expect(within(modal).getByText(/Not shown here/i)).toBeInTheDocument();
-    expect(within(modal).getByText(/certification rule/i)).toBeInTheDocument();
-    expect(within(modal).getByText(/exam sub-type/i)).toBeInTheDocument();
+    // Phase 2.2.o footnote replaces the Phase 2.2.n "Not shown here"
+    // placeholder text. Now lists the three columns + the … / — states.
+    expect(within(modal).getByText(/Cert rule.*Dept.*Sub-type/)).toBeInTheDocument();
+    expect(within(modal).getByText(/extracted on demand/i)).toBeInTheDocument();
+    expect(within(modal).getByText(/Phase 2\.2\.o/)).toBeInTheDocument();
   });
 
   it('renders the expired-only rollup detail with expired-section disclosure', () => {
@@ -229,6 +247,152 @@ describe('EligibilityView — detail modal', () => {
     expect(within(modal).getByText(/Expired lists \(1\)/)).toBeInTheDocument();
     // No active section content — Q002 has 0 active lists.
     expect(within(modal).getByText(/No active lists within the 2-year window/i)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2.2.o — PDF cover-sheet column rendering + lazy fetch behavior.
+// ---------------------------------------------------------------------------
+
+describe('EligibilityDetail — Phase 2.2.o PDF columns', () => {
+  /** Build a minimal PdfExtract for one of the seedFourRollups lists. */
+  function mkExtract(over: Partial<PdfExtract> = {}): PdfExtract {
+    return {
+      extractedAt: '2026-05-27T00:00:00.000Z',
+      success: true,
+      ...over,
+    };
+  }
+
+  it('renders "…" in each PDF cell when extraction has not yet cached', () => {
+    seedFourRollups();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    // 1820 has 1 active list × 3 PDF cells = 3 ellipsis placeholders.
+    const dots = within(modal).getAllByText('…');
+    expect(dots.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('renders the extracted values when pdfCache has a success entry', () => {
+    seedFourRollups();
+    // Use 'DBI' for listDepartment to avoid colliding with the seeded
+    // posting's department string ('Building Inspection') already
+    // rendered elsewhere in the modal.
+    useScrapers.getState().setPdfExtract('1820|L-1820|2025-08-15', mkExtract({
+      certRule: 'Rule of 3 Names',
+      listDepartment: 'DBI',
+      examSubType: 'Promotional',
+    }));
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    expect(within(modal).getByText('Rule of 3 Names')).toBeInTheDocument();
+    expect(within(modal).getByText('DBI')).toBeInTheDocument();
+    expect(within(modal).getByText('Promotional')).toBeInTheDocument();
+  });
+
+  it('renders "—" with an error tooltip when extraction failed', () => {
+    seedFourRollups();
+    useScrapers.getState().setPdfExtract('1820|L-1820|2025-08-15', mkExtract({
+      success: false,
+      error: 'All proxies failed',
+    }));
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    // 3 dashes from the 3 PDF cells.
+    const dashes = within(modal).getAllByText('—');
+    expect(dashes.length).toBeGreaterThanOrEqual(3);
+    // At least one of the dashes carries the error in its title attr.
+    const errorDashes = dashes.filter(el =>
+      (el.getAttribute('title') || '').toLowerCase().includes('all proxies failed'),
+    );
+    expect(errorDashes.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('renders "—" with a "field not found" tooltip when extraction succeeded but matchers returned undefined', () => {
+    seedFourRollups();
+    useScrapers.getState().setPdfExtract('1820|L-1820|2025-08-15', mkExtract({
+      success: true,
+      certRule: undefined,
+      listDepartment: undefined,
+      examSubType: undefined,
+    }));
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    const dashes = within(modal).getAllByText('—');
+    const notFoundDashes = dashes.filter(el =>
+      (el.getAttribute('title') || '').toLowerCase().includes('not found'),
+    );
+    expect(notFoundDashes.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('useEffect kicks fetchPdfExtractIfNeeded for each active list on mount', () => {
+    const fetchFn = vi.fn();
+    useScrapers.setState({ fetchPdfExtractIfNeeded: fetchFn });
+    seedFourRollups();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    // 1820 has 1 active list (L-1820). Should fire exactly once for it.
+    expect(fetchFn).toHaveBeenCalledWith(expect.objectContaining({
+      jobCode: '1820', listId: 'L-1820',
+    }));
+  });
+
+  it('expired-section extractions only fire when the user expands the disclosure', () => {
+    const fetchFn = vi.fn();
+    useScrapers.setState({ fetchPdfExtractIfNeeded: fetchFn });
+    seedFourRollups();
+    render(<EligibilityView />);
+    // Q002 has 0 active, 1 expired. Opening the modal alone should NOT
+    // fire for the expired list yet.
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for Q002/i }));
+    const expiredListCalls = fetchFn.mock.calls.filter(
+      ([list]) => list.jobCode === 'Q002' && list.listId === 'L-Q002',
+    );
+    expect(expiredListCalls).toHaveLength(0);
+    // Now expand the disclosure. jsdom doesn't reliably fire the
+    // <details> toggle event from a click on <summary>, so dispatch the
+    // toggle explicitly after flipping `open`. This mirrors the real
+    // browser flow: user click → details.open flips → toggle event
+    // fires → React onToggle handler runs → expiredOpen state flips →
+    // useEffect re-runs → fetchPdfExtractIfNeeded fires.
+    const modal = screen.getByRole('dialog');
+    const summary = within(modal).getByText(/Expired lists \(1\)/);
+    const details = summary.closest('details') as HTMLDetailsElement;
+    act(() => {
+      details.open = true;
+      details.dispatchEvent(new Event('toggle', { bubbles: true }));
+    });
+    const afterExpand = fetchFn.mock.calls.filter(
+      ([list]) => list.jobCode === 'Q002' && list.listId === 'L-Q002',
+    );
+    expect(afterExpand.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('PDF cells flip from "…" to values when pdfCache populates after mount', () => {
+    seedFourRollups();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    let modal = screen.getByRole('dialog');
+    // Before populate: at least 3 "…" (1 active list × 3 PDF cells).
+    expect(within(modal).getAllByText('…').length).toBeGreaterThanOrEqual(3);
+    // Simulate the async fetch completing. The store update must be
+    // wrapped in act() so React flushes the Zustand-subscription
+    // re-render before the next assertion.
+    act(() => {
+      useScrapers.getState().setPdfExtract('1820|L-1820|2025-08-15', mkExtract({
+        certRule: 'Rule of the List',
+        listDepartment: 'Citywide',
+        examSubType: 'PCS',
+      }));
+    });
+    modal = screen.getByRole('dialog');
+    expect(within(modal).getByText('Rule of the List')).toBeInTheDocument();
+    expect(within(modal).getByText('Citywide')).toBeInTheDocument();
+    expect(within(modal).getByText('PCS')).toBeInTheDocument();
   });
 });
 

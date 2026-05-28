@@ -10,6 +10,7 @@ export type {
   JobPosting,
   EligibilityList,
   JobCodeRollup,
+  PdfExtract,
 } from './types';
 export { DEFAULT_ACTIVE_LIST_WINDOW_DAYS } from './types';
 
@@ -32,7 +33,18 @@ export {
   FetchDhrError,
   fetchDhrExamResults,
 } from './sf-dhr-exam/fetch';
-export type { FetchDhrOptions } from './sf-dhr-exam/fetch';
+export type { CorsProxy, FetchDhrOptions } from './sf-dhr-exam/fetch';
+
+// Phase 2.2.o note — pdf-parse.ts's runtime exports
+// (fetchAndExtractPdfFields, matchCertRule, …) are intentionally NOT
+// re-exported from here. They're consumed by:
+//   - the scrapers store via dynamic import (`fetchPdfExtractIfNeeded` in
+//     store.ts) — keeps pdfjs-dist + its 330 KB chunk out of the main
+//     bundle until the first PDF extract fires.
+//   - tests via direct path (`./sf-dhr-exam/pdf-parse`).
+// Static re-export here would force the regex helpers into the main
+// chunk (Vite warns INEFFECTIVE_DYNAMIC_IMPORT). The TYPE export below
+// is fine — types vanish at compile time.
 
 export {
   buildJobCodeRollups,
@@ -53,4 +65,4 @@ export type {
   ListStatusTone,
 } from './build';
 
-export { useScrapers } from './store';
+export { useScrapers, pdfCacheKey } from './store';
