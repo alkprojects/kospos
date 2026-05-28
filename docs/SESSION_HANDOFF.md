@@ -4,6 +4,364 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
+## Current status (end of Session 35 — Phase 2.2.l: DHR live fetch via CORS proxy + Probation deputy multi-resolve, 2026-05-27)
+
+**Phase:** Phase 2.2.l — **DHR exam-results live fetch via CORS-proxy chain (manual paste demoted to fallback) + Probation deputy auto-resolves from reports-to chain as a multi-person chip field** ([PR #113](https://github.com/alkprojects/kospos/pull/113) — Probation deputy chain-walk + chip-list UI; [PR #114](https://github.com/alkprojects/kospos/pull/114) — DHR CORS-proxy fetcher + Worker URL backup slot). Phase 2.2.l close audit fired on schedule (12th event-based trigger).
+**Last main commit:** [PR #114](https://github.com/alkprojects/kospos/pull/114) (DHR CORS proxy) → [PR #113](https://github.com/alkprojects/kospos/pull/113) (Probation deputy) → [PR #112](https://github.com/alkprojects/kospos/pull/112) (S34 audit + S35 handoff).
+**Tests:** 589 / 589 passing (+40 net from S35 baseline of 549: +23 from PR #113 + +17 from PR #114).
+**Branches in flight:** none post-merge (this docs PR pending).
+**Worktree hygiene:** PR #113 auto-archived after merge; PR #114 archives on merge.
+
+### What landed this session — 2 PRs (plus this docs PR)
+
+Alex sent the S35 prompt + two added directives that effectively redefined Phase 2.2.l. The two directives were sharp and unambiguous; one AskUserQuestion at the top resolved the only real design choice (DHR mechanism = public CORS proxy + Cloudflare Worker backup). ~80 minutes of execution.
+
+#### [PR #113](https://github.com/alkprojects/kospos/pull/113) — Probation deputy auto-resolves from reports-to chain + multi-person chip field
+
+Alex's S35 ask: "you should automatically know who the deputy is based on the reports to tree. it should be pre-filled, but user should have the option to remove them and add more people."
+
+- `Probation.deputy: string` → `Probation.deputies: string[]`
+- New `lib/probation/deputy.ts:resolveDeputiesFromChain` walks `reportsTo.positionNumber` upward, matches ancestor positions whose `jobCodeDescription` contains "Deputy" (case-insensitive whole-word; rejects "Predeputy", "Deputies Coordinator"). Cycle-safe, dedupes by name.
+- Chip-list UI in AddProbationForm + ProbationDetail: per-chip X-to-remove; "Add deputy" input commits on Enter / blur; backspace-on-empty pops the most-recent chip.
+- Auto-fills on employee-name autocomplete pick, position-input resolve, detail modal's "Use these" button.
+- Notification email: Oxford-comma greeting (`Hello {sup}, {dep1}, ..., and {depN},`).
+- Session JSON back-compat: `migrateLegacyDeputy` promotes legacy `deputy: "Name"` → `deputies: ["Name"]`. +23 tests.
+
+#### [PR #114](https://github.com/alkprojects/kospos/pull/114) — DHR live fetch via CORS-proxy chain (primary), manual paste demoted to fallback
+
+Alex's S35 ask: "eligibility, exam results solution is not acceptable. it is way too much manual work. please try to find an alternate method of extracting the information."
+
+S35 kickoff answer: **Public CORS proxy + Cloudflare Worker as backup.**
+
+- New `lib/scrapers/sf-dhr-exam/fetch.ts` with the 3-proxy chain (corsproxy.io → allorigins.win/raw → codetabs.com/v1/proxy) + optional appended Cloudflare-Worker URL slot.
+- `useScrapers.dhrWorkerUrl` persists to localStorage (`kospos.scrapers.dhrWorkerUrl`); `clearAll` preserves the setting (it's user config, not scrape data).
+- Body-content sniff (`looksLikeHtml`) catches proxy error envelopes regardless of HTTP status.
+- Polite 500ms throttle between pages; pagination via Drupal `?page=N`; stops on first empty page.
+- EligibilityView UI: new `↻ Refresh eligibility lists` button + `<details>` "Backup proxy: Cloudflare-Worker URL" card + Phase-2.2.k manual paste demoted into `<details>` "Advanced fallback".
+- **Live verification:** one click → 6,727 rows from 66+ pages in ~90s. 738 distinct SF job codes. 1,848 active lists. 100% via corsproxy.io. +17 tests.
+
+#### This docs PR — Phase 2.2.l close audit + S36 SESSION_HANDOFF + S35 SESSION_LOG entry
+
+### Items surfaced for Alex's review (carry forward)
+
+Per [memory `feedback_dont_reremind.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_dont_reremind.md): **dropped items this session** —
+
+- **DHR scrape mechanism — RATIFIED in the kickoff question** ("Public cord proxy with cloudflare worker as backup"). Item drops from carry-forward.
+- **Probation deputy auto-resolve / multi-person field — SHIPPED in PR #113.** Drops from carry-forward.
+- **S34 action item #20 (DHR real-data paste walkthrough) — implicitly RESOLVED.** The live fetch in PR #114 flowed 6,727 real rows through the parser with zero errors. Drops from carry-forward.
+
+#### Restated questions for Alex (5 — unchanged from S35)
+
+Items 1-5 carry from S32/S33/S34/S35.
+
+1. **Attribution rate on Operating Report Summary.** Three different things on the Operating Report Summary page look like they're called "attrition rate" at the DBI / CPC dept-group level — G42 / H42 (9993 ÷ non-9993 labor), L23 / L32 (projected balance ÷ total budget), H43 (hand-keyed "Calculated, Questionable"). Which is "the attrition rate" for CON / MYR reporting? **My current default:** G42 / H42 is canonical; L23 / L32 gets renamed to "leftover %" in KosPos. **Confirm or correct?**
+
+2. **`Department Group` pivot label.** When KosPos emits the labor-report-shaped .xlsx for downstream consumers, preserve the `Department Group` GETPIVOTDATA label so other people's formulas still work? **My current default:** yes, preserve it.
+
+3. **OPS Detail snapshot-diff key.** Options: (a) Position Number alone, (b) `(Effective Dept, Position Number, Fill Status, Budget Job Code)`, (c) Position Number + a separate tracker for "who occupied it when". **My current default:** option (b).
+
+4. **Step variance merit-event aware.** The Step (Tab 18) walkthrough proposed making per-PP step variance "merit-event aware." Implement in Phase 2.4 importer, or defer to a Phase 2.2 sub-phase? **Default: defer.**
+
+5. **TX (Temporary Exchange) rules — still gates Phase 2.2.19 `views/temp-limits/`.** Four follow-up rules need confirmation (5a CSC vs negotiated, 5b Cat 16 eligibility, 5c TX vs limited-duration appointment, 5d renewal). See [memory `temporary_exchange_tx.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/temporary_exchange_tx.md) for the worked-example backdrop.
+
+18. **Filterable + multi-selectable on every field, every tab** (Alex's reiterated UI directive). Two implementation paths:
+   (a) **Add per-column filter chips** to every table (homemade).
+   (b) **Adopt a table library** (TanStack Table v8, AG Grid Community).
+   **My current default:** option (a) incrementally per-tab, since the existing tables are small; library adoption is overkill for v1. **Confirm or correct?**
+
+#### Reasonable-default calls deferred (12 — unchanged from S35)
+
+**8 from Session 20 (Tab 23-25 walkthroughs):**
+
+6. **(Tab 23)** 6 slicer-chip semantics reverse-engineered — confirm or correct?
+7. **(Tab 23)** Where does `Vacant Date` come from?
+8. **(Tab 23)** `Previous Employee2` vs `Previous Employee` — which is which?
+9. **(Tab 24)** `V Check` semantics for TEMPM-budgeted rows — `IF(P="TEMPM", "", ...)` skips check.
+10. **(Tab 24)** Cost-basis for blank `W` cells — **Default:** KosPos always computes expected cost.
+11. **(Tab 24)** PlannedAction history retention — **Default:** 18 months with summary roll-up.
+12. **(Tab 24)** DBI→CPC transfer-of-function propagation — **Default:** stays on originating dept until EOY.
+13. **(Tab 24 + Tab 25)** Active-row blank-`W` "X of Y priced ⚠" diagnostic chip — placement OK?
+
+**4 from Session 21 (Tab 1-22 walkthroughs):**
+
+14. **(Tab 12)** `E2P` = "Eligible to Promote" — what does it mean exactly?
+15. **(Tab 21)** `PARTIALLY FILLED` semantics — used for pool positions. Map to `is_pool_position = true`?
+16. **(Tab 21)** Reporting Tree change-proposal cols — workflow today?
+17. **(Tab 15)** Succession plan scope priority — Phase 2 (current-year) or Phase 7 (talent)?
+
+#### Open action items (1 — S34 #20 resolved, S32/S33 #19 carries)
+
+19. **The 5 vacant-no-RTF positions.** 5 positions show **Fill Status = VACANT** and **Latest RTF Submitted Date = blank/null**. Per [memory `staffing_plan_types.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/staffing_plan_types.md), "no RTF" is not always accurate in practice. **Disposition needed per position: data bug vs intentional hold.**
+
+#### Audit-surfaced items (carry-forward update — items A-F)
+
+From [Phase 2.2.l close audit](audits/phase-2-2-l-close-audit.md):
+
+A. ~~Auto-archive monitoring~~ — **stays dropped** (resolved S33).
+
+B. **Trim `SESSION_LOG.md` Sessions 1–16 to one-paragraph digests.** ~3,100 lines after S35 entry. Past the 2,000-line trim trigger. Bundleable with C + Tab 24 Improvement #6 holdReason language drift + OBI serial doc note + research-doc-location WORKFLOW.md note + TS-param-property tip. ~2-2.5 hours combined.
+
+C. **Migrate the memory-file citation anti-pattern in `labor-report.md`.** **12 instances unchanged** (no labor-report.md edits this session). Bundleable with B.
+
+D. **Defer the `labor-report.md` split until Phase 2.4.** Still 8,518 lines. Defer holds.
+
+E. ~~Phase 2.2 first sub-phase pick.~~ Resolved S24; **stays dropped**.
+
+F. **Audit cadence — working as designed.** 12th event-based trigger fired on schedule this session.
+
+### Top 3 findings to surface for Alex this session
+
+1. **DHR live fetch ships with real data flowing.** Visit `/kospos/?dev=1` → click Eligibility tab → click "↻ Refresh eligibility lists". You'll see progress tick through ~66 pages in ~90 seconds; ~6,700 eligibility lists parsed; ~740 SF job codes rolled up; ~1,800 within the 2-year active window. All via corsproxy.io — the public CORS-proxy chain. Backup-proxy slot (Cloudflare Worker URL) sits in a collapsed `<details>` if you ever need it; the existing manual-paste workflow is still there as the "Advanced fallback" `<details>`.
+
+2. **Probation deputy field is now multi-person + chain-walked.** On the Probation tab: when you pick a known employee, the deputy chip list auto-fills with anyone in the reports-to chain above them whose title contains "Deputy". Each chip has an ✕ to remove. Type + Enter (or just blur) adds another. Backspace on an empty draft pops the most-recent chip. The notification email's greeting line uses the Oxford-comma "Hello {sup}, {dep1}, ..., and {depN}," form.
+
+3. **Both PRs landed clean — 2 PRs in ~80 minutes.** 589/589 tests passing (+40 from S35 baseline). `npm run build` clean first-run (6 sessions running). Phase 2.2.l close audit shows zero new drift items.
+
+### Cumulative state of the labor-report walkthrough
+
+| Phase | Tab | Status |
+|---|---|---|
+| 2.0a-h | All 27 tabs | done 2026-05-25 |
+| 2.0i | DSI final + Phase 2.2 sub-phase enumeration + Phase 2.0 close audit | done 2026-05-25 |
+| 2.1 | `?dev=1` route guard + Phase 2.1 close audit | done 2026-05-25 |
+| 2.2.a | Position spine bundle | done 2026-05-25 |
+| 2.2.b | obi-payroll full + lib/payroll/ rollup cube | done 2026-05-26 |
+| 2.2.b+c | Combined close audit + PR #68 docs sync | done 2026-05-27 |
+| 2.2.c | `2.2.17` `views/labor/` | done 2026-05-27 |
+| 2.2.d | `2.2.13` `bfm-eturn/` full + `lib/budget/` + Budget vs Actual | done 2026-05-26 |
+| 2.2.e | `2.2.21` `staffing-plan/` v1 + Hiring Plan workspace | done 2026-05-26 |
+| 2.2.f | `2.2.21` v2 PR 1: Bug 3 + status-transition guard + Bug 2 polish | done 2026-05-26 |
+| 2.2.g | `2.2.21` v2 PR 2: PlannedActionDetail + delta-pay + Bug 2a asOf-serial fix | done 2026-05-26 |
+| 2.2.h | `2.2.20` `views/inactive/` — Tab 13 INACTIVE live query | done 2026-05-27 |
+| 2.2.i | `2.2.26` `lib/separations/` + `views/separations/` — Tab 14 + Hiring Plan cross-link | done 2026-05-27 |
+| 2.2.j | `2.2.25` `lib/probation/` + `views/probation/` + 4 follow-ups | done 2026-05-28 |
+| 2.2.k | `2.2.28` `lib/scrapers/` + `views/eligibility/` — Tab 11 + SmartRecruiters live + DHR manual-paste + 5 follow-ups | done 2026-05-27 |
+| **2.2.l** | **DHR live fetch via CORS proxy + Probation deputy multi-resolve (Alex's S35 directives)** | **done 2026-05-27** |
+| **2.2.m** | **Next sub-phase** — Alex's pick. Top candidates carry from S35: **(a) `2.2.18` `views/reporting-tree/`** (Tab 21 — feeds Phase 7 org chart, requires `lib/changes/` stub lift); **(b) `2.2.19` `views/temp-limits/`** (TX entity + Cat 17/18 expiry — STILL gated on TX TODOs Restated Q #5); **(c) `2.2.22` `views/vacancies/`** (Tab 23 — lighter-weight); **(d)** the filterable/multi-select UI directive (Restated Q #18) as its own cross-cutting sub-phase. | **NEXT** |
+| 2.2.m-n | Remaining Tier-4 sub-phases | pending |
+| 2.3 | Excel export | pending |
+| 2.4 | Importer wiring (5 ADRs queued, possibly consolidated; scraper-layer pattern folds into the no-upstream-source ADR as derived-data extension) | pending |
+
+## Blockers for Alex
+
+None landing-related. Live site: <https://alkprojects.github.io/kospos/>. Spot-check once the deploy completes:
+
+- **`↻ Refresh eligibility lists`** in the Eligibility tab summary header (next to the existing job-postings refresh). One click → ~90s scrape → ~6,700 lists, ~740 job codes, ~1,800 active rolled up.
+- **Backup proxy `<details>`** under the summary header — saving a Cloudflare-Worker URL persists across reloads (localStorage); the "configured" badge appears next to the summary label when set.
+- **Advanced fallback `<details>`** — the Phase-2.2.k manual paste still works exactly as before.
+- **Probation deputy chip list** in both the Probation add form and the detail modal.
+  - Pick a known employee with a "Deputy"-titled ancestor in their reports-to chain → chip pre-fills.
+  - Each chip has an ✕ to remove; type a new name + Enter adds another; backspace on empty pops the last chip.
+- **Notification email greeting line** — Oxford-comma "Hello {sup}, {dep1}, ..., and {depN},". Mailto: URI uses %20 (Outlook-safe).
+- **No regression on prior surfaces.** Positions / Payroll / Hiring Plan / Inactive / Separations / Probation / Calculator / Special Class / Eligibility table all still render.
+
+**One decision pending — pick the next Phase 2.2 sub-phase (2.2.m).** See Recommendations.
+
+### Recommendation for Phase 2.2.m
+
+**Option B (carries from S35) — `2.2.19` `lib/views/temp-limits/` (Cat 17/18 + TX).** Still gated on the 4 TX TODOs (Restated Q #5a-d). Resolving those (~30 min of Alex's input) unlocks ~10-12 hours of build.
+
+**Option A — `2.2.18` `lib/views/reporting-tree/`.** Tab 21 Reporting Tree feeds Phase 7 org chart. Pros: unblocks Phase 7, surfaces Scenario 1 reports-to-cycle / dangling-ref flags. Cons: Change Mode design (`lib/changes/` stub) needs to land alongside or shortly after to make the change-proposal cols meaningful.
+
+**Option C — `2.2.22` `lib/views/vacancies/`** (Tab 23). Lighter-weight; filtered position list with cross-check against Staffing Plan. Pros: small, low-risk, no gating. Cons: less user-visible payoff than A/B; vacancy planning largely covered by the Hiring Plan workspace.
+
+**Option D — Cross-cutting: filterable + multi-select fields on every tab** (Restated Q #18). 20-40 hours. Two paths (chip-per-column vs adopt TanStack Table v8) — design pick + primitive + apply-to-one-tab proof.
+
+**Option E — Promote Eligibility + Probation to non-dev + cross-tab nav.** Light: ~1-2 hours total. Cross-tab nav from Eligibility job code → filtered Positions, then lift the `devOnly: true` flag on both tabs. Recommended **AFTER** Alex has used the live Eligibility fetch end-to-end on his real workflow.
+
+**My pick: Option E first (small, validates the cross-tab nav pattern at low risk), then Option B** — the temp-limits view has the highest user-visible payoff (Cat 17/18 expiration warnings are governance-critical at DBI), and the gating is just 4 short Alex answers. If Alex doesn't have time to answer the 4 TX questions, fall back to Option C (Vacancies, no gating).
+
+## Next session prompt — Phase 2.2.m (Alex picks A, B, C, D, E, or another sub-phase)
+
+Paste this verbatim to start Session 36:
+
+````
+This session asks Alex to pick the next Phase 2.2 sub-phase (2.2.m),
+then ships it. Phase 2.2.l shipped 2 PRs:
+#113 (Probation deputy auto-resolves from reports-to chain as a
+multi-person chip field — chain-walks ancestor positions with "Deputy"
+in their title; X to remove pre-filled chips, Enter to add more);
+#114 (DHR exam-results live fetch via public CORS-proxy chain
+[corsproxy.io → allorigins.win → codetabs.com] + optional Cloudflare-
+Worker URL backup slot — verified 6,727 rows from 66+ pages in ~90s).
+Manual paste demoted to `<details>` "Advanced fallback".
+
+Read first, in order:
+  docs/CLAUDE.md
+  docs/SESSION_HANDOFF.md (this file — recommendation + carry-forwards)
+  docs/SESSION_LOG.md (Session 35 entry — 2 PRs)
+  memory/MEMORY.md + the 10 memory files
+  docs/audits/phase-2-2-l-close-audit.md (carry-forwards B-F; A stays
+    dropped)
+  docs/domain/labor-report.md § "Phase 2.2 sub-phases" — dependency graph
+
+Confirm state on main:
+  git log --oneline origin/main -8
+
+==============================================================================
+STEP 0 — Phase 2.2.m close audit cadence check
+==============================================================================
+Per WORKFLOW.md § Audit cadence, the Phase 2.2.l close audit fired
+in S35. This session, the audit cadence check is only the Phase
+2.2.m close audit when 2.2.m ships. Don't re-audit 2.2.l.
+
+DO fire the 2.2.m audit before this session ends. Use the Phase
+2.2.l close audit format; mirror the prior audit's table of
+carry-forwards.
+
+==============================================================================
+STEP 1 — Ask Alex to pick Phase 2.2.m
+==============================================================================
+Use AskUserQuestion. Five options:
+
+  A. 2.2.18 lib/views/reporting-tree/ + Change Mode precursor
+     — Tab 21. Feeds Phase 7 org chart. lib/changes/ stub needs lift
+     alongside (scope risk).
+
+  B. 2.2.19 lib/views/temp-limits/ + TemporaryExchange typed entity
+     — Cat 17/18 expiry + 1040-hour gauges. STILL GATED: the 4 TX
+     TODOs in Restated Question #5 must be answered up front (5a-5d).
+
+  C. 2.2.22 lib/views/vacancies/
+     — Tab 23 Vacancies and TEMP, filtered position list with
+     cross-check against Staffing Plan. Light-weight, low-risk.
+
+  D. Cross-cutting: filterable + multi-selectable fields on every tab
+     — Alex's reiterated UI directive (Restated Q #18). 20-40 hours
+     across all tabs. Needs design pick: per-column chips vs adopt a
+     table library (TanStack Table v8). Could be its own sub-phase.
+
+  E. Promote Eligibility + Probation to non-dev + cross-tab nav from
+     Eligibility job code → filtered Positions. Light: ~1-2 hours.
+     Best AFTER Alex has used the live Eligibility fetch on his real
+     workflow.
+
+  (Escape hatch: Alex names something else from the dependency graph.)
+
+==============================================================================
+STEP 2 — Start Phase 2.2.m (the picked sub-phase)
+==============================================================================
+Branch + scope depend on the pick:
+
+If A — views/reporting-tree/:
+  Branch: feat/views-reporting-tree
+  Scope:
+    - lib/views/reporting-tree/ — Tab 21 surface (org-chart preview
+      + reports-to chain integrity flags)
+    - Surface Scenario 1 flags: reports-to-cycle / reports-to-dangling-
+      ref / reports-to-empty-non-commissioner / reports-to-excessive-
+      depth via lib/quality/
+    - Optionally lift lib/changes/ from stub (flag if it becomes
+      the bigger lift)
+    - Tab to App.tsx (devOnly initially)
+    - Tests
+
+If B — views/temp-limits/:
+  Branch: feat/temp-limits-view
+  Scope:
+    - Resolve the 4 TX TODOs via AskUserQuestion at the start
+      (Restated Q #5a-5d)
+    - Add lib/temp-exchange/ typed entity (per memory
+      temporary_exchange_tx.md schema)
+    - Build lib/views/temp-limits/ — Tab 12 surface
+    - Surface temp-tx-expiration-imminent + temp-tx-expired flags
+    - Tab to App.tsx (devOnly until ready)
+    - Tests + preview-MCP walkthrough
+
+If C — views/vacancies/:
+  Branch: feat/views-vacancies
+  Scope:
+    - lib/views/vacancies/ — Tab 23 filtered position list
+    - Cross-check rows against Hiring Plan PlannedActions (visual
+      indicator: planned/unclaimed)
+    - Tab to App.tsx (devOnly initially)
+    - Tests
+
+If D — filterable everywhere (cross-cutting):
+  Branch: feat/filterable-tables OR feat/adopt-tanstack-table
+  Scope:
+    - Pick approach via AskUserQuestion at the start (per-column chips
+      OR TanStack Table adoption)
+    - Build the primitive (FilterableColumn component or table-library
+      wrapper)
+    - Apply to one tab as a proof (recommend Separations — smallest)
+    - DO NOT roll out to all tabs in one session — bound the scope to
+      the primitive + one application
+    - Tests + preview-MCP walkthrough
+    - File the per-tab rollout as carry-forward
+
+If E — Promote + cross-tab nav:
+  Branch: feat/eligibility-positions-crosstabnav-and-promote
+  Scope:
+    - Add cross-tab nav: clicking a job code in EligibilityView's
+      table filters the Positions tab to that jobCode (likely via
+      a shared Zustand "active filter" slice or a URL hash route)
+    - Lift devOnly: true on Eligibility + Probation tabs in App.tsx
+    - Tests + preview-MCP walkthrough
+
+==============================================================================
+Hard constraints
+==============================================================================
+
+  - Branch from main, single-purpose name.
+  - Strict one-sub-phase-per-PR.
+  - npm test stays green (currently 589 / 589).
+  - One PR per logical change; merge after CI passes; fast-forward main.
+  - Commit messages end with the Co-Authored-By line per CLAUDE.md.
+  - **Run `npm run build` before opening PR** — 6 sessions running of
+    clean first-run builds (habit firm).
+
+==============================================================================
+What we are NOT doing
+==============================================================================
+
+  - No bundling.
+  - No tab walkthroughs. Phase 2.0 is closed.
+  - No ADR amendments. Phase 2.4 (5 ADRs queued, possibly folded:
+    ADR-007 amendment for the 39-col OBI shape + iso() serial-converter
+    note + BFM eturn ADR + Position.cat1718 lift note + ONE
+    consolidated ADR for the no-upstream-source pattern shared by
+    lib/staffing-plan/ + lib/views/inactive/ + lib/views/separations/
+    + lib/views/probation/ + lib/scrapers/ as derived-data extension).
+  - No tool / setting / hook changes unless surfaced by audit.
+  - No promotion of Payroll / Hiring Plan / Inactive / Separations /
+    Probation / Eligibility / Temp Limits / Reporting Tree to non-dev
+    yet — wait until cross-tab nav has been used end-to-end on real
+    data (Option E above explicitly tackles this).
+
+==============================================================================
+Session-end checklist
+==============================================================================
+
+Before ending, update SESSION_HANDOFF.md with:
+  - Phase 2.2.m status + next-session prompt for Phase 2.2.n.
+  - Re-ask the 5 restated questions + 12 reasonable-default calls
+    (#6-17) + 1 open action item (#19). DROP items Alex acknowledges
+    this session.
+  - Carry-forward update on items B-F (A resolved S33, off the list).
+  - Fire the Phase 2.2.m close audit (mirrors Phase 2.2.l audit format).
+
+Recommended model: claude-opus-4-7 for A (entity + cross-cutting quality
+wiring) or D (cross-cutting design pick). claude-sonnet-4-6 OK for B
+(well-defined once TX TODOs answered), C (smallest, well-trodden pattern),
+or E (small, well-trodden cross-tab nav). Effort: medium-to-high for A/D;
+medium for B; low-to-medium for C/E.
+````
+
+### Recommended model (Phase 2.2.m)
+
+`claude-opus-4-7` for A or D (cross-cutting reasoning + design pick). `claude-sonnet-4-6` OK for B / C / E. Effort: medium-to-high for A/D; medium for B; low-to-medium for C/E.
+
+### S35 follow-ups (new — low priority)
+
+- **Promote Eligibility / Probation to non-dev** — after Alex's first real-workflow run with the live Eligibility fetcher. Option E above.
+- **Cross-tab nav from Eligibility → Positions** — same pattern as Positions ↔ Payroll. Bundleable into Option E.
+- **Cloudflare Worker deployment** — only if the public proxy chain proves flaky. The slot is shipped; the 10-line worker is documented in PR #114's body.
+- **Lift `buildProbation*Email` to `lib/ui/notifications/`** — only if a 2nd consumer arrives.
+- **Phase 2.2.k S34 follow-up: queue full 66-page DHR paste** — implicitly resolved; the live fetch handles all 66+ pages in one click.
+
+---
+
 ## Current status (end of Session 34 — Phase 2.2.k: lib/views/eligibility/ + DHR/SF-Careers scrapers + 5 follow-up PRs in autonomous mode, 2026-05-27)
 
 **Phase:** Phase 2.2.k — **`lib/scrapers/` + `lib/views/eligibility/` + Eligibility tab + 5 follow-up PRs from Alex's S34 added-items list** ([PR #106](https://github.com/alkprojects/kospos/pull/106) — Probation+Separations employee-ID-stuck-on-old-person bug fix; [PR #107](https://github.com/alkprojects/kospos/pull/107) — Probation supervisor auto-resolves from position.reportsTo + new deputy field; [PR #108](https://github.com/alkprojects/kospos/pull/108) — Probation end-date up-front + 5 preset durations + click-to-edit; [PR #109](https://github.com/alkprojects/kospos/pull/109) — Probation row selection + email-generator with both mailto: AND copy-template per row; [PR #110](https://github.com/alkprojects/kospos/pull/110) — CopyButton rollout to Positions+Payroll+Inactive+Hiring Plan+Position Detail; [PR #111](https://github.com/alkprojects/kospos/pull/111) — **Phase 2.2.k primary** — Tab 11 Eligibility + SmartRecruiters live fetcher (CORS-permissive) + DHR manual-paste parser (CORS blocked)). Phase 2.2.k close audit fired on schedule (11th event-based trigger).

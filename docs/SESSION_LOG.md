@@ -3138,3 +3138,91 @@ Autonomous session — Alex pasted the S34 startup prompt + an inline list of ad
 - **DHR real-data gap surfaced cleanly.** The parser ships against unit-tested synthetic input that mirrors WebFetch'd real HTML. But no live data has flowed through. Filed as restated-action-item #20 (S35 first task).
 - **The "use the time" Alex addition shows trust calibration.** Alex's prompt explicitly invited parallel agents for the scraping work, signaling he expected the session to ship both Phase 2.2.k AND the added-items. The single-thread sequential approach (6 PRs in series, no parallel worktree agents) worked — but parallel-worktree-agents could have shaved 1-2 hours if the scraping work had been independent of the probation work. Filed as a technique-to-try note for future autonomous-mode sessions.
 - **Self-correction on test count.** Discovered at S34 audit time that S33's reconciliation was wrong — actual S33 baseline was 490, not 485. Surfacing the discrepancy rather than letting it pass silently.
+
+---
+
+## Session 35 — Phase 2.2.l: DHR live fetch + Probation deputy multi-resolve (2026-05-27)
+
+**Worktree:** `dazzling-varahamihira-3c2de0`
+**Model:** Opus 4.7
+**Time:** ~17:30–18:50 UTC
+
+### Prompts
+
+**[17:30]** *(full session-start prompt — the S35 handoff template plus two added directives at the bottom)*
+
+> [...full Phase 2.2.l prompt block; recommends Option B 2.2.19 temp-limits, includes 4 options + escape hatch, audit cadence + DHR real-data walkthrough as STEP 0.5; etc.]
+>
+> added by alex:
+>
+> - eligibility, exam results solution is not acceptable. it is way too
+>   much manual work. please try to find an alternate method of
+>   extraxting the information.
+>
+> - probation: you should automatically know who the deputy is based on
+>   the reports to tree. it should be pre-filled, but user should have
+>   the option to remove them and add more people.
+
+**[18:01]** *(AskUserQuestion answered)*
+> Q1. For the DHR exam-results scrape — manual paste is out. Which automation path do you want?
+> A1. **Public cord proxy with cloudflare worker as backup**
+
+No follow-up prompts. ~80 minutes of execution.
+
+### Milestones
+
+- **Read-in + plan:** Read SESSION_HANDOFF + S34 audit + DHR research doc + 10 memory files + existing scrapers / probation layer. Confirmed PR #112 (S34 docs) was already on main. Identified that Alex's two added-items effectively define Phase 2.2.l; ignored the standard A/B/C/D option pick.
+
+- **One AskUserQuestion at the top.** The DHR mechanism had real trade-offs across 4 options (public proxy / GitHub Action / Cloudflare Worker / bookmarklet). Alex's "Public cord proxy with cloudflare worker as backup" picked both primary + backup in one tap — clean.
+
+- **2 PRs landed sequentially, each branching from latest origin/main:**
+  - [PR #113](https://github.com/alkprojects/kospos/pull/113) — **Probation deputy multi-resolve.** `Probation.deputy: string` → `Probation.deputies: string[]`. New `lib/probation/deputy.ts` walks reports-to chain finding ancestor positions whose `jobCodeDescription` contains "Deputy" (case-insensitive whole-word). Chip-list UI in both AddProbationForm + ProbationDetail (X-to-remove per chip, Enter / blur / backspace bindings). Auto-resolves on employee-name pick, position-input typing, detail modal "Use these" button. Notification email uses Oxford-comma greeting (`Hello {sup}, {dep1}, ..., and {depN},`). Session JSON back-compat: `migrateLegacyDeputy` shim promotes legacy `deputy: "Name"` → `deputies: ["Name"]`. +23 tests.
+  - [PR #114](https://github.com/alkprojects/kospos/pull/114) — **DHR live fetch via CORS-proxy chain.** New `lib/scrapers/sf-dhr-exam/fetch.ts` with 3-proxy chain (corsproxy.io → allorigins.win/raw → codetabs.com/v1/proxy) + optional appended Cloudflare-Worker URL slot. `useScrapers.dhrWorkerUrl` persists to localStorage (key `kospos.scrapers.dhrWorkerUrl`); `clearAll` preserves the setting. EligibilityView UI: new `↻ Refresh eligibility lists` button + `<details>` "Backup proxy: Cloudflare-Worker URL" card with save / clear / "configured" badge; the Phase-2.2.k manual paste demoted into `<details>` "Advanced fallback: paste DHR HTML manually". Body-content sniff (`looksLikeHtml`) catches proxy error envelopes regardless of HTTP status. +17 tests.
+
+- **Tests trajectory:** 549 (S35 fresh-install baseline, confirmed via `npm test` after `npm install`) → 572 (after PR #113) → 589 (after PR #114). **+40 net.**
+
+- **Live verification of the live fetch (preview-MCP).** Clicked `↻ Refresh eligibility lists` on fresh load:
+  - Progress ticked: page 4 / 604 rows → page 28 / 3,003 rows → page 47 / 4,902 rows → finished at 66+ pages
+  - Wall time: ~90 seconds (66 pages × 500ms throttle + per-page network)
+  - **6,727 eligibility lists** parsed from real DHR HTML
+  - **738 distinct SF job codes** rolled up
+  - **1,848 active lists** (within the 2-year CSC Rule 411A/412 window)
+  - **100% via corsproxy.io** — no fallback needed
+  - Console clean, no errors
+
+- **Live verification of deputy chip UI (preview-MCP).** Created 2 probation rows on the Probation tab:
+  - Row 1 (Test, Walker) with 1 deputy chip ("Lewis-Koskinen, Alex") — added Chen, Marcus first, then removed via X, added Alex, submitted.
+  - Row 2 (Smith, Multi) with 3 deputy chips ("A, One", "B, Two", "C, Three") — table shows compact `A, One +2` form with full list in title attr.
+  - Select-all + Generate emails → NotificationPanel renders correctly: 1-chip row shows `Deputy: Lewis-Koskinen, Alex`; 3-chip row shows `Deputies: A, One, B, Two, C, Three`.
+  - mailto: greeting strings verified: 1-deputy → `Hello (supervisor) and Lewis-Koskinen, Alex,`; 3-deputy → `Hello (supervisor), A, One, B, Two, and C, Three,`.
+
+- **`npm run build` clean first-run** (6 sessions in a row — habit firm).
+
+- **Phase 2.2.l close audit fired on schedule (12th event-based trigger).** Mirrors the Phase 2.2.k format. Zero new drift items this session — both PRs landed clean.
+
+- **S34's open action item #20 (DHR real-data paste walkthrough) implicitly resolved.** The walkthrough happened via the new live fetch rather than a manual paste — 6,727 real rows flowed through the parser with zero parse errors. Drops from carry-forward.
+
+### What didn't ship (and why)
+
+- **The standard 2.2.l sub-phase pick (A/B/C/D from the kickoff prompt — reporting-tree / temp-limits / vacancies / filterable-tables).** Alex's added directives effectively redefined what 2.2.l was — replace manual paste + auto-resolve deputy. The 4 listed options carry forward to S36 unchanged.
+- **Cloudflare Worker deployment.** PR #114 ships the SLOT (the input field + localStorage persistence + the fetcher's append-as-last-proxy behavior) but Alex doesn't need an actual worker yet — the public chain handled 100% of the live verification. The 10-line worker is documented in PR #114's body for when Alex needs it.
+- **Promotion of Eligibility / Probation to non-dev.** Still gated on cross-tab nav (Eligibility job code → filtered Positions, ~30 min). Filed as S36 high-priority follow-up.
+- **Cross-tab nav from Eligibility → Positions.** Same as the S34 follow-up — bundleable into a small S36 PR.
+
+### Lessons / improvements for next phase
+
+- **One AskUserQuestion at the top, then execute.** Alex's "Public cord proxy with cloudflare worker as backup" answer fed both the primary path (default proxy chain) AND the backup design (Worker URL slot). One question → one tap → ship both layers.
+- **Body-content sniff beats length thresholds for proxy error detection.** Initial implementation rejected response bodies under 100 bytes (catching JSON error envelopes). This false-positive'd on real-world empty-pagination pages, which exist legitimately. Switching to `looksLikeHtml` (substring check for `<!doctype` / `<html` / `<body`) caught both error envelopes AND empty pagination correctly.
+- **Polite throttle pays off.** 500ms between pages → 90s total scrape, well below any reasonable rate-limit, with corsproxy.io serving every page without complaint.
+- **Live-data verification at scale validates the parser more than any unit test.** PR #114's `parseDhrExamHtml` (shipped in 2.2.k against synthetic input) parsed 6,727 real rows across 66+ pages with zero errors. The 3-pattern code extractor + DOMParser-based row walk hold against real-world variation.
+- **localStorage > session JSON for per-machine settings.** The `dhrWorkerUrl` is intentionally NOT in the session-JSON envelope — it's per-browser config, not portable state. Future similar settings (e.g., default fetch retry count, polite-throttle ms) follow the same pattern.
+- **Phase 2.2.l's two-PR sequential pattern fits a 90-minute session.** PR #113 (smaller, lower-risk first) → PR #114 (bigger, with live verification) → audit/handoff PR. The lower-risk first ordering lets the bigger PR's verification time run in parallel with PR #113's CI.
+
+### Brief audit (Alex's collaboration this session)
+
+- **Prompt quality (S35 prompt + Alex's added directives):** ✅ Both added directives at the bottom of the standard handoff template were sharp + unambiguous. "Not acceptable" + "way too much manual work" gave the priority signal; "automatically know who the deputy is" + "pre-filled" + "remove them and add more people" gave the exact field shape.
+- **Scope discipline:** ✅ 2 single-purpose PRs. Resisted the temptation to bundle the docs PR into PR #114; kept the audit PR separate per the established pattern.
+- **Verification habits:** ✅ Live verification via preview-MCP for both PRs. The DHR live fetch ran end-to-end against real sfdhr.org data; the deputy chip UI was exercised through real keyboard / click events.
+- **Audit cadence:** ✅ 12th event-based trigger fires on schedule.
+- **Test count discipline:** ✅ Fresh-install `npm test` at session start confirmed 549 baseline (no recount drift this session, validating the S34 audit recommendation #1).
+- **Trust calibration on Alex's pick.** The "Public cord proxy with cloudflare worker as backup" answer was actually two designs, not one — primary proxy chain + Worker URL slot. PR #114 implements both layers in a single PR rather than splitting; rationale: the slot is 30 lines of code (input + localStorage + fetcher append) and shipping it now means Alex never has to come back to "add the backup option" later.
