@@ -37,8 +37,7 @@ Phase 2.2.19 (`lib/views/temp-limits/` — Cat 17/18 expiry surface + 1040-hour 
 - **Non-renewable** per the Charter language. After the 2-year/4160-hour cap, the appointment ends and is not renewable on the same Position.
 - **Ends when permanent employee returns** — the Charter description ("substitute or back-fill for a civil service employee on authorized leave") makes the appointment intrinsically tied to the leave. If the original employee returns mid-cap, the Cat 17 appointment ends.
 
-**Memory `cat_16_17_18_rules.md` says:** "Cat 17: tied to original employee return". ✓ Confirmed.
-**Memory `cat_16_17_18_rules.md` says:** "Cat 17/18: 3-yr max" — this is **Cat 18** that's 3-year. Cat 17 is **2 years AND 4160 hours**. The memory's framing is collapsing the two categories; should be split.
+**Memory `cat_16_17_18_rules.md` says:** "Cat 17: tied to original employee return; **2 years AND 4160 hours = 4 increments of 1040 hrs**, non-renewable per Charter §10.104-17." ✓ Confirmed verbatim — the memory was already correct from S20 research. (The MEMORY.md *index* one-liner mentions Cat 18 as "3-yr max" without restating Cat 17's cap, which is what made me briefly mis-read on first pass.)
 
 **This refines what `temp_limits/` needs to surface:**
 1. The earlier of: 2-year-since-appointment OR 4160-hour-since-appointment OR original-employee-return.
@@ -117,7 +116,7 @@ When Alex picks Phase 2.2.r Option E (temp-limits), drop the "still gated on TX 
 
 ## Cross-references
 
-- [memory `cat_16_17_18_rules.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos--claude-worktrees-bold-nightingale-453ed5/memory/cat_16_17_18_rules.md) — confirmed mostly correct; one refinement noted (Cat 17 is 2 years AND 4160 hours, not just "3-yr max").
+- [memory `cat_16_17_18_rules.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos--claude-worktrees-bold-nightingale-453ed5/memory/cat_16_17_18_rules.md) — verified accurate against the primary sources for all three categories. The MEMORY.md index one-liner ("Cat 18: 3-yr max") doesn't restate Cat 17's cap, which can mis-suggest Cat 17 is also 3-year — but the full memory body has the correct "2 years AND 4160 hours" detail with citations.
 - [memory `temporary_exchange_tx.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos--claude-worktrees-bold-nightingale-453ed5/memory/temporary_exchange_tx.md) — fully confirmed; TX is PS HCM-only jargon.
 - [`docs/SESSION_HANDOFF.md` Restated Q #5](../SESSION_HANDOFF.md#restated-questions-for-alex-5--unchanged-from-s39) — the 4 sub-questions this research informs.
 - [`docs/domain/labor-report.md` § Phase 2.2 sub-phases](../domain/labor-report.md) — `2.2.19 views/temp-limits/` lives here.
