@@ -3226,3 +3226,69 @@ No follow-up prompts. ~80 minutes of execution.
 - **Audit cadence:** ✅ 12th event-based trigger fires on schedule.
 - **Test count discipline:** ✅ Fresh-install `npm test` at session start confirmed 549 baseline (no recount drift this session, validating the S34 audit recommendation #1).
 - **Trust calibration on Alex's pick.** The "Public cord proxy with cloudflare worker as backup" answer was actually two designs, not one — primary proxy chain + Worker URL slot. PR #114 implements both layers in a single PR rather than splitting; rationale: the slot is 30 lines of code (input + localStorage + fetcher append) and shipping it now means Alex never has to come back to "add the backup option" later.
+
+---
+
+## Session 36 — Phase 2.2.m: Eligibility summary-row redesign + filter toolbar + detail modal (2026-05-27)
+
+The S36 prompt's planned A/B/C/D/E sub-phase pick was superseded by Alex's added directive at the bottom of the template — a sharp, self-contained UX critique of the S35 Eligibility tab that defined exactly what Phase 2.2.m should be:
+
+> -eligibility list lookups works but the ui/ux isn't ideal. there is a lot of white/empty space. in addition to the links can you parse the data and show that instead. can you show one row per job class and summarize the information, number of lists, the dates, etc. then when you click into a row you get all the detail.
+>
+> -also add more filters for searching/narrowing eligibility lists and postings, like expired / active, exam type, department (specific or citywide, etc.).
+
+One PR shipped end-to-end in ~45 minutes. No AskUserQuestion needed at kickoff — the directive was unambiguous and the design choices (modal vs inline expand → match the existing 4-modal idiom; dept multi-select → inline dropdown vs library → inline for v1 scope) were mechanical.
+
+### What landed
+
+#### [PR #116](https://github.com/alkprojects/kospos/pull/116) — Eligibility summary-row redesign + filter toolbar + detail modal
+
+**Pure helpers (`lib/scrapers/build.ts`)**
+
+- `summarizeRollup(rollup)` → counts + date ranges + departments + list types + v1 citywide-hint heuristic.
+- `applyEligibilityFilters(rollups, filters)` — replaces the prior substring-only `filterRollups` with a structured shape (search · status · examTypes · departments · citywideOnly). Old API kept for back-compat.
+- `collectDepartments(rollups)` — alphabetized dept universe for the multi-select dropdown.
+
+**EligibilityView rewrite**
+
+- Summary table: 7 columns per row (Job code · Title · Postings · Active · Expired · Dept(s) · `citywide?`-chevron). One compact line instead of stacked links.
+- `EligibilityDetail` new modal — Mirrors `PlannedActionDetail` / `ProbationDetail` / `SeparationDetail` fixed-overlay pattern: Esc + backdrop close, `role="dialog"` + `aria-modal`. Sections: header with summary chips, Open Postings table, Active Eligibility Lists table, Expired (collapsed `<details>`).
+- Filter toolbar: search · status select · exam-type chips (score-report / eligible-list) · department multi-select dropdown · citywide-only toggle · reset.
+
+Status options: `any` · `has-active` · `has-only-expired` · `list-only` · `posting-only`. Citywide hint is a v1 heuristic (list exists with no posting OR postings span 2+ departments). Documented in the `RollupSummary` type.
+
+**+31 tests** (589 → 620 net):
+- `scrapers.test.ts` +20 — summarizeRollup edges (7) · applyEligibilityFilters axes (12) · collectDepartments (3).
+- `eligibility-view.test.tsx` (new) +11 — empty-state · row count · summary-row counts/dates · citywide chip · modal open / close · expired disclosure · search / status / exam-type filter · reset.
+
+#### Live verification (preview-MCP, dev=1)
+
+- SmartRecruiters refresh → **137 postings → 90 distinct job-code rollups** rendered one-line each.
+- Clicked row 0923 → modal showed 1 posting (Public Utilities Commission, 2026-05-19), 0 active lists, Esc closed cleanly.
+- Department dropdown → check Public Health → table narrowed to **33 of 90** job codes; "Reset filters" chip appeared.
+- Multi-dept rollup (0932 Manager IV, 2 depts) carried the `citywide?` hint chip.
+- `preview_console_logs --level error` → zero entries.
+
+### Prompts received this session
+
+**S36 kickoff prompt** (verbatim handoff template) + the two added directives quoted above.
+
+**Outcome:** 1 PR merged in ~45 minutes (PR #116). 620 / 620 tests passing. `npm run build` clean first-run (7 sessions running). Phase 2.2.m close audit fired; zero new drift items.
+
+### Lessons / improvements for next phase
+
+- **Alex's added directives keep superseding the pre-planned sub-phase pick.** This is the 3rd session in a row where the A/B/C/D/E menu became a fallback. The pattern: each shipped feature surfaces concrete UX feedback that's higher-leverage than the next planned sub-phase. **Implication:** the S37 handoff should keep the menu but explicitly invite "or paste any feedback on what shipped this session" as Option 0.
+- **Match the modal idiom on first try.** The 5-instance count of the fixed-overlay-no-Portal pattern made the EligibilityDetail design mechanical. Lift to `lib/ui/Modal.tsx` is now a clear win — filed as priority-3 follow-up.
+- **Live preview-MCP verification scaled gracefully.** 90 job-code rows rendered with no console errors; the SmartRecruiters live fetch worked end-to-end inside the preview iframe. No special handling needed for the dev `window.__kospos` hook (it isn't used — the scrapers store is a separate Zustand instance).
+- **Inline component beats premature abstraction.** The `FilterToolbar` inside `EligibilityView.tsx` is ~150 LoC and not exported — fine for v1. When a second consumer arrives, lift. The MultiSelect dropdown is inline for the same reason.
+- **Test-first reveal: aria-label collisions.** Both close buttons in `EligibilityDetail` had accessible name "Close" (header × via aria-label, footer text). The view test surfaced this immediately. Two follow-up options: rename header to "Close detail", or live with the disambiguation by textContent. Filed as priority-4.
+- **One in-session schema bug caught by tests.** The first `citywideHint` implementation required `activeCount > 0` for the no-posting case; an applyEligibilityFilters test exposed the gap when expired-only rollups also qualify (Q002 fixture). Broadened to `activeCount + expiredCount > 0`. The semantics are now: "any list exists with no posting".
+
+### Brief audit (Alex's collaboration this session)
+
+- **Prompt quality (S36 prompt + Alex's added directives):** ✅ Both added directives at the bottom were sharp + actionable. "Lots of white/empty space" + "show one row per job class and summarize" + "click into a row you get all the detail" gave the exact UX target; "more filters … expired / active, exam type, department" gave the exact axes.
+- **Scope discipline:** ✅ 1 single-purpose PR. Resisted lifting the modal pattern to `lib/ui/Modal.tsx` even though the 5-instance count makes it tempting (filed as follow-up instead).
+- **Verification habits:** ✅ Live verification via preview-MCP. Real SmartRecruiters data (137 postings) flowed through the rollup builder and the new summary table cleanly.
+- **Audit cadence:** ✅ 13th event-based trigger fires on schedule.
+- **Test count discipline:** ✅ Fresh-install `npm test` at session start confirmed 589 baseline (no recount drift this session).
+- **Self-correction on a bad first design choice.** First citywideHint excluded expired-only-no-posting rollups; the test fixture surfaced the gap. Broadened the predicate in-session before the PR landed; cost was ~2 minutes.
