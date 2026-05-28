@@ -10,11 +10,22 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   fetchPublishedSnapshot,
+  gzipString,
   publishSnapshot,
   readCloudflareConfig,
   writeCloudflareConfig,
 } from './cloudflare-publish';
 import { buildSessionFile } from './snapshot';
+
+/** Decompress gzip bytes back to a UTF-8 string — used by tests that
+ *  capture the POST body to verify what the client actually sent.
+ *  `as BodyInit` works around TS 5.7's Uint8Array tightening; see the
+ *  matching cast in functions/api/snapshot.ts. */
+async function ungzipString(bytes: Uint8Array): Promise<string> {
+  const ds = new DecompressionStream('gzip');
+  const stream = new Response(bytes as BodyInit).body!.pipeThrough(ds);
+  return await new Response(stream).text();
+}
 
 function emptyFile() {
   return buildSessionFile({
@@ -170,16 +181,17 @@ describe('publishSnapshot', () => {
     if (!result.ok) expect(result.reason).toBe('no-secret');
   });
 
-  it('sends X-Publish-Secret header + JSON body', async () => {
+  it('sends X-Publish-Secret + Content-Encoding gzip headers + gzipped body', async () => {
     let capturedHeaders: Record<string, string> = {};
     let capturedMethod = '';
-    let capturedBody = '';
+    let capturedBody: Uint8Array | null = null;
     const fakeFetch = async (url: string | URL, init?: RequestInit): Promise<Response> => {
       expect(String(url)).toBe('https://x.test/api/snapshot');
       capturedMethod = init?.method ?? 'GET';
       const headers = init?.headers as Record<string, string> | undefined;
       if (headers) capturedHeaders = headers;
-      if (typeof init?.body === 'string') capturedBody = init.body;
+      // S41: body is now a Uint8Array (gzipped), not a string.
+      if (init?.body instanceof Uint8Array) capturedBody = init.body;
       return new Response(JSON.stringify({ ok: true, savedAt: '2026-05-28T14:35:00Z', bytes: 42 }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -193,12 +205,46 @@ describe('publishSnapshot', () => {
     expect(capturedMethod).toBe('POST');
     expect(capturedHeaders['X-Publish-Secret']).toBe('sekret');
     expect(capturedHeaders['Content-Type']).toBe('application/json');
-    expect(JSON.parse(capturedBody).kind).toBe('kospos-session');
+    expect(capturedHeaders['Content-Encoding']).toBe('gzip');
+    // Captured body decompresses back to the original JSON envelope.
+    expect(capturedBody).not.toBeNull();
+    expect(capturedBody![0]).toBe(0x1f);
+    expect(capturedBody![1]).toBe(0x8b);
+    const decompressed = await ungzipString(capturedBody!);
+    expect(JSON.parse(decompressed).kind).toBe('kospos-session');
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.savedAt).toBe('2026-05-28T14:35:00Z');
       expect(result.bytes).toBe(42);
     }
+  });
+
+  it('gzipped body is smaller than the original JSON for realistic payloads', async () => {
+    // Synthesize a payload with repetitive structure (like real
+    // KosPos data) so we can verify compression is actually firing.
+    const file = emptyFile();
+    // Mutate the payload in a type-safe way: the SessionFile envelope
+    // allows arbitrary `loadedRows`, so push 1000 similar-looking
+    // rows. JSON.stringify of this should be many KB; gzipped, KB → tiny.
+    const big = {
+      ...file,
+      payload: {
+        ...file.payload,
+        loadedRows: Array.from({ length: 1000 }, (_, i) => ({
+          kind: 'position-row' as const,
+          positionNumber: `PN${i.toString().padStart(6, '0')}`,
+          jobCode: '1842',
+          employeeName: `Test Person ${i}`,
+          deptId: 'DBI',
+        })),
+      },
+    };
+    const json = JSON.stringify(big);
+    const gz = await gzipString(json);
+    expect(gz.byteLength).toBeLessThan(json.length / 5);
+    // And the magic header is correct.
+    expect(gz[0]).toBe(0x1f);
+    expect(gz[1]).toBe(0x8b);
   });
 
   it('returns http-error on 401 (bad secret)', async () => {
