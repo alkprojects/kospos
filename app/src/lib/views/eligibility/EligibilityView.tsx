@@ -1,19 +1,25 @@
 /**
- * Eligibility workspace — Tab 11 surface. Phase 2.2.k (2.2.28).
+ * Eligibility workspace — Tab 11 surface. Phase 2.2.k (2.2.28) +
+ * Phase 2.2.l live-fetch upgrade.
  *
  * Combines two upstream feeds keyed by SF Job Code:
  *
  *   - SF Careers open postings (SmartRecruiters Posting API, CORS-OK)
- *   - SF DHR eligibility lists + score reports (manual paste — CORS
- *     blocks the direct fetch from a static client)
+ *   - SF DHR eligibility lists + score reports — Phase 2.2.l: now fetched
+ *     live via a public CORS-proxy chain (corsproxy.io → allorigins.win
+ *     → codetabs.com), with an optional user-configured Cloudflare-Worker
+ *     URL as backup. The manual-paste path stays in the UI as a last-
+ *     resort "Advanced fallback" panel.
  *
- * Per the S33 research doc + S34 CORS verification. Replaces the
- * workbook's hand-maintained Tab 11 list with a live data view.
+ * Per Alex's S35 directive: the per-page manual paste workflow was "way
+ * too much manual work" — replace with a one-click refresh.
  *
  * Layout:
  *   - Summary header: totals + last-refreshed-at per source
- *   - Refresh job postings — live fetch, with LoadingOverlay
- *   - Paste DHR HTML — textarea + parse button (no infra needed)
+ *   - Refresh job postings (live, fast — SmartRecruiters)
+ *   - Refresh eligibility lists (live, ~30s — CORS-proxy chain)
+ *   - Settings card: Cloudflare-Worker URL (backup proxy slot)
+ *   - Advanced fallback (collapsed): manual paste, kept for emergencies
  *   - Per-jobCode table: code | title | open postings | active lists | links
  *
  * `devOnly` tab until Alex returns and walks through real data.
@@ -23,10 +29,12 @@ import { useMemo, useState } from 'react';
 import { CopyButton } from '../../ui';
 import {
   buildJobCodeRollups,
+  fetchDhrExamResults,
   fetchJobPostings,
   filterRollups,
   parseDhrExamHtml,
   useScrapers,
+  FetchDhrError,
   FetchJobPostingsError,
 } from '../../scrapers';
 import type { JobCodeRollup } from '../../scrapers';
@@ -126,10 +134,164 @@ function RefreshPostingsButton() {
 }
 
 // ---------------------------------------------------------------------------
-// DHR manual-paste affordance — textarea + parse button. The CORS block
-// on sfdhr.org means we can't auto-fetch; this is the unavoidable manual
-// step until Alex approves a serverless proxy (deferred per S34
-// constraints: "no tool/setting/hook changes unless surfaced by audit").
+// Refresh-eligibility-lists affordance — live fetch through the public
+// CORS-proxy chain (replaces the manual-paste-as-primary path per Alex's
+// S35 directive). Tries corsproxy.io → allorigins.win → codetabs.com per
+// page; falls back to the optional Cloudflare-Worker URL when configured.
+// Each page is ~500ms apart (polite throttle); 66 pages takes ~30s.
+// ---------------------------------------------------------------------------
+
+function RefreshEligibilityListsButton() {
+  const setEligibilityLists = useScrapers(s => s.setEligibilityLists);
+  const dhrWorkerUrl = useScrapers(s => s.dhrWorkerUrl);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    setProgress('Connecting to sfdhr.org via CORS proxy…');
+    try {
+      const lists = await fetchDhrExamResults({
+        workerUrl: dhrWorkerUrl || undefined,
+        onProgress: info => {
+          setProgress(`Fetched ${info.rowsSoFar} rows from ${info.pagesSoFar} pages (via ${info.proxyUsed})…`);
+        },
+      });
+      // Wholesale replace — this fetch returns the entire corpus, not
+      // an additive paste like the manual fallback.
+      setEligibilityLists(lists);
+      setProgress(`Loaded ${lists.length} eligibility lists.`);
+    } catch (err) {
+      if (err instanceof FetchDhrError) {
+        const detail = err.proxyAttempts.map(a => `${a.label}: ${a.detail}`).join(' · ');
+        setError(`All proxies failed. ${detail}. Try again, or use the manual-paste fallback below.`);
+      } else {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+      setProgress('');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <button
+        onClick={run}
+        disabled={busy}
+        style={{
+          padding: '6px 14px',
+          border: '1px solid var(--accent)', borderRadius: 14,
+          background: busy ? 'var(--surface)' : 'var(--accent)',
+          color: busy ? 'var(--muted)' : '#fff',
+          cursor: busy ? 'not-allowed' : 'pointer',
+          fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+        }}
+      >
+        {busy ? '↻ Refreshing eligibility lists…' : '↻ Refresh eligibility lists'}
+      </button>
+      {progress && (
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{progress}</span>
+      )}
+      {error && (
+        <span style={{ fontSize: 11, color: '#7f1d1d' }}>
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Worker URL settings — Alex's optional Cloudflare-Worker proxy slot. The
+// default public proxy chain handles the common case; this is the backup
+// for when those proxies are flaky / rate-limited. Persists to localStorage
+// so the URL survives reloads (see store.ts `dhrWorkerUrl`).
+// ---------------------------------------------------------------------------
+
+function WorkerUrlSettings() {
+  const dhrWorkerUrl = useScrapers(s => s.dhrWorkerUrl);
+  const setDhrWorkerUrl = useScrapers(s => s.setDhrWorkerUrl);
+  const [draft, setDraft] = useState(dhrWorkerUrl);
+  const [saved, setSaved] = useState(false);
+
+  function save() {
+    setDhrWorkerUrl(draft);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  }
+
+  function clear() {
+    setDraft('');
+    setDhrWorkerUrl('');
+  }
+
+  return (
+    <details className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+      <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+        Backup proxy: Cloudflare-Worker URL {dhrWorkerUrl && <span style={{ color: '#1a7a3c', fontWeight: 400 }}>· configured</span>}
+      </summary>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+          The default public CORS proxies (corsproxy.io, allorigins.win, codetabs.com)
+          handle the common case. If they're rate-limited / down / blocked, deploy
+          a 10-line Cloudflare Worker that proxies <code>?url=&lt;upstream&gt;</code>
+          to fetch and return the body. Paste its URL here as a backup.
+        </span>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            type="url"
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            placeholder="https://my-worker.example.workers.dev"
+            aria-label="Cloudflare Worker URL"
+            style={{
+              flex: '1 1 280px',
+              padding: '4px 10px',
+              border: '1px solid var(--border)', borderRadius: 4,
+              fontSize: 12, fontFamily: 'monospace',
+              background: 'var(--surface)', color: 'inherit',
+            }}
+          />
+          <button
+            onClick={save}
+            disabled={draft === dhrWorkerUrl}
+            style={{
+              padding: '4px 12px',
+              border: '1px solid var(--accent)', borderRadius: 12,
+              background: draft === dhrWorkerUrl ? 'var(--surface)' : 'var(--accent)',
+              color: draft === dhrWorkerUrl ? 'var(--muted)' : '#fff',
+              cursor: draft === dhrWorkerUrl ? 'not-allowed' : 'pointer',
+              fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
+            }}
+          >
+            {saved ? '✓ Saved' : 'Save'}
+          </button>
+          {dhrWorkerUrl && (
+            <button
+              onClick={clear}
+              style={{
+                padding: '4px 12px',
+                border: '1px solid var(--border)', borderRadius: 12,
+                background: 'transparent', color: 'var(--muted)', cursor: 'pointer',
+                fontSize: 12, fontFamily: 'inherit',
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
+    </details>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Manual-paste fallback — kept as a `<details>`-collapsed escape hatch
+// for the rare case the proxy chain is fully blocked. Was the primary
+// path in Phase 2.2.k; demoted in Phase 2.2.l per Alex's directive.
 // ---------------------------------------------------------------------------
 
 function PasteDhrPanel() {
@@ -159,13 +321,14 @@ function PasteDhrPanel() {
   }
 
   return (
-    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ fontSize: 13, fontWeight: 600 }}>
-        Paste DHR exam-results HTML
-      </div>
+    <details className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+      <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+        Advanced fallback: paste DHR HTML manually
+      </summary>
+      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
       <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-        sfdhr.org doesn't allow direct fetch from KosPos (CORS blocked).
-        Workaround: open{' '}
+        Use this only when the live refresh above fails (all proxies blocked /
+        offline). Open{' '}
         <a
           href="https://sfdhr.org/past-examination-results"
           target="_blank"
@@ -175,8 +338,7 @@ function PasteDhrPanel() {
           https://sfdhr.org/past-examination-results
         </a>
         {' '}in a new tab, copy the page (Ctrl+A · Ctrl+C), paste below, click Parse.
-        Repeat per page (sfdhr is paginated, ~66 pages — Parse appends without
-        replacing prior pastes).
+        Repeat per page — Parse appends without replacing prior pastes.
       </span>
       <textarea
         value={paste}
@@ -213,7 +375,8 @@ function PasteDhrPanel() {
           </span>
         )}
       </div>
-    </div>
+      </div>
+    </details>
   );
 }
 
@@ -281,8 +444,9 @@ export function EligibilityView() {
           label="Lists last parsed"
           value={eligibilityListsRefreshedAt ? timeAgo(eligibilityListsRefreshedAt) : 'never'}
         />
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <RefreshPostingsButton />
+          <RefreshEligibilityListsButton />
           {(jobPostings.length > 0 || eligibilityLists.length > 0) && (
             <button
               onClick={clearAll}
@@ -299,7 +463,8 @@ export function EligibilityView() {
         </div>
       </div>
 
-      {/* DHR paste panel */}
+      {/* Backup proxy settings + manual-paste fallback (both collapsed by default) */}
+      <WorkerUrlSettings />
       <PasteDhrPanel />
 
       {/* Search */}
@@ -430,12 +595,14 @@ export function EligibilityView() {
       <div style={{ fontSize: 11, color: 'var(--muted)' }}>
         Tab 11. KosPos is the system of record for the per-job-code
         "active posting / active list" rollup. Open postings come live
-        from SmartRecruiters (the SF Careers platform); eligibility lists
-        come from sfdhr.org via manual paste (CORS blocks direct fetch
-        for the static-site v1). Active = posted within 2 years (CSC Rule
-        411A/412 — lists may be extended; v1 is age-only). Refreshing
-        replaces the postings list wholesale. Pasting DHR HTML appends
-        with dedupe by (jobCode, listId, postDate).
+        from SmartRecruiters (the SF Careers platform). Eligibility lists
+        come from sfdhr.org via a public CORS-proxy chain (corsproxy.io
+        → allorigins.win → codetabs.com); if all proxies fail, a Cloudflare-
+        Worker URL can be configured as backup, and a manual-paste panel
+        remains as last-resort fallback. Active = posted within 2 years
+        (CSC Rule 411A/412 — lists may be extended; v1 is age-only).
+        Refreshing replaces the lists wholesale; manual paste appends with
+        dedupe by (jobCode, listId, postDate).
       </div>
     </div>
   );
