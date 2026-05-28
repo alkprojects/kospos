@@ -30,19 +30,31 @@
  *   a typo can't corrupt the stored snapshot.
  *
  * Compression (added S41 after a 110K-row dataset hit Cloudflare's
- * 100 MB request-body limit + KV's 25 MB value limit):
- *   - POST requests with `Content-Encoding: gzip` are decompressed
- *     before envelope validation. The raw compressed bytes are then
- *     stored in KV (singleton `current` key) so the KV value stays
- *     well under the 25 MB cap (JSON gzips 8-15× on this dataset).
+ * 100 MB request-body limit + KV's 25 MB value limit; refined after
+ * a 220K-row dataset blew the Worker's 128 MB memory cap during
+ * server-side decompression):
+ *   - POST requests with `Content-Encoding: gzip` are stored in KV
+ *     verbatim — Worker does NOT decompress (real-data snapshots
+ *     expand 8-15× and exceed Workers' 128 MB cap). Sanity checks
+ *     only: size <= 25 MB + gzip magic bytes + savedAt from the
+ *     `X-Snapshot-SavedAt` header so the response can echo it back
+ *     without parsing the body.
  *   - POST requests without `Content-Encoding: gzip` are parsed as
- *     plain JSON (backward-compatible with older clients) and the
- *     decompressed bytes are gzipped before being stored in KV.
+ *     plain JSON (backward-compatible with older clients), validated
+ *     as full envelopes, and gzipped before KV storage. Legacy
+ *     plaintext bodies are constrained to ~100 MB by Cloudflare's
+ *     edge, well within the Worker memory budget.
  *   - GET inspects the stored bytes' magic header (0x1f 0x8b) to
  *     decide whether to set `Content-Encoding: gzip` on the response.
- *     Browsers + the cloudflare-publish.ts client both auto-decompress
- *     gzip responses transparently, so callers see the same JSON
- *     envelope either way.
+ *     Browsers auto-decompress gzip responses transparently, so the
+ *     `fetchPublishedSnapshot` client sees the same JSON envelope
+ *     either way.
+ *   - Trade-off: skipping Worker-side decompression means we no
+ *     longer validate the envelope shape server-side on the gzipped
+ *     path. `parseSessionFile` validates on the client both at
+ *     publish-time (via `buildSessionFile`) and at read-time, so a
+ *     buggy publish only ever poisons the singleton KV value until
+ *     the next valid publish overwrites it.
  *
  * Data-sensitivity note:
  *   The snapshot carries SF public-employee data (names, emplIds,
@@ -88,7 +100,7 @@ interface PagesContext {
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Content-Encoding, X-Publish-Secret',
+  'Access-Control-Allow-Headers': 'Content-Type, Content-Encoding, X-Publish-Secret, X-Snapshot-SavedAt',
   'Access-Control-Max-Age': '86400',
 } as const;
 
@@ -125,23 +137,15 @@ function isValidEnvelope(value: unknown): value is { kind: string; schemaVersion
 }
 
 /** gzip the given UTF-8 string. Used for the legacy plaintext POST path
- *  so legacy clients still result in compressed KV storage. */
+ *  so legacy clients still result in compressed KV storage. The gzipped
+ *  POST path skips the Worker-side decompression that the symmetric
+ *  `ungzipToString` helper used to perform — see the comment in
+ *  `onRequestPost` for why we trade Worker-side envelope validation
+ *  for the memory headroom that lets real-data publishes succeed. */
 async function gzipString(s: string): Promise<Uint8Array> {
   const cs = new CompressionStream('gzip');
   const stream = new Response(new TextEncoder().encode(s)).body!.pipeThrough(cs);
   return new Uint8Array(await new Response(stream).arrayBuffer());
-}
-
-/** Decompress gzip bytes back to a UTF-8 string. Used to validate the
- *  envelope after a gzipped POST. The `as BodyInit` cast works around
- *  TypeScript 5.7's tightening of `Uint8Array<ArrayBufferLike>` vs
- *  `Uint8Array<ArrayBuffer>` — both are valid `BufferSource` at
- *  runtime, but the strict inference picks the wrong union member. */
-async function ungzipToString(bytes: Uint8Array | ArrayBuffer): Promise<string> {
-  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  const ds = new DecompressionStream('gzip');
-  const stream = new Response(view as BodyInit).body!.pipeThrough(ds);
-  return await new Response(stream).text();
 }
 
 /** Detect whether a stored KV value is gzipped (modern publish path) or
@@ -216,51 +220,86 @@ export const onRequestPost = async ({ request, env }: PagesContext): Promise<Res
     }, 401);
   }
 
-  // Read the body once. If gzipped, decompress for envelope validation
-  // but keep the raw bytes around so we can store them in KV without
-  // a redundant re-compression round-trip.
   const encoding = request.headers.get('Content-Encoding');
   const isGzipped = encoding === 'gzip';
 
-  let body: unknown;
+  // Gzipped path: skip Worker-side decompression entirely. The earlier
+  // implementation decompressed for envelope-shape validation, but
+  // Cloudflare Workers' 128 MB memory cap can't hold a fully
+  // decompressed real-data snapshot (110K-220K rows of labor data
+  // expand to 100-200 MB JSON). DecompressionStream throws "Memory
+  // limit exceeded before EOF" mid-stream, producing a 400 that the
+  // client can't meaningfully act on.
+  //
+  // The client (cloudflare-publish.ts → buildSessionFile via
+  // SessionExportImport) already validates the envelope before
+  // publishing AND on every read via parseSessionFile. Worker-side
+  // validation was belt-and-suspenders; we trade it for the memory
+  // headroom that lets real-data publishes succeed.
+  //
+  // What we DO check on the gzipped path:
+  //   - Size <= 25 MB (KV cap; surface 413 instead of opaque KV throw)
+  //   - First two bytes are the gzip magic (0x1f 0x8b) so a
+  //     mis-labelled body doesn't poison KV with random bytes
+  //   - savedAt is carried via the X-Snapshot-SavedAt header so the
+  //     response can echo it back without parsing the body
+  //
+  // Worst case if a buggy client publishes garbage: the next read
+  // sees parseSessionFile fail and clients stay on their local IDB
+  // state until the next valid publish overwrites the bad value.
   let storeBytes: Uint8Array;
-  try {
-    if (isGzipped) {
-      const rawBytes = new Uint8Array(await request.arrayBuffer());
-      const decompressedText = await ungzipToString(rawBytes);
-      body = JSON.parse(decompressedText);
-      storeBytes = rawBytes;
-    } else {
-      // Legacy plaintext path — parse JSON directly, then gzip the
-      // serialized form for KV storage (small enough on legacy
-      // datasets that the CPU cost is negligible).
-      body = await request.json();
-      storeBytes = await gzipString(JSON.stringify(body));
+  let savedAt: string;
+  if (isGzipped) {
+    try {
+      storeBytes = new Uint8Array(await request.arrayBuffer());
+    } catch (err) {
+      return jsonResponse({
+        error: `Failed to read request body: ${err instanceof Error ? err.message : String(err)}`,
+      }, 400);
     }
-  } catch (err) {
-    return jsonResponse({
-      error: `Invalid body: ${err instanceof Error ? err.message : String(err)}`,
-    }, 400);
-  }
-
-  if (!isValidEnvelope(body)) {
-    return jsonResponse({
-      error: 'Body is not a valid kospos-session envelope (expected { kind, schemaVersion, savedAt, payload }).',
-    }, 400);
-  }
-
-  // KV has a hard 25 MB cap per value. Surface this with a useful
-  // error rather than letting the put() call throw an opaque 500.
-  if (storeBytes.byteLength > KV_MAX_VALUE_BYTES) {
-    return jsonResponse({
-      error: `Compressed snapshot is ${storeBytes.byteLength} bytes; Cloudflare Workers KV caps values at ${KV_MAX_VALUE_BYTES}. Switch storage to R2 or split the snapshot.`,
-    }, 413);
+    if (storeBytes.byteLength > KV_MAX_VALUE_BYTES) {
+      return jsonResponse({
+        error: `Compressed snapshot is ${storeBytes.byteLength} bytes; Cloudflare Workers KV caps values at ${KV_MAX_VALUE_BYTES}. Switch storage to R2 or split the snapshot.`,
+      }, 413);
+    }
+    if (storeBytes.byteLength < 2 || storeBytes[0] !== GZIP_MAGIC_0 || storeBytes[1] !== GZIP_MAGIC_1) {
+      return jsonResponse({
+        error: 'Body declared Content-Encoding: gzip but does not begin with the gzip magic bytes (0x1f 0x8b).',
+      }, 400);
+    }
+    savedAt = request.headers.get('X-Snapshot-SavedAt') ?? new Date().toISOString();
+  } else {
+    // Legacy plaintext path — small payloads only (Cloudflare's edge
+    // gates inbound bodies at 100 MB; plaintext JSON of any realistic
+    // KosPos dataset would already hit that cap). Validates the
+    // envelope, then gzips before KV storage so the read path stays
+    // uniform.
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch (err) {
+      return jsonResponse({
+        error: `Invalid body: ${err instanceof Error ? err.message : String(err)}`,
+      }, 400);
+    }
+    if (!isValidEnvelope(body)) {
+      return jsonResponse({
+        error: 'Body is not a valid kospos-session envelope (expected { kind, schemaVersion, savedAt, payload }).',
+      }, 400);
+    }
+    storeBytes = await gzipString(JSON.stringify(body));
+    if (storeBytes.byteLength > KV_MAX_VALUE_BYTES) {
+      return jsonResponse({
+        error: `Compressed snapshot is ${storeBytes.byteLength} bytes; Cloudflare Workers KV caps values at ${KV_MAX_VALUE_BYTES}. Switch storage to R2 or split the snapshot.`,
+      }, 413);
+    }
+    savedAt = body.savedAt;
   }
 
   await env.KOSPOS_SNAPSHOTS.put(SNAPSHOT_KEY, storeBytes);
   return jsonResponse({
     ok: true,
-    savedAt: body.savedAt,
+    savedAt,
     bytes: storeBytes.byteLength,
   }, 200);
 };

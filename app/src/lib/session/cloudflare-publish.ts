@@ -218,6 +218,10 @@ export async function publishSnapshot(
         'Content-Type': 'application/json',
         'Content-Encoding': 'gzip',
         'X-Publish-Secret': config.publishSecret,
+        // Worker no longer decompresses (memory cap), so it can't
+        // read `savedAt` from the body. Pass it via header so the
+        // response can echo it back without parsing the body.
+        'X-Snapshot-SavedAt': file.savedAt,
       },
       body: compressed as BodyInit,
     });

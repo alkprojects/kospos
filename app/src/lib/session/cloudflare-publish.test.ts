@@ -206,6 +206,9 @@ describe('publishSnapshot', () => {
     expect(capturedHeaders['X-Publish-Secret']).toBe('sekret');
     expect(capturedHeaders['Content-Type']).toBe('application/json');
     expect(capturedHeaders['Content-Encoding']).toBe('gzip');
+    // S41 fix: savedAt travels via header so the Worker can echo it
+    // back without decompressing the body.
+    expect(capturedHeaders['X-Snapshot-SavedAt']).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     // Captured body decompresses back to the original JSON envelope.
     expect(capturedBody).not.toBeNull();
     expect(capturedBody![0]).toBe(0x1f);
