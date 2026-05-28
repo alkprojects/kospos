@@ -35,6 +35,71 @@ def load_hook_input():
         return {}
 
 
+def _sanitize_cwd(cwd):
+    """Sanitize a cwd to a Claude Code project-transcript directory name.
+
+    The harness's actual rule (verified against existing transcript dirs):
+    replace every `:`, `\\`, `/`, `.`, and ` ` with `-`, then strip leading
+    dashes. The prior version of this hook used a weaker rule (removed `:`
+    and kept `.`/spaces) which silently failed to locate transcripts when
+    `transcript_path` wasn't passed by the harness — most notably for
+    sessions running inside a worktree like `.claude/worktrees/<name>/`.
+    See the May 2026 worktree-session investigation for the worked case.
+    """
+    return re.sub(r"[:\\/. ]", "-", cwd).lstrip("-")
+
+
+def _candidate_paths(cwd, sid):
+    """Yield candidate transcript paths, in order of preference.
+
+    Order:
+      1. The sanitized cwd itself (normal case).
+      2. The parent project — strip a trailing `.claude/worktrees/<name>`
+         component from cwd and try again. Worktree sessions write their
+         transcripts under the parent project's sanitized directory, not
+         the worktree's, so this is the fallback that matters when
+         transcript_path isn't passed.
+    """
+    home = os.path.expanduser("~")
+    seen = set()
+
+    def emit(path):
+        san = _sanitize_cwd(path)
+        cand = os.path.join(home, ".claude", "projects", san, sid + ".jsonl")
+        if cand not in seen:
+            seen.add(cand)
+            return cand
+        return None
+
+    c = emit(cwd)
+    if c:
+        yield c
+
+    # Walk up. If any ancestor's path matches `.../.claude/worktrees/<x>`,
+    # strip those two components to land on the parent project root and
+    # try that. We bound the walk at 6 ancestors (worktrees are usually
+    # 2-3 levels deep; 6 is generous + cheap).
+    norm = cwd.replace("\\", "/").rstrip("/")
+    parts = norm.split("/")
+    for _ in range(6):
+        if len(parts) < 3:
+            break
+        # If the last two components look like `worktrees/<name>` AND the
+        # one before is `.claude`, drop all three to get the parent project.
+        if len(parts) >= 3 and parts[-3] == ".claude" and parts[-2] == "worktrees":
+            parts = parts[:-3]
+            ancestor = "/".join(parts).replace("/", os.sep) if os.sep == "\\" else "/".join(parts)
+            c = emit(ancestor)
+            if c:
+                yield c
+            break
+        parts = parts[:-1]
+        ancestor = "/".join(parts).replace("/", os.sep) if os.sep == "\\" else "/".join(parts)
+        c = emit(ancestor)
+        if c:
+            yield c
+
+
 def find_transcript(hook_input):
     tp = hook_input.get("transcript_path")
     if tp and os.path.exists(tp):
@@ -43,10 +108,10 @@ def find_transcript(hook_input):
     cwd = hook_input.get("cwd") or os.getcwd()
     if not sid:
         return None
-    home = os.path.expanduser("~")
-    sanitized = cwd.replace(":", "").replace("\\", "-").replace("/", "-").lstrip("-")
-    candidate = os.path.join(home, ".claude", "projects", sanitized, sid + ".jsonl")
-    return candidate if os.path.exists(candidate) else None
+    for candidate in _candidate_paths(cwd, sid):
+        if os.path.exists(candidate):
+            return candidate
+    return None
 
 
 def has_fenced_block(text):
@@ -118,16 +183,47 @@ def scan_transcript(transcript_path):
     return (True, False)
 
 
+def _log(*parts):
+    """Append a one-line breadcrumb so the next time the hook silently
+    no-ops we can diagnose. File is rotated by keeping only the last
+    ~200 lines on each write to avoid unbounded growth."""
+    try:
+        home = os.path.expanduser("~")
+        log_path = os.path.join(home, ".claude", "check-session-end-prompt.log")
+        line = "\t".join(str(p) for p in parts)
+        # Read tail (best-effort), append, write back trimmed.
+        existing = []
+        if os.path.exists(log_path):
+            try:
+                with open(log_path, encoding="utf-8") as fh:
+                    existing = fh.read().splitlines()
+            except Exception:
+                existing = []
+        existing.append(line)
+        if len(existing) > 200:
+            existing = existing[-200:]
+        with open(log_path, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(existing) + "\n")
+    except Exception:
+        pass  # Logging must never break the hook.
+
+
 def main():
     hook_input = load_hook_input()
+    sid = hook_input.get("session_id", "")[:8]
+    cwd = hook_input.get("cwd", "")
     transcript = find_transcript(hook_input)
     if not transcript:
+        _log("no-transcript", sid, cwd)
         return
     touched_handoff, satisfied = scan_transcript(transcript)
     if not touched_handoff:
+        _log("no-handoff-edit", sid, transcript)
         return
     if satisfied:
+        _log("satisfied", sid, transcript)
         return
+    _log("BLOCK", sid, transcript)
     output = {
         "decision": "block",
         "reason": (
