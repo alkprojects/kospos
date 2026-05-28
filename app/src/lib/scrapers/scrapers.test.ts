@@ -3,8 +3,8 @@
  *
  * Covers the pure helpers (extractJobCodeFromName, normalizePosting,
  * parseDhrExamHtml, normalizeDateString, isListActive, buildJobCodeRollups,
- * filterRollups) + the fetcher's pagination + error paths via a mocked
- * fetch impl.
+ * applyEligibilityFilters) + the fetcher's pagination + error paths via a
+ * mocked fetch impl.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -29,7 +29,6 @@ import {
   countListTypes,
   EMPTY_ELIGIBILITY_FILTERS,
   EXPIRING_SOON_DAYS,
-  filterRollups,
   summarizeRollup,
   // Phase 2.2.p helpers
   parseDuration,
@@ -376,34 +375,6 @@ describe('buildJobCodeRollups', () => {
       today,
     );
     expect(out.map(r => r.jobCode)).toEqual(['1040', '2080', '5320']);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// filterRollups
-// ---------------------------------------------------------------------------
-
-describe('filterRollups', () => {
-  const rollups: JobCodeRollup[] = [
-    { jobCode: '1820', classTitle: 'Junior Admin Analyst', postings: [], activeLists: [], expiredLists: [] },
-    { jobCode: '2708', classTitle: 'Custodian',            postings: [], activeLists: [], expiredLists: [] },
-    { jobCode: '0932', classTitle: 'Manager IV',           postings: [], activeLists: [], expiredLists: [] },
-  ];
-
-  it('returns all rollups for an empty needle', () => {
-    expect(filterRollups(rollups, '')).toHaveLength(3);
-  });
-
-  it('filters by jobCode substring', () => {
-    expect(filterRollups(rollups, '1820').map(r => r.jobCode)).toEqual(['1820']);
-  });
-
-  it('filters by classTitle substring, case-insensitive', () => {
-    expect(filterRollups(rollups, 'manager').map(r => r.jobCode)).toEqual(['0932']);
-  });
-
-  it('returns empty when nothing matches', () => {
-    expect(filterRollups(rollups, 'xyz')).toEqual([]);
   });
 });
 

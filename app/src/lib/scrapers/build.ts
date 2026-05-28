@@ -212,20 +212,6 @@ export function buildJobCodeRollups(
 }
 
 /**
- * Filter rollups by needle — case-insensitive substring across jobCode
- * + classTitle. Returns rollups in original order. Kept for back-compat;
- * prefer `applyEligibilityFilters` for the full filter surface.
- */
-export function filterRollups(rollups: JobCodeRollup[], needle: string): JobCodeRollup[] {
-  const q = needle.trim().toLowerCase();
-  if (!q) return rollups;
-  return rollups.filter(r =>
-    r.jobCode.toLowerCase().includes(q) ||
-    r.classTitle.toLowerCase().includes(q),
-  );
-}
-
-/**
  * Apply the structured EligibilityFilters to a rollups list. AND across
  * axes; OR within multi-value axes (examTypes, departments).
  *

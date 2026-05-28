@@ -134,7 +134,7 @@ export default function App() {
       <header className="site-header">
         <div className="header-inner">
           <div className="logo">KosPos</div>
-          <nav style={{ display: 'flex', gap: 4 }}>
+          <nav style={{ display: 'flex', gap: 4, overflowX: 'auto', whiteSpace: 'nowrap', flexShrink: 1, minWidth: 0 }}>
             {visibleTabs.map(t => (
               <button
                 key={t.id}
