@@ -1,54 +1,57 @@
-# Session Handoff
+﻿# Session Handoff
 
 Updated at the end of every session. The next session reads this before doing anything else.
 
 ---
 
-## Current status (end of Session 37 — Phase 2.2.n: Eligibility detail modal field enrichment, 2026-05-27)
+## Current status (end of Session 38 — Phase 2.2.o: Eligibility detail modal lazy PDF text extraction, 2026-05-27)
 
-**Phase:** Phase 2.2.n — **Eligibility detail modal field enrichment: Duration chip · Expires + Status columns (derived) · Type column dropped · section-header type breakdown · "Close detail" aria-label · PDF-fields footnote** ([PR #119](https://github.com/alkprojects/kospos/pull/119)). Phase 2.2.n close audit fired on schedule (14th event-based trigger).
-**Last main commit:** [PR #119](https://github.com/alkprojects/kospos/pull/119) (Eligibility modal field enrichment) → [PR #118](https://github.com/alkprojects/kospos/pull/118) (session-end hook worktree-fallback) → [PR #117](https://github.com/alkprojects/kospos/pull/117) (S36 audit + S37 handoff) → [PR #116](https://github.com/alkprojects/kospos/pull/116) (Eligibility summary + filters + modal).
-**Tests:** 643 / 643 passing (+23 net from S37 baseline of 620, all from PR #119).
+**Phase:** Phase 2.2.o — **Lazy PDF text extraction: 3 new columns (Cert rule · Dept · Sub-type) populated on demand from each list's PDF cover sheet via pdfjs-dist + the existing CORS-proxy chain** ([PR #121](https://github.com/alkprojects/kospos/pull/121)). Phase 2.2.o close audit fired on schedule (15th event-based trigger).
+**Last main commit:** [PR #121](https://github.com/alkprojects/kospos/pull/121) (Lazy PDF extraction) → [PR #120](https://github.com/alkprojects/kospos/pull/120) (S37 audit + S38 handoff) → [PR #119](https://github.com/alkprojects/kospos/pull/119) (Eligibility modal field enrichment) → [PR #118](https://github.com/alkprojects/kospos/pull/118) (session-end hook worktree-fallback).
+**Tests:** 718 / 718 passing (+75 net from S38 baseline of 643, all from PR #121).
 **Branches in flight:** none post-merge (this docs PR pending).
-**Worktree hygiene:** PR #119 auto-archives on merge.
+**Worktree hygiene:** PR #121 auto-archives on merge.
 
 ### What landed this session — 1 PR (plus this docs PR)
 
-Alex's S37 prompt + added directive defined Phase 2.2.n on the spot: the modal needed more fields (cert rule, dept, duration, expiration date, exam type) + the per-row Type column was noise. One AskUserQuestion at kickoff scoped the implementation depth (derive-only vs PDF parsing); Alex picked Option C — derive what's available now, file PDF parsing as Phase 2.2.o. ~60 minutes of execution.
+Alex picked **Option A** from the S38 menu (the recommended top pick) + asked three parallel architecture questions about IndexedDB persistence + Vercel + GitHub-vs-Vercel contributors. Q1/Q2/Q3 answered inline at kickoff; full Phase 2.2.o work proceeded as scoped. ~90 minutes of execution including a mid-session matcher rewrite driven by live-data discovery.
 
-#### [PR #119](https://github.com/alkprojects/kospos/pull/119) — Eligibility detail modal field enrichment
+#### [PR #121](https://github.com/alkprojects/kospos/pull/121) — Lazy PDF text extraction
 
-Alex's S37 ask:
+Alex's S38 pick:
 
-> -when clicking into a row in eligibility lists more fields should be shown including cert rule, department, duration, expiration date, exam type, and any others that are relevant. i don't think type "Score report (civil service)" is relevant. if you think it should be included please justify.
+> Do option A. Is it worth examining when you build functionality to keep data permanently so I don't need to reupload data files or scrape each session? Is vercel worth considering? […]
 
-- **Three pure helpers** in `lib/scrapers/build.ts`:
-  - `computeListExpiration(list, windowDays?)` → ISO `YYYY-MM-DD` (postDate + 730d default). 1-day leap-year drift documented in the doc comment + verified against live data (`2026-05-01 + 730d = 2028-04-30` because 2028 is leap).
-  - `computeListStatus(list, today, windowDays?)` → `{ daysRemaining, tone: 'active' | 'expiring-soon' | 'expired' | 'unknown', expirationDate }`. **`expiring-soon` cutoff = 90 days** to match the `temp-tx-expiration-imminent` quality-flag threshold (one cutoff across the codebase).
-  - `countListTypes(lists)` → `{ scoreReports, eligibleLists }` for the section-header breakdown.
-- **`EligibilityDetail.tsx` rewrite:**
-  - Header gets a `Duration: 2 yr · CSC 411A/412` chip (constant rule → header, not per-row).
-  - Lists table column shape becomes **Post date · List ID · Expires · Status · File**.
-  - **Type column dropped** per Alex's directive. Was `"Score report (civil service)"` for 100% of DBI data. Citywide signal preserved at the section-header breakdown (`· 1 score report + 33 eligible lists`) and the summary-row SR/EL chip.
-  - `StatusPill` component — color-coded (green active · yellow expiring-soon · red expired · gray unknown) + textual `Nd left` / `expired Nd ago` labels (palette matches existing `cat-17-18-expiring-soon` / `cat-17-18-expired` quality flags).
-  - Footnote naming the three PDF-cover-sheet fields (cert rule, list-row dept, exam sub-type) + pointing at the `↗ PDF` link as the today affordance + naming Phase 2.2.o as the future automation.
-  - Header × `aria-label` renamed to `Close detail` per Phase 2.2.m audit follow-up #4 (footer stays `Close`).
-- **`EligibilityView.tsx`** passes `todayIso` to the modal so it pins today to the same value the rollup-active calc uses.
-- **Tests +23 (620 → 643):** `scrapers.test.ts` +15 (computeListExpiration 5 · computeListStatus 6 · countListTypes 4); `eligibility-view.test.tsx` +8 (header × aria-label · Duration chip · column-shape incl. Type-column drop assertion · derived expiration date · "expired Xd ago" pill · eligible-list-only breakdown · footnote · plus the existing footer-Close test simplified to use the strict `/^Close$/i` matcher directly since header is now disambiguated).
-- **Live verification at scale:** 137 SmartRecruiters postings + 6,729 DHR lists → 753 job-code rollups. 0932 Manager IV (1 posting + 37 active + 76 expired) shows Duration chip + derived Expires + Status pills + `expired 3d ago` red-tone rendering. Q002 Police Officer (citywide-mixed) shows `Active eligibility lists 34 · 1 score report + 33 eligible lists` + `Expired lists (51) · 8 score reports + 43 eligible lists` — citywide signal preserved in the section headers exactly as designed. Leap-year drift verified on live data: `2026-05-01 + 730d` displays as `2028-04-30` (`704d left`).
+- **New scraper module** `lib/scrapers/sf-dhr-exam/pdf-parse.ts`:
+  - Dynamic-imported pdfjs-dist@4.10.38 — ~330 KB gz main module + 1,376 KB worker file. Both chunk separately from main per Vite's chunk output. User pays cost only on first modal open in a session.
+  - `fetchPdfBinary` — reuses `DEFAULT_PROXIES` (the corsproxy.io → allorigins → codetabs chain) but asks for `arrayBuffer()` + sniffs `%PDF-` magic bytes to reject non-PDF responses (proxy 404 HTML, allorigins timeout JSON, etc.).
+  - 5 field matchers — `matchCertRule`, `matchListDepartment`, `matchExamSubType`, `matchExamType`, `matchDuration` — each Tier-1 (labeled extraction via shared `extractLabeledField` helper) → Tier-2 (legacy freeform regex chain for synthetic test fixtures + older PDFs). `CTW` Scope value normalized to "Citywide".
+  - `fetchAndExtractPdfFields` entry point — never throws; always returns a `PdfExtract` so the cache holds both success + failure entries (failure cache prevents re-firing on every modal re-open).
+- **`PdfExtract` type** in `lib/scrapers/types.ts`: 5 captured fields (`certRule`, `listDepartment`, `examSubType`, `examType`, `duration`) + `extractedAt` + `success`/`error`. Side-cache shape, separate from `EligibilityList` because extraction is lazy + per-PDF.
+- **`pdfCache` slice** in `lib/scrapers/store.ts`: `Record<string, PdfExtract>` keyed by `pdfCacheKey(jobCode, listId, postDate)`. New `setPdfExtract` setter + `fetchPdfExtractIfNeeded` orchestrator. **In-flight dedupe via module-level `Set`** (NOT Zustand state — re-renders would burn CPU for no benefit since no UI element subscribes to "is N in flight"). `clearAll()` wipes the cache (derived data follows the base data).
+- **`EligibilityDetail.tsx` updates:**
+  - 3 new columns (Cert rule · Dept · Sub-type) between Status and File. Lists-table column shape now: **Post date · List ID · Expires · Status · Cert rule · Dept · Sub-type · File**.
+  - `PdfFieldCell` component renders 4 distinct states: `…` (loading) / value / `—` with "fetch failed: ..." tooltip / `—` with "field not found in PDF" tooltip.
+  - `useEffect` on mount fires extractions for active lists. Expired-list extractions only fire when the user expands the controlled `<details>` disclosure (a code with 80+ expired lists otherwise hammers proxies for data most users never look past Active on).
+  - Modal max-width bumped 840 → 960 to give the wider table breathing room (with `overflow-x: auto` already on the card wrapper).
+  - Footnote rewritten — now describes the 3 columns + the `…` / `—` states + names Phase 2.2.o as the source.
+- **Tests +75 (643 → 718):**
+  - New `pdf-parse.test.ts` (+51): `extractLabeledField` × 9 · `matchCertRule` × 10 · `matchListDepartment` × 11 · `matchExamSubType` × 13 · `matchExamType` × 5 · `matchDuration` × 3 · `extractPdfFields` × 5 · `fetchAndExtractPdfFields` × 8 (entry-point integration with stubbed fetch + extractor).
+  - `eligibility-view.test.tsx` +24 net: new `EligibilityDetail — Phase 2.2.o PDF columns` describe (7 tests covering column-shape, loading/value/failure states, useEffect-fires + expired-disclosure gating, post-mount cache populate via `act()`); existing column-shape + footnote tests updated for new copy; `beforeEach` now overrides `fetchPdfExtractIfNeeded` to a no-op so opening the modal in jsdom doesn't try to spin up pdfjs.
+- **Live preview-MCP verification at scale:** 137 SmartRecruiters postings + 6,732 DHR lists → 753 distinct rollups. 0932 Manager IV opened (1 posting + 37 active + 76 expired). All 37 active-list rows populated within ~15 s: cert rule = "Rule of the List", dept = mix of PUC / DPH / Citywide (CTW→) / HSA / HOM / DPW / RET / HRD, sub-type = CPE consistently. Expanded expired-section disclosure → all 76 expired rows populated similarly within ~15 s. Zero console errors throughout. Screenshot in PR description.
 
-#### This docs PR — Phase 2.2.n close audit + S38 SESSION_HANDOFF + S37 SESSION_LOG entry
+#### This docs PR — Phase 2.2.o close audit + S39 SESSION_HANDOFF + S38 SESSION_LOG entry
 
 ### Items surfaced for Alex's review (carry forward)
 
 Per [memory `feedback_dont_reremind.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_dont_reremind.md): **dropped items this session** —
 
-- **Eligibility detail field enrichment (duration / expiration / status / type-breakdown) — SHIPPED in PR #119.** Drops from carry-forward.
-- **Modal `Close detail` aria-label rename (Phase 2.2.m audit follow-up #4) — SHIPPED in PR #119.** Drops from carry-forward.
+- **Lazy PDF text extraction for cert rule + list-row dept + exam sub-type (Phase 2.2.o pre-scheduled in S37 scope pick) — SHIPPED in PR #121.** Drops from carry-forward.
+- **Alex's S38 Q1 (persistence) / Q2 (Vercel) / Q3 (Vercel contributors) — ANSWERED inline at S38 kickoff.** Drops from carry-forward; do NOT re-raise in S39 unless Alex re-engages.
 
-#### Restated questions for Alex (5 — unchanged from S36)
+#### Restated questions for Alex (5 — unchanged from S37)
 
-Items 1-5 carry from S32/S33/S34/S35/S36/S37.
+Items 1-5 carry from S32/S33/S34/S35/S36/S37/S38.
 
 1. **Attribution rate on Operating Report Summary.** Three different things on the Operating Report Summary page look like they're called "attrition rate" at the DBI / CPC dept-group level — G42 / H42 (9993 ÷ non-9993 labor), L23 / L32 (projected balance ÷ total budget), H43 (hand-keyed "Calculated, Questionable"). Which is "the attrition rate" for CON / MYR reporting? **My current default:** G42 / H42 is canonical; L23 / L32 gets renamed to "leftover %" in KosPos. **Confirm or correct?**
 
@@ -65,7 +68,7 @@ Items 1-5 carry from S32/S33/S34/S35/S36/S37.
    (b) **Adopt a table library** (TanStack Table v8, AG Grid Community).
    **My current default:** option (a) incrementally per-tab, since the existing tables are small and the Eligibility v1 chip-row pattern can serve as a template. **Confirm or correct?**
 
-#### Reasonable-default calls deferred (12 — unchanged from S36)
+#### Reasonable-default calls deferred (12 — unchanged from S37)
 
 **8 from Session 20 (Tab 23-25 walkthroughs):**
 
@@ -91,11 +94,11 @@ Items 1-5 carry from S32/S33/S34/S35/S36/S37.
 
 #### Audit-surfaced items (carry-forward update — items A-F)
 
-From [Phase 2.2.n close audit](audits/phase-2-2-n-close-audit.md):
+From [Phase 2.2.o close audit](audits/phase-2-2-o-close-audit.md):
 
 A. ~~Auto-archive monitoring~~ — **stays dropped** (resolved S33).
 
-B. **Trim `SESSION_LOG.md` Sessions 1–16 to one-paragraph digests.** ~3,240 lines after S37 entry (est.). Past the 2,000-line trim trigger. Bundleable with C + Tab 24 Improvement #6 holdReason language drift + OBI serial doc note + research-doc-location WORKFLOW.md note + TS-param-property tip. ~2 hours combined.
+B. **Trim `SESSION_LOG.md` Sessions 1–16 to one-paragraph digests.** ~3,310 lines after S38 entry (est.). Past the 2,000-line trim trigger. Bundleable with C + Tab 24 Improvement #6 holdReason language drift + OBI serial doc note + research-doc-location WORKFLOW.md note + TS-param-property tip. ~2 hours combined.
 
 C. **Migrate the memory-file citation anti-pattern in `labor-report.md`.** **12 instances unchanged** (no labor-report.md edits this session). Bundleable with B.
 
@@ -103,15 +106,15 @@ D. **Defer the `labor-report.md` split until Phase 2.4.** Still 8,518 lines. Def
 
 E. ~~Phase 2.2 first sub-phase pick.~~ Resolved S24; **stays dropped**.
 
-F. **Audit cadence — working as designed.** 14th event-based trigger fired on schedule this session.
+F. **Audit cadence — working as designed.** 15th event-based trigger fired on schedule this session.
 
 ### Top 3 findings to surface for Alex this session
 
-1. **Eligibility detail modal enriched per your S37 directive.** Visit `/kospos/?dev=1` → Eligibility tab → click any row (try `0932` for a single-type case, `Q002` for the mixed-type case). The modal now shows a Duration chip in the header (`2 yr · CSC 411A/412`); the per-row Type column is gone; new Expires + Status columns appear in the lists table (e.g., `2028-05-13 | 717d left` for an active list, `2026-05-13 | expired 14d ago` with red tone for a recent expiration). The "Score report (civil service)" label is fully removed from per-row display.
+1. **PDF columns populating from real DHR data on real cover sheets.** Visit `/kospos/?dev=1` → Eligibility tab → refresh both sources → click any row (try `0932` Manager IV for a multi-Scope example, `Q002` Police Officer for a citywide-mixed example). After ~3-10s the new **Cert rule · Dept · Sub-type** columns populate per-cell: "Rule of the List" · "PUC" / "DPH" / "Citywide" (DHR's "CTW" normalized) / "HSA" / "HOM" / "DPW" · "CPE" (Combined Promotive Entrance). Loading state shows `…`; per-cell failure shows `—` with a tooltip explaining why (fetch failed vs. field not found).
 
-2. **Citywide signal preserved where it matters.** For Q002 Police Officer (a mixed-type case), the Active section header now reads `Active eligibility lists 34 · 1 score report + 33 eligible lists`. For 0932 Manager IV (single-type), the breakdown is suppressed (no noise). The summary-row SR/EL/mixed chip in the table behind the modal still encodes type at the rollup level.
+2. **Real PDF data refutes the Phase 2.2.n "constant 2yr Duration" claim.** S37 audit Finding 2 wrote: *"The CSC Rule 411A/412 2-year duration is constant for every list in the v1 model (no per-list override yet)."* Phase 2.2.o live data refutes this — DHR PDFs encode per-list durations (12 Months, 6 Months, etc.). `pdfCache` now captures the value; the UI surfacing is deferred to Phase 2.2.p so this PR stays scoped at the 3 originally-planned columns. The Duration header chip still reads "2 yr · CSC 411A/412" — that's the v1 default; Phase 2.2.p replaces it with the per-list value when present.
 
-3. **Cert rule, list-row department, exam sub-type are explicitly out of scope — filed as Phase 2.2.o.** A footnote at the bottom of the modal explains that these three fields live on the PDF cover sheets (click `↗ PDF` to view) + names Phase 2.2.o as the future automation. The kickoff scope question (Option A/B/C) resolved as C: ship A this session (derive what's available), file B as the next session's pick. PR #119 landed clean — 1 PR in ~60 minutes. Tests 643/643 (+23 from S37 baseline). `npm run build` clean first-run (8 sessions running).
+3. **`examType` bonus field also captured** (PBT / ETP / CBT / Q&E — the testing methodology, distinct from List Type which is the classification). Forward-compatible: the data's in `pdfCache` already; Phase 2.2.p UI follow-up lights it up as either a Sub-type cell tooltip or a 4th narrow column without re-fetching every PDF. Phase 2.2.o landed clean — 1 PR in ~90 minutes; tests 718/718 (+75 from S38 baseline of 643); `npm run build` warning caught + fixed same session (8 of 9 strict / 9 of 9 practical clean first-run streak).
 
 ### Cumulative state of the labor-report walkthrough
 
@@ -134,9 +137,10 @@ F. **Audit cadence — working as designed.** 14th event-based trigger fired on 
 | 2.2.k | `2.2.28` `lib/scrapers/` + `views/eligibility/` — Tab 11 + SmartRecruiters live + DHR manual-paste + 5 follow-ups | done 2026-05-27 |
 | 2.2.l | DHR live fetch via CORS proxy + Probation deputy multi-resolve (Alex's S35 directives) | done 2026-05-27 |
 | 2.2.m | Eligibility summary-row redesign + filter toolbar + detail modal (Alex's S36 directive) | done 2026-05-27 |
-| **2.2.n** | **Eligibility detail field enrichment: Duration + Expires + Status + type-breakdown, Type column dropped (Alex's S37 directive)** | **done 2026-05-27** |
-| **2.2.o** | **Next sub-phase** — **lazy PDF text extraction** for cert rule + list-row dept + exam sub-type (top pick, Alex's S37 Option B); alternatives carry: **(a)** cross-tab nav from Eligibility job code → filtered Positions + Eligibility/Probation devOnly lift; **(b)** `2.2.18` `views/reporting-tree/`; **(c)** `2.2.19` `views/temp-limits/` (still gated on TX TODOs Q #5); **(d)** `2.2.22` `views/vacancies/`; **(e)** roll-out the Eligibility v1 filter pattern to other tabs (Q #18). | **NEXT** |
-| 2.2.o-rest | Remaining Tier-4 sub-phases | pending |
+| 2.2.n | Eligibility detail field enrichment: Duration + Expires + Status + type-breakdown, Type column dropped (Alex's S37 directive) | done 2026-05-27 |
+| **2.2.o** | **Lazy PDF text extraction: 3 new columns (Cert rule · Dept · Sub-type) populated on demand from each list's PDF cover sheet via pdfjs-dist + the existing CORS-proxy chain (Alex's S38 Option A pick)** | **done 2026-05-27** |
+| **2.2.p** | **Next sub-phase** — **PDF-cache UI surfacing** (Duration column + examType tooltip — refutes Phase 2.2.n constant-Duration claim) is the recommended top pick; alternatives carry: **(b)** IndexedDB persistence for pdfCache (Alex's S38 Q1); **(c)** cross-tab nav from Eligibility → Positions + Eligibility / Probation devOnly lift; **(d)** `2.2.18` `views/reporting-tree/`; **(e)** `2.2.19` `views/temp-limits/` (still gated on TX TODOs); **(f)** `2.2.22` `views/vacancies/`; **(g)** roll-out the Eligibility v1 filter pattern to other tabs (Q #18). | **NEXT** |
+| 2.2.p-rest | Remaining Tier-4 sub-phases | pending |
 | 2.3 | Excel export | pending |
 | 2.4 | Importer wiring (5 ADRs queued, possibly consolidated; scraper-layer pattern folds into the no-upstream-source ADR as derived-data extension) | pending |
 
@@ -144,138 +148,163 @@ F. **Audit cadence — working as designed.** 14th event-based trigger fired on 
 
 None landing-related. Live site: <https://alkprojects.github.io/kospos/>. Spot-check once the deploy completes:
 
-- **Eligibility detail modal** — refresh postings + lists; click into any row. Header has a `Duration: 2 yr · CSC 411A/412` chip. Lists table has Post date · List ID · Expires · Status · File. Status pills are color-coded (green / yellow / red) with `Nd left` or `expired Nd ago` text. Footnote at the bottom of the modal names cert rule / dept / exam sub-type as PDF-only fields.
-- **Mixed-type rollup** — search for `Q002` (Police Officer) and open. Section headers read `Active eligibility lists 34 · 1 score report + 33 eligible lists` and `Expired lists (51) · 8 score reports + 43 eligible lists`.
-- **Type column removed** — the per-row "Score report (civil service)" / "Eligible list (uniformed)" column is gone from the modal; the filter chips at the toolbar remain.
+- **PDF columns populating** — `/kospos/?dev=1` → Eligibility tab → refresh both sources → click into 0932 Manager IV. After ~15s, the Cert rule / Dept / Sub-type columns should show values across all 37 active rows. Expand the Expired (76) disclosure → another batch of ~15s, then the expired rows populate too.
+- **CTW-normalization** — find a row where the Dept column shows "Citywide" (the underlying PDF says "CTW"). Verify the normalization is friendlier than the raw code.
+- **Failed-cell affordance** — if any cell shows `—` instead of a value, hover to see the tooltip: either "PDF extraction failed: <error>" or "Field not found on PDF cover sheet".
 - **No regression on prior surfaces.** Positions / Payroll / Hiring Plan / Inactive / Separations / Probation / Calculator / Special Class still render.
 
-**One decision pending — pick the next Phase 2.2 sub-phase (2.2.o).** See Recommendations.
+**One decision pending — pick the next Phase 2.2 sub-phase (2.2.p).** See Recommendations.
 
-### Recommendation for Phase 2.2.o
+### Recommendation for Phase 2.2.p
 
-**Option A (top pick from your S37 scope choice) — Lazy PDF text extraction for cert rule + list-row dept + exam sub-type.** Your S37 Option C explicitly scheduled this as Phase 2.2.o. Adds pdfjs-dist (~500 KB gz); fetches displayed PDFs through the CORS-proxy chain when the modal opens (1–3 PDFs × ~2s each = ~3–10s loading state per click); text-extracts the three fields. Old scanned PDFs may need a `—` fallback. ~3–5 hours. **Recommended** — directly closes the loop on the S37 directive.
+**Option A (top pick) — PDF-cache UI surfacing (Duration column + examType tooltip).** Surfaces the data already in `pdfCache` from Phase 2.2.o: (1) Replace the constant "Duration: 2 yr · CSC 411A/412" header chip + the `computeListExpiration` derivation with the per-list `Duration` value when present (falls back to 2yr when missing); add Duration as a per-row column too. (2) Show `examType` (PBT/ETP/CBT/Q&E) as a tooltip on the Sub-type cell — hover "CPE" to see "PBT" / "ETP" / etc. **Closes the gap S38 live data exposed + refutes a Phase 2.2.n design assumption.** ~2-3 hours. **Recommended** — directly improves the user's ability to reason about list expiry, which is the core point of the Eligibility tab.
 
-**Option B (carries from S36/S37) — Cross-tab nav from Eligibility → Positions + lift `devOnly` on Eligibility + Probation.** Clicking a job code in the Eligibility table filters the Positions tab to that jobCode. ~1–2 hours; bundleable with the promotion to non-dev.
+**Option B — IndexedDB persistence for pdfCache (Alex's S38 Q1).** Wire `pdfCache` into `lib/session/snapshot.ts` so extracts survive page reload + cross-tab use. Addresses the same-browser-cross-session friction directly. Cross-device sync is a separate decision. ~2-3 hours.
 
-**Option C (carries) — `2.2.18` `lib/views/reporting-tree/`.** Tab 21 Reporting Tree feeds Phase 7 org chart. `lib/changes/` stub lift needs to land alongside or shortly after.
+**Option C (carries from S37) — Cross-tab nav from Eligibility → Positions + lift `devOnly` on Eligibility + Probation.** Clicking a job code in the Eligibility table filters the Positions tab to that jobCode. ~1-2 hours; unlocks two devOnly promotions.
 
-**Option D (carries) — `2.2.19` `lib/views/temp-limits/` (Cat 17/18 + TX).** Still gated on the 4 TX TODOs (Restated Q #5a-d).
+**Option D (carries) — `2.2.18` `lib/views/reporting-tree/`.** Tab 21. Feeds Phase 7 org chart. `lib/changes/` stub lift needs to land alongside or shortly after (scope risk).
 
-**Option E (carries) — `2.2.22` `lib/views/vacancies/`** (Tab 23). Lighter-weight; filtered position list with cross-check against Staffing Plan.
+**Option E (carries) — `2.2.19` `lib/views/temp-limits/` (Cat 17/18 + TX).** Still gated on the 4 TX TODOs (Restated Q #5a-d).
 
-**Option F (carries from S37) — Roll the Eligibility v1 filter pattern to other tabs** (Restated Q #18). 4-8 hours; do one tab as a proof, file the rest as carry.
+**Option F (carries) — `2.2.22` `lib/views/vacancies/`** (Tab 23). Light-weight; filtered position list with cross-check against Staffing Plan.
 
-**My pick: Option A.** It directly closes the field-enrichment loop you opened in S37 and lands the bigger half of the work you signed off on. Phase 2.2.o is sized for a session.
+**Option G (carries) — Roll the Eligibility v1 filter pattern to other tabs** (Restated Q #18). Bound to primitive + one application as a proof.
 
-## Next session prompt — Phase 2.2.o (Alex picks A, B, C, D, E, F, or another sub-phase)
+**My pick: Option A.** It closes the loop S38 live data opened — the per-list Duration value is in the cache, we just need to surface it. Phase 2.2.p sized for a session.
 
-Paste this verbatim to start Session 38:
+## Next session prompt — Phase 2.2.p (Alex picks A, B, C, D, E, F, G, or another sub-phase)
+
+Paste this verbatim to start Session 39:
 
 ````
-This session asks Alex to pick the next Phase 2.2 sub-phase (2.2.o),
-then ships it. Phase 2.2.n shipped 1 PR:
-#119 (Eligibility detail modal field enrichment — Duration header chip
-+ Expires + Status columns derived from postDate + CSC Rule 411A/412
-2-year window + section-header type breakdown ("· 1 score report + 33
-eligible lists") + Type column dropped per Alex's directive + footnote
-naming cert rule / list-row dept / exam sub-type as PDF-only fields;
-verified live with 137 postings + 6,729 lists → 753 rollups; +23 tests).
+This session asks Alex to pick the next Phase 2.2 sub-phase (2.2.p),
+then ships it. Phase 2.2.o shipped 1 PR:
+#121 (Lazy PDF text extraction — 3 new columns (Cert rule · Dept ·
+Sub-type) populated on demand from each list's PDF cover sheet.
+pdfjs-dist@4.10.38 dynamic-imported + chunks separately from main.
+Tier-1 (labeled extraction via shared extractLabeledField helper) →
+Tier-2 (legacy freeform regex chain) matcher chain. CTW → Citywide
+normalization. In-flight dedupe via module-level Set. Expired-section
+extractions only fire when <details> expanded. +75 tests; verified
+live with 137 + 6,732 → 753 rollups + 37 + 76 PDF extracts on 0932).
 
 Read first, in order:
   docs/CLAUDE.md
   docs/SESSION_HANDOFF.md (this file — recommendation + carry-forwards)
-  docs/SESSION_LOG.md (Session 37 entry — 1 PR)
+  docs/SESSION_LOG.md (Session 38 entry — 1 PR)
   memory/MEMORY.md + the 10 memory files
-  docs/audits/phase-2-2-n-close-audit.md (carry-forwards B-F; A stays
-    dropped; modal aria-label follow-up resolved this session)
+  docs/audits/phase-2-2-o-close-audit.md (carry-forwards B-F; A stays
+    dropped; 2 NEW Phase 2.2.p follow-ups from live data — Duration UI
+    surfacing refuting S37 design assumption, examType UI surfacing)
   docs/domain/labor-report.md § "Phase 2.2 sub-phases" — dependency graph
 
 Confirm state on main:
   git log --oneline origin/main -8
 
 ==============================================================================
-STEP 0 — Phase 2.2.o close audit cadence check
+STEP 0 — Phase 2.2.p close audit cadence check
 ==============================================================================
-Per WORKFLOW.md § Audit cadence, the Phase 2.2.n close audit fired
-in S37. This session, the audit cadence check is only the Phase
-2.2.o close audit when 2.2.o ships. Don't re-audit 2.2.n.
+Per WORKFLOW.md § Audit cadence, the Phase 2.2.o close audit fired
+in S38. This session, the audit cadence check is only the Phase
+2.2.p close audit when 2.2.p ships. Don't re-audit 2.2.o.
 
-DO fire the 2.2.o audit before this session ends. Use the Phase
-2.2.n close audit format; mirror the prior audit's table of
+DO fire the 2.2.p audit before this session ends. Use the Phase
+2.2.o close audit format; mirror the prior audit's table of
 carry-forwards.
 
 ==============================================================================
-STEP 1 — Ask Alex to pick Phase 2.2.o
+STEP 1 — Ask Alex to pick Phase 2.2.p
 ==============================================================================
-Use AskUserQuestion. Six options (Option A is the recommended top
-pick — it directly closes the field-enrichment loop opened in S37):
+Use AskUserQuestion. Seven options (Option A is the recommended top
+pick — it closes the gap surfaced by Phase 2.2.o live data + refutes
+a Phase 2.2.n design assumption that real PDF data contradicted):
 
-  A. Lazy PDF text extraction for cert rule + list-row dept +
-     exam sub-type (Phase 2.2.o pre-scheduled in Alex's S37
-     scope pick "C: A this session + B as Phase 2.2.o")
-     — Adds pdfjs-dist (~500 KB gz). On-modal-open fetches the
-     displayed PDFs through the CORS-proxy chain (1-3 PDFs ×
-     ~2s each = ~3-10s loading state per click), text-extracts
-     the three fields. Older scanned PDFs may need a "—"
-     fallback. ~3-5 hours. **Recommended.**
+  A. PDF-cache UI surfacing (Duration column + examType tooltip)
+     — Surfaces data already in pdfCache from Phase 2.2.o:
+       (1) Replace the constant "Duration: 2 yr · CSC 411A/412"
+           header chip + computeListExpiration derivation with the
+           per-list `Duration` value when present (falls back to
+           2yr default when missing). Add Duration as a per-row
+           column too. Refutes the S37 Finding 2 "constant-2yr"
+           design assumption with real data.
+       (2) Show `examType` (PBT/ETP/CBT/Q&E) as a tooltip on the
+           Sub-type cell — hover "CPE" to see "PBT", etc.
+     — ~2-3 hours. **Recommended.**
 
-  B. Cross-tab nav from Eligibility → Positions + lift devOnly
-     on Eligibility + Probation tabs
-     — Clicking a job code in the Eligibility table filters
-     the Positions tab to that jobCode. ~1-2 hours. Unlocks
-     two devOnly promotions.
+  B. IndexedDB persistence for pdfCache (S38 Q1)
+     — Wire pdfCache into lib/session/snapshot.ts so extracts
+       survive page reload + cross-tab use. Addresses the same-
+       browser-cross-session friction directly. Cross-device sync
+       is a separate decision. ~2-3 hours.
 
-  C. 2.2.18 lib/views/reporting-tree/ + Change Mode precursor
+  C. Cross-tab nav from Eligibility → Positions + lift devOnly
+     — Clicking a job code in the Eligibility table filters the
+       Positions tab to that jobCode. ~1-2 hours. Unlocks two
+       devOnly promotions (Eligibility + Probation).
+
+  D. 2.2.18 lib/views/reporting-tree/ + Change Mode precursor
      — Tab 21. Feeds Phase 7 org chart. lib/changes/ stub
-     needs lift alongside (scope risk).
+       needs lift alongside (scope risk).
 
-  D. 2.2.19 lib/views/temp-limits/ + TemporaryExchange typed entity
+  E. 2.2.19 lib/views/temp-limits/ + TemporaryExchange typed entity
      — Cat 17/18 expiry + 1040-hour gauges. STILL GATED: the
-     4 TX TODOs in Restated Question #5 must be answered up
-     front (5a-5d).
+       4 TX TODOs in Restated Question #5 must be answered up
+       front (5a-5d).
 
-  E. 2.2.22 lib/views/vacancies/
-     — Tab 23 Vacancies and TEMP, filtered position list with
-     cross-check against Staffing Plan. Light-weight, low-risk.
+  F. 2.2.22 lib/views/vacancies/
+     — Tab 23 Vacancies and TEMP. Light-weight, low-risk.
 
-  F. Roll-out the Eligibility v1 filter pattern to other tabs
-     (Restated Q #18). Build the chip-row pattern as a small
-     reusable component; apply to one tab as a proof (recommend
-     Separations — smallest); file the rest as carry-forward.
+  G. Roll-out the Eligibility v1 filter pattern to other tabs
+     (Restated Q #18). Build chip-row pattern as a small reusable
+     component; apply to one tab as a proof (recommend Separations).
 
   Option 0: Paste any feedback on what shipped this session (e.g.,
-  Eligibility detail modal issues that the live data exposed).
-  Alex's feedback in the last 4 sessions has consistently produced
+  PDF column population issues that the live data exposed; cert rule
+  / scope / list-type values that look wrong on a job code you know
+  well). Alex's feedback in 4 of the last 5 sessions has produced
   the highest-leverage next sub-phase.
 
   (Escape hatch: Alex names something else from the dependency graph.)
 
 ==============================================================================
-STEP 2 — Start Phase 2.2.o (the picked sub-phase)
+STEP 2 — Start Phase 2.2.p (the picked sub-phase)
 ==============================================================================
 Branch + scope depend on the pick:
 
-If A — eligibility-detail-lazy-pdf-extract:
-  Branch: feat/eligibility-detail-lazy-pdf-extract
+If A — pdf-cache-ui-surfacing:
+  Branch: feat/eligibility-duration-examtype-ui
   Scope:
-    - Add pdfjs-dist (~500 KB gz) — vendor-isolated; lazy import.
-    - lib/scrapers/sf-dhr-exam/pdf-parse.ts — extract text via pdfjs,
-      apply regex/heuristic match for "Certification Rule:", department
-      headers, and exam-type markers
-    - Extend EligibilityList with optional `pdfExtract?: { certRule?:
-      string; listDepartment?: string; examSubType?: string; extractedAt?:
-      string }`. Persist the cache to the scrapers store keyed by
-      `(jobCode, listId, postDate)` so re-opens are instant.
-    - EligibilityDetail: on mount, kick off lazy PDF fetch+parse for the
-      displayed rows (active + visible-expired); show "Loading PDF
-      metadata…" placeholders for the new columns.
-    - Add the 3 new columns (Cert rule · List dept · Exam sub-type)
-      between Expires and File OR as expandable details — design pick at
-      the top of the session.
-    - Update the footnote to reflect the new state.
+    - Replace EligibilityDetail's "Duration: 2 yr · CSC 411A/412"
+      header chip rendering — show per-list Duration value when
+      `pdfCache[key]?.duration` is present (e.g., "12 Months"); fall
+      back to "2 yr · CSC 411A/412" when not.
+    - Add per-row Duration column between List ID and Expires in the
+      lists table. Same loading/value/failure cell states as the
+      Phase 2.2.o columns.
+    - Extend `computeListExpiration` to take an optional `durationStr`
+      (parses "N Months" / "N Years" / etc.); when present, use it
+      instead of the 2yr default. Recompute Expires + Status accordingly.
+    - Add `examType` as a tooltip on each Sub-type cell (e.g., hover
+      "CPE" to see title="Exam Type: PBT"). OR as a 4th narrow column
+      — design pick at the top of the session.
+    - Audit-doc cross-reference: name S37 Finding 2 as refuted by
+      real data.
     - Tests + preview-MCP walkthrough.
 
-If B — eligibility-positions-crosstabnav-and-promote:
+If B — pdf-cache-indexeddb-persistence:
+  Branch: feat/scrapers-pdf-cache-indexeddb
+  Scope:
+    - Add pdfCache to lib/session/snapshot.ts (currently deferred per
+      store.ts:54 comment). Persist via the same IndexedDB-backed
+      mechanism the rest of the session JSON uses.
+    - Decide cache eviction strategy: TTL-based (24h?) or
+      manual-only-via-clearAll? Design pick at top of session.
+    - Address Alex's S38 Q1 partially. Cross-device sync is OUT
+      of scope (separate decision).
+    - Tests + preview-MCP walkthrough (verify cache survives reload).
+
+If C — eligibility-positions-crosstabnav-and-promote:
   Branch: feat/eligibility-positions-crosstabnav-and-promote
   Scope:
     - Cross-tab nav (shared Zustand "active filter" slice or URL hash
@@ -283,7 +312,7 @@ If B — eligibility-positions-crosstabnav-and-promote:
     - Lift devOnly: true on Eligibility + Probation tabs in App.tsx
     - Tests + preview-MCP walkthrough
 
-If C — views/reporting-tree/:
+If D — views/reporting-tree/:
   Branch: feat/views-reporting-tree
   Scope:
     - lib/views/reporting-tree/ — Tab 21 surface
@@ -292,7 +321,7 @@ If C — views/reporting-tree/:
     - Tab to App.tsx (devOnly initially)
     - Tests
 
-If D — views/temp-limits/:
+If E — views/temp-limits/:
   Branch: feat/temp-limits-view
   Scope:
     - Resolve the 4 TX TODOs via AskUserQuestion at the start
@@ -302,7 +331,7 @@ If D — views/temp-limits/:
     - Tab to App.tsx (devOnly until ready)
     - Tests + preview-MCP walkthrough
 
-If E — views/vacancies/:
+If F — views/vacancies/:
   Branch: feat/views-vacancies
   Scope:
     - lib/views/vacancies/ — Tab 23 filtered position list
@@ -310,7 +339,7 @@ If E — views/vacancies/:
     - Tab to App.tsx (devOnly initially)
     - Tests
 
-If F — filter-pattern rollout:
+If G — filter-pattern rollout:
   Branch: feat/filterable-tables-pattern
   Scope:
     - Lift the Eligibility v1 FilterToolbar shape into a small reusable
@@ -324,13 +353,15 @@ If F — filter-pattern rollout:
 Hard constraints
 ==============================================================================
 
-  - Branch from main, single-purpose name.
+  - Branch from main, single-purpose name (or use the worktree
+    branch — the recent PRs ship from claude/<worktree> branches).
   - Strict one-sub-phase-per-PR.
-  - npm test stays green (currently 643 / 643).
+  - npm test stays green (currently 718 / 718).
   - One PR per logical change; merge after CI passes; fast-forward main.
   - Commit messages end with the Co-Authored-By line per CLAUDE.md.
-  - **Run `npm run build` before opening PR** — 8 sessions running of
-    clean first-run builds (habit firm).
+  - **Run `npm run build` before opening PR** — 9 sessions running of
+    clean first-run builds (habit firm; S38 caught + fixed an
+    INEFFECTIVE_DYNAMIC_IMPORT warning same session).
 
 ==============================================================================
 What we are NOT doing
@@ -347,41 +378,45 @@ What we are NOT doing
   - No tool / setting / hook changes unless surfaced by audit.
   - No promotion of Payroll / Hiring Plan / Inactive / Separations /
     Temp Limits / Reporting Tree to non-dev yet — wait until cross-tab
-    nav has been used end-to-end on real data (Option B above is the
+    nav has been used end-to-end on real data (Option C above is the
     explicit unlock for Eligibility + Probation).
   - Don't lift the modal overlay-frame to lib/ui/Modal.tsx in the same
-    PR as Option A/B/C/E/F — that's a separate refactor (filed as
-    follow-up #3 in the Phase 2.2.m + 2.2.n audits).
+    PR as Option A/B/C/D/F/G — that's a separate refactor (filed as
+    follow-up #5 in the Phase 2.2.o audit; still 5 instances).
+  - Cross-device sync (the full version of Alex's S38 Q1) is out of
+    scope for Option B — only the same-browser-cross-reload case.
 
 ==============================================================================
 Session-end checklist
 ==============================================================================
 
 Before ending, update SESSION_HANDOFF.md with:
-  - Phase 2.2.o status + next-session prompt for Phase 2.2.p.
+  - Phase 2.2.p status + next-session prompt for Phase 2.2.q.
   - Re-ask the 5 restated questions + 12 reasonable-default calls
     (#6-17) + 1 open action item (#19). DROP items Alex acknowledges
     this session.
   - Carry-forward update on items B-F (A resolved S33, off the list).
-  - Fire the Phase 2.2.o close audit (mirrors Phase 2.2.n audit format).
+  - Fire the Phase 2.2.p close audit (mirrors Phase 2.2.o audit format).
 
-Recommended model: claude-opus-4-7 for A (PDF extraction has edge cases
-+ regex heuristics that benefit from heavy reasoning), C (cross-cutting
-quality wiring), or D (TX policy + entity design). claude-sonnet-4-6
-for B (well-defined cross-tab nav), E (smallest), or F (small if scoped
-to primitive + one application). Effort: medium-to-high for A; low-to-
-medium for B/E/F; medium for C/D.
+Recommended model: claude-opus-4-7 for A (Duration parsing edge cases +
+the audit-cross-reference subtlety benefits from heavy reasoning),
+B (IndexedDB schema decisions + eviction policy), D (cross-cutting
+quality wiring), or E (TX policy + entity design). claude-sonnet-4-6
+for C (well-defined cross-tab nav), F (smallest), or G (small if scoped
+to primitive + one application). Effort: medium for A/B/D/E; low-to-
+medium for C/F/G.
 ````
 
-### Recommended model (Phase 2.2.o)
+### Recommended model (Phase 2.2.p)
 
-`claude-opus-4-7` for A (PDF extraction heuristics) / C / D. `claude-sonnet-4-6` for B / E / F.
+`claude-opus-4-7` for A (Duration parsing + audit cross-reference) / B (schema design) / D / E. `claude-sonnet-4-6` for C / F / G.
 
-### S37 follow-ups (new — low priority)
+### S38 follow-ups (new — low priority)
 
-- **Lift modal overlay-frame to `lib/ui/Modal.tsx`** — 5 instances of the same pattern (unchanged from S36). ~1-2 hours.
+- **Update `docs/research/dhr-eligibility-and-jobs-scraping-plan.md`** — the "PDF parsing not in v1" framing is now obsolete (Phase 2.2.o ships PDF parsing). ~10 minutes; bundle with any other docs touch.
+- **Lift modal overlay-frame to `lib/ui/Modal.tsx`** — still 5 instances (unchanged from S37). ~1-2 hours.
 - **Remove the now-unused `filterRollups`** export (carries from S36) — `applyEligibilityFilters` subsumes it. ~5 minutes; bundle with the next scrapers touch.
-- **Switch `computeListExpiration` to calendar arithmetic (`setUTCFullYear`)** — eliminates the 1-day leap-year drift documented in the helper. Low priority; defer until UX-relevant.
+- **Switch `computeListExpiration` to calendar arithmetic (`setUTCFullYear`)** — eliminates the 1-day leap-year drift documented in the helper. Low priority; defer until UX-relevant. **Note:** Option A above will touch `computeListExpiration` to add `durationStr` parameter — natural place to bundle the leap-year switch.
 
 ---
 
