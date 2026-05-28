@@ -28,6 +28,7 @@ import {
   computeBaseEndDate,
   currentEndDate,
   isAllowedProbationStatusTransition,
+  resolveDeputiesFromChain,
   useProbations,
 } from '../../probation';
 import type {
@@ -64,7 +65,10 @@ interface DraftState {
   baseEndDate: string;
   status: ProbationStatus;
   supervisor: string;
-  deputy: string;
+  /** Chip-list of deputies — mirrors the AddProbationForm shape. */
+  deputies: string[];
+  /** Currently-typed-but-not-yet-committed chip text. */
+  deputyDraft: string;
   completionDate: string;
   notes: string;
 }
@@ -80,7 +84,8 @@ function draftFrom(p: Probation): DraftState {
     baseEndDate: p.baseEndDate ?? '',
     status: p.status,
     supervisor: p.supervisor ?? '',
-    deputy: p.deputy ?? '',
+    deputies: p.deputies ? [...p.deputies] : [],
+    deputyDraft: '',
     completionDate: p.completionDate ?? '',
     notes: p.notes,
   };
@@ -132,6 +137,25 @@ export function ProbationDetail({
     () => new Map(positions.map(p => [p.displayNumber, p])),
     [positions],
   );
+
+  // Position id → position lookup for the deputy chain-walk. Built once
+  // per `positions` array so render-time chain walks are cheap.
+  const positionsById = useMemo(
+    () => new Map(positions.map(p => [p.id, p])),
+    [positions],
+  );
+
+  /** Auto-resolved deputies preview from the linked Position's reports-to
+   *  chain. Shown as a hint when the draft's deputies list is empty so the
+   *  user sees what would be pre-filled, with a "Use these" button to copy
+   *  them into the draft. */
+  const autoResolvedDeputies = useMemo(() => {
+    const matched = draft.positionDisplayNumber.trim()
+      ? positionByDisplay.get(draft.positionDisplayNumber.trim())
+      : undefined;
+    if (!matched) return [] as string[];
+    return resolveDeputiesFromChain(matched.id, positionsById);
+  }, [draft.positionDisplayNumber, positionByDisplay, positionsById]);
 
   // Auto-resolved supervisor from the linked Position's reportsTo. Shown as
   // a placeholder + hint when the draft's supervisor field is blank, so the
@@ -194,7 +218,18 @@ export function ProbationDetail({
         baseEndDate: draft.baseEndDate || undefined,
         status: draft.status,
         supervisor: draft.supervisor.trim() || undefined,
-        deputy: draft.deputy.trim() || undefined,
+        // Promote any unfinished draft chip text into the array so users
+        // who typed a name without pressing Enter don't lose it on Save.
+        deputies: (() => {
+          const pending = draft.deputyDraft.trim();
+          const merged = pending && !draft.deputies.includes(pending)
+            ? [...draft.deputies, pending]
+            : draft.deputies;
+          // Empty array → undefined so the store + JSON drop the field
+          // entirely rather than serializing []. Matches the conventions
+          // used by supervisor + completionDate above.
+          return merged.length > 0 ? merged : undefined;
+        })(),
         completionDate: draft.completionDate || undefined,
         notes: draft.notes,
       },
@@ -424,15 +459,105 @@ export function ProbationDetail({
               </span>
             )}
           </Field>
-          <Field label="Deputy">
-            <input
-              type="text"
-              value={draft.deputy}
-              onChange={e => setDraft({ ...draft, deputy: e.target.value })}
-              placeholder="optional — section deputy / coverage"
-              aria-label="Deputy"
-              style={inputStyle()}
-            />
+          <Field label="Deputies" wide>
+            <div
+              role="list"
+              aria-label="Deputies"
+              style={{
+                display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center',
+                padding: '4px 6px', minHeight: 30,
+                border: '1px solid var(--border)', borderRadius: 4,
+                background: 'var(--surface)',
+              }}
+            >
+              {draft.deputies.map(d => (
+                <span
+                  key={d}
+                  role="listitem"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    padding: '2px 4px 2px 8px', borderRadius: 12,
+                    background: 'var(--accent-soft)', color: 'var(--accent)',
+                    fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+                  }}
+                >
+                  {d}
+                  <button
+                    type="button"
+                    onClick={() => setDraft({
+                      ...draft,
+                      deputies: draft.deputies.filter(x => x !== d),
+                    })}
+                    aria-label={`Remove deputy ${d}`}
+                    style={{
+                      border: 'none', background: 'transparent', cursor: 'pointer',
+                      padding: '0 4px', fontSize: 12, lineHeight: 1,
+                      color: 'var(--accent)', fontFamily: 'inherit',
+                    }}
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+              <input
+                type="text"
+                list="probation-detail-deputy-datalist"
+                value={draft.deputyDraft}
+                onChange={e => setDraft({ ...draft, deputyDraft: e.target.value })}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const v = draft.deputyDraft.trim();
+                    if (v && !draft.deputies.includes(v)) {
+                      setDraft({
+                        ...draft,
+                        deputies: [...draft.deputies, v],
+                        deputyDraft: '',
+                      });
+                    }
+                  } else if (e.key === 'Backspace' && draft.deputyDraft === '' && draft.deputies.length > 0) {
+                    setDraft({ ...draft, deputies: draft.deputies.slice(0, -1) });
+                  }
+                }}
+                onBlur={() => {
+                  const v = draft.deputyDraft.trim();
+                  if (v && !draft.deputies.includes(v)) {
+                    setDraft({ ...draft, deputies: [...draft.deputies, v], deputyDraft: '' });
+                  }
+                }}
+                placeholder={draft.deputies.length === 0 ? '+ Add deputy' : ''}
+                aria-label="Add deputy"
+                style={{
+                  flex: '1 1 100px', minWidth: 80,
+                  border: 'none', outline: 'none',
+                  fontSize: 13, fontFamily: 'inherit',
+                  background: 'transparent', color: 'inherit',
+                  padding: '2px 0',
+                }}
+              />
+              <datalist id="probation-detail-deputy-datalist">
+                {peopleList.map(p => (
+                  <option key={p.emplId} value={p.name}>{p.emplId} — {p.jobCode}</option>
+                ))}
+              </datalist>
+            </div>
+            {autoResolvedDeputies.length > 0 && draft.deputies.length === 0 && (
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>
+                Auto from chain: {autoResolvedDeputies.join(', ')}{' '}
+                <button
+                  type="button"
+                  onClick={() => setDraft({ ...draft, deputies: autoResolvedDeputies })}
+                  style={{
+                    border: '1px solid var(--accent)',
+                    background: 'transparent', color: 'var(--accent)',
+                    borderRadius: 10, padding: '1px 6px',
+                    fontSize: 10, fontFamily: 'inherit', cursor: 'pointer',
+                  }}
+                >
+                  Use these
+                </button>
+              </span>
+            )}
           </Field>
         </section>
 

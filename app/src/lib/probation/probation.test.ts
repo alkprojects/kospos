@@ -316,7 +316,7 @@ describe('useProbations store', () => {
       baseEndDate: '2026-07-02',
       status: 'extended',
       supervisor: 'Carey McElroy',
-      deputy: 'Park, Deputy',
+      deputies: ['Park, Deputy', 'Lewis-Koskinen, Alex'],
       notes: 'Cat 16 part-time',
     });
     const rec = useProbations.getState().probations.get(id)!;
@@ -327,22 +327,33 @@ describe('useProbations store', () => {
     expect(rec.startWorkDate).toBe('2026-01-01');
     expect(rec.baseEndDate).toBe('2026-07-02');
     expect(rec.supervisor).toBe('Carey McElroy');
-    expect(rec.deputy).toBe('Park, Deputy');
+    expect(rec.deputies).toEqual(['Park, Deputy', 'Lewis-Koskinen, Alex']);
     expect(rec.notes).toBe('Cat 16 part-time');
   });
 
-  it('updateProbation logs deputy field changes in history audit', () => {
+  it('addProbation drops empty deputies array to undefined', () => {
+    const id = useProbations.getState().addProbation({
+      employeeName: 'Doe, J.',
+      probationaryPeriodHours: 2080,
+      startWorkDate: '2026-01-01',
+      deputies: [],
+    });
+    const rec = useProbations.getState().probations.get(id)!;
+    expect(rec.deputies).toBeUndefined();
+  });
+
+  it('updateProbation logs deputies field changes in history audit', () => {
     const id = useProbations.getState().addProbation({
       employeeName: 'Test, A.',
       probationaryPeriodHours: 2080,
       startWorkDate: '2026-01-01',
     });
-    useProbations.getState().updateProbation(id, { deputy: 'Lee, J.' });
+    useProbations.getState().updateProbation(id, { deputies: ['Lee, J.', 'Park, K.'] });
     const rec = useProbations.getState().probations.get(id)!;
-    expect(rec.deputy).toBe('Lee, J.');
-    const deputyEntry = rec.history.find(h => h.field === 'deputy');
+    expect(rec.deputies).toEqual(['Lee, J.', 'Park, K.']);
+    const deputyEntry = rec.history.find(h => h.field === 'deputies');
     expect(deputyEntry).toBeDefined();
-    expect(deputyEntry?.after).toBe('Lee, J.');
+    expect(deputyEntry?.after).toEqual(['Lee, J.', 'Park, K.']);
   });
 
   it('updateProbation appends history entries for changed fields', () => {

@@ -30,6 +30,7 @@ import {
   currentEndDate,
   isApproachingEnd,
   isPastEndWithoutCompletion,
+  resolveDeputiesFromChain,
   rollupByStatus,
   useProbations,
 } from '../../probation';
@@ -137,11 +138,14 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 
 /**
  * Build the subject + body for a probation-completion notification email
- * addressed to a probation row's supervisor + deputy. KosPos doesn't carry
- * email addresses (we only have person names from PS HCM), so the mailto:
- * To: field is left for the user to fill in their email client. The body
- * names supervisor + deputy by name and instructs the recipients to email
- * HR if there are any issues with the employee's probation completion.
+ * addressed to a probation row's supervisor + N deputies. KosPos doesn't
+ * carry email addresses (we only have person names from PS HCM), so the
+ * mailto: To: field is left for the user to fill in their email client.
+ *
+ * Greeting forms:
+ *   0 deputies → "Hello {supervisor},"
+ *   1 deputy   → "Hello {supervisor} and {deputy},"
+ *   2+ deputies → "Hello {supervisor}, {dep1}, and {dep2},"
  *
  * The same template flows into both the mailto: URI and the copy-to-
  * clipboard text — the user can pick whichever workflow fits their email
@@ -155,7 +159,7 @@ export function buildProbationNotificationEmail(args: {
   employeeId?: string;
   positionDisplayNumber?: string;
   supervisor: string;   // resolved (manual override > auto-from-reportsTo)
-  deputy?: string;
+  deputies?: string[];  // resolved from reports-to chain + any user additions
   currentEnd: string;   // ISO YYYY-MM-DD or '' when unknown
 }): { subject: string; body: string } {
   const empLine = args.employeeId
@@ -166,10 +170,13 @@ export function buildProbationNotificationEmail(args: {
     : '';
   const endLine = args.currentEnd || '(no end date set)';
 
-  // Greeting depends on whether deputy is set.
-  const greeting = args.deputy
-    ? `Hello ${args.supervisor || '(supervisor)'} and ${args.deputy},`
-    : `Hello ${args.supervisor || '(supervisor)'},`;
+  const sup = args.supervisor || '(supervisor)';
+  const dep = (args.deputies ?? []).map(d => d.trim()).filter(d => d !== '');
+  const greeting = dep.length === 0
+    ? `Hello ${sup},`
+    : dep.length === 1
+    ? `Hello ${sup} and ${dep[0]},`
+    : `Hello ${sup}, ${dep.slice(0, -1).join(', ')}, and ${dep[dep.length - 1]},`;
 
   const subject = `Probation completion approaching — ${args.employeeName}`;
   const body = [
@@ -277,11 +284,13 @@ function endDateForPreset(startWorkDate: string, preset: DurationPreset): string
  */
 function AddProbationForm({
   positions,
+  positionsById,
   peopleByName,
   peopleByEmplId,
   peopleList,
 }: {
   positions: Position[];
+  positionsById: Map<string, Position>;
   peopleByName: Map<string, PersonRef>;
   peopleByEmplId: Map<string, PersonRef>;
   peopleList: PersonRef[];
@@ -296,7 +305,12 @@ function AddProbationForm({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [supervisor, setSupervisor] = useState('');
-  const [deputy, setDeputy] = useState('');
+  /** Deputies as a chip list — pre-filled from the reports-to chain when a
+   *  position is picked (chain-walk looking for "Deputy"-titled ancestors).
+   *  User can remove pre-filled chips and add more freely; the stored array
+   *  is the source of truth (one-shot pre-fill, not re-derived per render). */
+  const [deputies, setDeputies] = useState<string[]>([]);
+  const [deputyDraft, setDeputyDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   /** Picking a preset: snap hours + recompute end date from current start.
@@ -336,6 +350,10 @@ function AddProbationForm({
    *  "name changed but employee # stuck on the old person" bug: picking
    *  Smith, Jane after Smith, John was auto-filled now updates the # too.
    *
+   *  Also runs the deputy chain-walk against the resolved positionId so the
+   *  deputies chip list pre-fills automatically. The user can remove any
+   *  auto-filled chip if it doesn't apply.
+   *
    *  An unmatched manual typing path doesn't trigger this — `handleNameChange`
    *  / `handleIdChange` only call this when the typed value resolves to a
    *  known person, so freeform typed-in identifiers are still preserved. */
@@ -344,6 +362,24 @@ function AddProbationForm({
     setEmployeeId(p.emplId);
     setPositionInput(p.positionDisplayNumber || '');
     setJobCodeFromMatch(p.jobCode);
+    if (p.positionId) {
+      const resolved = resolveDeputiesFromChain(p.positionId, positionsById);
+      setDeputies(resolved);
+    }
+  }
+
+  /** Add a chip from the draft text (only when non-empty + not duplicate).
+   *  Trims whitespace; ignores blank or whitespace-only input. */
+  function addDeputyChip(value: string) {
+    const v = value.trim();
+    if (!v) return;
+    if (deputies.includes(v)) return;
+    setDeputies([...deputies, v]);
+    setDeputyDraft('');
+  }
+
+  function removeDeputyChip(name: string) {
+    setDeputies(deputies.filter(d => d !== name));
   }
 
   function handleNameChange(v: string) {
@@ -385,7 +421,15 @@ function AddProbationForm({
       positionDisplayNumber: positionDisplay || undefined,
       jobCode: matchedPosition?.jobCode ?? jobCodeFromMatch,
       supervisor: supervisor.trim() || undefined,
-      deputy: deputy.trim() || undefined,
+      // Pull in the pending draft chip (if any) so users who typed a name
+      // and clicked Add without first pressing Enter don't silently lose it.
+      deputies: (() => {
+        const pending = deputyDraft.trim();
+        const merged = pending && !deputies.includes(pending)
+          ? [...deputies, pending]
+          : deputies;
+        return merged.length > 0 ? merged : undefined;
+      })(),
     });
     setEmployeeName('');
     setEmployeeId('');
@@ -396,7 +440,8 @@ function AddProbationForm({
     setPreset('2080h');
     setHours(2080);
     setSupervisor('');
-    setDeputy('');
+    setDeputies([]);
+    setDeputyDraft('');
     setError(null);
   }
 
@@ -530,7 +575,19 @@ function AddProbationForm({
           type="search"
           list="probations-add-positions-datalist"
           value={positionInput}
-          onChange={e => setPositionInput(e.target.value)}
+          onChange={e => {
+            const v = e.target.value;
+            setPositionInput(v);
+            // When the typed value resolves to a known position, run the
+            // deputy chain-walk so the chip list pre-fills without the
+            // user having to also pick an employee. Pre-existing chips
+            // are preserved (don't clobber user-added entries).
+            const matched = positionByDisplay.get(v.trim());
+            if (matched && deputies.length === 0) {
+              const resolved = resolveDeputiesFromChain(matched.id, positionsById);
+              if (resolved.length > 0) setDeputies(resolved);
+            }
+          }}
           placeholder="e.g. 50001"
           aria-label="Position number"
           onKeyDown={e => { if (e.key === 'Enter') submit(); }}
@@ -566,24 +623,87 @@ function AddProbationForm({
           }}
         />
       </label>
-      <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontSize: 11, color: 'var(--muted)' }}>Deputy (optional)</span>
-        <input
-          type="text"
-          value={deputy}
-          onChange={e => setDeputy(e.target.value)}
-          placeholder="e.g. section deputy"
-          aria-label="Deputy"
-          onKeyDown={e => { if (e.key === 'Enter') submit(); }}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+          Deputies (auto from chain when blank)
+        </span>
+        <div
+          role="list"
+          aria-label="Deputies"
           style={{
-            padding: '5px 10px',
+            display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center',
+            padding: '4px 6px', minHeight: 30, width: 260,
             border: '1px solid var(--border)', borderRadius: 4,
-            fontSize: 13, fontFamily: 'inherit',
-            background: 'var(--surface)', color: 'inherit',
-            width: 180,
+            background: 'var(--surface)',
           }}
-        />
-      </label>
+        >
+          {deputies.map(d => (
+            <span
+              key={d}
+              role="listitem"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '2px 4px 2px 8px', borderRadius: 12,
+                background: 'var(--accent-soft)', color: 'var(--accent)',
+                fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+              }}
+            >
+              {d}
+              <button
+                type="button"
+                onClick={() => removeDeputyChip(d)}
+                aria-label={`Remove deputy ${d}`}
+                style={{
+                  border: 'none', background: 'transparent', cursor: 'pointer',
+                  padding: '0 4px', fontSize: 12, lineHeight: 1,
+                  color: 'var(--accent)', fontFamily: 'inherit',
+                }}
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+          <input
+            type="text"
+            list="probations-add-deputy-datalist"
+            value={deputyDraft}
+            onChange={e => setDeputyDraft(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                if (deputyDraft.trim()) {
+                  addDeputyChip(deputyDraft);
+                } else {
+                  submit();
+                }
+              } else if (e.key === 'Backspace' && deputyDraft === '' && deputies.length > 0) {
+                // Backspace on empty input → remove last chip (chip-input
+                // convention: tap-tap-delete the most-recently added).
+                setDeputies(deputies.slice(0, -1));
+              }
+            }}
+            onBlur={() => {
+              // Promote any unfinished draft into a chip on blur so users
+              // don't lose typed text when tabbing away.
+              if (deputyDraft.trim()) addDeputyChip(deputyDraft);
+            }}
+            placeholder={deputies.length === 0 ? '+ Add deputy' : ''}
+            aria-label="Add deputy"
+            style={{
+              flex: '1 1 80px', minWidth: 80,
+              border: 'none', outline: 'none',
+              fontSize: 13, fontFamily: 'inherit',
+              background: 'transparent', color: 'inherit',
+              padding: '2px 0',
+            }}
+          />
+          <datalist id="probations-add-deputy-datalist">
+            {peopleList.map(p => (
+              <option key={p.emplId} value={p.name}>{p.emplId} — {p.jobCode}</option>
+            ))}
+          </datalist>
+        </div>
+      </div>
       <button
         onClick={submit}
         style={{
@@ -636,7 +756,7 @@ function NotificationPanel({
       employeeId: p.employeeId,
       positionDisplayNumber: p.positionDisplayNumber,
       supervisor: resolved.name,
-      deputy: p.deputy,
+      deputies: p.deputies,
       currentEnd: currentEndDate(p),
     });
     const text = `Subject: ${subject}\n\n${body}`;
@@ -700,9 +820,12 @@ function NotificationPanel({
             employeeId: p.employeeId,
             positionDisplayNumber: p.positionDisplayNumber,
             supervisor: resolved.name,
-            deputy: p.deputy,
+            deputies: p.deputies,
             currentEnd: endIso,
           });
+          const deputyLine = p.deputies && p.deputies.length > 0
+            ? p.deputies.join(', ')
+            : '';
           return (
             <li
               key={p.id}
@@ -716,7 +839,7 @@ function NotificationPanel({
                 <span style={{ fontWeight: 600, fontSize: 13 }}>{p.employeeName}</span>
                 <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                   Supervisor: {resolved.name || <em>(unset)</em>}
-                  {p.deputy && <> · Deputy: {p.deputy}</>}
+                  {deputyLine && <> · {p.deputies!.length === 1 ? 'Deputy' : 'Deputies'}: {deputyLine}</>}
                   {endIso && <> · ends {endIso}</>}
                 </span>
               </div>
@@ -909,6 +1032,7 @@ export function ProbationsView() {
       {/* Add form */}
       <AddProbationForm
         positions={positions}
+        positionsById={positionsById}
         peopleByName={peopleIndex.byName}
         peopleByEmplId={peopleIndex.byEmplId}
         peopleList={peopleIndex.list}
@@ -1155,7 +1279,15 @@ export function ProbationsView() {
                     })()}
                   </td>
                   <td style={{ padding: '5px 10px', color: 'var(--muted)' }}>
-                    {p.deputy || <span>—</span>}
+                    {p.deputies && p.deputies.length > 0 ? (
+                      <span title={p.deputies.join(', ')}>
+                        {p.deputies.length === 1
+                          ? p.deputies[0]
+                          : `${p.deputies[0]} +${p.deputies.length - 1}`}
+                      </span>
+                    ) : (
+                      <span>—</span>
+                    )}
                   </td>
                   <td style={{ padding: '5px 10px' }}>
                     <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>

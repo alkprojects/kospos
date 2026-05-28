@@ -26,3 +26,7 @@ export type {
   ProbationPatch,
 } from './store';
 export { useProbations } from './store';
+export {
+  isDeputyTitle,
+  resolveDeputiesFromChain,
+} from './deputy';

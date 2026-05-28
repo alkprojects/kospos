@@ -52,7 +52,8 @@ export interface NewProbationInput {
   baseEndDate?: string;
   status?: ProbationStatus;
   supervisor?: string;
-  deputy?: string;
+  /** List of deputies — see `Probation.deputies`. Defaults to []. */
+  deputies?: string[];
   completionDate?: string;
   notes?: string;
 }
@@ -140,7 +141,7 @@ export const useProbations = create<ProbationsState>((set, get) => ({
       extensions: [],
       status,
       supervisor: input.supervisor,
-      deputy: input.deputy,
+      deputies: input.deputies && input.deputies.length > 0 ? input.deputies : undefined,
       completionDate: input.completionDate,
       notes: input.notes ?? '',
       history: [{ at: now, field: '__created', before: null, after: status }],
@@ -246,5 +247,36 @@ export const useProbations = create<ProbationsState>((set, get) => ({
 
   toArray: () => [...get().probations.values()],
   clearAll: () => set({ probations: new Map() }),
-  restoreFromSession: (probations) => set({ probations: new Map(probations) }),
+  restoreFromSession: (probations) => set({
+    probations: new Map(probations.map(([id, p]) => [id, migrateLegacyDeputy(p)])),
+  }),
 }));
+
+/**
+ * Back-compat shim: session JSON files saved before Phase 2.2.l carry a
+ * single-string `deputy` field instead of `deputies: string[]`. Promote
+ * `deputy` → `deputies = [deputy]` so old saves don't lose data, and drop
+ * the legacy field from the returned object. No-op when the row already
+ * uses the new shape or when neither field is set.
+ *
+ * Module-internal — exported only for unit-testing the migration path
+ * directly without spinning up the Zustand store.
+ */
+export function migrateLegacyDeputy(p: Probation): Probation {
+  // Cast through unknown to read a property that no longer exists on the
+  // current type. This is the documented escape hatch for back-compat
+  // migrations of structurally-typed serialized data.
+  const legacy = (p as unknown as { deputy?: unknown }).deputy;
+  if (typeof legacy !== 'string') return p;
+  const trimmed = legacy.trim();
+  // Drop the legacy field via destructuring (no need to mutate the input).
+  const { deputy: _drop, ...rest } = p as unknown as Probation & { deputy?: string };
+  void _drop;
+  if (!trimmed) return rest as Probation;
+  // If `deputies` is already set, prefer it (forward-saved data wins over
+  // legacy field). Otherwise promote.
+  if (Array.isArray(p.deputies) && p.deputies.length > 0) {
+    return rest as Probation;
+  }
+  return { ...(rest as Probation), deputies: [trimmed] };
+}

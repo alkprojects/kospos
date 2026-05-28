@@ -385,29 +385,88 @@ describe('ProbationsView', () => {
     expect(screen.queryByText('Carey McElroy')).not.toBeInTheDocument();
   });
 
-  it('table renders deputy column with free-text value when set', () => {
+  it('table renders deputies column with single-name value when one deputy', () => {
     useProbations.getState().addProbation({
       employeeName: 'Smith, John',
       probationaryPeriodHours: 2080,
       startWorkDate: '2026-01-01',
-      deputy: 'Lee, Deputy',
+      deputies: ['Lee, Deputy'],
     });
     render(<ProbationsView />);
     expect(screen.getByText('Lee, Deputy')).toBeInTheDocument();
   });
 
-  it('add form: supervisor + deputy fields populate the new row', () => {
+  it('table renders deputies column with "+N" suffix when multiple deputies', () => {
+    useProbations.getState().addProbation({
+      employeeName: 'Smith, John',
+      probationaryPeriodHours: 2080,
+      startWorkDate: '2026-01-01',
+      deputies: ['Lee, Deputy', 'Park, J.', 'Chen, K.'],
+    });
+    render(<ProbationsView />);
+    // Compact form: first deputy + "+N" — full list available in title attr.
+    expect(screen.getByText(/Lee, Deputy \+2/i)).toBeInTheDocument();
+  });
+
+  it('add form: supervisor + deputies (chip list) populate the new row', () => {
     render(<ProbationsView />);
     fireEvent.change(screen.getByLabelText(/Employee name/i), { target: { value: 'Newhire, Just' } });
     fireEvent.change(screen.getByLabelText(/Start work date/i), { target: { value: '2026-05-15' } });
     fireEvent.change(screen.getByLabelText(/^Supervisor$/i), { target: { value: 'Sup, A.' } });
-    fireEvent.change(screen.getByLabelText(/^Deputy$/i), { target: { value: 'Dep, B.' } });
+    // Type into the deputies chip input + Enter to commit
+    const deputyInput = screen.getByLabelText(/^Add deputy$/i);
+    fireEvent.change(deputyInput, { target: { value: 'Dep, B.' } });
+    fireEvent.keyDown(deputyInput, { key: 'Enter' });
+    // Add a second chip
+    fireEvent.change(deputyInput, { target: { value: 'Dep, C.' } });
+    fireEvent.keyDown(deputyInput, { key: 'Enter' });
     fireEvent.click(screen.getByRole('button', { name: /Add probation/i }));
 
     const rows = useProbations.getState().toArray();
     expect(rows).toHaveLength(1);
     expect(rows[0].supervisor).toBe('Sup, A.');
-    expect(rows[0].deputy).toBe('Dep, B.');
+    expect(rows[0].deputies).toEqual(['Dep, B.', 'Dep, C.']);
+  });
+
+  it('add form: deputy chip can be removed before submit', () => {
+    render(<ProbationsView />);
+    fireEvent.change(screen.getByLabelText(/Employee name/i), { target: { value: 'X' } });
+    fireEvent.change(screen.getByLabelText(/Start work date/i), { target: { value: '2026-05-15' } });
+    const deputyInput = screen.getByLabelText(/^Add deputy$/i);
+    fireEvent.change(deputyInput, { target: { value: 'Dep, B.' } });
+    fireEvent.keyDown(deputyInput, { key: 'Enter' });
+    // Chip is in the DOM with a remove button
+    const removeBtn = screen.getByRole('button', { name: /Remove deputy Dep, B./i });
+    fireEvent.click(removeBtn);
+    fireEvent.click(screen.getByRole('button', { name: /Add probation/i }));
+
+    const rows = useProbations.getState().toArray();
+    expect(rows[0].deputies).toBeUndefined();
+  });
+
+  it('add form: picking a known employee auto-resolves deputies from reports-to chain', () => {
+    // Build a chain: employee on 50001 → reports to 40001 "Deputy Director"
+    // (Carey McElroy). The chain-walk should pre-fill the deputies chip list.
+    useAppStore.getState().addRows([
+      ppRow('40001', {
+        employeeName: 'McElroy, Carey',
+        emplId: '99999',
+        jobCode: '0922',
+        jobCodeDescription: 'Deputy Director',
+      }),
+      ppRow('50001', {
+        employeeName: 'Smith, John',
+        emplId: '111111',
+        jobCode: '1820',
+        reportsToPosition: '40001',
+        managerFirstName: 'Carey',
+        managerLastName: 'McElroy',
+      }),
+    ]);
+    render(<ProbationsView />);
+    fireEvent.change(screen.getByLabelText(/Employee name/i), { target: { value: 'Smith, John' } });
+    // Chip should be auto-filled into the deputies field.
+    expect(screen.getByText('Carey McElroy')).toBeInTheDocument();
   });
 
   it('add form: picking the "6 months" preset sets endDate = start + 6 months + hours = 1040', () => {
@@ -491,13 +550,13 @@ describe('ProbationsView', () => {
   });
 
   describe('buildProbationNotificationEmail', () => {
-    it('addresses supervisor + deputy when both are set', () => {
+    it('addresses supervisor + single deputy when both are set', () => {
       const { subject, body } = buildProbationNotificationEmail({
         employeeName: 'Smith, John',
         employeeId: '111111',
         positionDisplayNumber: '50001',
         supervisor: 'Carey McElroy',
-        deputy: 'Park, Deputy',
+        deputies: ['Park, Deputy'],
         currentEnd: '2026-09-30',
       });
       expect(subject).toBe('Probation completion approaching — Smith, John');
@@ -508,15 +567,32 @@ describe('ProbationsView', () => {
       expect(body).toContain('email HR');
     });
 
-    it('addresses supervisor only when deputy is unset', () => {
+    it('addresses supervisor + multiple deputies with Oxford-comma "and" list', () => {
       const { body } = buildProbationNotificationEmail({
+        employeeName: 'Smith, John',
+        supervisor: 'Carey McElroy',
+        deputies: ['Park, Deputy', 'Lewis-Koskinen, Alex'],
+        currentEnd: '2026-09-30',
+      });
+      expect(body.split('\n')[0]).toBe('Hello Carey McElroy, Park, Deputy, and Lewis-Koskinen, Alex,');
+    });
+
+    it('addresses supervisor only when deputies is unset or empty', () => {
+      const noDeputies = buildProbationNotificationEmail({
         employeeName: 'Smith, Jane',
         supervisor: 'Carey McElroy',
         currentEnd: '2026-09-30',
       });
       // Greeting line specifically — body has unrelated " and " elsewhere
       // (e.g. "anything else that should be…"), so anchor to the start.
-      expect(body.split('\n')[0]).toBe('Hello Carey McElroy,');
+      expect(noDeputies.body.split('\n')[0]).toBe('Hello Carey McElroy,');
+      const emptyDeputies = buildProbationNotificationEmail({
+        employeeName: 'Smith, Jane',
+        supervisor: 'Carey McElroy',
+        deputies: [],
+        currentEnd: '2026-09-30',
+      });
+      expect(emptyDeputies.body.split('\n')[0]).toBe('Hello Carey McElroy,');
     });
 
     it('handles unknown supervisor + blank end date gracefully', () => {
@@ -528,6 +604,16 @@ describe('ProbationsView', () => {
       expect(subject).toBe('Probation completion approaching — Unknown, Person');
       expect(body).toContain('Hello (supervisor),');
       expect(body).toContain('(no end date set)');
+    });
+
+    it('drops empty / whitespace-only entries from the deputies list', () => {
+      const { body } = buildProbationNotificationEmail({
+        employeeName: 'Smith, Jane',
+        supervisor: 'Carey McElroy',
+        deputies: ['', '  ', 'Real, Deputy'],
+        currentEnd: '2026-09-30',
+      });
+      expect(body.split('\n')[0]).toBe('Hello Carey McElroy and Real, Deputy,');
     });
   });
 
@@ -611,7 +697,7 @@ describe('ProbationsView', () => {
         probationaryPeriodHours: 2080,
         startWorkDate: '2026-01-01',
         supervisor: 'Carey McElroy',
-        deputy: 'Park, Deputy',
+        deputies: ['Park, Deputy'],
       });
       useProbations.getState().addProbation({
         employeeName: 'Smith, Jane',
