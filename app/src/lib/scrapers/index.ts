@@ -40,12 +40,17 @@ export {
   summarizeRollup,
   applyEligibilityFilters,
   collectDepartments,
+  computeListExpiration,
+  computeListStatus,
+  countListTypes,
   EMPTY_ELIGIBILITY_FILTERS,
+  EXPIRING_SOON_DAYS,
 } from './build';
 export type {
   RollupSummary,
   EligibilityFilters,
   EligibilityStatusFilter,
+  ListStatusTone,
 } from './build';
 
 export { useScrapers } from './store';

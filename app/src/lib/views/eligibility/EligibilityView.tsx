@@ -877,7 +877,11 @@ export function EligibilityView() {
       </div>
 
       {openRollup && (
-        <EligibilityDetail rollup={openRollup} onClose={() => setOpenCode(null)} />
+        <EligibilityDetail
+          rollup={openRollup}
+          today={todayIso}
+          onClose={() => setOpenCode(null)}
+        />
       )}
     </div>
   );
