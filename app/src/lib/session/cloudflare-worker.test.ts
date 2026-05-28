@@ -203,6 +203,11 @@ describe('POST /api/snapshot', () => {
       headers: {
         'Content-Type': 'application/json',
         'Content-Encoding': 'gzip',
+        // Worker reads savedAt from this header on the gzipped path
+        // (it no longer decompresses to parse the envelope).
+        'X-Snapshot-SavedAt': typeof body === 'object' && body !== null && 'savedAt' in body
+          ? String((body as { savedAt: unknown }).savedAt)
+          : '2026-05-28T00:00:00Z',
         ...headers,
       },
     });
@@ -280,7 +285,7 @@ describe('POST /api/snapshot', () => {
     expect(parsed.kind).toBe('kospos-session');
   });
 
-  it('gzipped POST is decompressed for validation + stored as the original gzip bytes', async () => {
+  it('gzipped POST is stored verbatim without server-side decompression', async () => {
     const kv = makeMockKV();
     const req = await mkGzippedRequest(envelope(), { 'X-Publish-Secret': 's' });
     const response = await onRequestPost({
@@ -290,7 +295,11 @@ describe('POST /api/snapshot', () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect((body as { ok: boolean }).ok).toBe(true);
-    // KV holds the gzipped bytes the client POSTed.
+    // savedAt is echoed from the X-Snapshot-SavedAt header (not parsed
+    // from the body), so the round-trip matches what the client sent.
+    expect((body as { savedAt: string }).savedAt).toBe('2026-05-28T14:30:00Z');
+    // KV holds the exact gzipped bytes the client POSTed; decompressing
+    // them gives the original envelope back.
     const stored = kv._store.get('current');
     expect(stored).toBeDefined();
     expect(stored![0]).toBe(0x1f);
@@ -299,20 +308,25 @@ describe('POST /api/snapshot', () => {
     expect(parsed.savedAt).toBe('2026-05-28T14:30:00Z');
   });
 
-  it('gzipped POST with envelope-shape failure returns 400', async () => {
+  it('gzipped POST stores bytes regardless of envelope shape (validation lives on the client)', async () => {
+    // The Worker no longer decompresses gzipped POSTs (Cloudflare's
+    // 128 MB Worker memory cap can't fit a 200+ MB decompressed
+    // labor-data snapshot), so envelope validation is deferred to
+    // the client. This test documents that trade-off explicitly.
     const kv = makeMockKV();
     const req = await mkGzippedRequest({ wrong: 'shape' }, { 'X-Publish-Secret': 's' });
     const response = await onRequestPost({
       request: req,
       env: { KOSPOS_SNAPSHOTS: kv as any, PUBLISH_SECRET: 's' },
     } as any);
-    expect(response.status).toBe(400);
-    expect(kv._store.has('current')).toBe(false);
+    expect(response.status).toBe(200);
+    expect(kv._store.has('current')).toBe(true);
   });
 
-  it('gzipped POST with corrupted body returns 400 (decompression fails)', async () => {
+  it('gzipped POST with non-gzip bytes returns 400 (magic-header check)', async () => {
     const kv = makeMockKV();
-    // Not actually gzipped, but labeled as such.
+    // Body labeled as Content-Encoding: gzip but actually plain text —
+    // caught by the leading-bytes sniff before reaching KV.
     const req = new Request('https://test.local/api/snapshot', {
       method: 'POST',
       body: new TextEncoder().encode('not actually gzipped'),
@@ -320,6 +334,7 @@ describe('POST /api/snapshot', () => {
         'Content-Type': 'application/json',
         'Content-Encoding': 'gzip',
         'X-Publish-Secret': 's',
+        'X-Snapshot-SavedAt': '2026-05-28T00:00:00Z',
       },
     });
     const response = await onRequestPost({
@@ -327,6 +342,33 @@ describe('POST /api/snapshot', () => {
       env: { KOSPOS_SNAPSHOTS: kv as any, PUBLISH_SECRET: 's' },
     } as any);
     expect(response.status).toBe(400);
+    const body = await response.json();
+    expect((body as { error: string }).error).toMatch(/gzip magic/);
+    expect(kv._store.has('current')).toBe(false);
+  });
+
+  it('gzipped POST too big returns 413 before touching KV', async () => {
+    const kv = makeMockKV();
+    // Synthesize a body exceeding the 25 MB KV cap. We don't need the
+    // bytes to be valid gzip — size check fires before magic check.
+    const huge = new Uint8Array(26 * 1024 * 1024);
+    huge[0] = 0x1f;
+    huge[1] = 0x8b;
+    const req = new Request('https://test.local/api/snapshot', {
+      method: 'POST',
+      body: huge as BodyInit,
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Encoding': 'gzip',
+        'X-Publish-Secret': 's',
+        'X-Snapshot-SavedAt': '2026-05-28T00:00:00Z',
+      },
+    });
+    const response = await onRequestPost({
+      request: req,
+      env: { KOSPOS_SNAPSHOTS: kv as any, PUBLISH_SECRET: 's' },
+    } as any);
+    expect(response.status).toBe(413);
     expect(kv._store.has('current')).toBe(false);
   });
 });
@@ -344,5 +386,8 @@ describe('OPTIONS /api/snapshot (CORS preflight)', () => {
     expect(response.headers.get('Access-Control-Allow-Headers')).toMatch(/X-Publish-Secret/);
     // S41: the gzipped publish path needs Content-Encoding pre-flighted.
     expect(response.headers.get('Access-Control-Allow-Headers')).toMatch(/Content-Encoding/);
+    // S41 fix: gzipped POSTs carry savedAt as a header (the Worker
+    // doesn't decompress the body, so it can't read savedAt from JSON).
+    expect(response.headers.get('Access-Control-Allow-Headers')).toMatch(/X-Snapshot-SavedAt/);
   });
 });
