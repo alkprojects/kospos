@@ -55,14 +55,27 @@ export {
   computeListExpiration,
   computeListStatus,
   countListTypes,
+  parseDuration,
   EMPTY_ELIGIBILITY_FILTERS,
   EXPIRING_SOON_DAYS,
+  // Phase 2.2.p — per-list filter + sort helpers for the in-modal view.
+  applyEligibilityDetailFilters,
+  collectExamTypes,
+  collectListDepartments,
+  sortEligibilityLists,
+  EMPTY_DETAIL_FILTERS,
+  DEFAULT_DETAIL_SORT,
 } from './build';
 export type {
   RollupSummary,
   EligibilityFilters,
   EligibilityStatusFilter,
   ListStatusTone,
+  EligibilityDetailFilters,
+  DetailListStatusFilter,
+  DetailSortColumn,
+  DetailSortDirection,
+  DetailSort,
 } from './build';
 
 export { useScrapers, pdfCacheKey } from './store';

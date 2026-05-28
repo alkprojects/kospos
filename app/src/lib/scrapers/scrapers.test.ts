@@ -31,9 +31,18 @@ import {
   EXPIRING_SOON_DAYS,
   filterRollups,
   summarizeRollup,
+  // Phase 2.2.p helpers
+  parseDuration,
+  applyEligibilityDetailFilters,
+  collectExamTypes,
+  collectListDepartments,
+  sortEligibilityLists,
+  EMPTY_DETAIL_FILTERS,
+  DEFAULT_DETAIL_SORT,
 } from './build';
-import type { EligibilityFilters } from './build';
-import type { EligibilityList, JobCodeRollup, JobPosting } from './types';
+import type { EligibilityFilters, EligibilityDetailFilters, DetailSort } from './build';
+import type { EligibilityList, JobCodeRollup, JobPosting, PdfExtract } from './types';
+import { pdfCacheKey } from './store';
 
 // ---------------------------------------------------------------------------
 // extractJobCodeFromName
@@ -817,5 +826,322 @@ describe('countListTypes', () => {
     expect(countListTypes([
       mk('score-report'), mk('eligible-list'), mk('score-report'),
     ])).toEqual({ scoreReports: 2, eligibleLists: 1 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseDuration — Phase 2.2.p: parses the PDF-extracted Duration string
+// to a day count.
+// ---------------------------------------------------------------------------
+
+describe('parseDuration', () => {
+  it('parses "12 Months" as 360 days (30 days/month convention)', () => {
+    expect(parseDuration('12 Months')).toBe(360);
+  });
+
+  it('parses "6 Months" as 180 days', () => {
+    expect(parseDuration('6 Months')).toBe(180);
+  });
+
+  it('parses "1 Year" as 365 days', () => {
+    expect(parseDuration('1 Year')).toBe(365);
+  });
+
+  it('parses "2 years" (lowercase plural) as 730 days', () => {
+    expect(parseDuration('2 years')).toBe(730);
+  });
+
+  it('parses "30 days" as 30 days', () => {
+    expect(parseDuration('30 days')).toBe(30);
+  });
+
+  it('parses abbreviations: "12mo" / "1yr" / "30d"', () => {
+    expect(parseDuration('12mo')).toBe(360);
+    expect(parseDuration('1yr')).toBe(365);
+    expect(parseDuration('30d')).toBe(30);
+  });
+
+  it('tolerates "Approximately 12 Months" prefix some PDFs use', () => {
+    expect(parseDuration('Approximately 12 Months')).toBe(360);
+  });
+
+  it('returns undefined for empty / undefined input', () => {
+    expect(parseDuration(undefined)).toBeUndefined();
+    expect(parseDuration('')).toBeUndefined();
+  });
+
+  it('returns undefined for unparseable strings (lets caller fall back to default)', () => {
+    expect(parseDuration('forever')).toBeUndefined();
+    expect(parseDuration('TBD')).toBeUndefined();
+    expect(parseDuration('12')).toBeUndefined();           // missing unit
+    expect(parseDuration('Months')).toBeUndefined();       // missing number
+    expect(parseDuration('0 Months')).toBeUndefined();     // non-positive
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeListExpiration — Phase 2.2.p: durationStr override.
+// ---------------------------------------------------------------------------
+
+describe('computeListExpiration with per-list durationStr (Phase 2.2.p)', () => {
+  function mkList(over: Partial<EligibilityList> = {}): EligibilityList {
+    return {
+      jobCode: '1820', classTitle: '', listId: 'L1',
+      postDate: '2026-05-01', fileUrl: 'x.pdf', type: 'score-report',
+      ...over,
+    };
+  }
+
+  it('uses parsed duration when durationStr is provided', () => {
+    // 2026-05-01 + 180 days = 2026-10-28
+    expect(computeListExpiration(mkList(), undefined, '6 Months')).toBe('2026-10-28');
+  });
+
+  it('uses parsed duration overriding the windowDays default', () => {
+    // Default windowDays = 730 (2 years); per-list "1 Year" = 365 → 2027-05-01.
+    expect(computeListExpiration(mkList(), undefined, '1 Year')).toBe('2027-05-01');
+  });
+
+  it('falls back to windowDays when durationStr is undefined', () => {
+    expect(computeListExpiration(mkList(), undefined, undefined)).toBe('2028-04-30');
+  });
+
+  it('falls back to windowDays when durationStr is unparseable', () => {
+    expect(computeListExpiration(mkList(), undefined, 'forever')).toBe('2028-04-30');
+  });
+
+  it('honors an explicit windowDays override even when durationStr is unparseable', () => {
+    expect(computeListExpiration(mkList(), 30, 'TBD')).toBe('2026-05-31');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyEligibilityDetailFilters — Phase 2.2.p: in-modal filter shape.
+// ---------------------------------------------------------------------------
+
+describe('applyEligibilityDetailFilters', () => {
+  function mkList(over: Partial<EligibilityList> = {}): EligibilityList {
+    return {
+      jobCode: '1820', classTitle: '', listId: 'L',
+      postDate: '2026-05-01', fileUrl: 'x.pdf', type: 'score-report',
+      ...over,
+    };
+  }
+  function mkExtract(over: Partial<PdfExtract> = {}): PdfExtract {
+    return { extractedAt: '2026-05-27T00:00:00.000Z', success: true, ...over };
+  }
+  function seed(): {
+    lists: EligibilityList[];
+    cache: Record<string, PdfExtract>;
+  } {
+    const lists = [
+      mkList({ listId: 'A', postDate: '2026-05-01' }),
+      mkList({ listId: 'B', postDate: '2026-04-01' }),
+      mkList({ listId: 'C', postDate: '2026-03-01' }),
+    ];
+    const cache: Record<string, PdfExtract> = {
+      [pdfCacheKey('1820', 'A', '2026-05-01')]: mkExtract({
+        certRule: 'Rule of the List', listDepartment: 'PUC', examType: 'PBT',
+      }),
+      [pdfCacheKey('1820', 'B', '2026-04-01')]: mkExtract({
+        certRule: 'Rule of the List', listDepartment: 'DPH', examType: 'ETP',
+      }),
+      [pdfCacheKey('1820', 'C', '2026-03-01')]: mkExtract({
+        // Don't include the word "Names" — it contains the letter 'a'
+        // which would collide with the listId search test below.
+        certRule: 'Rule of 3', listDepartment: 'Citywide', examType: 'PBT',
+      }),
+    };
+    return { lists, cache };
+  }
+  const today = '2026-05-27';
+
+  it('returns all lists when no filters are active', () => {
+    const { lists, cache } = seed();
+    const result = applyEligibilityDetailFilters(lists, cache, pdfCacheKey, EMPTY_DETAIL_FILTERS, today);
+    expect(result).toHaveLength(3);
+  });
+
+  it('search needle matches listId', () => {
+    const { lists, cache } = seed();
+    // 'a' uniquely identifies listId 'A' — B/C have no 'a' anywhere in
+    // their searchable fields (per the seed shape above).
+    const filters: EligibilityDetailFilters = { ...EMPTY_DETAIL_FILTERS, search: 'a' };
+    const result = applyEligibilityDetailFilters(lists, cache, pdfCacheKey, filters, today);
+    expect(result.map(l => l.listId)).toEqual(['A']);
+  });
+
+  it('search needle matches extracted dept', () => {
+    const { lists, cache } = seed();
+    const filters: EligibilityDetailFilters = { ...EMPTY_DETAIL_FILTERS, search: 'puc' };
+    const result = applyEligibilityDetailFilters(lists, cache, pdfCacheKey, filters, today);
+    expect(result.map(l => l.listId)).toEqual(['A']);
+  });
+
+  it('search needle matches extracted examType', () => {
+    const { lists, cache } = seed();
+    const filters: EligibilityDetailFilters = { ...EMPTY_DETAIL_FILTERS, search: 'etp' };
+    const result = applyEligibilityDetailFilters(lists, cache, pdfCacheKey, filters, today);
+    expect(result.map(l => l.listId)).toEqual(['B']);
+  });
+
+  it('examTypes axis restricts to lists with matching extracted examType', () => {
+    const { lists, cache } = seed();
+    const filters: EligibilityDetailFilters = {
+      ...EMPTY_DETAIL_FILTERS, examTypes: new Set(['ETP']),
+    };
+    const result = applyEligibilityDetailFilters(lists, cache, pdfCacheKey, filters, today);
+    expect(result.map(l => l.listId)).toEqual(['B']);
+  });
+
+  it('departments axis restricts to lists with matching extracted dept', () => {
+    const { lists, cache } = seed();
+    const filters: EligibilityDetailFilters = {
+      ...EMPTY_DETAIL_FILTERS, departments: new Set(['DPH', 'PUC']),
+    };
+    const result = applyEligibilityDetailFilters(lists, cache, pdfCacheKey, filters, today);
+    expect(result.map(l => l.listId)).toEqual(['A', 'B']);
+  });
+
+  it('citywideOnly restricts to lists whose extracted dept is "Citywide"', () => {
+    const { lists, cache } = seed();
+    const filters: EligibilityDetailFilters = {
+      ...EMPTY_DETAIL_FILTERS, citywideOnly: true,
+    };
+    const result = applyEligibilityDetailFilters(lists, cache, pdfCacheKey, filters, today);
+    expect(result.map(l => l.listId)).toEqual(['C']);
+  });
+
+  it('lists without a cache entry pass through (extraction not yet done)', () => {
+    const lists = [mkList({ listId: 'X' })];
+    const filters: EligibilityDetailFilters = {
+      ...EMPTY_DETAIL_FILTERS, examTypes: new Set(['PBT']),
+    };
+    const result = applyEligibilityDetailFilters(lists, {}, pdfCacheKey, filters, today);
+    // No extract yet → the filter doesn't restrict the row; it passes.
+    expect(result.map(l => l.listId)).toEqual(['X']);
+  });
+});
+
+describe('collectExamTypes / collectListDepartments (Phase 2.2.p)', () => {
+  function mk(listId: string): EligibilityList {
+    return {
+      jobCode: '1820', classTitle: '', listId,
+      postDate: '2026-05-01', fileUrl: 'x.pdf', type: 'score-report',
+    };
+  }
+  function mkExtract(over: Partial<PdfExtract> = {}): PdfExtract {
+    return { extractedAt: '2026-05-27T00:00:00.000Z', success: true, ...over };
+  }
+
+  it('collectExamTypes returns alphabetical distinct values, drops empty + failed extracts', () => {
+    const lists = [mk('A'), mk('B'), mk('C'), mk('D')];
+    const cache = {
+      [pdfCacheKey('1820', 'A', '2026-05-01')]: mkExtract({ examType: 'PBT' }),
+      [pdfCacheKey('1820', 'B', '2026-05-01')]: mkExtract({ examType: 'ETP' }),
+      [pdfCacheKey('1820', 'C', '2026-05-01')]: mkExtract({ examType: 'PBT' }),  // duplicate
+      [pdfCacheKey('1820', 'D', '2026-05-01')]: mkExtract({ success: false, examType: 'CBT' }),
+    };
+    expect(collectExamTypes(lists, cache, pdfCacheKey)).toEqual(['ETP', 'PBT']);
+  });
+
+  it('collectListDepartments same shape', () => {
+    const lists = [mk('A'), mk('B'), mk('C')];
+    const cache = {
+      [pdfCacheKey('1820', 'A', '2026-05-01')]: mkExtract({ listDepartment: 'PUC' }),
+      [pdfCacheKey('1820', 'B', '2026-05-01')]: mkExtract({ listDepartment: 'Citywide' }),
+      [pdfCacheKey('1820', 'C', '2026-05-01')]: mkExtract({ listDepartment: 'Citywide' }),
+    };
+    expect(collectListDepartments(lists, cache, pdfCacheKey)).toEqual(['Citywide', 'PUC']);
+  });
+});
+
+describe('sortEligibilityLists (Phase 2.2.p)', () => {
+  function mkList(listId: string, postDate: string): EligibilityList {
+    return {
+      jobCode: '1820', classTitle: '', listId,
+      postDate, fileUrl: 'x.pdf', type: 'score-report',
+    };
+  }
+  function mkExtract(over: Partial<PdfExtract> = {}): PdfExtract {
+    return { extractedAt: '2026-05-27T00:00:00.000Z', success: true, ...over };
+  }
+  const today = '2026-05-27';
+
+  it('default sort (post date desc) returns lists in input order when caller already pre-sorts', () => {
+    const lists = [
+      mkList('NEW', '2026-05-01'),
+      mkList('MID', '2026-04-01'),
+      mkList('OLD', '2026-03-01'),
+    ];
+    const result = sortEligibilityLists(lists, {}, pdfCacheKey, DEFAULT_DETAIL_SORT, today);
+    expect(result.map(l => l.listId)).toEqual(['NEW', 'MID', 'OLD']);
+  });
+
+  it('post date asc reverses to oldest-first', () => {
+    const lists = [
+      mkList('NEW', '2026-05-01'),
+      mkList('MID', '2026-04-01'),
+      mkList('OLD', '2026-03-01'),
+    ];
+    const sort: DetailSort = { column: 'postDate', direction: 'asc' };
+    const result = sortEligibilityLists(lists, {}, pdfCacheKey, sort, today);
+    expect(result.map(l => l.listId)).toEqual(['OLD', 'MID', 'NEW']);
+  });
+
+  it('listId asc sorts alphabetically', () => {
+    const lists = [
+      mkList('CCC', '2026-05-01'),
+      mkList('AAA', '2026-04-01'),
+      mkList('BBB', '2026-03-01'),
+    ];
+    const sort: DetailSort = { column: 'listId', direction: 'asc' };
+    const result = sortEligibilityLists(lists, {}, pdfCacheKey, sort, today);
+    expect(result.map(l => l.listId)).toEqual(['AAA', 'BBB', 'CCC']);
+  });
+
+  it('duration asc sorts by parsed day count (with blanks last)', () => {
+    const lists = [
+      mkList('A', '2026-05-01'),
+      mkList('B', '2026-04-01'),
+      mkList('C', '2026-03-01'),
+    ];
+    const cache = {
+      [pdfCacheKey('1820', 'A', '2026-05-01')]: mkExtract({ duration: '12 Months' }),
+      [pdfCacheKey('1820', 'B', '2026-04-01')]: mkExtract({ duration: '6 Months' }),
+      // C has no duration extract — should sort last regardless of direction.
+    };
+    const sort: DetailSort = { column: 'duration', direction: 'asc' };
+    const result = sortEligibilityLists(lists, cache, pdfCacheKey, sort, today);
+    expect(result.map(l => l.listId)).toEqual(['B', 'A', 'C']);
+  });
+
+  it('certRule sort puts blanks last in both directions', () => {
+    const lists = [
+      mkList('A', '2026-05-01'),
+      mkList('B', '2026-04-01'),
+      mkList('C', '2026-03-01'),
+    ];
+    const cache = {
+      [pdfCacheKey('1820', 'A', '2026-05-01')]: mkExtract({ certRule: 'Rule of 3 Names' }),
+      [pdfCacheKey('1820', 'B', '2026-04-01')]: mkExtract({ certRule: 'Rule of the List' }),
+    };
+    const ascSort: DetailSort = { column: 'certRule', direction: 'asc' };
+    const ascResult = sortEligibilityLists(lists, cache, pdfCacheKey, ascSort, today);
+    expect(ascResult.map(l => l.listId)).toEqual(['A', 'B', 'C']);
+
+    const descSort: DetailSort = { column: 'certRule', direction: 'desc' };
+    const descResult = sortEligibilityLists(lists, cache, pdfCacheKey, descSort, today);
+    expect(descResult.map(l => l.listId)).toEqual(['B', 'A', 'C']);  // C (blank) still last
+  });
+
+  it('direction: null is a no-op (returns input order)', () => {
+    const lists = [
+      mkList('Z', '2026-05-01'),
+      mkList('A', '2026-04-01'),
+    ];
+    const sort: DetailSort = { column: 'listId', direction: null };
+    const result = sortEligibilityLists(lists, {}, pdfCacheKey, sort, today);
+    expect(result.map(l => l.listId)).toEqual(['Z', 'A']);
   });
 });

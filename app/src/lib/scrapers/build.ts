@@ -9,6 +9,7 @@ import type {
   EligibilityList,
   JobCodeRollup,
   JobPosting,
+  PdfExtract,
 } from './types';
 import { DEFAULT_ACTIVE_LIST_WINDOW_DAYS } from './types';
 import { isListActive } from './sf-dhr-exam/parse';
@@ -326,7 +327,44 @@ export function collectDepartments(rollups: JobCodeRollup[]): string[] {
 export const EXPIRING_SOON_DAYS = 90;
 
 /**
- * Compute an eligibility list's expiration date — `postDate + windowDays`.
+ * Parse a PDF-extracted duration string ("12 Months" / "6 Months" /
+ * "1 Year" / "2 years" / "30 days") to a day count.
+ *
+ * Phase 2.2.p: real DHR PDFs encode per-list durations explicitly
+ * (sampled values: 6mo, 12mo, 24mo) — refuting the Phase 2.2.n
+ * "constant 2yr per CSC Rule 411A/412" assumption. Surface the actual
+ * value when present + fall back to the 2yr default when extraction
+ * came back undefined.
+ *
+ * Returns the equivalent day count, or `undefined` if the string
+ * doesn't match the expected `<N> <unit>` shape. Months convert at
+ * 30 days/month (DHR uses month-granular durations, not day-granular,
+ * so the 30d approximation matches DHR's own internal arithmetic).
+ *
+ * Returning undefined (rather than the 2yr default) lets the caller
+ * distinguish "no duration given" from "parsed and unknown" — the
+ * former gets the 2yr default, the latter would otherwise silently
+ * mask a parse failure.
+ */
+export function parseDuration(durationStr: string | undefined): number | undefined {
+  if (!durationStr) return undefined;
+  const trimmed = durationStr.trim().toLowerCase();
+  // Allow plurals + abbreviations + optional "approximately" prefix some PDFs use.
+  const m = /^(?:approximately\s+)?(\d+)\s*(day|days|d|month|months|mo|mos|year|years|y|yr|yrs)\b/.exec(trimmed);
+  if (!m) return undefined;
+  const n = Number(m[1]);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  const unit = m[2];
+  if (unit === 'day' || unit === 'days' || unit === 'd') return n;
+  if (unit === 'month' || unit === 'months' || unit === 'mo' || unit === 'mos') return n * 30;
+  if (unit === 'year' || unit === 'years' || unit === 'y' || unit === 'yr' || unit === 'yrs') return n * 365;
+  return undefined;
+}
+
+/**
+ * Compute an eligibility list's expiration date — `postDate + windowDays`,
+ * with an optional per-list `durationStr` override (Phase 2.2.p).
+ *
  * Returns ISO `YYYY-MM-DD`; empty string when `postDate` is malformed.
  *
  * The default window (2 years per CSC Rule 411A/412) matches the
@@ -340,15 +378,22 @@ export const EXPIRING_SOON_DAYS = 90;
  * to the user against the 90-day expiring-soon threshold + the fact
  * that DHR lists can be extended anyway. Switch to calendar arithmetic
  * (setUTCFullYear) when this becomes UX-relevant.
+ *
+ * When `durationStr` is supplied and parses (via {@link parseDuration})
+ * it overrides `windowDays`. When it's supplied but doesn't parse, we
+ * fall back to `windowDays` — never throw, never return a wrong date
+ * silently.
  */
 export function computeListExpiration(
   list: EligibilityList,
   windowDays: number = DEFAULT_ACTIVE_LIST_WINDOW_DAYS,
+  durationStr?: string,
 ): string {
   if (!list.postDate) return '';
   const post = new Date(list.postDate + 'T00:00:00Z');
   if (Number.isNaN(post.getTime())) return '';
-  const exp = new Date(post.getTime() + windowDays * 24 * 60 * 60 * 1000);
+  const effectiveDays = parseDuration(durationStr) ?? windowDays;
+  const exp = new Date(post.getTime() + effectiveDays * 24 * 60 * 60 * 1000);
   const y = exp.getUTCFullYear();
   const m = String(exp.getUTCMonth() + 1).padStart(2, '0');
   const d = String(exp.getUTCDate()).padStart(2, '0');
@@ -368,13 +413,17 @@ export type ListStatusTone = 'active' | 'expiring-soon' | 'expired' | 'unknown';
  *
  * `daysRemaining` is signed — positive = days until expiration, negative
  * = days since expiration. Caller formats the user-facing label.
+ *
+ * Phase 2.2.p: accepts an optional `durationStr` (PDF-extracted) to
+ * override the default 2yr window when the per-list value is known.
  */
 export function computeListStatus(
   list: EligibilityList,
   today: string,
   windowDays: number = DEFAULT_ACTIVE_LIST_WINDOW_DAYS,
+  durationStr?: string,
 ): { daysRemaining: number; tone: ListStatusTone; expirationDate: string } {
-  const expirationDate = computeListExpiration(list, windowDays);
+  const expirationDate = computeListExpiration(list, windowDays, durationStr);
   if (!expirationDate || !today) {
     return { daysRemaining: 0, tone: 'unknown', expirationDate };
   }
@@ -411,4 +460,248 @@ export function countListTypes(
     else if (l.type === 'eligible-list') eligibleLists++;
   }
   return { scoreReports, eligibleLists };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2.2.p — per-list filter + sort helpers used by EligibilityDetail's
+// in-modal chip-row filter and click-to-sort headers. Per-LIST shape
+// (one rollup expanded into rows), not per-rollup like
+// `applyEligibilityFilters` above.
+//
+// The PDF-extracted axes (exam type, dept) read from a side-cache. Lists
+// without a cache entry (extraction in flight / failed) pass through —
+// filtering a not-yet-known value would otherwise wrongly hide rows that
+// will populate moments later.
+// ---------------------------------------------------------------------------
+
+/** Per-list status axis used by the in-modal filter. */
+export type DetailListStatusFilter = 'any' | 'active' | 'expiring-soon' | 'expired';
+
+/** Structured filter for the in-modal lists view. */
+export interface EligibilityDetailFilters {
+  /** Substring needle on listId | certRule | listDepartment | examType. */
+  search: string;
+  status: DetailListStatusFilter;
+  /** Selected exam types (PBT/ETP/CBT/Q&E). Empty = no restriction. */
+  examTypes: ReadonlySet<string>;
+  /** Selected dept codes (PUC/DPH/Citywide/…). Empty = no restriction. */
+  departments: ReadonlySet<string>;
+  /** When true, restrict to lists whose extracted dept is "Citywide". */
+  citywideOnly: boolean;
+}
+
+/** Empty / no-op in-modal filter — all lists pass. */
+export const EMPTY_DETAIL_FILTERS: EligibilityDetailFilters = {
+  search: '',
+  status: 'any',
+  examTypes: new Set(),
+  departments: new Set(),
+  citywideOnly: false,
+};
+
+/**
+ * Look up the PdfExtract for a given list. Pure — caller passes the
+ * cache + the key function.
+ */
+function getExtract(
+  list: EligibilityList,
+  pdfCache: Readonly<Record<string, PdfExtract>>,
+  keyFn: (jobCode: string, listId: string, postDate: string) => string,
+): PdfExtract | undefined {
+  return pdfCache[keyFn(list.jobCode, list.listId, list.postDate)];
+}
+
+/**
+ * Apply the in-modal filter to a list of EligibilityLists. Returns the
+ * subset that passes every axis.
+ *
+ * Axis behavior:
+ *   - `search`        — case-insensitive substring across listId,
+ *                       certRule, listDepartment, examType.
+ *   - `status`        — match `tone` from `computeListStatus`. Filter
+ *                       skips the axis when `status === 'any'`.
+ *   - `examTypes`     — match if the list's extracted examType is in
+ *                       the set. Lists with no extract YET pass (data
+ *                       not loaded vs. data excluded). Lists with an
+ *                       extract but no examType match only when the
+ *                       set is empty.
+ *   - `departments`   — same pattern as examTypes against
+ *                       listDepartment.
+ *   - `citywideOnly`  — match when extracted listDepartment is
+ *                       "Citywide" (the CTW-normalized value).
+ *
+ * `today` is ISO `YYYY-MM-DD`; pinned by caller for determinism.
+ */
+export function applyEligibilityDetailFilters(
+  lists: ReadonlyArray<EligibilityList>,
+  pdfCache: Readonly<Record<string, PdfExtract>>,
+  keyFn: (jobCode: string, listId: string, postDate: string) => string,
+  filters: EligibilityDetailFilters,
+  today: string,
+): EligibilityList[] {
+  const q = filters.search.trim().toLowerCase();
+  const examTypeAxis = filters.examTypes.size > 0;
+  const deptAxis = filters.departments.size > 0;
+
+  return lists.filter(l => {
+    const extract = getExtract(l, pdfCache, keyFn);
+
+    // Search axis — concat the searchable fields. Undefined fields
+    // contribute nothing.
+    if (q) {
+      const hay = [
+        l.listId,
+        extract?.certRule,
+        extract?.listDepartment,
+        extract?.examType,
+      ].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+
+    // Status axis
+    if (filters.status !== 'any') {
+      const { tone } = computeListStatus(l, today, undefined, extract?.duration);
+      if (tone !== filters.status) return false;
+    }
+
+    // Exam type axis — only restricts when we have an extract; rows
+    // still loading pass through.
+    if (examTypeAxis && extract && extract.success) {
+      if (!extract.examType || !filters.examTypes.has(extract.examType)) {
+        return false;
+      }
+    }
+
+    // Department axis — same pattern.
+    if (deptAxis && extract && extract.success) {
+      if (!extract.listDepartment || !filters.departments.has(extract.listDepartment)) {
+        return false;
+      }
+    }
+
+    // Citywide-only — only restricts when we have an extract.
+    if (filters.citywideOnly && extract && extract.success) {
+      if (extract.listDepartment !== 'Citywide') return false;
+    }
+
+    return true;
+  });
+}
+
+/** Collect the distinct examType values seen across the given lists'
+ *  cache entries. Alphabetical, undefined/empty dropped. */
+export function collectExamTypes(
+  lists: ReadonlyArray<EligibilityList>,
+  pdfCache: Readonly<Record<string, PdfExtract>>,
+  keyFn: (jobCode: string, listId: string, postDate: string) => string,
+): string[] {
+  const set = new Set<string>();
+  for (const l of lists) {
+    const e = getExtract(l, pdfCache, keyFn);
+    if (e?.success && e.examType) set.add(e.examType);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
+/** Collect the distinct listDepartment values seen across the given
+ *  lists' cache entries. Alphabetical, undefined/empty dropped. */
+export function collectListDepartments(
+  lists: ReadonlyArray<EligibilityList>,
+  pdfCache: Readonly<Record<string, PdfExtract>>,
+  keyFn: (jobCode: string, listId: string, postDate: string) => string,
+): string[] {
+  const set = new Set<string>();
+  for (const l of lists) {
+    const e = getExtract(l, pdfCache, keyFn);
+    if (e?.success && e.listDepartment) set.add(e.listDepartment);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
+/** Column identifiers for the in-modal lists table click-to-sort. */
+export type DetailSortColumn =
+  | 'postDate'
+  | 'listId'
+  | 'duration'
+  | 'expires'
+  | 'status'
+  | 'certRule'
+  | 'dept'
+  | 'examType';
+
+/** Sort direction; null collapses to "default order" (post date desc). */
+export type DetailSortDirection = 'asc' | 'desc' | null;
+
+export interface DetailSort {
+  column: DetailSortColumn;
+  direction: DetailSortDirection;
+}
+
+/** Default sort matches the existing newest-first behavior. */
+export const DEFAULT_DETAIL_SORT: DetailSort = {
+  column: 'postDate',
+  direction: 'desc',
+};
+
+/**
+ * Sort lists by the given column + direction. Stable (preserves input
+ * order on ties). `direction: null` is a no-op (caller already passed
+ * the default order in).
+ *
+ * Empty / undefined PDF-extracted values sort last (in both asc + desc)
+ * so the user always sees populated rows first on a sorted column —
+ * matches the spreadsheet intuition of "blanks at the bottom".
+ */
+export function sortEligibilityLists(
+  lists: ReadonlyArray<EligibilityList>,
+  pdfCache: Readonly<Record<string, PdfExtract>>,
+  keyFn: (jobCode: string, listId: string, postDate: string) => string,
+  sort: DetailSort,
+  today: string,
+): EligibilityList[] {
+  const { column, direction } = sort;
+  if (direction === null) return [...lists];
+
+  // Build comparator-friendly values once per row (avoid re-running
+  // computeListStatus / parseDuration per pair-wise compare).
+  const decorated = lists.map((l, i) => {
+    const extract = getExtract(l, pdfCache, keyFn);
+    const status = computeListStatus(l, today, undefined, extract?.duration);
+    let primary: string | number = '';
+    switch (column) {
+      case 'postDate': primary = l.postDate || ''; break;
+      case 'listId':   primary = l.listId || ''; break;
+      case 'duration': {
+        // Sort by parsed-day count so "12 Months" beats "6 Months".
+        // Undefined → +Infinity so blanks fall to the end.
+        const days = parseDuration(extract?.duration);
+        primary = days ?? Number.POSITIVE_INFINITY;
+        break;
+      }
+      case 'expires':  primary = status.expirationDate || ''; break;
+      case 'status':   primary = status.daysRemaining; break;
+      case 'certRule': primary = extract?.certRule || ''; break;
+      case 'dept':     primary = extract?.listDepartment || ''; break;
+      case 'examType': primary = extract?.examType || ''; break;
+    }
+    return { list: l, primary, i, isBlank: primary === '' || primary === Number.POSITIVE_INFINITY };
+  });
+
+  decorated.sort((a, b) => {
+    // Blanks always last regardless of direction — spreadsheet-like.
+    if (a.isBlank && !b.isBlank) return 1;
+    if (!a.isBlank && b.isBlank) return -1;
+    if (a.isBlank && b.isBlank) return a.i - b.i;
+
+    let cmp = 0;
+    if (typeof a.primary === 'number' && typeof b.primary === 'number') {
+      cmp = a.primary - b.primary;
+    } else {
+      cmp = String(a.primary).localeCompare(String(b.primary));
+    }
+    if (cmp === 0) return a.i - b.i;
+    return direction === 'asc' ? cmp : -cmp;
+  });
+
+  return decorated.map(d => d.list);
 }

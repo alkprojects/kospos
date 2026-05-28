@@ -160,41 +160,49 @@ describe('EligibilityView — detail modal', () => {
     expect(within(modal).getByRole('button', { name: /Close detail/i })).toBeInTheDocument();
   });
 
-  it('modal header shows a Duration chip describing CSC Rule 411A/412', () => {
+  it('modal header drops the constant Duration chip (Phase 2.2.p — per-list Duration is now a column)', () => {
     seedFourRollups();
     render(<EligibilityView />);
     fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
     const modal = screen.getByRole('dialog');
-    // Duration is constant (2 years per CSC Rule 411A/412) so it's a
-    // header chip, not a per-row column.
-    expect(within(modal).getByText(/Duration/i)).toBeInTheDocument();
-    expect(within(modal).getByText(/2 yr.*CSC.*411A.*412/)).toBeInTheDocument();
+    // Phase 2.2.p: the "Duration: 2 yr · CSC 411A/412" header chip was
+    // dropped — real DHR PDFs encode per-list durations (12 Months, 6
+    // Months, etc.), refuting the constant-2yr assumption. The label
+    // moves to a per-row column.
+    expect(within(modal).queryByText(/2 yr.*CSC.*411A.*412/)).not.toBeInTheDocument();
+    // The word "Duration" still appears (as a column header + in the
+    // footnote describing PDF columns) so don't assert its absence.
   });
 
-  it('lists table column shape is Post date / List ID / Expires / Status / Cert rule / Dept / Sub-type / File', () => {
+  it('lists table column shape is Post date / List ID / Duration / Expires / Status / Cert rule / Dept / Exam Type / File (Phase 2.2.p)', () => {
     seedFourRollups();
     render(<EligibilityView />);
     fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
     const modal = screen.getByRole('dialog');
     // Scope to <th> elements so the assertions don't collide with the
-    // footnote that also names the new columns ("Cert rule · Dept ·
-    // Sub-type: extracted on demand…").
+    // footnote / progress bar / filter toolbar which also reference
+    // these labels.
     const headerTexts = within(modal).getAllByRole('columnheader')
       .map(h => h.textContent?.trim() ?? '');
-    expect(headerTexts).toContain('Post date');
-    expect(headerTexts).toContain('List ID');
-    expect(headerTexts).toContain('Expires');
-    expect(headerTexts).toContain('Status');
-    // Phase 2.2.o columns
-    expect(headerTexts).toContain('Cert rule');
-    expect(headerTexts).toContain('Dept');
-    expect(headerTexts).toContain('Sub-type');
-    expect(headerTexts).toContain('File');
-    // Type column dropped per Alex's S37 directive (Phase 2.2.n) — the
-    // "Score report (civil service)" label should NOT appear anywhere
-    // in the modal.
+    expect(headerTexts.some(t => t.startsWith('Post date'))).toBe(true);
+    expect(headerTexts.some(t => t.startsWith('List ID'))).toBe(true);
+    // Phase 2.2.p — Duration + Exam Type promoted to per-row columns.
+    expect(headerTexts.some(t => t.startsWith('Duration'))).toBe(true);
+    expect(headerTexts.some(t => t.startsWith('Expires'))).toBe(true);
+    expect(headerTexts.some(t => t.startsWith('Status'))).toBe(true);
+    // Phase 2.2.o columns still present
+    expect(headerTexts.some(t => t.startsWith('Cert rule'))).toBe(true);
+    expect(headerTexts.some(t => t.startsWith('Dept'))).toBe(true);
+    expect(headerTexts.some(t => t.startsWith('Exam Type'))).toBe(true);
+    expect(headerTexts.some(t => t.startsWith('File'))).toBe(true);
+    // Phase 2.2.p — Sub-type column dropped per Alex's S39 directive
+    // ("the important field to show is exam type, not list type").
+    // The List Type / examSubType value stays in pdfCache for future
+    // use but is no longer rendered per-row.
+    expect(headerTexts.some(t => t.startsWith('Sub-type'))).toBe(false);
+    // Phase 2.2.n — Type column still gone.
     expect(within(modal).queryByText(/Score report \(civil service\)/i)).not.toBeInTheDocument();
-    expect(headerTexts).not.toContain('Type');
+    expect(headerTexts.some(t => t === 'Type')).toBe(false);
   });
 
   it('lists table renders the derived expiration date for each row', () => {
@@ -226,16 +234,19 @@ describe('EligibilityView — detail modal', () => {
     expect(within(modal).getByText(/1 eligible list/i)).toBeInTheDocument();
   });
 
-  it('modal footnote describes the PDF columns + their loading/failure states', () => {
+  it('modal footnote describes the PDF columns + their loading/failure states (Phase 2.2.p update)', () => {
     seedFourRollups();
     render(<EligibilityView />);
     fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
     const modal = screen.getByRole('dialog');
-    // Phase 2.2.o footnote replaces the Phase 2.2.n "Not shown here"
-    // placeholder text. Now lists the three columns + the … / — states.
-    expect(within(modal).getByText(/Cert rule.*Dept.*Sub-type/)).toBeInTheDocument();
+    // Phase 2.2.p footnote: replaces Phase 2.2.o "Cert rule · Dept ·
+    // Sub-type" copy. Now lists Duration + Cert rule + Dept + Exam Type
+    // (Sub-type / List Type dropped per Alex's S39 directive).
+    expect(within(modal).getByText(/Duration.*Cert rule.*Dept.*Exam Type/)).toBeInTheDocument();
     expect(within(modal).getByText(/extracted on demand/i)).toBeInTheDocument();
+    // References both Phase 2.2.o (origin) and Phase 2.2.p (this PR).
     expect(within(modal).getByText(/Phase 2\.2\.o/)).toBeInTheDocument();
+    expect(within(modal).getByText(/Phase 2\.2\.p/)).toBeInTheDocument();
   });
 
   it('renders the expired-only rollup detail with expired-section disclosure', () => {
@@ -274,7 +285,7 @@ describe('EligibilityDetail — Phase 2.2.o PDF columns', () => {
     expect(dots.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('renders the extracted values when pdfCache has a success entry', () => {
+  it('renders the extracted values when pdfCache has a success entry (Phase 2.2.p — Exam Type replaces Sub-type)', () => {
     seedFourRollups();
     // Use 'DBI' for listDepartment to avoid colliding with the seeded
     // posting's department string ('Building Inspection') already
@@ -282,14 +293,24 @@ describe('EligibilityDetail — Phase 2.2.o PDF columns', () => {
     useScrapers.getState().setPdfExtract('1820|L-1820|2025-08-15', mkExtract({
       certRule: 'Rule of 3 Names',
       listDepartment: 'DBI',
-      examSubType: 'Promotional',
+      examSubType: 'Promotional',   // dropped from per-row UI in Phase 2.2.p
+      examType: 'PBT',              // promoted to per-row UI in Phase 2.2.p
+      duration: '12 Months',
     }));
     render(<EligibilityView />);
     fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
     const modal = screen.getByRole('dialog');
     expect(within(modal).getByText('Rule of 3 Names')).toBeInTheDocument();
     expect(within(modal).getByText('DBI')).toBeInTheDocument();
-    expect(within(modal).getByText('Promotional')).toBeInTheDocument();
+    // Phase 2.2.p — Exam Type is the new per-row primary value. 'PBT'
+    // also appears as a filter-chip button (rollup's distinct examTypes
+    // populate the chip row), so assert >= 1 match rather than exactly
+    // one.
+    expect(within(modal).getAllByText('PBT').length).toBeGreaterThanOrEqual(1);
+    // Duration column populated with per-list value
+    expect(within(modal).getByText('12 Months')).toBeInTheDocument();
+    // Phase 2.2.p — Sub-type (examSubType) dropped from per-row UI
+    expect(within(modal).queryByText('Promotional')).not.toBeInTheDocument();
   });
 
   it('renders "—" with an error tooltip when extraction failed', () => {
@@ -372,12 +393,14 @@ describe('EligibilityDetail — Phase 2.2.o PDF columns', () => {
     expect(afterExpand.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('PDF cells flip from "…" to values when pdfCache populates after mount', () => {
+  it('PDF cells flip from "…" to values when pdfCache populates after mount (Phase 2.2.p)', () => {
     seedFourRollups();
     render(<EligibilityView />);
     fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
     let modal = screen.getByRole('dialog');
-    // Before populate: at least 3 "…" (1 active list × 3 PDF cells).
+    // Before populate: at least 3 "…" PDF-cell placeholders (Cert rule
+    // + Dept + Exam Type). Duration cell renders the "2 yr…" fallback
+    // (Phase 2.2.p — keeps user oriented while extract is in flight).
     expect(within(modal).getAllByText('…').length).toBeGreaterThanOrEqual(3);
     // Simulate the async fetch completing. The store update must be
     // wrapped in act() so React flushes the Zustand-subscription
@@ -386,13 +409,287 @@ describe('EligibilityDetail — Phase 2.2.o PDF columns', () => {
       useScrapers.getState().setPdfExtract('1820|L-1820|2025-08-15', mkExtract({
         certRule: 'Rule of the List',
         listDepartment: 'Citywide',
-        examSubType: 'PCS',
+        examType: 'CBT',         // Phase 2.2.p — promoted to per-row
+        duration: '6 Months',    // Phase 2.2.p — promoted to per-row
       }));
     });
     modal = screen.getByRole('dialog');
     expect(within(modal).getByText('Rule of the List')).toBeInTheDocument();
     expect(within(modal).getByText('Citywide')).toBeInTheDocument();
-    expect(within(modal).getByText('PCS')).toBeInTheDocument();
+    // 'CBT' appears in both the filter chip row (rollup's distinct
+    // examTypes) and the per-row Exam Type cell → at least 1 match.
+    expect(within(modal).getAllByText('CBT').length).toBeGreaterThanOrEqual(1);
+    expect(within(modal).getByText('6 Months')).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2.2.p — drill-modal UX overhaul: Duration column · Exam Type
+// column · in-modal filter chip row · click-to-sort headers · extraction
+// progress bar. Alex's S39 directive.
+// ---------------------------------------------------------------------------
+
+describe('EligibilityDetail — Phase 2.2.p Duration column', () => {
+  function mkExtract(over: Partial<PdfExtract> = {}): PdfExtract {
+    return { extractedAt: '2026-05-27T00:00:00.000Z', success: true, ...over };
+  }
+
+  it('Duration column shows "2 yr" fallback when no extract has cached yet', () => {
+    seedFourRollups();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    // The Duration cell renders the "2 yr" fallback string (with a
+    // trailing "…" loading marker) so the user has something to read
+    // while extraction is in flight. The footnote also names "2 yr"
+    // as the default, so at least 2 matches are expected (cell +
+    // footnote).
+    expect(within(modal).getAllByText('2 yr').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('Duration column shows extracted per-list value when present (12 Months / 6 Months)', () => {
+    seedFourRollups();
+    useScrapers.getState().setPdfExtract('1820|L-1820|2025-08-15', mkExtract({
+      duration: '12 Months',
+    }));
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    expect(within(modal).getByText('12 Months')).toBeInTheDocument();
+  });
+
+  it('per-list Duration override shifts the Expires column accordingly', () => {
+    seedFourRollups();
+    // 1820 list postDate 2025-08-15. With the constant 2yr default,
+    // Expires would land on 2027-08-15 (per existing test). With a
+    // per-list "6 Months" override → ~180 days → 2026-02-11.
+    useScrapers.getState().setPdfExtract('1820|L-1820|2025-08-15', mkExtract({
+      duration: '6 Months',
+    }));
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    // postDate 2025-08-15 + 180d = 2026-02-11 (UTC, +180 × 86400 × 1000ms)
+    expect(within(modal).getByText('2026-02-11')).toBeInTheDocument();
+    // The Phase 2.2.n-era 2027-08-15 expiration should NO LONGER appear
+    // for this list since we override with the per-list duration.
+    expect(within(modal).queryByText('2027-08-15')).not.toBeInTheDocument();
+  });
+});
+
+describe('EligibilityDetail — Phase 2.2.p in-modal filter chip row', () => {
+  function mkExtract(over: Partial<PdfExtract> = {}): PdfExtract {
+    return { extractedAt: '2026-05-27T00:00:00.000Z', success: true, ...over };
+  }
+
+  function seedMultiListRollup() {
+    // 1820 with 3 active lists having distinct extracted exam types +
+    // depts so we can exercise the filter axes.
+    useScrapers.getState().setEligibilityLists([
+      mkList({ jobCode: '1820', classTitle: 'Junior Admin Analyst', listId: 'L-A',
+               postDate: '2026-05-01' }),
+      mkList({ jobCode: '1820', classTitle: 'Junior Admin Analyst', listId: 'L-B',
+               postDate: '2026-04-01' }),
+      mkList({ jobCode: '1820', classTitle: 'Junior Admin Analyst', listId: 'L-C',
+               postDate: '2026-03-01' }),
+    ]);
+    useScrapers.getState().setPdfExtract('1820|L-A|2026-05-01', mkExtract({
+      certRule: 'Rule of the List', listDepartment: 'PUC', examType: 'PBT',
+    }));
+    useScrapers.getState().setPdfExtract('1820|L-B|2026-04-01', mkExtract({
+      certRule: 'Rule of the List', listDepartment: 'DPH', examType: 'ETP',
+    }));
+    useScrapers.getState().setPdfExtract('1820|L-C|2026-03-01', mkExtract({
+      certRule: 'Rule of 3 Names', listDepartment: 'Citywide', examType: 'PBT',
+    }));
+  }
+
+  it('renders the filter chip row with search · status · exam-type chips · dept picker · citywide-only', () => {
+    seedMultiListRollup();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    expect(within(modal).getByLabelText(/Search lists/i)).toBeInTheDocument();
+    expect(within(modal).getByLabelText(/Status filter/i)).toBeInTheDocument();
+    // Exam-type chips reflect the rollup's distinct values
+    expect(within(modal).getByRole('button', { name: /^PBT$/ })).toBeInTheDocument();
+    expect(within(modal).getByRole('button', { name: /^ETP$/ })).toBeInTheDocument();
+    // Dept picker present
+    expect(within(modal).getByRole('button', { name: /Department/i })).toBeInTheDocument();
+    expect(within(modal).getByText(/Citywide only/i)).toBeInTheDocument();
+  });
+
+  it('search needle narrows the visible list rows', () => {
+    seedMultiListRollup();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    fireEvent.change(within(modal).getByLabelText(/Search lists/i), { target: { value: 'L-A' } });
+    expect(within(modal).getByText('L-A')).toBeInTheDocument();
+    expect(within(modal).queryByText('L-B')).not.toBeInTheDocument();
+    expect(within(modal).queryByText('L-C')).not.toBeInTheDocument();
+  });
+
+  it('exam-type chip narrows to lists with matching extracted examType', () => {
+    seedMultiListRollup();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    fireEvent.click(within(modal).getByRole('button', { name: /^ETP$/ }));
+    // L-B (ETP) remains; L-A and L-C (both PBT) drop.
+    expect(within(modal).getByText('L-B')).toBeInTheDocument();
+    expect(within(modal).queryByText('L-A')).not.toBeInTheDocument();
+    expect(within(modal).queryByText('L-C')).not.toBeInTheDocument();
+  });
+
+  it('citywide-only toggle restricts to lists with extracted dept = Citywide', () => {
+    seedMultiListRollup();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    // Click the labelled checkbox (the input next to "Citywide only").
+    const cityInputs = within(modal).getAllByRole('checkbox');
+    const cityToggle = cityInputs.find(el => {
+      const label = el.closest('label')?.textContent || '';
+      return /Citywide only/i.test(label);
+    });
+    expect(cityToggle).toBeDefined();
+    fireEvent.click(cityToggle!);
+    // L-C (Citywide) remains; L-A (PUC) + L-B (DPH) drop.
+    expect(within(modal).getByText('L-C')).toBeInTheDocument();
+    expect(within(modal).queryByText('L-A')).not.toBeInTheDocument();
+    expect(within(modal).queryByText('L-B')).not.toBeInTheDocument();
+  });
+
+  it('Reset filters returns to the full list', () => {
+    seedMultiListRollup();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    fireEvent.change(within(modal).getByLabelText(/Search lists/i), { target: { value: 'L-A' } });
+    expect(within(modal).queryByText('L-B')).not.toBeInTheDocument();
+    fireEvent.click(within(modal).getByRole('button', { name: /Reset filters/i }));
+    expect(within(modal).getByText('L-A')).toBeInTheDocument();
+    expect(within(modal).getByText('L-B')).toBeInTheDocument();
+    expect(within(modal).getByText('L-C')).toBeInTheDocument();
+  });
+});
+
+describe('EligibilityDetail — Phase 2.2.p column-header sort', () => {
+  function mkExtract(over: Partial<PdfExtract> = {}): PdfExtract {
+    return { extractedAt: '2026-05-27T00:00:00.000Z', success: true, ...over };
+  }
+
+  function seedSortableRollup() {
+    useScrapers.getState().setEligibilityLists([
+      mkList({ jobCode: '1820', classTitle: 'Junior Admin Analyst', listId: 'L-OLD',
+               postDate: '2026-03-01' }),
+      mkList({ jobCode: '1820', classTitle: 'Junior Admin Analyst', listId: 'L-MID',
+               postDate: '2026-04-01' }),
+      mkList({ jobCode: '1820', classTitle: 'Junior Admin Analyst', listId: 'L-NEW',
+               postDate: '2026-05-01' }),
+    ]);
+    useScrapers.getState().setPdfExtract('1820|L-OLD|2026-03-01', mkExtract({
+      certRule: 'Rule of the List',
+    }));
+  }
+
+  it('clicking the Post date header toggles asc ↔ desc', () => {
+    seedSortableRollup();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    // Default order is desc by post date — L-NEW first, L-OLD last.
+    const postDateButton = within(modal).getByRole('button', { name: /Sort by Post date/i });
+    // Click once → asc → L-OLD first
+    fireEvent.click(postDateButton);
+    let rows = within(modal).getAllByRole('row');
+    expect(rows[1].textContent).toContain('L-OLD');
+    // Click again → desc → L-NEW first
+    fireEvent.click(postDateButton);
+    rows = within(modal).getAllByRole('row');
+    expect(rows[1].textContent).toContain('L-NEW');
+    // Click third time → asc again (2-state toggle, no reset state)
+    fireEvent.click(postDateButton);
+    rows = within(modal).getAllByRole('row');
+    expect(rows[1].textContent).toContain('L-OLD');
+  });
+
+  it('clicking the Cert rule header sorts by extracted value (with blanks last)', () => {
+    seedSortableRollup();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    // Only L-OLD has a cached certRule; L-MID + L-NEW have no extract
+    // (blank). asc with "blanks last" → L-OLD first, then the two
+    // blanks in original (post-date desc) order.
+    fireEvent.click(within(modal).getByRole('button', { name: /Sort by Cert rule/i }));
+    const rows = within(modal).getAllByRole('row');
+    expect(rows[1].textContent).toContain('L-OLD');
+  });
+
+  it('File column has no sort button (only sortable columns get buttons)', () => {
+    seedSortableRollup();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    expect(within(modal).queryByRole('button', { name: /Sort by File/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('EligibilityDetail — Phase 2.2.p extraction progress bar', () => {
+  function mkExtract(over: Partial<PdfExtract> = {}): PdfExtract {
+    return { extractedAt: '2026-05-27T00:00:00.000Z', success: true, ...over };
+  }
+
+  function seedMultiListRollup() {
+    useScrapers.getState().setEligibilityLists([
+      mkList({ jobCode: '1820', classTitle: 'Junior Admin Analyst', listId: 'L-A',
+               postDate: '2026-05-01' }),
+      mkList({ jobCode: '1820', classTitle: 'Junior Admin Analyst', listId: 'L-B',
+               postDate: '2026-04-01' }),
+      mkList({ jobCode: '1820', classTitle: 'Junior Admin Analyst', listId: 'L-C',
+               postDate: '2026-03-01' }),
+    ]);
+  }
+
+  it('shows "extracting" progress while any active-section list has no cache entry', () => {
+    seedMultiListRollup();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    expect(within(modal).getByRole('status', { name: /PDF extraction progress/i })).toBeInTheDocument();
+    expect(within(modal).getByText(/0 of 3/)).toBeInTheDocument();
+  });
+
+  it('progress count advances as extractions cache; hides at 100%', () => {
+    seedMultiListRollup();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    let modal = screen.getByRole('dialog');
+    // Pre-populate one of three.
+    act(() => {
+      useScrapers.getState().setPdfExtract('1820|L-A|2026-05-01', mkExtract({ examType: 'PBT' }));
+    });
+    modal = screen.getByRole('dialog');
+    expect(within(modal).getByText(/1 of 3/)).toBeInTheDocument();
+    // Populate the rest → bar should disappear at 3 of 3.
+    act(() => {
+      useScrapers.getState().setPdfExtract('1820|L-B|2026-04-01', mkExtract({ examType: 'ETP' }));
+      useScrapers.getState().setPdfExtract('1820|L-C|2026-03-01', mkExtract({ examType: 'CBT' }));
+    });
+    modal = screen.getByRole('dialog');
+    expect(within(modal).queryByRole('status', { name: /PDF extraction progress/i })).not.toBeInTheDocument();
+  });
+
+  it('hides the progress bar when the rollup has only 1 visible list', () => {
+    seedFourRollups();  // 1820 has 1 active list
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    // Per-cell "…" loaders already convey the loading state — bar adds
+    // noise for a single row.
+    expect(within(modal).queryByRole('status', { name: /PDF extraction progress/i })).not.toBeInTheDocument();
   });
 });
 
