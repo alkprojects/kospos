@@ -20,7 +20,16 @@ import {
   normalizeDateString,
   isListActive,
 } from './sf-dhr-exam/parse';
-import { buildJobCodeRollups, filterRollups } from './build';
+import {
+  applyEligibilityFilters,
+  buildJobCodeRollups,
+  collectDepartments,
+  EMPTY_ELIGIBILITY_FILTERS,
+  filterRollups,
+  summarizeRollup,
+} from './build';
+import type { EligibilityFilters } from './build';
+import type { EligibilityList, JobCodeRollup, JobPosting } from './types';
 
 // ---------------------------------------------------------------------------
 // extractJobCodeFromName
@@ -362,7 +371,7 @@ describe('buildJobCodeRollups', () => {
 // ---------------------------------------------------------------------------
 
 describe('filterRollups', () => {
-  const rollups = [
+  const rollups: JobCodeRollup[] = [
     { jobCode: '1820', classTitle: 'Junior Admin Analyst', postings: [], activeLists: [], expiredLists: [] },
     { jobCode: '2708', classTitle: 'Custodian',            postings: [], activeLists: [], expiredLists: [] },
     { jobCode: '0932', classTitle: 'Manager IV',           postings: [], activeLists: [], expiredLists: [] },
@@ -382,5 +391,295 @@ describe('filterRollups', () => {
 
   it('returns empty when nothing matches', () => {
     expect(filterRollups(rollups, 'xyz')).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// summarizeRollup
+// ---------------------------------------------------------------------------
+
+describe('summarizeRollup', () => {
+  function mkPosting(over: Partial<JobPosting> = {}): JobPosting {
+    return {
+      id: 'p',
+      name: '',
+      jobCode: '1820',
+      classTitle: '',
+      department: '',
+      location: '',
+      releasedDate: '2026-05-01',
+      url: '',
+      ...over,
+    };
+  }
+  function mkList(over: Partial<EligibilityList> = {}): EligibilityList {
+    return {
+      jobCode: '1820',
+      classTitle: '',
+      listId: 'L',
+      postDate: '2026-05-01',
+      fileUrl: '',
+      type: 'score-report',
+      ...over,
+    };
+  }
+
+  it('returns zeros for an empty rollup', () => {
+    const s = summarizeRollup({
+      jobCode: '1820', classTitle: '',
+      postings: [], activeLists: [], expiredLists: [],
+    });
+    expect(s).toEqual({
+      activeCount: 0,
+      expiredCount: 0,
+      postingCount: 0,
+      newestPostingDate: '',
+      oldestActivePostDate: '',
+      newestActivePostDate: '',
+      departments: [],
+      listTypes: [],
+      citywideHint: false,
+    });
+  });
+
+  it('picks newest posting + oldest/newest active list dates (lists arrive newest-first)', () => {
+    const s = summarizeRollup({
+      jobCode: '1820', classTitle: '',
+      postings: [
+        mkPosting({ id: '2', releasedDate: '2026-05-15' }),
+        mkPosting({ id: '1', releasedDate: '2026-04-01' }),
+      ],
+      // build.ts sorts these newest-first; reflect that in test input.
+      activeLists: [
+        mkList({ listId: 'L-new', postDate: '2026-05-01' }),
+        mkList({ listId: 'L-mid', postDate: '2025-08-15' }),
+        mkList({ listId: 'L-old', postDate: '2024-12-01' }),
+      ],
+      expiredLists: [
+        mkList({ listId: 'L-exp', postDate: '2023-01-01' }),
+      ],
+    });
+    expect(s.activeCount).toBe(3);
+    expect(s.expiredCount).toBe(1);
+    expect(s.postingCount).toBe(2);
+    expect(s.newestPostingDate).toBe('2026-05-15');
+    expect(s.newestActivePostDate).toBe('2026-05-01');
+    expect(s.oldestActivePostDate).toBe('2024-12-01');
+  });
+
+  it('collects distinct departments alphabetically', () => {
+    const s = summarizeRollup({
+      jobCode: '1820', classTitle: '',
+      postings: [
+        mkPosting({ id: 'a', department: 'Public Health' }),
+        mkPosting({ id: 'b', department: 'Building Inspection' }),
+        mkPosting({ id: 'c', department: 'Public Health' }), // dupe
+        mkPosting({ id: 'd', department: '' }),              // empty dropped
+      ],
+      activeLists: [], expiredLists: [],
+    });
+    expect(s.departments).toEqual(['Building Inspection', 'Public Health']);
+  });
+
+  it('extracts list types across active + expired in stable score-report-first order', () => {
+    const s = summarizeRollup({
+      jobCode: '1820', classTitle: '',
+      postings: [],
+      activeLists: [mkList({ type: 'eligible-list' })],
+      expiredLists: [mkList({ type: 'score-report' })],
+    });
+    expect(s.listTypes).toEqual(['score-report', 'eligible-list']);
+  });
+
+  it('citywideHint is true when lists exist but no postings (list-only)', () => {
+    const s = summarizeRollup({
+      jobCode: '1820', classTitle: '',
+      postings: [],
+      activeLists: [mkList()],
+      expiredLists: [],
+    });
+    expect(s.citywideHint).toBe(true);
+  });
+
+  it('citywideHint is true when postings span 2+ departments', () => {
+    const s = summarizeRollup({
+      jobCode: '1820', classTitle: '',
+      postings: [
+        mkPosting({ id: 'a', department: 'DBI' }),
+        mkPosting({ id: 'b', department: 'DPH' }),
+      ],
+      activeLists: [], expiredLists: [],
+    });
+    expect(s.citywideHint).toBe(true);
+  });
+
+  it('citywideHint is false for a single-department posting with no lists', () => {
+    const s = summarizeRollup({
+      jobCode: '1820', classTitle: '',
+      postings: [mkPosting({ id: 'a', department: 'DBI' })],
+      activeLists: [], expiredLists: [],
+    });
+    expect(s.citywideHint).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyEligibilityFilters
+// ---------------------------------------------------------------------------
+
+describe('applyEligibilityFilters', () => {
+  function mkPosting(over: Partial<JobPosting> = {}): JobPosting {
+    return {
+      id: 'p', name: '', jobCode: '1820', classTitle: '',
+      department: '', location: '', releasedDate: '2026-05-01', url: '',
+      ...over,
+    };
+  }
+  function mkList(over: Partial<EligibilityList> = {}): EligibilityList {
+    return {
+      jobCode: '1820', classTitle: '', listId: 'L',
+      postDate: '2026-05-01', fileUrl: '', type: 'score-report',
+      ...over,
+    };
+  }
+
+  // 4 rollups covering all 4 combinations of (has-posting × has-list).
+  const rollups: JobCodeRollup[] = [
+    {
+      // Active list + posting in DBI (score-report)
+      jobCode: '1820', classTitle: 'Junior Admin Analyst',
+      postings: [mkPosting({ jobCode: '1820', department: 'Building Inspection' })],
+      activeLists: [mkList({ jobCode: '1820', type: 'score-report' })],
+      expiredLists: [],
+    },
+    {
+      // Expired only + no posting (eligible-list)
+      jobCode: 'Q002', classTitle: 'Police Officer',
+      postings: [],
+      activeLists: [],
+      expiredLists: [mkList({ jobCode: 'Q002', type: 'eligible-list', postDate: '2022-01-01' })],
+    },
+    {
+      // Posting only — DPH (no lists)
+      jobCode: '2622', classTitle: 'Dietetic Technician',
+      postings: [mkPosting({ jobCode: '2622', department: 'Public Health' })],
+      activeLists: [], expiredLists: [],
+    },
+    {
+      // Active list only — no postings (score-report)
+      jobCode: '0932', classTitle: 'Manager IV',
+      postings: [],
+      activeLists: [mkList({ jobCode: '0932', type: 'score-report' })],
+      expiredLists: [],
+    },
+  ];
+
+  function withOverrides(over: Partial<EligibilityFilters>): EligibilityFilters {
+    return { ...EMPTY_ELIGIBILITY_FILTERS, ...over };
+  }
+
+  it('passes everything for the empty filter', () => {
+    expect(applyEligibilityFilters(rollups, EMPTY_ELIGIBILITY_FILTERS)).toHaveLength(4);
+  });
+
+  it('search needle matches jobCode + classTitle', () => {
+    expect(applyEligibilityFilters(rollups, withOverrides({ search: 'manager' }))
+      .map(r => r.jobCode)).toEqual(['0932']);
+    expect(applyEligibilityFilters(rollups, withOverrides({ search: 'Q002' }))
+      .map(r => r.jobCode)).toEqual(['Q002']);
+  });
+
+  it('status=active keeps only rollups with at least 1 active list', () => {
+    expect(applyEligibilityFilters(rollups, withOverrides({ status: 'active' }))
+      .map(r => r.jobCode)).toEqual(['1820', '0932']);
+  });
+
+  it('status=expired excludes rollups that also have active lists', () => {
+    expect(applyEligibilityFilters(rollups, withOverrides({ status: 'expired' }))
+      .map(r => r.jobCode)).toEqual(['Q002']);
+  });
+
+  it('status=list-only keeps rollups with lists but zero postings', () => {
+    expect(applyEligibilityFilters(rollups, withOverrides({ status: 'list-only' }))
+      .map(r => r.jobCode)).toEqual(['Q002', '0932']);
+  });
+
+  it('status=posting-only keeps rollups with postings but zero lists', () => {
+    expect(applyEligibilityFilters(rollups, withOverrides({ status: 'posting-only' }))
+      .map(r => r.jobCode)).toEqual(['2622']);
+  });
+
+  it('examTypes set restricts to rollups with at least one matching list', () => {
+    expect(applyEligibilityFilters(rollups, withOverrides({
+      examTypes: new Set(['eligible-list']),
+    })).map(r => r.jobCode)).toEqual(['Q002']);
+  });
+
+  it('departments set restricts to rollups with a posting in the dept', () => {
+    expect(applyEligibilityFilters(rollups, withOverrides({
+      departments: new Set(['Building Inspection']),
+    })).map(r => r.jobCode)).toEqual(['1820']);
+  });
+
+  it('citywideOnly keeps rollups where summary.citywideHint is true', () => {
+    // Q002 (list-only, no postings) and 0932 (list-only) both hint
+    // citywide; 1820 (single dept) and 2622 (single dept, no lists) do not.
+    expect(applyEligibilityFilters(rollups, withOverrides({ citywideOnly: true }))
+      .map(r => r.jobCode)).toEqual(['Q002', '0932']);
+  });
+
+  it('axes combine with AND across', () => {
+    // search "manager" → only 0932; status=active → 0932 + 1820;
+    // intersection → 0932.
+    expect(applyEligibilityFilters(rollups, withOverrides({
+      search: 'manager',
+      status: 'active',
+    })).map(r => r.jobCode)).toEqual(['0932']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// collectDepartments
+// ---------------------------------------------------------------------------
+
+describe('collectDepartments', () => {
+  function mkPosting(over: Partial<JobPosting>): JobPosting {
+    return {
+      id: 'p', name: '', jobCode: '1820', classTitle: '',
+      department: '', location: '', releasedDate: '', url: '',
+      ...over,
+    };
+  }
+
+  it('returns sorted, distinct departments across all rollups', () => {
+    const rollups: JobCodeRollup[] = [
+      {
+        jobCode: '1820', classTitle: '',
+        postings: [
+          mkPosting({ department: 'Public Health' }),
+          mkPosting({ department: 'Building Inspection' }),
+        ],
+        activeLists: [], expiredLists: [],
+      },
+      {
+        jobCode: '2622', classTitle: '',
+        postings: [mkPosting({ department: 'Public Health' })], // dupe across rollups
+        activeLists: [], expiredLists: [],
+      },
+    ];
+    expect(collectDepartments(rollups)).toEqual(['Building Inspection', 'Public Health']);
+  });
+
+  it('drops empty department strings', () => {
+    const rollups: JobCodeRollup[] = [{
+      jobCode: '1820', classTitle: '',
+      postings: [mkPosting({ department: '' })],
+      activeLists: [], expiredLists: [],
+    }];
+    expect(collectDepartments(rollups)).toEqual([]);
+  });
+
+  it('returns an empty array when no rollups have postings', () => {
+    expect(collectDepartments([])).toEqual([]);
   });
 });

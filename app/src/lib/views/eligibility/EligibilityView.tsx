@@ -1,43 +1,57 @@
 /**
  * Eligibility workspace — Tab 11 surface. Phase 2.2.k (2.2.28) +
- * Phase 2.2.l live-fetch upgrade.
+ * Phase 2.2.l live-fetch upgrade + Phase 2.2.m summary-row redesign.
  *
  * Combines two upstream feeds keyed by SF Job Code:
  *
  *   - SF Careers open postings (SmartRecruiters Posting API, CORS-OK)
- *   - SF DHR eligibility lists + score reports — Phase 2.2.l: now fetched
- *     live via a public CORS-proxy chain (corsproxy.io → allorigins.win
- *     → codetabs.com), with an optional user-configured Cloudflare-Worker
- *     URL as backup. The manual-paste path stays in the UI as a last-
- *     resort "Advanced fallback" panel.
+ *   - SF DHR eligibility lists + score reports (CORS-proxy chain;
+ *     corsproxy.io → allorigins.win → codetabs.com, optional Worker URL
+ *     backup). Manual paste stays in the UI as a last-resort fallback.
  *
- * Per Alex's S35 directive: the per-page manual paste workflow was "way
- * too much manual work" — replace with a one-click refresh.
+ * Phase 2.2.m (Alex's S36 directive):
+ *   - The summary table now shows ONE compact line per job code — counts
+ *     + date ranges instead of stacked link lists. Saves vertical space
+ *     dramatically; a code with 12 active lists fits in one row.
+ *   - Clicking a row opens EligibilityDetail with every posting + list
+ *     (active and expired) for the code.
+ *   - Filter toolbar with status (any/active/expired/list-only/posting-
+ *     only), exam type (score-report / eligible-list), department
+ *     multi-select, citywide-only toggle.
  *
  * Layout:
- *   - Summary header: totals + last-refreshed-at per source
- *   - Refresh job postings (live, fast — SmartRecruiters)
- *   - Refresh eligibility lists (live, ~30s — CORS-proxy chain)
- *   - Settings card: Cloudflare-Worker URL (backup proxy slot)
- *   - Advanced fallback (collapsed): manual paste, kept for emergencies
- *   - Per-jobCode table: code | title | open postings | active lists | links
+ *   - Summary header: totals + last-refreshed-at per source + refresh
+ *     buttons + clear-all
+ *   - Backup proxy settings (collapsed)
+ *   - Advanced fallback: manual paste (collapsed)
+ *   - Filter toolbar (search · status · exam type · department · citywide)
+ *   - Per-jobCode summary table — click row to open detail modal
  *
- * `devOnly` tab until Alex returns and walks through real data.
+ * `devOnly` tab until cross-tab nav from Eligibility → Positions lands
+ * (Phase 2.2.k S34 carry-forward).
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { CopyButton } from '../../ui';
 import {
+  EMPTY_ELIGIBILITY_FILTERS,
+  applyEligibilityFilters,
   buildJobCodeRollups,
+  collectDepartments,
   fetchDhrExamResults,
   fetchJobPostings,
-  filterRollups,
   parseDhrExamHtml,
+  summarizeRollup,
   useScrapers,
   FetchDhrError,
   FetchJobPostingsError,
 } from '../../scrapers';
-import type { JobCodeRollup } from '../../scrapers';
+import type {
+  EligibilityFilters,
+  EligibilityStatusFilter,
+  JobCodeRollup,
+} from '../../scrapers';
+import { EligibilityDetail } from './EligibilityDetail';
 
 // ---------------------------------------------------------------------------
 // Display helpers
@@ -381,6 +395,332 @@ function PasteDhrPanel() {
 }
 
 // ---------------------------------------------------------------------------
+// Filter toolbar — search + status select + exam-type chips + department
+// multi-select + citywide toggle + reset. Sits between the data-source
+// cards and the summary table.
+//
+// Department picker: dropdown-list with checkboxes; closes on outside
+// click. ~50+ depts seen in SF data; chip-row would overflow, dropdown
+// keeps the toolbar one line tall.
+// ---------------------------------------------------------------------------
+
+const STATUS_OPTIONS: Array<{ value: EligibilityStatusFilter; label: string }> = [
+  { value: 'any',          label: 'Any status' },
+  { value: 'active',       label: 'Has active list' },
+  { value: 'expired',      label: 'Has only expired' },
+  { value: 'list-only',    label: 'List, no posting' },
+  { value: 'posting-only', label: 'Posting, no list' },
+];
+
+const EXAM_TYPE_OPTIONS: Array<{ value: 'score-report' | 'eligible-list'; label: string }> = [
+  { value: 'score-report',  label: 'Score reports (civil service)' },
+  { value: 'eligible-list', label: 'Eligible lists (uniformed)' },
+];
+
+function FilterToolbar({
+  filters,
+  setFilters,
+  allDepartments,
+  matchCount,
+  totalCount,
+}: {
+  filters: EligibilityFilters;
+  setFilters: (f: EligibilityFilters) => void;
+  allDepartments: string[];
+  matchCount: number;
+  totalCount: number;
+}) {
+  const [deptOpen, setDeptOpen] = useState(false);
+  const deptRef = useRef<HTMLDivElement>(null);
+
+  // Close the dept dropdown on outside-click. Keep it simple — one
+  // useEffect with capture-phase, no portal.
+  function handleBackdropClick(e: React.MouseEvent) {
+    if (deptRef.current && !deptRef.current.contains(e.target as Node)) {
+      setDeptOpen(false);
+    }
+  }
+
+  function toggleExamType(t: 'score-report' | 'eligible-list') {
+    const next = new Set(filters.examTypes);
+    if (next.has(t)) next.delete(t); else next.add(t);
+    setFilters({ ...filters, examTypes: next });
+  }
+
+  function toggleDept(d: string) {
+    const next = new Set(filters.departments);
+    if (next.has(d)) next.delete(d); else next.add(d);
+    setFilters({ ...filters, departments: next });
+  }
+
+  const hasAnyFilter =
+    filters.search.trim() !== '' ||
+    filters.status !== 'any' ||
+    filters.examTypes.size > 0 ||
+    filters.departments.size > 0 ||
+    filters.citywideOnly;
+
+  return (
+    <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+         onClick={handleBackdropClick}>
+      {/* Row 1 — search + status + exam-type chips */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input
+          type="search"
+          placeholder="Search by job code or class title…"
+          value={filters.search}
+          onChange={e => setFilters({ ...filters, search: e.target.value })}
+          aria-label="Search rollups"
+          style={{
+            flex: '1 1 220px', minWidth: 180,
+            padding: '4px 10px',
+            border: '1px solid var(--border)', borderRadius: 4,
+            fontSize: 12, fontFamily: 'inherit',
+            background: 'var(--surface)', color: 'inherit',
+          }}
+        />
+        <select
+          value={filters.status}
+          onChange={e => setFilters({ ...filters, status: e.target.value as EligibilityStatusFilter })}
+          aria-label="Status filter"
+          style={{
+            padding: '4px 10px',
+            border: '1px solid var(--border)', borderRadius: 4,
+            fontSize: 12, fontFamily: 'inherit',
+            background: 'var(--surface)', color: 'inherit',
+          }}
+        >
+          {STATUS_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        {EXAM_TYPE_OPTIONS.map(o => {
+          const on = filters.examTypes.has(o.value);
+          return (
+            <button
+              key={o.value}
+              onClick={() => toggleExamType(o.value)}
+              aria-pressed={on}
+              style={{
+                padding: '4px 10px', borderRadius: 12,
+                border: '1px solid ' + (on ? 'var(--accent)' : 'var(--border)'),
+                background: on ? 'var(--accent-soft)' : 'transparent',
+                color: on ? 'var(--accent)' : 'var(--muted)',
+                cursor: 'pointer',
+                fontSize: 11, fontFamily: 'inherit', fontWeight: on ? 600 : 400,
+              }}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Row 2 — department multi-select + citywide toggle + reset + match count */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div ref={deptRef} style={{ position: 'relative' }}>
+          <button
+            onClick={() => setDeptOpen(v => !v)}
+            aria-expanded={deptOpen}
+            aria-haspopup="listbox"
+            style={{
+              padding: '4px 10px',
+              border: '1px solid ' + (filters.departments.size > 0 ? 'var(--accent)' : 'var(--border)'),
+              borderRadius: 12,
+              background: filters.departments.size > 0 ? 'var(--accent-soft)' : 'transparent',
+              color: filters.departments.size > 0 ? 'var(--accent)' : 'var(--muted)',
+              cursor: 'pointer',
+              fontSize: 11, fontFamily: 'inherit',
+              fontWeight: filters.departments.size > 0 ? 600 : 400,
+            }}
+          >
+            {filters.departments.size === 0
+              ? 'Department: all'
+              : `Department: ${filters.departments.size} selected`}
+            {' ▾'}
+          </button>
+          {deptOpen && (
+            <div
+              role="listbox"
+              aria-label="Departments"
+              style={{
+                position: 'absolute', top: '100%', left: 0, marginTop: 4,
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: 6, padding: 6, zIndex: 50,
+                maxHeight: 280, overflowY: 'auto',
+                minWidth: 260, boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              {allDepartments.length === 0 ? (
+                <span style={{ fontSize: 11, color: 'var(--muted)', padding: '4px 8px' }}>
+                  No postings loaded yet — refresh job postings to see departments.
+                </span>
+              ) : (
+                allDepartments.map(d => (
+                  <label key={d} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '4px 8px', cursor: 'pointer', fontSize: 12,
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={filters.departments.has(d)}
+                      onChange={() => toggleDept(d)}
+                    />
+                    <span>{d}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={filters.citywideOnly}
+            onChange={e => setFilters({ ...filters, citywideOnly: e.target.checked })}
+          />
+          <span title="Heuristic: list exists with no posting, OR postings span 2+ departments.">
+            Citywide candidates only
+          </span>
+        </label>
+        {hasAnyFilter && (
+          <button
+            onClick={() => setFilters(EMPTY_ELIGIBILITY_FILTERS)}
+            style={{
+              padding: '3px 10px',
+              border: '1px solid var(--border)', borderRadius: 12,
+              background: 'transparent', color: 'var(--muted)', cursor: 'pointer',
+              fontSize: 11, fontFamily: 'inherit',
+            }}
+          >
+            Reset filters
+          </button>
+        )}
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }}>
+          {matchCount === totalCount
+            ? `${totalCount.toLocaleString('en-US')} job codes`
+            : `${matchCount.toLocaleString('en-US')} of ${totalCount.toLocaleString('en-US')} job codes`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Summary row — one compact line per job code. Renders counts +
+// date-range hints; the per-list links live in EligibilityDetail (opens
+// on click).
+// ---------------------------------------------------------------------------
+
+function SummaryRow({
+  rollup,
+  onOpen,
+}: {
+  rollup: JobCodeRollup;
+  onOpen: () => void;
+}) {
+  const s = summarizeRollup(rollup);
+
+  // Active-list date range — collapse to a single date when oldest ===
+  // newest; show "earliest → newest" otherwise.
+  let activeDateLabel = '';
+  if (s.activeCount > 0) {
+    activeDateLabel = s.oldestActivePostDate === s.newestActivePostDate
+      ? s.newestActivePostDate
+      : `${s.oldestActivePostDate} → ${s.newestActivePostDate}`;
+  }
+
+  const examTypeHint = s.listTypes.length === 0
+    ? ''
+    : s.listTypes.length === 2
+      ? 'mixed'
+      : s.listTypes[0] === 'score-report' ? 'SR' : 'EL';
+
+  // Stop-propagation on the inner Copy button so it doesn't bubble to
+  // the row's click handler (which opens the modal).
+  function stop(e: React.MouseEvent) { e.stopPropagation(); }
+
+  return (
+    <tr
+      onClick={onOpen}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
+      tabIndex={0}
+      role="button"
+      aria-label={`Open detail for ${rollup.jobCode} ${rollup.classTitle}`}
+      style={{
+        borderBottom: '1px solid var(--border)',
+        cursor: 'pointer',
+      }}
+    >
+      <td style={{ padding: '6px 10px', fontFamily: 'monospace', fontWeight: 600 }}>
+        {rollup.jobCode}
+        <span onClick={stop} style={{ display: 'inline-flex' }}>
+          <CopyButton value={rollup.jobCode} label="Job code" />
+        </span>
+      </td>
+      <td style={{ padding: '6px 10px' }}>
+        {rollup.classTitle || <span style={{ color: 'var(--muted)' }}>—</span>}
+      </td>
+      <td style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}>
+        {s.postingCount === 0 ? (
+          <span style={{ color: 'var(--muted)' }}>—</span>
+        ) : (
+          <>
+            <strong>{s.postingCount}</strong>
+            <span style={{ color: 'var(--muted)', marginLeft: 6 }}>
+              · newest {s.newestPostingDate || '—'}
+            </span>
+          </>
+        )}
+      </td>
+      <td style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}>
+        {s.activeCount === 0 ? (
+          <span style={{ color: 'var(--muted)' }}>—</span>
+        ) : (
+          <>
+            <strong>{s.activeCount}</strong>
+            {examTypeHint && (
+              <span style={{
+                marginLeft: 6, padding: '1px 6px', borderRadius: 8,
+                background: 'var(--accent-soft)', color: 'var(--accent)',
+                fontSize: 10, fontWeight: 600, letterSpacing: 0.3,
+              }}>{examTypeHint}</span>
+            )}
+            <span style={{ color: 'var(--muted)', marginLeft: 6 }}>
+              · {activeDateLabel}
+            </span>
+          </>
+        )}
+      </td>
+      <td style={{ padding: '6px 10px', whiteSpace: 'nowrap', color: 'var(--muted)' }}>
+        {s.expiredCount === 0 ? '—' : s.expiredCount}
+      </td>
+      <td style={{ padding: '6px 10px', whiteSpace: 'nowrap', color: 'var(--muted)' }}>
+        {s.departments.length === 0
+          ? '—'
+          : s.departments.length === 1
+            ? s.departments[0]
+            : `${s.departments.length} depts`}
+      </td>
+      <td style={{ padding: '6px 10px', whiteSpace: 'nowrap', textAlign: 'right', color: 'var(--muted)' }}>
+        {s.citywideHint && (
+          <span title="Citywide candidate (list with no posting, or 2+ depts posting)"
+                style={{
+                  fontSize: 10, padding: '1px 6px', borderRadius: 8,
+                  background: '#fef3c7', color: '#92400e',
+                  fontWeight: 600, letterSpacing: 0.3,
+                }}>
+            citywide?
+          </span>
+        )}
+        <span style={{ marginLeft: 8, color: 'var(--muted)' }}>›</span>
+      </td>
+    </tr>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main view
 // ---------------------------------------------------------------------------
 
@@ -391,7 +731,8 @@ export function EligibilityView() {
   const eligibilityListsRefreshedAt = useScrapers(s => s.eligibilityListsRefreshedAt);
   const clearAll = useScrapers(s => s.clearAll);
 
-  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState<EligibilityFilters>(EMPTY_ELIGIBILITY_FILTERS);
+  const [openCode, setOpenCode] = useState<string | null>(null);
 
   // Today pinned per render — see ProbationsView for rationale.
   const todayIso = useMemo(() => {
@@ -406,13 +747,20 @@ export function EligibilityView() {
   );
 
   const filtered = useMemo(
-    () => filterRollups(allRollups, search),
-    [allRollups, search],
+    () => applyEligibilityFilters(allRollups, filters),
+    [allRollups, filters],
   );
+
+  const allDepartments = useMemo(() => collectDepartments(allRollups), [allRollups]);
 
   const totalActive = useMemo(
     () => allRollups.reduce((acc, r) => acc + r.activeLists.length, 0),
     [allRollups],
+  );
+
+  const openRollup = useMemo(
+    () => openCode ? allRollups.find(r => r.jobCode === openCode) ?? null : null,
+    [openCode, allRollups],
   );
 
   return (
@@ -467,43 +815,21 @@ export function EligibilityView() {
       <WorkerUrlSettings />
       <PasteDhrPanel />
 
-      {/* Search */}
-      <div className="card" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        <input
-          type="search"
-          placeholder="Search by job code or class title…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{
-            flex: '1 1 260px',
-            padding: '4px 10px',
-            border: '1px solid var(--border)', borderRadius: 4,
-            fontSize: 12, fontFamily: 'inherit',
-            background: 'var(--surface)', color: 'inherit',
-          }}
-          aria-label="Search eligibility rollups"
-        />
-        {search && (
-          <button
-            onClick={() => setSearch('')}
-            style={{
-              fontSize: 11, padding: '3px 10px',
-              border: '1px solid var(--border)', borderRadius: 12,
-              background: 'transparent', color: 'var(--muted)', cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            Reset
-          </button>
-        )}
-      </div>
+      {/* Filter toolbar */}
+      <FilterToolbar
+        filters={filters}
+        setFilters={setFilters}
+        allDepartments={allDepartments}
+        matchCount={filtered.length}
+        totalCount={allRollups.length}
+      />
 
-      {/* Table */}
+      {/* Summary table */}
       <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ background: 'var(--accent-soft)', borderBottom: '2px solid var(--border)' }}>
-              {['Job code', 'Title', 'Open postings', 'Active lists', 'Expired lists'].map(h => (
+              {['Job code', 'Title', 'Postings', 'Active', 'Expired', 'Dept(s)', ''].map(h => (
                 <th key={h} style={{
                   padding: '7px 10px',
                   textAlign: 'left',
@@ -517,75 +843,19 @@ export function EligibilityView() {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>
+                <td colSpan={7} style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>
                   {allRollups.length === 0
-                    ? 'No data yet — refresh job postings or paste DHR HTML above.'
-                    : 'No job codes match the current search.'}
+                    ? 'No data yet — refresh job postings or eligibility lists above.'
+                    : 'No job codes match the current filters.'}
                 </td>
               </tr>
             ) : (
               filtered.map(r => (
-                <tr key={r.jobCode} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '5px 10px', fontFamily: 'monospace', fontWeight: 600 }}>
-                    {r.jobCode}
-                    <CopyButton value={r.jobCode} label="Job code" />
-                  </td>
-                  <td style={{ padding: '5px 10px' }}>
-                    {r.classTitle || <span style={{ color: 'var(--muted)' }}>—</span>}
-                  </td>
-                  <td style={{ padding: '5px 10px' }}>
-                    {r.postings.length === 0
-                      ? <span style={{ color: 'var(--muted)' }}>—</span>
-                      : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          {r.postings.map(p => (
-                            <a
-                              key={p.id}
-                              href={p.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ fontSize: 11, color: 'var(--accent)' }}
-                              title={p.name}
-                            >
-                              ↗ {p.releasedDate.slice(0, 10)} · {p.department || '—'}
-                            </a>
-                          ))}
-                        </div>
-                      )
-                    }
-                  </td>
-                  <td style={{ padding: '5px 10px' }}>
-                    {r.activeLists.length === 0
-                      ? <span style={{ color: 'var(--muted)' }}>—</span>
-                      : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          {r.activeLists.map(l => (
-                            <a
-                              key={l.fileUrl}
-                              href={l.fileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ fontSize: 11, color: 'var(--accent)' }}
-                              title={`List ${l.listId}`}
-                            >
-                              ↗ {l.postDate} · {l.type === 'eligible-list' ? 'EL' : 'SR'} · {l.listId}
-                            </a>
-                          ))}
-                        </div>
-                      )
-                    }
-                  </td>
-                  <td style={{ padding: '5px 10px' }}>
-                    {r.expiredLists.length === 0
-                      ? <span style={{ color: 'var(--muted)' }}>—</span>
-                      : (
-                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                          {r.expiredLists.length} expired
-                        </span>
-                      )
-                    }
-                  </td>
-                </tr>
+                <SummaryRow
+                  key={r.jobCode}
+                  rollup={r}
+                  onOpen={() => setOpenCode(r.jobCode)}
+                />
               ))
             )}
           </tbody>
@@ -594,16 +864,21 @@ export function EligibilityView() {
 
       <div style={{ fontSize: 11, color: 'var(--muted)' }}>
         Tab 11. KosPos is the system of record for the per-job-code
-        "active posting / active list" rollup. Open postings come live
-        from SmartRecruiters (the SF Careers platform). Eligibility lists
-        come from sfdhr.org via a public CORS-proxy chain (corsproxy.io
-        → allorigins.win → codetabs.com); if all proxies fail, a Cloudflare-
+        "active posting / active list" rollup. Click any row for the
+        per-list / per-posting drill-down. Open postings come live from
+        SmartRecruiters (the SF Careers platform). Eligibility lists come
+        from sfdhr.org via a public CORS-proxy chain (corsproxy.io →
+        allorigins.win → codetabs.com); if all proxies fail, a Cloudflare-
         Worker URL can be configured as backup, and a manual-paste panel
         remains as last-resort fallback. Active = posted within 2 years
         (CSC Rule 411A/412 — lists may be extended; v1 is age-only).
         Refreshing replaces the lists wholesale; manual paste appends with
         dedupe by (jobCode, listId, postDate).
       </div>
+
+      {openRollup && (
+        <EligibilityDetail rollup={openRollup} onClose={() => setOpenCode(null)} />
+      )}
     </div>
   );
 }

@@ -37,6 +37,15 @@ export type { FetchDhrOptions } from './sf-dhr-exam/fetch';
 export {
   buildJobCodeRollups,
   filterRollups,
+  summarizeRollup,
+  applyEligibilityFilters,
+  collectDepartments,
+  EMPTY_ELIGIBILITY_FILTERS,
+} from './build';
+export type {
+  RollupSummary,
+  EligibilityFilters,
+  EligibilityStatusFilter,
 } from './build';
 
 export { useScrapers } from './store';
