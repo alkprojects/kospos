@@ -48,7 +48,6 @@ export type { CorsProxy, FetchDhrOptions } from './sf-dhr-exam/fetch';
 
 export {
   buildJobCodeRollups,
-  filterRollups,
   summarizeRollup,
   applyEligibilityFilters,
   collectDepartments,
