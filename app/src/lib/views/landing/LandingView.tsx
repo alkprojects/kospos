@@ -159,12 +159,18 @@ function PersistenceBanner({ persistence }: { persistence: AutoPersistenceState 
     ? formatRefreshedAt(loadedSnapshotSavedAt)
     : '';
   const savedAt = lastSavedAt ? formatRefreshedAt(lastSavedAt) : '';
+  // Per Phase 2.2.q PR 2: name the source of the restore so the user
+  // knows whether the loaded data is local or shared. Falls back to the
+  // local-browser phrasing when source is empty (matches PR 1 behavior).
+  const sourceLabel = persistence.loadedSnapshotSource === 'cloudflare'
+    ? 'shared (Cloudflare)'
+    : 'this browser';
   if (status === 'saving') {
     return <Banner tone="info">Auto-saving snapshot…</Banner>;
   }
   return (
     <Banner tone="success">
-      {restoredAt && <>Restored from this browser (saved {restoredAt}). </>}
+      {restoredAt && <>Restored from {sourceLabel} (saved {restoredAt}). </>}
       {savedAt && <>Last auto-save {savedAt}.</>}
       {!restoredAt && !savedAt && <>Session will auto-save on every change.</>}
     </Banner>

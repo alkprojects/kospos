@@ -54,6 +54,10 @@ import {
   loadSnapshotFromIdb,
   saveSnapshotToIdb,
 } from './idb-persistence';
+import {
+  fetchPublishedSnapshot,
+  readCloudflareConfig,
+} from './cloudflare-publish';
 
 /** Public status enum surfaced through the hook. */
 export type AutoPersistenceStatus =
@@ -76,6 +80,10 @@ export interface AutoPersistenceState {
   /** ISO timestamp of the loaded snapshot's `savedAt` field. Empty when
    *  no snapshot loaded. Surfaced as "Snapshot from <date>" on Landing. */
   loadedSnapshotSavedAt: string;
+  /** Source the loaded snapshot came from (Phase 2.2.q PR 2). 'idb' =
+   *  local browser only. 'cloudflare' = published shared snapshot.
+   *  '' when no snapshot loaded. */
+  loadedSnapshotSource: '' | 'idb' | 'cloudflare';
 }
 
 /** Debounce window for the auto-save timer. 500ms coalesces bulk
@@ -140,14 +148,35 @@ export function captureCurrentSnapshot(): SessionFile {
 }
 
 /**
- * Validate + restore a loaded snapshot. Returns the restored envelope
- * (so the hook can surface `savedAt`) or `null` on validation failure.
+ * Validate a loaded snapshot envelope WITHOUT restoring stores. Returns
+ * the validated envelope or `null` on validation failure. Used by the
+ * load path to compare IDB vs Cloudflare envelopes before deciding
+ * which to restore.
  *
- * Why we re-parse even though IDB returns the typed object: the IDB
+ * Why we re-parse even though the source returns the typed object: the
  * value could be from an older app version that wrote a different
  * envelope shape (different schemaVersion, missing `kind`, etc.). The
  * same validator we use for user-uploaded JSON files protects against
- * stale IDB data after an app upgrade.
+ * stale data after an app upgrade.
+ */
+export function validateOnly(value: unknown): SessionFile | null {
+  let raw: string;
+  try {
+    raw = JSON.stringify(value);
+  } catch {
+    return null;
+  }
+  const result = parseSessionFile(raw);
+  return result.ok ? result.file : null;
+}
+
+/**
+ * Validate + restore a loaded snapshot. Returns the restored envelope
+ * (so the hook can surface `savedAt`) or `null` on validation failure.
+ *
+ * Kept for back-compat with the auto-persistence.test.ts surface; new
+ * code in the hook itself uses `validateOnly` + a separate
+ * `restoreStoresFromPayload` call.
  */
 export function tryRestoreSnapshot(value: unknown): {
   ok: true;
@@ -156,17 +185,23 @@ export function tryRestoreSnapshot(value: unknown): {
   ok: false;
   error: string;
 } {
-  // Serialize through JSON to use the existing string-based parser. The
-  // overhead is acceptable since we run this once per app open; reusing
-  // parseSessionFile means one validation surface to maintain.
-  let raw: string;
-  try {
-    raw = JSON.stringify(value);
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'stringify failed' };
-  }
-  const result = parseSessionFile(raw);
-  if (!result.ok) {
+  const validated = validateOnly(value);
+  if (!validated) {
+    // Re-run the parser to surface the *reason* — `validateOnly` only
+    // returns ok/null, but the test surface wants the error message.
+    let raw: string;
+    try {
+      raw = JSON.stringify(value);
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'stringify failed' };
+    }
+    const result = parseSessionFile(raw);
+    if (result.ok) {
+      // Unreachable — validateOnly returns the same value parseSessionFile
+      // would. Belt-and-suspenders: restore + report success.
+      restoreStoresFromPayload(result.file);
+      return { ok: true, file: result.file };
+    }
     const detail = (() => {
       switch (result.reason) {
         case 'invalid-json':
@@ -179,8 +214,8 @@ export function tryRestoreSnapshot(value: unknown): {
     })();
     return { ok: false, error: `IDB snapshot rejected: ${detail}` };
   }
-  restoreStoresFromPayload(result.file);
-  return { ok: true, file: result.file };
+  restoreStoresFromPayload(validated);
+  return { ok: true, file: validated };
 }
 
 /**
@@ -200,6 +235,7 @@ export function useAutoSessionPersistence(opts: { enabled?: boolean } = {}): Aut
     lastSavedAt: '',
     lastError: '',
     loadedSnapshotSavedAt: '',
+    loadedSnapshotSource: '',
   });
   // Tracks whether the initial load has completed; auto-save is gated
   // on this so the load doesn't immediately trigger a redundant save.
@@ -209,7 +245,7 @@ export function useAutoSessionPersistence(opts: { enabled?: boolean } = {}): Aut
 
   useEffect(() => {
     if (!enabled) {
-      setState(s => ({ ...s, status: 'empty' }));
+      setState(s => ({ ...s, status: 'empty', loadedSnapshotSource: '' }));
       return;
     }
 
@@ -218,35 +254,73 @@ export function useAutoSessionPersistence(opts: { enabled?: boolean } = {}): Aut
     setState(s => ({ ...s, status: 'loading' }));
 
     // 1. Load + restore on mount.
-    loadSnapshotFromIdb()
-      .then(value => {
+    //
+    // Strategy (Phase 2.2.q PR 2):
+    //   - Read IDB + Cloudflare in parallel.
+    //   - Whichever envelope has the *newer* `savedAt` wins. Rationale:
+    //     "saved data locally → published from another browser →
+    //     returned to this browser" should prefer the published copy.
+    //     The reverse is also covered: "published yesterday →
+    //     auto-saved local edits today" prefers the local copy.
+    //   - When only one source has data, that one wins.
+    //   - When neither has data, status='empty'.
+    //   - If Cloudflare is not configured (pagesUrl empty), the fetch
+    //     short-circuits to `not-configured` and is treated as "no
+    //     remote snapshot exists".
+    //
+    // Per Alex's S40 design pick: auto-load silently — no prompt. The
+    // Landing dashboard surfaces what loaded + from where via the
+    // `loadedSnapshotSource` field on AutoPersistenceState.
+    Promise.all([
+      loadSnapshotFromIdb().catch(() => null),
+      fetchPublishedSnapshot(readCloudflareConfig())
+        .then(r => r.ok ? r.file : null)
+        .catch(() => null),
+    ])
+      .then(([idbValue, cloudflareFile]) => {
         if (cancelled) return;
-        if (value === null) {
-          loadCompleteRef.current = true;
+        // Validate both candidates through the same parse step so a
+        // stale envelope (older app version) doesn't slip through.
+        const idbValidated = idbValue !== null ? validateOnly(idbValue) : null;
+        const cloudflareValidated = cloudflareFile !== null ? validateOnly(cloudflareFile) : null;
+
+        let winner: SessionFile | null = null;
+        let source: 'idb' | 'cloudflare' = 'idb';
+        if (idbValidated && cloudflareValidated) {
+          // Newer savedAt wins.
+          if (cloudflareValidated.savedAt > idbValidated.savedAt) {
+            winner = cloudflareValidated;
+            source = 'cloudflare';
+          } else {
+            winner = idbValidated;
+            source = 'idb';
+          }
+        } else if (idbValidated) {
+          winner = idbValidated;
+          source = 'idb';
+        } else if (cloudflareValidated) {
+          winner = cloudflareValidated;
+          source = 'cloudflare';
+        }
+
+        loadCompleteRef.current = true;
+        if (!winner) {
           setState({
             status: 'empty',
             lastSavedAt: '',
             lastError: '',
             loadedSnapshotSavedAt: '',
+            loadedSnapshotSource: '',
           });
           return;
         }
-        const result = tryRestoreSnapshot(value);
-        loadCompleteRef.current = true;
-        if (!result.ok) {
-          setState({
-            status: 'load-error',
-            lastSavedAt: '',
-            lastError: result.error,
-            loadedSnapshotSavedAt: '',
-          });
-          return;
-        }
+        restoreStoresFromPayload(winner);
         setState({
           status: 'loaded',
           lastSavedAt: '',
           lastError: '',
-          loadedSnapshotSavedAt: result.file.savedAt,
+          loadedSnapshotSavedAt: winner.savedAt,
+          loadedSnapshotSource: source,
         });
       })
       .catch((err: unknown) => {
@@ -257,6 +331,7 @@ export function useAutoSessionPersistence(opts: { enabled?: boolean } = {}): Aut
           lastSavedAt: '',
           lastError: err instanceof Error ? err.message : String(err),
           loadedSnapshotSavedAt: '',
+          loadedSnapshotSource: '',
         });
       });
 
