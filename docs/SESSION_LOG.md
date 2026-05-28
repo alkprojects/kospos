@@ -3425,3 +3425,89 @@ Status options: `any` · `has-active` · `has-only-expired` · `list-only` · `p
 - **Audit cadence:** ✅ 15th event-based trigger fires on schedule.
 - **Test count discipline:** ✅ Baseline `npm test` at session start confirmed 643 (no recount drift).
 - **Live-data feedback loop:** ✅ Rewrote matchers mid-session in response to actual PDF text structure discovered via preview-MCP. Documented Tier-1 / Tier-2 separation so the next session understands why both exist.
+
+---
+
+## Session 39 — Phase 2.2.p: Eligibility drill-modal UX overhaul + persistence architecture decision doc (2026-05-28)
+
+**Phase 2.2.p complete.** Alex's S39 directive was concrete UX feedback layered on the S39 menu's Option A: loading bar in the drill modal, in-modal search/filter "like every other page," and Exam Type as the important field (not List Type). Plus a directive to revisit cross-device persistence — bigger than the same-browser-cross-reload Option B in the menu. The session split delivered both: drill UX shipped as PR #123, persistence architecture as a research doc + Phase 2.2.q queue.
+
+### Branch: `claude/peaceful-thompson-acadd8` (worktree)
+
+### What shipped — 1 code PR + 1 docs PR
+
+[PR #123](https://github.com/alkprojects/kospos/pull/123) — `feat(views/eligibility): Phase 2.2.p — drill-modal UX overhaul (Duration column · Exam Type replaces Sub-type · in-modal filter · sortable headers · progress bar)`.
+
+- **Lists-table column shape**: Post date · List ID · **Duration** · Expires · Status · Cert rule · Dept · **Exam Type** · File (9 cols). Sub-type column dropped from per-row UI; `examSubType` value still on `PdfExtract` for future use.
+- **Duration column** — per-list value from PDF (`12 Months`, `6 Months`, etc.); falls back to `2 yr` (CSC Rule 411A/412 default) when extraction missing.
+- **Exam Type column** — replaces Sub-type per Alex's S39 directive; surfaces the testing methodology (PBT/ETP/CBT/Q&E) instead of the classification (CPE).
+- **Expires column** now uses per-list Duration via extended `computeListExpiration(list, windowDays, durationStr)`. The Expires shift on real lists (e.g. 2024-08-01 + 6 Months → 2025-01-28 instead of the prior +2yr → 2026-08-01) is the live proof.
+- **Header "Duration: 2 yr · CSC 411A/412" chip dropped** — real DHR data refutes the constant-2yr assumption.
+- **Top-of-modal progress bar** — determinate `N of M extracted` while extractions in flight; hides at 100% + for single-list rollups.
+- **In-modal filter chip row** — same shape as main EligibilityView toolbar: search · status · exam type chips · dept multi-select · citywide-only · reset · match count. Filters Active + Expired sections. Filter universes scoped to the rollup's pdfCache entries (no global-universe noise inside a single-rollup modal).
+- **Column-header click-to-sort** on every column except File. asc ↔ desc toggle (2-state — the 3-state with reset would have been a no-op on the default column). Blanks always sort last (spreadsheet intuition).
+- **New pure helpers** in `lib/scrapers/build.ts`: `parseDuration`, extended `computeListExpiration` + `computeListStatus`, `EligibilityDetailFilters` + `applyEligibilityDetailFilters`, `collectExamTypes`, `collectListDepartments`, `DetailSort` + `sortEligibilityLists`.
+- **Tests +44 (718 → 762):** scrapers.test.ts +30 (parseDuration 9, computeListExpiration durationStr 5, applyEligibilityDetailFilters 8, collect helpers 2, sortEligibilityLists 6); eligibility-view.test.tsx +14 net (Duration column 3, in-modal filter 5, sort cycle 3, progress bar 3 + 4 existing tests rewritten for new column shape).
+- **Build:** clean first-run (no warnings). Main bundle 1,182 KB / 314 KB gzip (+10 KB on the new UI code). pdfjs lazy chunks unchanged.
+
+### What shipped — research doc (this docs PR)
+
+`docs/research/persistence-architecture-options.md` — 4-option comparison for cross-device persistence:
+
+| Option | Free-tier headroom | Publish latency | Migration risk | Pick? |
+|---|---|---|---|---|
+| α Cloudflare Pages + Workers KV | 100K reads/day | ~100ms | Low (parallel run) | ★ |
+| β Vercel + KV | 30K reads/day | ~100ms | Low (parallel run) | no |
+| γ GitHub Pages + `data/` branch | (N/A — uses GitHub) | 30-60s | None | no |
+| δ Supabase | 500 MB DB | ~100ms | Medium | later |
+
+Recommendation: **Option α — Cloudflare Pages + Workers KV.** Cleanest deploy-from-GitHub flow, vastest free-tier headroom, clear v2 path (named workspaces) without re-architecting. 4 questions for Alex (Cloudflare account state · publish-secret distribution · cutover preference · first-load UX) need answers before Phase 2.2.q starts.
+
+### Top decisions surfaced for Alex
+
+1. **Session scope split** — drill UX this session, persistence-architecture decision doc this session, implementation next session. Alex confirmed via AskUserQuestion. This avoided the temptation to fold a multi-PR backend migration into a single drill-modal PR.
+2. **Exam Type replaces Sub-type entirely** (Alex's pick from a 3-option menu — the most aggressive of "replace + tooltip" / "add + keep both" / "replace + drop List Type entirely"). The List Type value (CPE / examSubType — the classification) is no longer per-row visible; it's still captured in pdfCache for any future use. Consistent with the per-row Type column drop from S37 — Alex consistently chooses UX prominence over information density.
+3. **Per-list Duration overrides the constant-2yr default.** Directly refutes the Phase 2.2.n design assumption ("the CSC Rule 411A/412 2-year duration is constant for every list in the v1 model"). The audit-doc cross-reference is in the EligibilityDetail.tsx header doc-comment so future sessions don't restore the constant by accident.
+4. **2-state sort toggle, not 3-state.** Initial design had asc → desc → reset-to-default, but reset-to-default is a no-op on the default column (postDate desc). The 2-state cycle is predictable and matches spreadsheet sort UX.
+5. **Filter chip row scoped to rollup's own pdfCache.** Available exam types + depts derived from the rollup, not the global universe. The chip row only shows axes that distinguish lists WITHIN this rollup — no noise.
+6. **Cloudflare Pages + KV recommended for persistence.** Outlined the 4-option comparison + recommended path in the research doc. Deferred implementation to Phase 2.2.q pending Alex's answers.
+
+### Carry-forward audit (from [`phase-2-2-p-close-audit.md`](audits/phase-2-2-p-close-audit.md))
+
+- A — Auto-archive monitoring: ~~resolved S33~~. Stays dropped.
+- B — SESSION_LOG.md trim: **~3,380 lines after S39 entry (est.).** Past 2,000-line trim trigger; bundleable with C.
+- C — Memory-file citation anti-pattern in labor-report.md: 12 instances unchanged.
+- D — labor-report.md split: 8,518 lines unchanged. Defer until Phase 2.4.
+- E — Phase 2.2 first sub-phase pick: ~~resolved S24~~. Stays dropped.
+- F — Audit cadence: **16th event-based trigger** fired on schedule.
+
+### What's NOT done
+
+- **Cross-device persistence implementation** — Phase 2.2.q candidate. Decision doc landed; needs Alex's 4 answers (Cloudflare account, publish-secret distribution, cutover preference, first-load UX) before starting.
+- **IndexedDB persistence for pdfCache** — same-browser-cross-reload only (no cross-device). Still in-memory. Folded into the broader Phase 2.2.q persistence work.
+- **Cross-tab nav from Eligibility → Positions** (carries) — gates Eligibility + Probation devOnly removal.
+- **Modal overlay-frame to `lib/ui/Modal.tsx`** — still 5 instances; separate refactor.
+- **`research/dhr-eligibility-and-jobs-scraping-plan.md` "no PDF in v1" framing** still stale (carries from S38, second session).
+- **`filterRollups` export removal** — still no consumer; ~5 min bundle.
+
+### Outcome
+
+1 code PR shipped (PR #123) + 1 docs PR (this one). 762/762 tests passing. `npm run build` clean first-run (no warnings — 10 of 10 practical / 9 of 10 strict). Phase 2.2.o follow-ups #1 (Duration UI) and #2 (examType UI) both resolved. Phase 2.2.p close audit fired on schedule (16th event-based trigger). Phase 2.2.n design assumption (constant 2yr Duration) explicitly refuted with audit-doc cross-reference. Cross-device persistence (Alex's S38+S39 directive) addressed via a research doc + clear Phase 2.2.q queue.
+
+### Lessons / improvements for next phase
+
+- **Alex's freeform feedback drives the highest-leverage work — again.** 5 of the last 6 sessions have seen Alex layer concrete UX directives onto the menu (S34 Refresh button, S35 live-fetch CORS chain, S36 summary-row redesign, S37 modal field enrichment, S39 drill-modal UX overhaul). The menu format is useful as a scope sketch but the freeform "Option 0 — paste feedback" or the "added by alex" inline appendix consistently produces the actual scope. Future menus should lead with "what was your reaction to what shipped?" instead of options A-G.
+- **AskUserQuestion is the right tool for a 3-design-pick decision.** Alex chose the most aggressive option on the Exam-Type-vs-Sub-type axis (replace + drop) and the biggest on the filter scope (full chip row + click-to-sort). Without the 3-question multi-choice format I would have either guessed wrong on one of the axes or over-asked.
+- **Filter universes scoped to the data subset = no overflow noise.** The main EligibilityView's dept picker has ~50 depts (needs dropdown). Inside a single-rollup modal the universe is 1-5 depts. Using the SAME UI pattern (dropdown) but populating with the small per-rollup universe = no overflow, no chip wall, identical UX to "every other page" (Alex's ask). Pattern reusable across other detail modals.
+- **2-state sort toggle is the right cycle for this codebase.** 3-state cycles are useful when there's a "no sort" state distinct from the default sort. Here the default IS a sort (postDate desc) so 3-state would be confusing. Other detail tables (PlannedActionDetail, ProbationDetail, SeparationDetail) all have explicit defaults too — 2-state likely the right choice if click-to-sort lands there.
+- **Test-collision pattern documented for chip-mirrored cell values.** When a filter chip row reflects distinct values from the underlying cells, `getByText` against those values fails (2 matches). Each affected test now uses `getAllByText(...).length >= 1` with an inline comment. Future sessions don't re-discover this.
+- **Per-list Duration override semantics are now in two places.** The `parseDuration` parser + the `computeListExpiration` signature. Both well-documented but the test for "default fallback" needs to cover both call sites. 5 tests in scrapers.test.ts pin the contract.
+
+### Brief audit (Alex's collaboration this session)
+
+- **Prompt quality (S39 prompt + Alex's UX appendix):** ✅ The menu was useful as scope sketch; the "added by alex" appendix gave the actual scope. Concrete asks ("loading bar," "search/filter like every other page," "exam type, not list type") map directly to PR scope.
+- **Scope discipline:** ✅ 1 code PR (drill-modal UX overhaul) + 1 docs PR (audit + research doc). Cross-device persistence intentionally deferred to a decision doc + Phase 2.2.q queue rather than crammed into the same PR.
+- **Verification habits:** ✅ Preview-MCP walkthrough at full scale (133 + 6,732 → 753 rollups; 37 active extracts on 0932). The Expires shift (e.g. 2025-01-28 vs 2026-08-01) is the live proof the per-list Duration override is wired through.
+- **Audit cadence:** ✅ 16th event-based trigger fires on schedule.
+- **Test count discipline:** ✅ Baseline `npm test` at session start confirmed 718 (no recount drift). +44 net.
+- **Design-pick conversation discipline:** ✅ Used AskUserQuestion for 3 axes (session scope, exam-type design, filter scope). Each had a clear "Recommended" tag + non-recommended options Alex could pick anyway. He picked the most aggressive on 2 of 3 — exactly what the user-role memory predicts when described trade-offs.
