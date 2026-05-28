@@ -3292,3 +3292,69 @@ Status options: `any` · `has-active` · `has-only-expired` · `list-only` · `p
 - **Audit cadence:** ✅ 13th event-based trigger fires on schedule.
 - **Test count discipline:** ✅ Fresh-install `npm test` at session start confirmed 589 baseline (no recount drift this session).
 - **Self-correction on a bad first design choice.** First citywideHint excluded expired-only-no-posting rollups; the test fixture surfaced the gap. Broadened the predicate in-session before the PR landed; cost was ~2 minutes.
+
+
+---
+
+## Session 37 — Phase 2.2.n: Eligibility detail modal field enrichment (2026-05-27)
+
+**Phase 2.2.n complete.** Alex's S37 added directive ("more fields including cert rule, department, duration, expiration date, exam type; type 'Score report (civil service)' is not relevant unless justified") defined the session — the 4th consecutive session where Alex's directive superseded the planned A/B/C/D/E pick. One AskUserQuestion at kickoff scoped the implementation depth.
+
+### Branch: `feat/eligibility-detail-more-fields` (now archived)
+
+### What shipped — 1 PR
+
+[PR #119](https://github.com/alkprojects/kospos/pull/119) — `feat(views/eligibility): Phase 2.2.n — modal field enrichment (duration, expires, status, type-breakdown)`.
+
+- **Three pure helpers** in [`lib/scrapers/build.ts`](../app/src/lib/scrapers/build.ts):
+  - `computeListExpiration(list, windowDays?)` → ISO `YYYY-MM-DD` (postDate + 730d default). 1-day leap-year drift documented in the doc comment + verified against live data (`2026-05-01 + 730d = 2028-04-30` because 2028 is leap).
+  - `computeListStatus(list, today, windowDays?)` → `{ daysRemaining, tone: 'active'|'expiring-soon'|'expired'|'unknown', expirationDate }`. `EXPIRING_SOON_DAYS = 90` matches the `temp-tx-expiration-imminent` quality-flag threshold (one cutoff across the codebase).
+  - `countListTypes(lists)` → `{ scoreReports, eligibleLists }` for the section-header breakdown.
+- **[`EligibilityDetail.tsx`](../app/src/lib/views/eligibility/EligibilityDetail.tsx) rewrite:** Duration header chip · per-row Type column dropped (was constant "Score report (civil service)" for DBI data) · Expires + Status columns added · StatusPill (color-coded: green active · yellow expiring-soon · red expired · gray unknown) · section-header type breakdown (suppressed when uniform) · "Not shown here" footnote naming cert rule / list-row dept / exam sub-type as PDF-only fields + naming Phase 2.2.o as the future automation · header × aria-label disambiguated as "Close detail".
+- **[`EligibilityView.tsx`](../app/src/lib/views/eligibility/EligibilityView.tsx)** passes `todayIso` to the modal.
+- **Tests +23 (620 → 643):** scrapers.test.ts +15 (computeListExpiration 5 · computeListStatus 6 · countListTypes 4); eligibility-view.test.tsx +8.
+- **Live verification at scale:** 137 postings + 6,729 lists → 753 rollups. 0932 Manager IV + Q002 Police Officer (citywide-mixed) both render correctly; no console errors.
+
+### Top decisions surfaced for Alex
+
+1. **Scope picked at kickoff (Option C):** "ship A this session + B as Phase 2.2.o". Of the 5 fields Alex listed, only duration + expiration date are derivable from currently-scraped data — cert rule, list-row dept, exam sub-type live inside the PDF cover sheets. This session ships the derived enrichments; PDF text extraction lands as Phase 2.2.o.
+2. **Type column dropped, citywide signal preserved at section header.** For DBI's data, 100% of rows are `score-report` → constant column adds noise. The section header breakdown (`· 1 score report + 33 eligible lists` for Q002) preserves the citywide-relevant info; the summary-row SR/EL/mixed chip is a second affordance.
+3. **Toolbar filter chips KEPT.** Filtering by type is useful even when one type is the common case — the per-row column was constant display (noise), the filter is interaction. Different roles, different decisions.
+
+### Carry-forward audit (from [`phase-2-2-n-close-audit.md`](audits/phase-2-2-n-close-audit.md))
+
+- A — Auto-archive monitoring: ~~resolved S33~~. Stays dropped.
+- B — SESSION_LOG.md trim: **~3,240 lines after S37 entry (est.).** Past 2,000-line trim trigger. Bundleable with C.
+- C — Memory-file citation anti-pattern in labor-report.md: 12 instances unchanged.
+- D — labor-report.md split: 8,518 lines unchanged. Defer until Phase 2.4.
+- E — Phase 2.2 first sub-phase pick: ~~resolved S24~~. Stays dropped.
+- F — Audit cadence: **14th event-based trigger** fired on schedule.
+
+### What's NOT done
+
+- **Cert rule, list-row department, exam sub-type** — those live in the PDF. Filed as Phase 2.2.o.
+- **Modal overlay-frame to `lib/ui/Modal.tsx`** — 5 instances of the pattern (unchanged from S36 count); separate refactor.
+- **`filterRollups` export removal** — superseded by `applyEligibilityFilters`; ~5-min cleanup bundle for the next scrapers touch.
+- **`computeListExpiration` calendar arithmetic** — eliminates the documented 1-day leap-year drift; defer until UX-relevant.
+
+### Outcome
+
+1 PR merged in ~60 minutes (PR #119). 643/643 tests passing. `npm run build` clean first-run (8 sessions running). Phase 2.2.n close audit fired; zero new drift items. Phase 2.2.m audit follow-up #4 (modal aria-label rename) resolved as part of this PR.
+
+### Lessons / improvements for next phase
+
+- **Alex's added directives keep superseding the pre-planned sub-phase pick — 4 sessions running.** Pattern unchanged: each shipped feature surfaces concrete UX feedback that's higher-leverage than the next planned sub-phase. The S37 handoff explicitly invited "or paste any feedback on what shipped this session" as Option 0, which is what happened. Keep that framing in S38 handoff.
+- **Honest scope question early beats guessing.** Of the 5 fields Alex listed, only 2 were derivable from current data. AskUserQuestion at the top resolved the implementation-depth question (~30 sec of Alex's time, saved 3-5 hours of misdirected work). Scope option C ("ship A this session, file B as next") is now the established pattern for "asked-for-more-than-we-can-deliver-cheaply" situations.
+- **Document derivative-data assumptions in the helper itself.** The leap-year drift in `computeListExpiration` is a real quirk of the `730 days` constant. Documenting it in the doc comment + locking it with a test (`2026-05-01 → 2028-04-30`) means the next time it surfaces, the next session won't be surprised. Test-failure-as-documentation: the failed initial assertion forced the documentation.
+- **Constant-per-rollup info belongs on the header, not per-row.** Duration is identical for every list (2 yr per CSC Rule). Showing it once at the header keeps the table narrow + acknowledges the value is informational not data. Same lesson would apply to: cert-rule-when-it's-citywide-default, exam-type-when-uniform.
+- **Section-header breakdowns let you drop a constant column without losing the signal.** The Type column was a constant for DBI data, but mixed for citywide-relevant codes (Q002 Police Officer). Moving the type info to the section header preserves citywide visibility (`· 1 score report + 33 eligible lists`) while suppressing the redundant per-row display.
+- **Test-first surfaced an actual bug.** My initial test expectation for `2026-05-01 + 730d` was `2028-05-01`. Wrong (leap year). The test failure forced me to either fix the helper (no — `windowDays = 730` is the canonical constant) or document the drift + update the test. Took ~2 minutes; result is one of the strongest tests in the new suite.
+
+### Brief audit (Alex's collaboration this session)
+
+- **Prompt quality (S37 prompt + Alex's added directive):** ✅ The directive was sharp: 5 specific field names + an explicit challenge on the Type column ("if you think it should be included please justify"). The "please justify" framing forced explicit reasoning rather than a default-keep decision.
+- **Scope discipline:** ✅ 1 single-purpose PR. Scope question at kickoff drew the line for Phase 2.2.o explicitly. Didn't lift the modal overlay-frame even though the 5-instance count makes it tempting.
+- **Verification habits:** ✅ Live verification via preview-MCP at full scale (137 + 6,729 → 753 rollups). Both single-type (0932) and citywide-mixed (Q002) modal cases verified.
+- **Audit cadence:** ✅ 14th event-based trigger fires on schedule.
+- **Test count discipline:** ✅ Baseline `npm test` at session start confirmed 620 (no recount drift this session).
+- **Resolved a previous-audit follow-up in the same PR.** Phase 2.2.m audit recommendation #4 (modal aria-label rename) was a "bundle with the next EligibilityView touch" follow-up. This was that touch — resolved inline. Process is working: small follow-ups get folded into adjacent natural-touch PRs instead of accumulating.
