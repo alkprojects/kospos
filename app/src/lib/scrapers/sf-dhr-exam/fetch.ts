@@ -52,8 +52,11 @@ const PAGE_DELAY_MS = 500;
  * One CORS-proxy strategy. The `wrap` function maps an upstream URL to
  * the URL we actually GET; the proxy passes the upstream body through.
  * The `label` shows up in error messages so failures are debuggable.
+ *
+ * Exported so the Phase 2.2.o PDF fetcher in `./pdf-parse.ts` can reuse
+ * the same proxy abstraction without redefining it.
  */
-interface CorsProxy {
+export interface CorsProxy {
   label: string;
   wrap: (upstreamUrl: string) => string;
 }

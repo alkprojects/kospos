@@ -13,7 +13,7 @@
  */
 
 import { create } from 'zustand';
-import type { EligibilityList, JobPosting } from './types';
+import type { EligibilityList, JobPosting, PdfExtract } from './types';
 
 /** localStorage key for the optional Cloudflare-Worker URL slot. Lives
  *  outside the session JSON so the value persists across page reloads
@@ -31,6 +31,26 @@ function readWorkerUrl(): string {
   }
 }
 
+/**
+ * Module-level dedupe set for in-flight PDF extractions.
+ *
+ * Lives outside Zustand state because it's not user-visible UI state —
+ * it's plumbing to keep the modal's `useEffect` from firing the same
+ * fetch twice when the component re-renders (or remounts) before the
+ * first extraction completes.
+ *
+ * Why a module-level Set and not store state:
+ *   1. Re-render the modal → useEffect retriggers → would re-fire every
+ *      already-in-flight extraction without dedupe. Set in module scope
+ *      survives the re-render naturally.
+ *   2. Storing in Zustand would cause every in-flight change to re-render
+ *      every subscriber — pointless churn since no UI element subscribes
+ *      to "is extraction N in flight?".
+ *   3. Reset on full page reload is desirable + automatic — the Set
+ *      vanishes with the module.
+ */
+const pdfInFlight = new Set<string>();
+
 interface ScrapersState {
   jobPostings: JobPosting[];
   jobPostingsRefreshedAt: string;
@@ -40,25 +60,103 @@ interface ScrapersState {
    *  default public proxy chain (corsproxy.io / allorigins / codetabs)
    *  proves flaky. Persisted to localStorage so it survives reloads. */
   dhrWorkerUrl: string;
+  /** Per-list PDF cover-sheet extracts — Phase 2.2.o. Keyed by
+   *  `pdfCacheKey(jobCode, listId, postDate)`. In-memory only (lost on
+   *  reload, same as the rest of the scraper data); a follow-up may wire
+   *  this into the session snapshot if Alex hits the re-extract cost
+   *  often enough across reloads. */
+  pdfCache: Record<string, PdfExtract>;
 
   setJobPostings: (postings: JobPosting[]) => void;
   setEligibilityLists: (lists: EligibilityList[]) => void;
   appendEligibilityLists: (lists: EligibilityList[]) => void;
   setDhrWorkerUrl: (url: string) => void;
+  /** Store one PDF extraction result under its `(jobCode|listId|postDate)`
+   *  key. Both `success: true` and `success: false` entries are stored —
+   *  the failed entry prevents the UI from re-firing the extraction on
+   *  every modal re-open. */
+  setPdfExtract: (key: string, extract: PdfExtract) => void;
+  /** Kick off a lazy PDF extraction for `list` IF it isn't already cached
+   *  and isn't already in flight. Fire-and-forget — the caller doesn't
+   *  await; the next render after the fetch resolves picks up the new
+   *  cache entry automatically via the Zustand subscription.
+   *
+   *  Pass `extractImpl` to bypass the real `fetchAndExtractPdfFields`
+   *  call — tests use this to avoid touching pdfjs / the network. */
+  fetchPdfExtractIfNeeded: (
+    list: EligibilityList,
+    extractImpl?: (fileUrl: string, workerUrl?: string) => Promise<PdfExtract>,
+  ) => void;
   clearAll: () => void;
 }
 
-export const useScrapers = create<ScrapersState>(set => ({
+/**
+ * Compose the side-cache key from an EligibilityList's identity tuple.
+ * Same key shape `appendEligibilityLists` dedupes on, so the two views
+ * of the same logical row map to the same cache entry.
+ */
+export function pdfCacheKey(
+  jobCode: string,
+  listId: string,
+  postDate: string,
+): string {
+  return `${jobCode}|${listId}|${postDate}`;
+}
+
+export const useScrapers = create<ScrapersState>((set, get) => ({
   jobPostings: [],
   jobPostingsRefreshedAt: '',
   eligibilityLists: [],
   eligibilityListsRefreshedAt: '',
   dhrWorkerUrl: readWorkerUrl(),
+  pdfCache: {},
 
   setJobPostings: (jobPostings) => set({
     jobPostings,
     jobPostingsRefreshedAt: new Date().toISOString(),
   }),
+
+  setPdfExtract: (key, extract) => set(state => ({
+    pdfCache: { ...state.pdfCache, [key]: extract },
+  })),
+
+  fetchPdfExtractIfNeeded: (list, extractImpl) => {
+    const key = pdfCacheKey(list.jobCode, list.listId, list.postDate);
+    const state = get();
+    if (state.pdfCache[key]) return;
+    if (pdfInFlight.has(key)) return;
+    pdfInFlight.add(key);
+
+    // Default impl: dynamic-import pdf-parse so pdfjs-dist + its worker
+    // stay out of the main bundle until the first PDF extraction fires.
+    const impl = extractImpl ?? ((fileUrl, workerUrl) =>
+      import('./sf-dhr-exam/pdf-parse').then(mod =>
+        mod.fetchAndExtractPdfFields(fileUrl, { workerUrl }),
+      ));
+
+    impl(list.fileUrl, state.dhrWorkerUrl || undefined)
+      .then(extract => {
+        set(s => ({ pdfCache: { ...s.pdfCache, [key]: extract } }));
+      })
+      .catch((err: unknown) => {
+        // Belt-and-suspenders: fetchAndExtractPdfFields never throws, but
+        // if `extractImpl` is misbehaving we still need to populate the
+        // cache so the UI gives up on the spinner.
+        set(s => ({
+          pdfCache: {
+            ...s.pdfCache,
+            [key]: {
+              extractedAt: new Date().toISOString(),
+              success: false,
+              error: err instanceof Error ? err.message : String(err),
+            },
+          },
+        }));
+      })
+      .finally(() => {
+        pdfInFlight.delete(key);
+      });
+  },
 
   setDhrWorkerUrl: (url) => {
     const trimmed = url.trim();
@@ -99,11 +197,16 @@ export const useScrapers = create<ScrapersState>(set => ({
 
   /** Reset the in-memory scrape data. `dhrWorkerUrl` is intentionally
    *  preserved — it's a user setting, not scrape data, and we don't want
-   *  Clear-All to silently wipe Alex's backup configuration. */
+   *  Clear-All to silently wipe Alex's backup configuration.
+   *
+   *  `pdfCache` IS cleared — the cache is derived from the lists, so
+   *  wiping the lists should wipe the derived data too (otherwise stale
+   *  entries linger if a future refresh produces different list IDs). */
   clearAll: () => set({
     jobPostings: [],
     jobPostingsRefreshedAt: '',
     eligibilityLists: [],
     eligibilityListsRefreshedAt: '',
+    pdfCache: {},
   }),
 }));

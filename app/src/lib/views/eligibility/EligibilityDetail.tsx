@@ -19,12 +19,25 @@
  *     listing.
  *   - Active eligibility lists — sorted newest-first; columns: post date
  *     + list ID + expires (postDate + 2 years per CSC Rule 411A/412) +
- *     status (days left / expired N days ago) + PDF link.
- *   - Expired lists — collapsed by default behind `<details>`; same row
- *     shape as Active.
- *   - Cert-rule / dept / exam-sub-type footnote — those fields live on
- *     the PDF cover sheet; clicking ↗ PDF opens them. Phase 2.2.o will
- *     lazy-PDF-parse them into actual columns.
+ *     status (days left / expired N days ago) + Cert rule + Dept +
+ *     Sub-type (Phase 2.2.o — lazy PDF-extracted) + PDF link.
+ *   - Expired lists — collapsed by default behind controlled `<details>`;
+ *     same row shape as Active. PDF extraction only fires when the user
+ *     expands the section (avoids paying ~50 PDF fetches for codes most
+ *     users never look past Active on).
+ *
+ * Phase 2.2.o changes:
+ *   - ADDED 3 PDF-extracted columns (Cert rule · Dept · Sub-type)
+ *     between Status and File. Each cell shows "…" while extraction is
+ *     in flight, the value once extracted, or "—" with a tooltip when
+ *     the field couldn't be parsed (older scanned PDFs / atypical
+ *     layout).
+ *   - Active-list extractions fire on modal mount (useEffect); expired-
+ *     list extractions fire on the controlled `<details>` open toggle
+ *     so we don't pay 50× the cost up-front for codes the user only
+ *     glances at Active on.
+ *   - Footnote now lists what *did* extract vs. the per-cell fallback
+ *     ("—") for what couldn't.
  *
  * Phase 2.2.n changes (Alex's S37 directive):
  *   - DROPPED per-row Type column. Was constant "Score report (civil
@@ -40,17 +53,21 @@
  *     exam sub-type are on the PDF.
  */
 
+import { useEffect, useState } from 'react';
 import { CopyButton } from '../../ui';
 import {
   computeListStatus,
   countListTypes,
   EXPIRING_SOON_DAYS,
+  pdfCacheKey,
   summarizeRollup,
+  useScrapers,
 } from '../../scrapers';
 import type {
   EligibilityList,
   JobCodeRollup,
   ListStatusTone,
+  PdfExtract,
 } from '../../scrapers';
 
 interface EligibilityDetailProps {
@@ -180,6 +197,61 @@ function statusLabel(daysRemaining: number, tone: ListStatusTone): string {
 }
 
 // ---------------------------------------------------------------------------
+// PDF-extracted field cell — Phase 2.2.o. Three states:
+//   1. Cache miss: extraction is either in-flight or queued. Render `…`
+//      with a tooltip explaining the load.
+//   2. Cache hit, success=false: extraction failed (all proxies down,
+//      pdfjs threw on a malformed PDF). Render `—` with the error in
+//      a tooltip — user can still click ↗ PDF to read the file.
+//   3. Cache hit, success=true, field undefined: PDF parsed but the
+//      matcher chain didn't find this field (older scanned PDFs,
+//      atypical layout). Render `—` with a "not found" tooltip.
+//   4. Cache hit, success=true, field value present: render the value.
+// ---------------------------------------------------------------------------
+
+function PdfFieldCell({
+  extract,
+  field,
+}: {
+  extract: PdfExtract | undefined;
+  field: 'certRule' | 'listDepartment' | 'examSubType';
+}) {
+  if (!extract) {
+    return (
+      <span
+        aria-label="Extracting PDF metadata"
+        title="Extracting PDF metadata…"
+        style={{ color: 'var(--muted)', fontSize: 11 }}
+      >
+        …
+      </span>
+    );
+  }
+  if (!extract.success) {
+    return (
+      <span
+        title={`PDF extraction failed: ${extract.error || 'unknown error'} (click ↗ PDF to read the file)`}
+        style={{ color: 'var(--muted)' }}
+      >
+        —
+      </span>
+    );
+  }
+  const value = extract[field];
+  if (!value) {
+    return (
+      <span
+        title="Field not found on PDF cover sheet (older scanned list or atypical layout)"
+        style={{ color: 'var(--muted)' }}
+      >
+        —
+      </span>
+    );
+  }
+  return <span>{value}</span>;
+}
+
+// ---------------------------------------------------------------------------
 // Main detail modal
 // ---------------------------------------------------------------------------
 
@@ -187,6 +259,28 @@ export function EligibilityDetail({ rollup, today, onClose }: EligibilityDetailP
   const summary = summarizeRollup(rollup);
   const activeBreakdown = formatTypeBreakdown(rollup.activeLists);
   const expiredBreakdown = formatTypeBreakdown(rollup.expiredLists);
+
+  // Zustand subscriptions — only the slices the modal actually reads.
+  // pdfCache resub on every cache change so cells flip from … → value
+  // once extractions resolve.
+  const pdfCache = useScrapers(s => s.pdfCache);
+  const fetchPdfExtractIfNeeded = useScrapers(s => s.fetchPdfExtractIfNeeded);
+
+  // Active-list extractions fire on mount. Dedupe inside the store
+  // (module-level `pdfInFlight` Set + cache check) makes re-render
+  // re-fires harmless.
+  useEffect(() => {
+    rollup.activeLists.forEach(list => fetchPdfExtractIfNeeded(list));
+  }, [rollup.activeLists, fetchPdfExtractIfNeeded]);
+
+  // Expired-list extractions only fire when the user expands the
+  // collapsed section — a code with 80 expired lists would otherwise
+  // hammer the proxies for data most users never look at.
+  const [expiredOpen, setExpiredOpen] = useState(false);
+  useEffect(() => {
+    if (!expiredOpen) return;
+    rollup.expiredLists.forEach(list => fetchPdfExtractIfNeeded(list));
+  }, [expiredOpen, rollup.expiredLists, fetchPdfExtractIfNeeded]);
 
   return (
     <div
@@ -204,7 +298,7 @@ export function EligibilityDetail({ rollup, today, onClose }: EligibilityDetailP
     >
       <div className="card" style={{
         background: 'var(--surface)',
-        width: '100%', maxWidth: 840,
+        width: '100%', maxWidth: 960,
         display: 'flex', flexDirection: 'column', gap: 16,
         padding: 20,
       }}>
@@ -328,13 +422,17 @@ export function EligibilityDetail({ rollup, today, onClose }: EligibilityDetailP
               No active lists within the 2-year window (CSC Rule 411A/412).
             </div>
           ) : (
-            <ListsTable lists={rollup.activeLists} today={today} />
+            <ListsTable lists={rollup.activeLists} today={today} pdfCache={pdfCache} />
           )}
         </section>
 
-        {/* Expired lists — collapsed by default */}
+        {/* Expired lists — controlled <details> so we know when to fire
+            extractions (only on open) without re-firing on every render. */}
         {rollup.expiredLists.length > 0 && (
-          <details>
+          <details
+            open={expiredOpen}
+            onToggle={e => setExpiredOpen((e.target as HTMLDetailsElement).open)}
+          >
             <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>
               Expired lists ({rollup.expiredLists.length.toLocaleString('en-US')})
               {expiredBreakdown && (
@@ -342,23 +440,24 @@ export function EligibilityDetail({ rollup, today, onClose }: EligibilityDetailP
               )}
             </summary>
             <div style={{ marginTop: 8 }}>
-              <ListsTable lists={rollup.expiredLists} today={today} />
+              <ListsTable lists={rollup.expiredLists} today={today} pdfCache={pdfCache} />
             </div>
           </details>
         )}
 
-        {/* Cert-rule / dept / exam-sub-type footnote — those fields live on
-            the PDF cover sheet. Phase 2.2.o will lazy-PDF-parse them. */}
+        {/* Phase 2.2.o footnote — describes what the PDF columns do, and
+            what `—` means (extraction failed vs. field not in PDF). */}
         <div style={{
           fontSize: 11, color: 'var(--muted)',
           borderTop: '1px dashed var(--border)', paddingTop: 8,
         }}>
-          <strong style={{ color: 'var(--muted)' }}>Not shown here:</strong>{' '}
-          certification rule (e.g. Rule of 3 Names), list department (citywide
-          vs. dept-specific), and exam sub-type (Q&amp;E / CBT / Promotional /
-          PCS) live on each PDF cover sheet — click <strong>↗ PDF</strong> on
-          any row to view them. Phase 2.2.o will extract these into columns
-          automatically.
+          <strong style={{ color: 'var(--muted)' }}>Cert rule · Dept · Sub-type:</strong>{' '}
+          extracted on demand from each list's PDF cover sheet
+          (Phase 2.2.o). <strong>…</strong> = loading;
+          <strong> —</strong> with hover-tooltip = parsed but field not
+          found (older scanned PDFs / atypical layout) OR fetch failed
+          (CORS proxy down). Click <strong>↗ PDF</strong> on any row
+          to verify against the source.
         </div>
 
         {/* Footer — close-only */}
@@ -384,23 +483,25 @@ export function EligibilityDetail({ rollup, today, onClose }: EligibilityDetailP
 // Shared lists table — used for both active + expired sections so the
 // row shape stays identical between them.
 //
-// Phase 2.2.n column shape: Post date · List ID · Expires · Status · File.
-// (Type column dropped per Alex's S37 directive — now in section header.)
+// Phase 2.2.o column shape: Post date · List ID · Expires · Status ·
+// Cert rule · Dept · Sub-type · File.
 // ---------------------------------------------------------------------------
 
 function ListsTable({
   lists,
   today,
+  pdfCache,
 }: {
   lists: ReadonlyArray<EligibilityList>;
   today: string;
+  pdfCache: Record<string, PdfExtract>;
 }) {
   return (
     <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr style={{ background: 'var(--accent-soft)', borderBottom: '2px solid var(--border)' }}>
-            {['Post date', 'List ID', 'Expires', 'Status', 'File'].map(h => (
+            {['Post date', 'List ID', 'Expires', 'Status', 'Cert rule', 'Dept', 'Sub-type', 'File'].map(h => (
               <th key={h} style={{
                 padding: '6px 10px', textAlign: 'left',
                 fontWeight: 600, fontSize: 11,
@@ -413,6 +514,7 @@ function ListsTable({
         <tbody>
           {lists.map(l => {
             const { daysRemaining, tone, expirationDate } = computeListStatus(l, today);
+            const extract = pdfCache[pdfCacheKey(l.jobCode, l.listId, l.postDate)];
             return (
               <tr key={l.fileUrl + l.listId} style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ padding: '5px 10px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
@@ -436,13 +538,22 @@ function ListsTable({
                     </span>
                   )}
                 </td>
+                <td style={{ padding: '5px 10px', whiteSpace: 'nowrap' }}>
+                  <PdfFieldCell extract={extract} field="certRule" />
+                </td>
+                <td style={{ padding: '5px 10px', whiteSpace: 'nowrap' }}>
+                  <PdfFieldCell extract={extract} field="listDepartment" />
+                </td>
+                <td style={{ padding: '5px 10px', whiteSpace: 'nowrap' }}>
+                  <PdfFieldCell extract={extract} field="examSubType" />
+                </td>
                 <td style={{ padding: '5px 10px' }}>
                   <a
                     href={l.fileUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ color: 'var(--accent)' }}
-                    title="Opens PDF cover sheet (cert rule, dept, exam sub-type)"
+                    title="Opens PDF cover sheet (source for Cert rule / Dept / Sub-type)"
                   >
                     ↗ PDF
                   </a>
