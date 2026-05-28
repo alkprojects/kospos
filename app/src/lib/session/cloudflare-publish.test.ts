@@ -14,6 +14,7 @@ import {
   publishSnapshot,
   readCloudflareConfig,
   writeCloudflareConfig,
+  type PublishStage,
 } from './cloudflare-publish';
 import { buildSessionFile } from './snapshot';
 
@@ -162,6 +163,47 @@ describe('fetchPublishedSnapshot', () => {
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.file.kind).toBe('kospos-session');
   });
+
+  it('defensively decompresses a gzipped response body that the browser left intact', async () => {
+    // Simulates: Cloudflare's edge re-encoded our gzipped Worker
+    // response and the browser only peeled the outer Content-Encoding
+    // layer, leaving the inner gzip framing on the body.
+    const envelope = emptyFile();
+    const gzipped = await gzipString(JSON.stringify(envelope));
+    const fakeFetch = async (): Promise<Response> => {
+      return new Response(gzipped as BodyInit, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    };
+    const result = await fetchPublishedSnapshot(
+      { pagesUrl: 'https://x.test', publishSecret: '' },
+      fakeFetch as unknown as typeof fetch,
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.file.kind).toBe('kospos-session');
+  });
+
+  it('defensively peels up to 3 gzip layers (real-world Cloudflare double-encoding)', async () => {
+    const envelope = emptyFile();
+    // Build a double-gzipped body: gzip(gzip(json))
+    const once = await gzipString(JSON.stringify(envelope));
+    const cs = new CompressionStream('gzip');
+    const stream = new Response(once as BodyInit).body!.pipeThrough(cs);
+    const twice = new Uint8Array(await new Response(stream).arrayBuffer());
+    const fakeFetch = async (): Promise<Response> => {
+      return new Response(twice as BodyInit, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    };
+    const result = await fetchPublishedSnapshot(
+      { pagesUrl: 'https://x.test', publishSecret: '' },
+      fakeFetch as unknown as typeof fetch,
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.file.kind).toBe('kospos-session');
+  });
 });
 
 describe('publishSnapshot', () => {
@@ -282,5 +324,22 @@ describe('publishSnapshot', () => {
     if (!result.ok && result.reason === 'network-error') {
       expect(result.detail).toBe('timed out');
     }
+  });
+
+  it('fires onProgress with compressing → uploading stages in order', async () => {
+    const stages: PublishStage[] = [];
+    const fakeFetch = async (): Promise<Response> => {
+      return new Response(JSON.stringify({ ok: true, savedAt: 'x', bytes: 0 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    };
+    await publishSnapshot(
+      emptyFile(),
+      { pagesUrl: 'https://x.test', publishSecret: 's' },
+      fakeFetch as unknown as typeof fetch,
+      stage => stages.push(stage),
+    );
+    expect(stages).toEqual(['compressing', 'uploading']);
   });
 });

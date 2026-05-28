@@ -38,13 +38,18 @@ import {
   readCloudflareConfig,
   writeCloudflareConfig,
   type CloudflareConfig,
+  type PublishStage,
 } from '../../lib/session/cloudflare-publish';
 
 type Status =
   | { kind: 'idle' }
   | { kind: 'saved'; filename: string; rowCount: number }
   | { kind: 'loaded'; filename: string; rowCount: number }
-  | { kind: 'publishing' }
+  // S41 UX: `stage` lets the banner show what phase we're in (building
+  // the in-memory snapshot, gzip-compressing, uploading) so the user
+  // sees motion + meaningful progress instead of a static
+  // "Publishing…" line for 5-15 seconds on 300K-row data.
+  | { kind: 'publishing'; stage: 'building' | PublishStage }
   | { kind: 'published'; savedAt: string; bytes: number }
   | { kind: 'config-saved' }
   | { kind: 'error'; message: string };
@@ -123,9 +128,21 @@ export function SessionExportImport() {
   }
 
   async function handlePublish() {
+    // S41 UX: set the publishing banner BEFORE the heavy work starts,
+    // then yield to React (await a microtask) so the banner paints
+    // before JSON.stringify on 300K rows blocks the main thread for
+    // several seconds. Without this, the user sees nothing happen
+    // after clicking the button — and Chrome eventually shows its
+    // "page unresponsive" dialog. With these yields, the banner +
+    // spinner are visible immediately + the browser stays responsive
+    // enough to skip the dialog.
+    setStatus({ kind: 'publishing', stage: 'building' });
+    await new Promise(r => setTimeout(r, 0));
     const file = buildCurrentSnapshot();
-    setStatus({ kind: 'publishing' });
-    const result = await publishSnapshot(file);
+    await new Promise(r => setTimeout(r, 0));
+    const result = await publishSnapshot(file, undefined, undefined, stage => {
+      setStatus({ kind: 'publishing', stage });
+    });
     if (result.ok) {
       setStatus({ kind: 'published', savedAt: result.savedAt, bytes: result.bytes });
       return;
@@ -396,8 +413,23 @@ export function SessionExportImport() {
           fontSize: 12, color: '#1e40af',
           background: '#dbeafe', border: '1px solid #2563eb', borderRadius: 4,
           padding: '6px 10px',
+          display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          Publishing snapshot to Cloudflare…
+          {/* SMIL-animated spinner — no CSS keyframes needed, supported in
+              every modern browser. Gives the banner motion so the user
+              knows the work isn't frozen even when the main thread is
+              briefly blocked by JSON.stringify on a large payload. */}
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <circle cx="12" cy="12" r="10" stroke="#93c5fd" strokeWidth="3" fill="none" />
+            <path d="M 12 2 A 10 10 0 0 1 22 12" stroke="#2563eb" strokeWidth="3" fill="none" strokeLinecap="round">
+              <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
+            </path>
+          </svg>
+          <span>
+            {status.stage === 'building' && 'Building snapshot from in-memory state…'}
+            {status.stage === 'compressing' && 'Compressing snapshot for upload…'}
+            {status.stage === 'uploading' && 'Uploading to Cloudflare…'}
+          </span>
         </div>
       )}
       {status.kind === 'published' && (

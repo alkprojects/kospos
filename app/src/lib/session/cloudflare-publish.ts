@@ -28,14 +28,28 @@
  *
  * Compression (added S41): `publishSnapshot` gzips the JSON body via the
  * Web Streams CompressionStream API before POSTing, and sets
- * `Content-Encoding: gzip` so the Worker decompresses on receipt. This
- * was forced by Cloudflare's 100 MB request-body limit + KV's 25 MB
- * value cap — KosPos's 110K-row dataset serializes to ~150 MB raw,
- * which both limits reject. JSON gzips 8-15× on this dataset so
- * compressed bodies sit comfortably under both limits.
- * `fetchPublishedSnapshot` is unchanged on the source — the browser
- * auto-decompresses any response with `Content-Encoding: gzip`, so
- * `response.json()` returns the same envelope shape either way.
+ * `Content-Encoding: gzip`. This was forced by Cloudflare's 100 MB
+ * request-body limit + KV's 25 MB value cap — KosPos's 110K-row
+ * dataset serializes to ~150 MB raw, which both limits reject. JSON
+ * gzips 8-15× on this dataset so compressed bodies sit comfortably
+ * under both limits. The Worker stores the gzipped bytes verbatim
+ * (no server-side decompression — Workers' 128 MB memory cap can't
+ * hold a fully decompressed real-data snapshot).
+ *
+ * Cross-device load (S41 hardening): `fetchPublishedSnapshot` reads
+ * the response body as raw bytes and defensively unwraps any residual
+ * gzip framing in a loop (up to 3 layers). This handles cases where
+ * Cloudflare's edge re-encodes our already-gzipped response on top
+ * of `Content-Encoding: gzip` — observed empirically on real-data
+ * responses where the browser auto-decompresses one layer but leaves
+ * the inner gzip intact, breaking `response.json()`.
+ *
+ * Publish progress (S41 UX): `publishSnapshot` accepts an optional
+ * `onProgress` callback that fires before each heavy stage
+ * (`compressing` → `uploading`). The caller uses these to keep the
+ * UI updating while JSON.stringify + gzip churn through 300K+ rows
+ * on the main thread, and yields to React between stages so the
+ * banner can paint before Chrome's "page unresponsive" dialog fires.
  */
 
 import type { SessionFile } from './snapshot';
@@ -57,6 +71,29 @@ export async function gzipString(s: string): Promise<Uint8Array> {
   const stream = new Response(new TextEncoder().encode(s)).body!.pipeThrough(cs);
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
+
+/**
+ * Decompress gzip bytes back to a Uint8Array. Used by the defensive
+ * fetch path — if Cloudflare's edge re-encodes our already-gzipped
+ * response (which it sometimes does, observed S41 on a 1.25 MB body
+ * being returned as ~34 KB of doubly-gzipped bytes), the browser's
+ * auto-decompression peels one layer and we have to peel the rest.
+ */
+async function ungzipBytes(bytes: Uint8Array): Promise<Uint8Array> {
+  const ds = new DecompressionStream('gzip');
+  const stream = new Response(bytes as BodyInit).body!.pipeThrough(ds);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/** RFC 1952 gzip magic header — first two bytes of any gzip stream. */
+function looksGzipped(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+}
+
+/** Cap on defensive decompression iterations. Real responses have at
+ *  most 1-2 layers; allowing 3 covers worst-case CDN behavior without
+ *  letting a malicious response loop forever. */
+const MAX_DECOMPRESSION_LAYERS = 3;
 
 /**
  * Configuration read from localStorage. Both fields may be empty
@@ -117,6 +154,12 @@ export type PublishResult =
   | { ok: false; reason: 'http-error'; status: number; detail: string }
   | { ok: false; reason: 'network-error'; detail: string };
 
+/** Stages of `publishSnapshot` work for the optional progress callback.
+ *  The UI uses these to keep the user informed while heavy sync work
+ *  (JSON.stringify on a 330K-row payload can take seconds) progresses
+ *  on the main thread. The callback fires before each stage starts. */
+export type PublishStage = 'compressing' | 'uploading';
+
 /**
  * Fetch the latest published snapshot. Returns a tagged result so the
  * caller can distinguish "not configured" / "no snapshot" / "fetch
@@ -157,13 +200,43 @@ export async function fetchPublishedSnapshot(
     }
     return { ok: false, reason: 'http-error', status: response.status, detail };
   }
+  // Read body as bytes (not response.json()) so we can defensively
+  // unwrap any residual gzip framing left over from Cloudflare-edge
+  // re-encoding. The browser auto-decompresses one layer of
+  // Content-Encoding: gzip; if Cloudflare wraps another layer on top
+  // (observed S41 on real-data responses), we have to peel the rest
+  // manually here.
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(await response.arrayBuffer());
+  } catch (err) {
+    return {
+      ok: false, reason: 'network-error',
+      detail: `Reading response body failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+  let layers = 0;
+  while (looksGzipped(bytes) && layers < MAX_DECOMPRESSION_LAYERS) {
+    try {
+      bytes = await ungzipBytes(bytes);
+    } catch (err) {
+      // Magic header looked like gzip but the bytes aren't valid gzip
+      // (truncated or corrupted). Stop peeling; fall through to JSON
+      // parse which will likely fail and surface a parse-error.
+      return {
+        ok: false, reason: 'parse-error',
+        detail: `gunzip failed at layer ${layers + 1}: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+    layers += 1;
+  }
   let parsed: unknown;
   try {
-    parsed = await response.json();
+    parsed = JSON.parse(new TextDecoder().decode(bytes));
   } catch (err) {
     return {
       ok: false, reason: 'parse-error',
-      detail: err instanceof Error ? err.message : String(err),
+      detail: `JSON parse failed after ${layers} gzip layer${layers === 1 ? '' : 's'}: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
   // Light envelope sanity. Full payload validation lives in
@@ -189,6 +262,7 @@ export async function publishSnapshot(
   file: SessionFile,
   config: CloudflareConfig = readCloudflareConfig(),
   fetchImpl: typeof fetch = fetch,
+  onProgress?: (stage: PublishStage) => void,
 ): Promise<PublishResult> {
   if (!config.pagesUrl) {
     return { ok: false, reason: 'not-configured' };
@@ -201,15 +275,30 @@ export async function publishSnapshot(
   // 110K-row real-world dataset trips Cloudflare's 100 MB request
   // limit at the edge before the Worker even runs. Modern browsers
   // + Cloudflare Workers both support CompressionStream natively.
+  //
+  // Stage-by-stage progress + yields are for the responsiveness path:
+  // JSON.stringify on a 300K+ row file blocks the main thread for
+  // multiple seconds, and without `await`ing a microtask the browser
+  // never gets a chance to paint the "publishing…" banner the caller
+  // set just before invoking us — the user sees nothing happen for
+  // seconds and may see Chrome's "page unresponsive" dialog. Yielding
+  // before each heavy chunk gives the browser breathing room.
+  onProgress?.('compressing');
+  await new Promise(r => setTimeout(r, 0));
   let compressed: Uint8Array;
   try {
-    compressed = await gzipString(JSON.stringify(file));
+    const json = JSON.stringify(file);
+    // One more yield before gzip — CompressionStream is async-streaming
+    // but the JSON.stringify above was sync and likely just blocked us.
+    await new Promise(r => setTimeout(r, 0));
+    compressed = await gzipString(json);
   } catch (err) {
     return {
       ok: false, reason: 'network-error',
       detail: `gzip failed: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
+  onProgress?.('uploading');
   let response: Response;
   try {
     response = await fetchImpl(url, {
