@@ -28,6 +28,13 @@ export {
 } from './sf-dhr-exam/parse';
 
 export {
+  DEFAULT_PROXIES,
+  FetchDhrError,
+  fetchDhrExamResults,
+} from './sf-dhr-exam/fetch';
+export type { FetchDhrOptions } from './sf-dhr-exam/fetch';
+
+export {
   buildJobCodeRollups,
   filterRollups,
 } from './build';
