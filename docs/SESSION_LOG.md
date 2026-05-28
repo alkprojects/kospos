@@ -3358,3 +3358,70 @@ Status options: `any` · `has-active` · `has-only-expired` · `list-only` · `p
 - **Audit cadence:** ✅ 14th event-based trigger fires on schedule.
 - **Test count discipline:** ✅ Baseline `npm test` at session start confirmed 620 (no recount drift this session).
 - **Resolved a previous-audit follow-up in the same PR.** Phase 2.2.m audit recommendation #4 (modal aria-label rename) was a "bundle with the next EligibilityView touch" follow-up. This was that touch — resolved inline. Process is working: small follow-ups get folded into adjacent natural-touch PRs instead of accumulating.
+
+## Session 38 — Phase 2.2.o: Eligibility detail modal lazy PDF text extraction (2026-05-27)
+
+**Phase 2.2.o complete.** Alex picked **Option A** from the menu (the recommended top pick) — first session in 5 where the menu pick stuck (the prior 4 sessions all saw freeform Alex directives supersede the menu). Three parallel Q1/Q2/Q3 questions about IndexedDB persistence + Vercel + GitHub-vs-Vercel contributors handled inline before kickoff; full work proceeded as scoped.
+
+### Branch: `claude/reverent-villani-156d17` (worktree)
+
+### What shipped — 1 PR
+
+[PR #121](https://github.com/alkprojects/kospos/pull/121) — `feat(views/eligibility): Phase 2.2.o — lazy PDF text extraction (cert rule · scope · list type)`.
+
+- **New scraper module** [`lib/scrapers/sf-dhr-exam/pdf-parse.ts`](../app/src/lib/scrapers/sf-dhr-exam/pdf-parse.ts): dynamic-imported pdfjs-dist@4.10.38 (so the ~330 KB main + 1,376 KB worker stay out of initial bundle), PDF-binary fetch via the existing CORS-proxy chain (`%PDF-` magic check), text extraction from first 2 pages, 5 field matchers + `extractLabeledField` helper.
+- **`PdfExtract` type** in [`lib/scrapers/types.ts`](../app/src/lib/scrapers/types.ts): 5 captured fields (certRule, listDepartment, examSubType, examType, duration) + extractedAt + success/error. Side-cache shape — separate from `EligibilityList` because extraction is lazy + per-PDF.
+- **`pdfCache` slice** in [`lib/scrapers/store.ts`](../app/src/lib/scrapers/store.ts): keyed by `(jobCode|listId|postDate)` via the new exported `pdfCacheKey` helper. `fetchPdfExtractIfNeeded` method orchestrates lazy fetch + in-flight dedupe via module-level `Set` (NOT Zustand state — re-renders would burn CPU otherwise). `clearAll` wipes the cache (derived data follows the base data).
+- **[`EligibilityDetail.tsx`](../app/src/lib/views/eligibility/EligibilityDetail.tsx)**: 3 new columns (Cert rule · Dept · Sub-type) between Status and File. `PdfFieldCell` renders `…` (loading) / value / `—` (with distinct tooltips for "fetch failed" vs "field not found"). `useEffect` on mount fires extractions for active lists; expired-list extractions only fire when the user expands the controlled `<details>` disclosure (a code with 80+ expired lists otherwise hammers the proxies for data most users never look past Active on).
+- **Tests +75 (643 → 718):** new `pdf-parse.test.ts` (+51 across `extractLabeledField` · 5 matchers · `extractPdfFields` composite · `fetchAndExtractPdfFields` entry-point integration with stubbed fetch + extractor); `eligibility-view.test.tsx` +24 net (column-shape extension, loading/value/failure cell states, useEffect-fires + expired-disclosure gating, post-mount cache populate via `act()`).
+- **Build:** clean first-run (one `INEFFECTIVE_DYNAMIC_IMPORT` warning caught + fixed same-session by dropping static re-exports of pdf-parse runtime from `scrapers/index.ts` — pdfjs chunks now split as intended). Main bundle 1,172 KB / 312 KB gzip; pdf-parse 3.3 KB / 1.7 KB gzip own chunk; pdfjs main 330 KB / 97 KB gzip own chunk; pdfjs worker 1,376 KB separate file.
+
+### Top decisions surfaced for Alex
+
+1. **Option A picked at kickoff** — closes the field-enrichment loop the Phase 2.2.n PR #119 footnote promised would arrive in 2.2.o. First menu-pick session in 5 (S34/35/36/37 all saw freeform Alex directives). Recommendation: keep the "Option 0 — paste feedback" framing as the explicit menu escape going forward.
+2. **Three parallel questions answered inline at kickoff** (Q1 IndexedDB persistence, Q2 Vercel, Q3 Vercel-vs-GitHub contributors). Per CLAUDE.md "describe trade-offs, recommend, act": answered each with a recommendation + proceeded. Q1 recommendation: defer cross-device sync to a separate sub-phase decision; Q2 recommendation: stay on GitHub Pages until a feature requires Vercel; Q3 clarification: Claude doesn't need a Vercel account even if we move (GitHub Co-Authored-By trailer is the actual attribution path, free).
+3. **Live-data discovery rewrote the matchers mid-session.** Initial implementation used freeform regex against synthetic English. Real DHR score-report PDFs are a labeled table (`Scope:`, `List Type:`, `Cert Rule:`, `Duration:`, `Exam Type:`). Rewrote as Tier-1 (labeled extraction via shared `extractLabeledField`) → Tier-2 (the freeform chain, kept for legacy PDFs + test fixtures). This is exactly why the preview-MCP walkthrough exists.
+4. **Real DHR data refutes the Phase 2.2.n constant-2yr Duration claim.** PDF Duration values varied 6 → 12 months across the sample. Filed as Phase 2.2.p follow-up #1 (replace the constant header chip + `computeListExpiration` derivation with the per-list value when present).
+5. **`examType` and `duration` captured but not displayed.** Forward-compatible — the data is in `pdfCache` already; Phase 2.2.p UI follow-up can light them up without re-fetching every PDF.
+6. **3 narrow inline columns** (vs. expandable per-row details) — extracted values are short (PUC, DPH, CPE, "Rule of the List"), fast to scan, no extra click required. Loading state per cell.
+
+### Carry-forward audit (from [`phase-2-2-o-close-audit.md`](audits/phase-2-2-o-close-audit.md))
+
+- A — Auto-archive monitoring: ~~resolved S33~~. Stays dropped.
+- B — SESSION_LOG.md trim: **~3,310 lines after S38 entry (est.).** Past 2,000-line trim trigger. Bundleable with C.
+- C — Memory-file citation anti-pattern in labor-report.md: 12 instances unchanged.
+- D — labor-report.md split: 8,518 lines unchanged. Defer until Phase 2.4.
+- E — Phase 2.2 first sub-phase pick: ~~resolved S24~~. Stays dropped.
+- F — Audit cadence: **15th event-based trigger** fired on schedule.
+
+### What's NOT done
+
+- **`examType` UI surfacing** (tooltip on Sub-type cell or 4th column) — Phase 2.2.p follow-up #2.
+- **`duration` UI surfacing** (replace constant Duration chip + per-row Expires derivation) — Phase 2.2.p follow-up #1. Refutes a Phase 2.2.n design assumption.
+- **IndexedDB persistence for pdfCache** — cache lives in-memory Zustand only; lost on reload. Addresses Alex's S38 Q1 partially. Phase 2.2.p follow-up #4 (promote sooner if Alex hits re-extract friction in normal use).
+- **Cross-tab nav from Eligibility → Positions** (carries) — gates Eligibility + Probation devOnly removal.
+- **Modal overlay-frame to `lib/ui/Modal.tsx`** — still 5 instances; separate refactor.
+- **`research/dhr-eligibility-and-jobs-scraping-plan.md` "no PDF in v1" framing** is now stale; ~10 min doc-touch follow-up.
+- **`filterRollups` export removal** — still no consumer; ~5 min bundle.
+
+### Outcome
+
+1 PR shipped (PR #121). 718/718 tests passing. `npm run build` first-run had 1 warning caught + fixed same-session (counts as 8 of 9 strictly, 9 of 9 practically — the streak is firm). Phase 2.2.o close audit fired; 2 carry-forwards opened (Duration UI surfacing refuting S37 design assumption; examType UI surfacing). Phase 2.2.n PR #119's "Phase 2.2.o will extract these into columns automatically" footnote promise delivered.
+
+### Lessons / improvements for next phase
+
+- **Preview-MCP walkthrough on real data is non-optional for parser work.** Synthetic test fixtures only validate what you ALREADY know about the data shape. The 5 PDFs I sampled live revealed: (a) DHR uses a labeled table not freeform prose; (b) "Department of Human Resources" is the issuing-body header on every PDF (boilerplate to skip); (c) `Scope:` is what we want for dept (not "Department of"); (d) `List Type:` is what we want for sub-type with CPE the dominant value; (e) `Duration:` varies per-list (refutes Phase 2.2.n constant assumption); (f) `Exam Type:` exists as a separate field (PBT/ETP/CBT). Three of the five mattered for matcher correctness; the other two became Phase 2.2.p follow-ups.
+- **Tier-1 (labeled) + Tier-2 (freeform) matcher chains are backward-compatible.** Test fixtures from the initial implementation kept passing during the rewrite because Tier-2 retained the original regex chain. No test churn; new tests added for Tier-1 behavior alongside the existing ones. Pattern worth repeating for any data-shape evolution.
+- **Module-level dedupe Set beats Zustand state for "is N in flight?" plumbing.** Storing in Zustand causes every in-flight change to re-render every subscriber — pointless churn since no UI element subscribes to that state. Module-level Set survives re-renders naturally + resets on full page reload.
+- **Lazy chunking discipline pays for itself the first session.** pdfjs-dist is 330 KB gzipped (97 KB) + a 1.4 MB worker file. Dynamic-importing both keeps them out of the initial bundle entirely; the user pays the cost only on first modal open. The `INEFFECTIVE_DYNAMIC_IMPORT` warning was a useful prompt: Vite explicitly tells you when static re-exports in your barrel files defeat the chunking intent.
+- **Controlled `<details>` for lazy data-fetching is a clean pattern.** The expired-section disclosure controls a boolean `expiredOpen` React state; useEffect on that state fires the extractions. User behavior (click summary) drives the work, not heuristics. jsdom quirk: `<details>`'s toggle event doesn't reliably fire from a synthetic click — tests dispatch toggle explicitly.
+- **Audit findings can refute earlier audit findings.** Phase 2.2.n Finding 2 ("constant 2yr Duration per CSC Rule 411A/412 — no per-list override yet") was true for the v1 model but false for the real DHR PDFs we now parse. The Phase 2.2.o audit names this explicitly + files a follow-up. Audits are versioned records; treat them as such, not as immutable truth.
+
+### Brief audit (Alex's collaboration this session)
+
+- **Prompt quality (S38 prompt + Alex's parallel Q1/Q2/Q3):** ✅ Alex picked Option A from the menu cleanly + asked three forward-looking questions about persistence / Vercel / contributors in parallel. The questions were about architecture not implementation — answered inline + proceeded without scope creep.
+- **Scope discipline:** ✅ 1 single-purpose PR. `examType` and `duration` data captured but NOT surfaced in UI this PR — both filed as Phase 2.2.p follow-ups to keep this PR at the 3 originally-scoped columns. Resisted the temptation to also fix the Phase 2.2.n constant-Duration claim in the same PR.
+- **Verification habits:** ✅ Preview-MCP walkthrough at full scale (137 + 6,732 → 753 rollups; 37 + 76 PDF extracts on 0932). Sampled 3 PDFs directly via browser `fetch` + pdfjs to verify text structure before rewriting matchers.
+- **Audit cadence:** ✅ 15th event-based trigger fires on schedule.
+- **Test count discipline:** ✅ Baseline `npm test` at session start confirmed 643 (no recount drift).
+- **Live-data feedback loop:** ✅ Rewrote matchers mid-session in response to actual PDF text structure discovered via preview-MCP. Documented Tier-1 / Tier-2 separation so the next session understands why both exist.
