@@ -25,6 +25,17 @@
  * localStorage means each device that wants publish access has to be
  * configured once by the user pasting the secret. Read-only visitors
  * never need the secret.
+ *
+ * Compression (added S41): `publishSnapshot` gzips the JSON body via the
+ * Web Streams CompressionStream API before POSTing, and sets
+ * `Content-Encoding: gzip` so the Worker decompresses on receipt. This
+ * was forced by Cloudflare's 100 MB request-body limit + KV's 25 MB
+ * value cap — KosPos's 110K-row dataset serializes to ~150 MB raw,
+ * which both limits reject. JSON gzips 8-15× on this dataset so
+ * compressed bodies sit comfortably under both limits.
+ * `fetchPublishedSnapshot` is unchanged on the source — the browser
+ * auto-decompresses any response with `Content-Encoding: gzip`, so
+ * `response.json()` returns the same envelope shape either way.
  */
 
 import type { SessionFile } from './snapshot';
@@ -33,6 +44,19 @@ const STORAGE_KEYS = {
   pagesUrl: 'kospos.cloudflare.pagesUrl',
   publishSecret: 'kospos.cloudflare.publishSecret',
 } as const;
+
+/**
+ * gzip a UTF-8 string via the Web Streams CompressionStream API. The
+ * Worker mirrors this with DecompressionStream on receipt. Modern
+ * browsers (Chrome 80+, Firefox 113+, Safari 16.4+) + Node 18+ +
+ * Cloudflare Workers runtime all support this natively — no library
+ * needed. Vitest runs under Node so the tests exercise the real API.
+ */
+export async function gzipString(s: string): Promise<Uint8Array> {
+  const cs = new CompressionStream('gzip');
+  const stream = new Response(new TextEncoder().encode(s)).body!.pipeThrough(cs);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
 
 /**
  * Configuration read from localStorage. Both fields may be empty
@@ -173,15 +197,29 @@ export async function publishSnapshot(
     return { ok: false, reason: 'no-secret' };
   }
   const url = `${config.pagesUrl}/api/snapshot`;
+  // gzip the JSON body. See the module header — without this, the
+  // 110K-row real-world dataset trips Cloudflare's 100 MB request
+  // limit at the edge before the Worker even runs. Modern browsers
+  // + Cloudflare Workers both support CompressionStream natively.
+  let compressed: Uint8Array;
+  try {
+    compressed = await gzipString(JSON.stringify(file));
+  } catch (err) {
+    return {
+      ok: false, reason: 'network-error',
+      detail: `gzip failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
   let response: Response;
   try {
     response = await fetchImpl(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Content-Encoding': 'gzip',
         'X-Publish-Secret': config.publishSecret,
       },
-      body: JSON.stringify(file),
+      body: compressed as BodyInit,
     });
   } catch (err) {
     return {

@@ -29,6 +29,21 @@
  *   secret gate. Bonus: validates the envelope shape before writing so
  *   a typo can't corrupt the stored snapshot.
  *
+ * Compression (added S41 after a 110K-row dataset hit Cloudflare's
+ * 100 MB request-body limit + KV's 25 MB value limit):
+ *   - POST requests with `Content-Encoding: gzip` are decompressed
+ *     before envelope validation. The raw compressed bytes are then
+ *     stored in KV (singleton `current` key) so the KV value stays
+ *     well under the 25 MB cap (JSON gzips 8-15× on this dataset).
+ *   - POST requests without `Content-Encoding: gzip` are parsed as
+ *     plain JSON (backward-compatible with older clients) and the
+ *     decompressed bytes are gzipped before being stored in KV.
+ *   - GET inspects the stored bytes' magic header (0x1f 0x8b) to
+ *     decide whether to set `Content-Encoding: gzip` on the response.
+ *     Browsers + the cloudflare-publish.ts client both auto-decompress
+ *     gzip responses transparently, so callers see the same JSON
+ *     envelope either way.
+ *
  * Data-sensitivity note:
  *   The snapshot carries SF public-employee data (names, emplIds,
  *   classifications, salaries) — all public records under the Sunshine
@@ -41,11 +56,22 @@
  *  by `?workspace=` for named workspaces. */
 const SNAPSHOT_KEY = 'current';
 
+/** Cloudflare Workers KV cap per value (hard limit, not configurable).
+ *  We surface this as 413 with a useful error rather than letting
+ *  `env.KOSPOS_SNAPSHOTS.put(...)` throw an opaque 500. */
+const KV_MAX_VALUE_BYTES = 25 * 1024 * 1024;
+
+/** gzip magic header — first two bytes of any gzip stream (RFC 1952). */
+const GZIP_MAGIC_0 = 0x1f;
+const GZIP_MAGIC_1 = 0x8b;
+
 /** Cloudflare Workers KV namespace shape. The Pages binding makes this
- *  available as `env.KOSPOS_SNAPSHOTS` at runtime. */
+ *  available as `env.KOSPOS_SNAPSHOTS` at runtime. The `put` overload
+ *  accepts strings, ArrayBuffers, and ReadableStreams — we use
+ *  ArrayBuffer for the compressed-bytes path. */
 interface KVNamespace {
-  get(key: string, options?: { type: 'text' | 'json' | 'arrayBuffer' | 'stream' }): Promise<string | null>;
-  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+  get(key: string, options?: { type: 'text' | 'json' | 'arrayBuffer' | 'stream' }): Promise<string | ArrayBuffer | null>;
+  put(key: string, value: string | ArrayBuffer | Uint8Array, options?: { expirationTtl?: number }): Promise<void>;
   delete(key: string): Promise<void>;
 }
 
@@ -62,7 +88,7 @@ interface PagesContext {
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Publish-Secret',
+  'Access-Control-Allow-Headers': 'Content-Type, Content-Encoding, X-Publish-Secret',
   'Access-Control-Max-Age': '86400',
 } as const;
 
@@ -98,6 +124,33 @@ function isValidEnvelope(value: unknown): value is { kind: string; schemaVersion
   return true;
 }
 
+/** gzip the given UTF-8 string. Used for the legacy plaintext POST path
+ *  so legacy clients still result in compressed KV storage. */
+async function gzipString(s: string): Promise<Uint8Array> {
+  const cs = new CompressionStream('gzip');
+  const stream = new Response(new TextEncoder().encode(s)).body!.pipeThrough(cs);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/** Decompress gzip bytes back to a UTF-8 string. Used to validate the
+ *  envelope after a gzipped POST. The `as BodyInit` cast works around
+ *  TypeScript 5.7's tightening of `Uint8Array<ArrayBufferLike>` vs
+ *  `Uint8Array<ArrayBuffer>` — both are valid `BufferSource` at
+ *  runtime, but the strict inference picks the wrong union member. */
+async function ungzipToString(bytes: Uint8Array | ArrayBuffer): Promise<string> {
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  const ds = new DecompressionStream('gzip');
+  const stream = new Response(view as BodyInit).body!.pipeThrough(ds);
+  return await new Response(stream).text();
+}
+
+/** Detect whether a stored KV value is gzipped (modern publish path) or
+ *  raw JSON text (legacy publish path before S41). Magic-header sniff
+ *  per RFC 1952. */
+function looksGzipped(bytes: Uint8Array): boolean {
+  return bytes.length >= 2 && bytes[0] === GZIP_MAGIC_0 && bytes[1] === GZIP_MAGIC_1;
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/snapshot
 // ---------------------------------------------------------------------------
@@ -108,20 +161,37 @@ export const onRequestGet = async ({ env }: PagesContext): Promise<Response> => 
       error: 'KV namespace not bound. Bind KOSPOS_SNAPSHOTS in Pages → Settings → Functions.',
     }, 503);
   }
-  const raw = await env.KOSPOS_SNAPSHOTS.get(SNAPSHOT_KEY, { type: 'text' });
+  const raw = await env.KOSPOS_SNAPSHOTS.get(SNAPSHOT_KEY, { type: 'arrayBuffer' });
   if (raw === null) {
     return jsonResponse({ error: 'No snapshot published yet.' }, 404);
   }
-  // Return the body verbatim so the client gets the exact bytes that
-  // were POSTed (preserves any savedAt or label fields).
-  return new Response(raw, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
-      ...CORS_HEADERS,
-    },
-  });
+  if (typeof raw === 'string') {
+    // Defensive: if a KV binding returns text when we asked for
+    // arrayBuffer (shouldn't happen in production but the type union
+    // allows it), send it as plain JSON.
+    return new Response(raw, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+        ...CORS_HEADERS,
+      },
+    });
+  }
+  const bytes = new Uint8Array(raw);
+  // Pass the stored bytes through verbatim. If gzipped, set
+  // Content-Encoding so the browser auto-decompresses on receipt
+  // (transparent to `response.json()`). If not gzipped (legacy KV
+  // value from before S41 or a defensive plaintext path), send as-is.
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+    ...CORS_HEADERS,
+  };
+  if (looksGzipped(bytes)) {
+    headers['Content-Encoding'] = 'gzip';
+  }
+  return new Response(bytes, { status: 200, headers });
 };
 
 // ---------------------------------------------------------------------------
@@ -145,26 +215,53 @@ export const onRequestPost = async ({ request, env }: PagesContext): Promise<Res
       error: 'Invalid or missing X-Publish-Secret header.',
     }, 401);
   }
+
+  // Read the body once. If gzipped, decompress for envelope validation
+  // but keep the raw bytes around so we can store them in KV without
+  // a redundant re-compression round-trip.
+  const encoding = request.headers.get('Content-Encoding');
+  const isGzipped = encoding === 'gzip';
+
   let body: unknown;
+  let storeBytes: Uint8Array;
   try {
-    body = await request.json();
+    if (isGzipped) {
+      const rawBytes = new Uint8Array(await request.arrayBuffer());
+      const decompressedText = await ungzipToString(rawBytes);
+      body = JSON.parse(decompressedText);
+      storeBytes = rawBytes;
+    } else {
+      // Legacy plaintext path — parse JSON directly, then gzip the
+      // serialized form for KV storage (small enough on legacy
+      // datasets that the CPU cost is negligible).
+      body = await request.json();
+      storeBytes = await gzipString(JSON.stringify(body));
+    }
   } catch (err) {
     return jsonResponse({
-      error: `Invalid JSON: ${err instanceof Error ? err.message : String(err)}`,
+      error: `Invalid body: ${err instanceof Error ? err.message : String(err)}`,
     }, 400);
   }
+
   if (!isValidEnvelope(body)) {
     return jsonResponse({
       error: 'Body is not a valid kospos-session envelope (expected { kind, schemaVersion, savedAt, payload }).',
     }, 400);
   }
-  // Persist verbatim — client validation already ran via `buildSessionFile`.
-  const text = JSON.stringify(body);
-  await env.KOSPOS_SNAPSHOTS.put(SNAPSHOT_KEY, text);
+
+  // KV has a hard 25 MB cap per value. Surface this with a useful
+  // error rather than letting the put() call throw an opaque 500.
+  if (storeBytes.byteLength > KV_MAX_VALUE_BYTES) {
+    return jsonResponse({
+      error: `Compressed snapshot is ${storeBytes.byteLength} bytes; Cloudflare Workers KV caps values at ${KV_MAX_VALUE_BYTES}. Switch storage to R2 or split the snapshot.`,
+    }, 413);
+  }
+
+  await env.KOSPOS_SNAPSHOTS.put(SNAPSHOT_KEY, storeBytes);
   return jsonResponse({
     ok: true,
     savedAt: body.savedAt,
-    bytes: text.length,
+    bytes: storeBytes.byteLength,
   }, 200);
 };
 

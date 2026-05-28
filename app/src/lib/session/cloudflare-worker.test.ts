@@ -16,6 +16,11 @@
  *     body when present.
  *   - POST gates on the secret, validates the envelope, writes to KV.
  *   - CORS preflight responds correctly.
+ *   - S41 compression: POST with `Content-Encoding: gzip` decompresses
+ *     before validation; KV holds compressed bytes; GET surfaces the
+ *     compressed bytes back with `Content-Encoding: gzip` so the
+ *     browser auto-decompresses transparently. Legacy plaintext POST
+ *     still works (server gzips before storing).
  *
  * Real Cloudflare Pages will exercise the wire-up + KV binding once
  * Alex's account is set up.
@@ -30,26 +35,46 @@ import {
 
 // ---------------------------------------------------------------------------
 // Mock KV namespace — minimal in-memory implementation matching the
-// `get(key, { type: 'text' })` / `put(key, value)` / `delete(key)` surface
-// the Worker function uses.
+// `get(key, { type })` / `put(key, value)` / `delete(key)` surface the
+// Worker function uses. Values are stored as Uint8Array (the S41 gzip
+// shape); the `type: 'text'` branch decodes back to UTF-8 for any
+// callers that still ask for a string.
 // ---------------------------------------------------------------------------
 
 interface MockKVNamespace {
-  get(key: string, options?: { type: 'text' | 'json' | 'arrayBuffer' | 'stream' }): Promise<string | null>;
-  put(key: string, value: string): Promise<void>;
+  get(key: string, options?: { type: 'text' | 'json' | 'arrayBuffer' | 'stream' }): Promise<string | ArrayBuffer | null>;
+  put(key: string, value: string | ArrayBuffer | Uint8Array): Promise<void>;
   delete(key: string): Promise<void>;
-  _store: Map<string, string>;
+  _store: Map<string, Uint8Array>;
 }
 
-function makeMockKV(initial: Record<string, string> = {}): MockKVNamespace {
+function makeMockKV(initial: Record<string, Uint8Array> = {}): MockKVNamespace {
   const store = new Map(Object.entries(initial));
   return {
     _store: store,
-    async get(key: string): Promise<string | null> {
-      return store.has(key) ? store.get(key)! : null;
+    async get(key: string, options?: { type?: 'text' | 'json' | 'arrayBuffer' | 'stream' }): Promise<string | ArrayBuffer | null> {
+      const bytes = store.get(key);
+      if (bytes === undefined) return null;
+      if (options?.type === 'arrayBuffer') {
+        // Return a fresh ArrayBuffer copy so callers can't mutate the
+        // store via the returned reference.
+        const copy = new Uint8Array(bytes.length);
+        copy.set(bytes);
+        return copy.buffer;
+      }
+      // Default + 'text': decode to UTF-8 string.
+      return new TextDecoder().decode(bytes);
     },
-    async put(key: string, value: string): Promise<void> {
-      store.set(key, value);
+    async put(key: string, value: string | ArrayBuffer | Uint8Array): Promise<void> {
+      let bytes: Uint8Array;
+      if (typeof value === 'string') {
+        bytes = new TextEncoder().encode(value);
+      } else if (value instanceof Uint8Array) {
+        bytes = value;
+      } else {
+        bytes = new Uint8Array(value);
+      }
+      store.set(key, bytes);
     },
     async delete(key: string): Promise<void> {
       store.delete(key);
@@ -70,6 +95,23 @@ function envelope() {
       positionNotes: [],
     },
   };
+}
+
+/** Helper: gzip a string for seeding the mock KV. Mirrors the
+ *  client-side helper exported from cloudflare-publish.ts. */
+async function gzipString(s: string): Promise<Uint8Array> {
+  const cs = new CompressionStream('gzip');
+  const stream = new Response(new TextEncoder().encode(s)).body!.pipeThrough(cs);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/** Helper: decompress gzip bytes back to a UTF-8 string.
+ *  `as BodyInit` works around TS 5.7's Uint8Array tightening; see the
+ *  matching cast in functions/api/snapshot.ts. */
+async function ungzipString(bytes: Uint8Array): Promise<string> {
+  const ds = new DecompressionStream('gzip');
+  const stream = new Response(bytes as BodyInit).body!.pipeThrough(ds);
+  return await new Response(stream).text();
 }
 
 // ---------------------------------------------------------------------------
@@ -95,18 +137,37 @@ describe('GET /api/snapshot', () => {
     expect(response.status).toBe(404);
   });
 
-  it('returns the stored envelope verbatim on 200', async () => {
+  it('returns gzipped envelope with Content-Encoding header on modern KV value', async () => {
     const stored = envelope();
+    const gzipped = await gzipString(JSON.stringify(stored));
     const response = await onRequestGet({
       request: new Request('https://test.local/api/snapshot'),
       env: {
-        KOSPOS_SNAPSHOTS: makeMockKV({ current: JSON.stringify(stored) }) as any,
+        KOSPOS_SNAPSHOTS: makeMockKV({ current: gzipped }) as any,
       },
     } as any);
     expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Encoding')).toBe('gzip');
+    // Body should be the raw gzipped bytes; decompressing gives us
+    // the envelope back. (In a real browser fetch, Content-Encoding:
+    // gzip would auto-decompress before `.json()` sees it.)
+    const bodyBytes = new Uint8Array(await response.arrayBuffer());
+    const json = JSON.parse(await ungzipString(bodyBytes));
+    expect(json.kind).toBe('kospos-session');
+    expect(json.savedAt).toBe('2026-05-28T14:30:00Z');
+  });
+
+  it('returns plaintext envelope without Content-Encoding for legacy KV values', async () => {
+    // Simulate a pre-S41 KV value: raw JSON bytes, no gzip framing.
+    const plain = new TextEncoder().encode(JSON.stringify(envelope()));
+    const response = await onRequestGet({
+      request: new Request('https://test.local/api/snapshot'),
+      env: { KOSPOS_SNAPSHOTS: makeMockKV({ current: plain }) as any },
+    } as any);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Encoding')).toBeNull();
     const body = await response.json();
     expect((body as { kind: string }).kind).toBe('kospos-session');
-    expect((body as { savedAt: string }).savedAt).toBe('2026-05-28T14:30:00Z');
   });
 
   it('includes CORS headers on every response', async () => {
@@ -129,6 +190,19 @@ describe('POST /api/snapshot', () => {
       body: typeof body === 'string' ? body : JSON.stringify(body),
       headers: {
         'Content-Type': 'application/json',
+        ...headers,
+      },
+    });
+  }
+
+  async function mkGzippedRequest(body: unknown, headers: Record<string, string> = {}): Promise<Request> {
+    const gzipped = await gzipString(JSON.stringify(body));
+    return new Request('https://test.local/api/snapshot', {
+      method: 'POST',
+      body: gzipped as BodyInit,
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Encoding': 'gzip',
         ...headers,
       },
     });
@@ -186,7 +260,7 @@ describe('POST /api/snapshot', () => {
     expect((body as { error: string }).error).toMatch(/envelope/);
   });
 
-  it('writes to KV + returns 200 on success', async () => {
+  it('legacy plaintext POST gets compressed before KV storage', async () => {
     const kv = makeMockKV();
     const response = await onRequestPost({
       request: mkRequest(envelope(), { 'X-Publish-Secret': 's' }),
@@ -196,10 +270,64 @@ describe('POST /api/snapshot', () => {
     const body = await response.json();
     expect((body as { ok: boolean }).ok).toBe(true);
     expect((body as { savedAt: string }).savedAt).toBe('2026-05-28T14:30:00Z');
-    // KV now contains the envelope (verbatim).
-    expect(kv._store.has('current')).toBe(true);
-    const stored = JSON.parse(kv._store.get('current')!);
-    expect(stored.kind).toBe('kospos-session');
+    // KV value should be gzipped bytes (magic header 0x1f 0x8b), NOT
+    // raw JSON text. Decompressing gives us the envelope back.
+    const stored = kv._store.get('current');
+    expect(stored).toBeDefined();
+    expect(stored![0]).toBe(0x1f);
+    expect(stored![1]).toBe(0x8b);
+    const parsed = JSON.parse(await ungzipString(stored!));
+    expect(parsed.kind).toBe('kospos-session');
+  });
+
+  it('gzipped POST is decompressed for validation + stored as the original gzip bytes', async () => {
+    const kv = makeMockKV();
+    const req = await mkGzippedRequest(envelope(), { 'X-Publish-Secret': 's' });
+    const response = await onRequestPost({
+      request: req,
+      env: { KOSPOS_SNAPSHOTS: kv as any, PUBLISH_SECRET: 's' },
+    } as any);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect((body as { ok: boolean }).ok).toBe(true);
+    // KV holds the gzipped bytes the client POSTed.
+    const stored = kv._store.get('current');
+    expect(stored).toBeDefined();
+    expect(stored![0]).toBe(0x1f);
+    expect(stored![1]).toBe(0x8b);
+    const parsed = JSON.parse(await ungzipString(stored!));
+    expect(parsed.savedAt).toBe('2026-05-28T14:30:00Z');
+  });
+
+  it('gzipped POST with envelope-shape failure returns 400', async () => {
+    const kv = makeMockKV();
+    const req = await mkGzippedRequest({ wrong: 'shape' }, { 'X-Publish-Secret': 's' });
+    const response = await onRequestPost({
+      request: req,
+      env: { KOSPOS_SNAPSHOTS: kv as any, PUBLISH_SECRET: 's' },
+    } as any);
+    expect(response.status).toBe(400);
+    expect(kv._store.has('current')).toBe(false);
+  });
+
+  it('gzipped POST with corrupted body returns 400 (decompression fails)', async () => {
+    const kv = makeMockKV();
+    // Not actually gzipped, but labeled as such.
+    const req = new Request('https://test.local/api/snapshot', {
+      method: 'POST',
+      body: new TextEncoder().encode('not actually gzipped'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Encoding': 'gzip',
+        'X-Publish-Secret': 's',
+      },
+    });
+    const response = await onRequestPost({
+      request: req,
+      env: { KOSPOS_SNAPSHOTS: kv as any, PUBLISH_SECRET: 's' },
+    } as any);
+    expect(response.status).toBe(400);
+    expect(kv._store.has('current')).toBe(false);
   });
 });
 
@@ -214,5 +342,7 @@ describe('OPTIONS /api/snapshot (CORS preflight)', () => {
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
     expect(response.headers.get('Access-Control-Allow-Methods')).toMatch(/POST/);
     expect(response.headers.get('Access-Control-Allow-Headers')).toMatch(/X-Publish-Secret/);
+    // S41: the gzipped publish path needs Content-Encoding pre-flighted.
+    expect(response.headers.get('Access-Control-Allow-Headers')).toMatch(/Content-Encoding/);
   });
 });
