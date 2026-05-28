@@ -137,15 +137,87 @@ describe('EligibilityView — detail modal', () => {
     render(<EligibilityView />);
     fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
     const modal = screen.getByRole('dialog');
-    // The modal has TWO close affordances both named "Close" (header ×
-    // with aria-label and footer text button). Pick the footer one by
-    // its exact visible text content — getAllByRole returns both; the
-    // footer button is the one whose textContent is exactly "Close".
-    const closes = within(modal).getAllByRole('button', { name: /^Close$/i });
-    const footer = closes.find(b => b.textContent === 'Close');
-    expect(footer).toBeDefined();
-    fireEvent.click(footer!);
+    // Phase 2.2.n: header × has aria-label "Close detail" (per Phase 2.2.m
+    // audit recommendation #4 — disambiguates from the footer "Close"
+    // button). The footer's accessible name is its text "Close" — that's
+    // what the strict regex /^Close$/i picks up.
+    fireEvent.click(within(modal).getByRole('button', { name: /^Close$/i }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('header × button has aria-label "Close detail" to disambiguate from footer Close', () => {
+    seedFourRollups();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    // Phase 2.2.n audit follow-up: rename header close aria-label.
+    expect(within(modal).getByRole('button', { name: /Close detail/i })).toBeInTheDocument();
+  });
+
+  it('modal header shows a Duration chip describing CSC Rule 411A/412', () => {
+    seedFourRollups();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    // Duration is constant (2 years per CSC Rule 411A/412) so it's a
+    // header chip, not a per-row column.
+    expect(within(modal).getByText(/Duration/i)).toBeInTheDocument();
+    expect(within(modal).getByText(/2 yr.*CSC.*411A.*412/)).toBeInTheDocument();
+  });
+
+  it('lists table column shape is Post date / List ID / Expires / Status / File (Type dropped)', () => {
+    seedFourRollups();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    expect(within(modal).getByText(/Post date/i)).toBeInTheDocument();
+    expect(within(modal).getAllByText(/List ID/i).length).toBeGreaterThan(0);
+    expect(within(modal).getByText(/Expires/i)).toBeInTheDocument();
+    expect(within(modal).getByText(/Status/i)).toBeInTheDocument();
+    expect(within(modal).getByText(/File/i)).toBeInTheDocument();
+    // Type column dropped per Alex's S37 directive — the "Score report
+    // (civil service)" label should NOT appear anywhere in the modal.
+    expect(within(modal).queryByText(/Score report \(civil service\)/i)).not.toBeInTheDocument();
+  });
+
+  it('lists table renders the derived expiration date for each row', () => {
+    seedFourRollups();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    // 1820's active list postDate 2025-08-15 → expiration 2027-08-15.
+    expect(within(modal).getByText('2027-08-15')).toBeInTheDocument();
+  });
+
+  it('expired-list row shows the "expired Xd ago" status pill', () => {
+    seedFourRollups();
+    render(<EligibilityView />);
+    // Q002 has an expired list (postDate 2022-01-01).
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for Q002/i }));
+    const modal = screen.getByRole('dialog');
+    // Open the expired-list disclosure to mount the inner table.
+    fireEvent.click(within(modal).getByText(/Expired lists \(1\)/));
+    expect(within(modal).getByText(/expired.*d ago/i)).toBeInTheDocument();
+  });
+
+  it('expired disclosure shows the type breakdown for uniformed-only rollups', () => {
+    seedFourRollups();
+    render(<EligibilityView />);
+    // Q002 has 1 expired eligible-list → breakdown should read "1 eligible list".
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for Q002/i }));
+    const modal = screen.getByRole('dialog');
+    expect(within(modal).getByText(/1 eligible list/i)).toBeInTheDocument();
+  });
+
+  it('modal footnote calls out fields that live on the PDF cover sheet', () => {
+    seedFourRollups();
+    render(<EligibilityView />);
+    fireEvent.click(screen.getByRole('button', { name: /Open detail for 1820/i }));
+    const modal = screen.getByRole('dialog');
+    // The "Not shown here" footnote names cert rule, dept, exam sub-type.
+    expect(within(modal).getByText(/Not shown here/i)).toBeInTheDocument();
+    expect(within(modal).getByText(/certification rule/i)).toBeInTheDocument();
+    expect(within(modal).getByText(/exam sub-type/i)).toBeInTheDocument();
   });
 
   it('renders the expired-only rollup detail with expired-section disclosure', () => {

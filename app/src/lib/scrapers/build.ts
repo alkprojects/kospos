@@ -308,3 +308,107 @@ export function collectDepartments(rollups: JobCodeRollup[]): string[] {
   }
   return [...set].sort((a, b) => a.localeCompare(b));
 }
+
+// ---------------------------------------------------------------------------
+// Phase 2.2.n — per-list derived helpers (expiration, days-left, status,
+// type counts). All pure; consumed by EligibilityDetail to surface
+// duration + expiration + days-left columns Alex asked for in S37.
+//
+// Cert rule, list-row department, and exam sub-type live in the PDF
+// cover sheet — not on the DHR listing page's 3-column table. Phase
+// 2.2.o lazy-PDF-parse is filed as the explicit follow-on sub-phase
+// (per Alex's S37 scope pick "C: A this session + B as Phase 2.2.o").
+// ---------------------------------------------------------------------------
+
+/** "Expiring soon" threshold — list within 90 days of expiration. Matches
+ *  the `temp-tx-expiration-imminent` quality flag's 90-day cutoff
+ *  (labor-report.md § Data Issues catalog) so the UX uses one threshold. */
+export const EXPIRING_SOON_DAYS = 90;
+
+/**
+ * Compute an eligibility list's expiration date — `postDate + windowDays`.
+ * Returns ISO `YYYY-MM-DD`; empty string when `postDate` is malformed.
+ *
+ * The default window (2 years per CSC Rule 411A/412) matches the
+ * isListActive cutoff so "active" and "not-yet-expired" agree.
+ *
+ * Day arithmetic: uses `730` days for the 2-year window — exact only
+ * when neither year is a leap year. On a leap-year span the displayed
+ * expiration is 1 day shy of the same-month-and-day-2-years-later
+ * intuition (e.g., 2026-05-01 + 730 days = 2028-04-30 because 2028 is
+ * a leap year). Tradeoff accepted in v1: the 1-day drift is invisible
+ * to the user against the 90-day expiring-soon threshold + the fact
+ * that DHR lists can be extended anyway. Switch to calendar arithmetic
+ * (setUTCFullYear) when this becomes UX-relevant.
+ */
+export function computeListExpiration(
+  list: EligibilityList,
+  windowDays: number = DEFAULT_ACTIVE_LIST_WINDOW_DAYS,
+): string {
+  if (!list.postDate) return '';
+  const post = new Date(list.postDate + 'T00:00:00Z');
+  if (Number.isNaN(post.getTime())) return '';
+  const exp = new Date(post.getTime() + windowDays * 24 * 60 * 60 * 1000);
+  const y = exp.getUTCFullYear();
+  const m = String(exp.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(exp.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** Status of an eligibility list relative to `today`. */
+export type ListStatusTone = 'active' | 'expiring-soon' | 'expired' | 'unknown';
+
+/**
+ * Compute the days-until-expiration + status tone for a list.
+ *
+ *   - `unknown`        — postDate missing/malformed (caller renders "—")
+ *   - `expired`        — daysRemaining < 0 (today past expiration)
+ *   - `expiring-soon`  — daysRemaining ≤ EXPIRING_SOON_DAYS (yellow)
+ *   - `active`         — daysRemaining > EXPIRING_SOON_DAYS (green)
+ *
+ * `daysRemaining` is signed — positive = days until expiration, negative
+ * = days since expiration. Caller formats the user-facing label.
+ */
+export function computeListStatus(
+  list: EligibilityList,
+  today: string,
+  windowDays: number = DEFAULT_ACTIVE_LIST_WINDOW_DAYS,
+): { daysRemaining: number; tone: ListStatusTone; expirationDate: string } {
+  const expirationDate = computeListExpiration(list, windowDays);
+  if (!expirationDate || !today) {
+    return { daysRemaining: 0, tone: 'unknown', expirationDate };
+  }
+  const exp = new Date(expirationDate + 'T00:00:00Z');
+  const now = new Date(today + 'T00:00:00Z');
+  if (Number.isNaN(exp.getTime()) || Number.isNaN(now.getTime())) {
+    return { daysRemaining: 0, tone: 'unknown', expirationDate };
+  }
+  const daysRemaining = Math.floor((exp.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+  const tone: ListStatusTone = daysRemaining < 0
+    ? 'expired'
+    : daysRemaining <= EXPIRING_SOON_DAYS
+      ? 'expiring-soon'
+      : 'active';
+  return { daysRemaining, tone, expirationDate };
+}
+
+/**
+ * Count list types across a list set. Used by EligibilityDetail to
+ * promote per-row type info to a section-header breakdown — e.g.,
+ * "Active eligibility lists · 2 score reports + 1 eligible list".
+ *
+ * Drops the per-row Type column per Alex's S37 directive ("Score report
+ * (civil service)" is constant noise for DBI's use case) while
+ * preserving the citywide signal for Police/Fire when mixed.
+ */
+export function countListTypes(
+  lists: ReadonlyArray<EligibilityList>,
+): { scoreReports: number; eligibleLists: number } {
+  let scoreReports = 0;
+  let eligibleLists = 0;
+  for (const l of lists) {
+    if (l.type === 'score-report') scoreReports++;
+    else if (l.type === 'eligible-list') eligibleLists++;
+  }
+  return { scoreReports, eligibleLists };
+}

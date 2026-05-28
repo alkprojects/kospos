@@ -24,7 +24,11 @@ import {
   applyEligibilityFilters,
   buildJobCodeRollups,
   collectDepartments,
+  computeListExpiration,
+  computeListStatus,
+  countListTypes,
   EMPTY_ELIGIBILITY_FILTERS,
+  EXPIRING_SOON_DAYS,
   filterRollups,
   summarizeRollup,
 } from './build';
@@ -681,5 +685,137 @@ describe('collectDepartments', () => {
 
   it('returns an empty array when no rollups have postings', () => {
     expect(collectDepartments([])).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeListExpiration — Phase 2.2.n: postDate + windowDays.
+// ---------------------------------------------------------------------------
+
+describe('computeListExpiration', () => {
+  function mkList(over: Partial<EligibilityList> = {}): EligibilityList {
+    return {
+      jobCode: '1820', classTitle: '', listId: 'L1',
+      postDate: '2026-05-01', fileUrl: 'x.pdf', type: 'score-report',
+      ...over,
+    };
+  }
+
+  it('adds the default 2-year window (730 days) to postDate', () => {
+    // 2026-05-01 + 730 days lands on 2028-04-30 because 2028 is a leap year.
+    // The 1-day drift is documented in computeListExpiration's doc comment.
+    expect(computeListExpiration(mkList({ postDate: '2026-05-01' }))).toBe('2028-04-30');
+  });
+
+  it('hits the exact same-month-day for non-leap spans', () => {
+    // 2022-01-01 → +730 days = 2023-12-31 + 1 = 2024-01-01? Let's pick a span
+    // with NO leap year between to verify true same-day arithmetic: 2025-01-01
+    // → +730 days. 2025 + 2026 both non-leap → 365+365=730 → 2027-01-01.
+    expect(computeListExpiration(mkList({ postDate: '2025-01-01' }))).toBe('2027-01-01');
+  });
+
+  it('honors a custom windowDays override', () => {
+    expect(computeListExpiration(mkList({ postDate: '2026-05-01' }), 30)).toBe('2026-05-31');
+  });
+
+  it('handles year-boundary post dates with leap-year drift', () => {
+    // 2025-12-31 + 730 days: spans 2025 (non-leap) + 2026 (non-leap) → 365+365=730.
+    expect(computeListExpiration(mkList({ postDate: '2025-12-31' }))).toBe('2027-12-31');
+  });
+
+  it('returns empty string when postDate is missing', () => {
+    expect(computeListExpiration(mkList({ postDate: '' }))).toBe('');
+  });
+
+  it('returns empty string when postDate is malformed', () => {
+    expect(computeListExpiration(mkList({ postDate: 'not-a-date' }))).toBe('');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeListStatus — Phase 2.2.n: days-remaining + active/expiring/expired tone.
+// ---------------------------------------------------------------------------
+
+describe('computeListStatus', () => {
+  function mkList(postDate: string): EligibilityList {
+    return {
+      jobCode: '1820', classTitle: '', listId: 'L1',
+      postDate, fileUrl: 'x.pdf', type: 'score-report',
+    };
+  }
+
+  it('returns active when daysRemaining > EXPIRING_SOON_DAYS', () => {
+    // postDate 2026-05-01 → expiration 2028-04-30 (leap-year drift; see
+    // computeListExpiration doc comment). today 2026-05-27 → ~704 days remaining.
+    const s = computeListStatus(mkList('2026-05-01'), '2026-05-27');
+    expect(s.tone).toBe('active');
+    expect(s.expirationDate).toBe('2028-04-30');
+    expect(s.daysRemaining).toBeGreaterThan(EXPIRING_SOON_DAYS);
+  });
+
+  it('returns expiring-soon when 0 < daysRemaining <= EXPIRING_SOON_DAYS', () => {
+    // postDate 2024-05-01 → expiration 2026-05-01. today 2026-03-01 → 61 days remaining.
+    const s = computeListStatus(mkList('2024-05-01'), '2026-03-01');
+    expect(s.tone).toBe('expiring-soon');
+    expect(s.daysRemaining).toBeLessThanOrEqual(EXPIRING_SOON_DAYS);
+    expect(s.daysRemaining).toBeGreaterThan(0);
+  });
+
+  it('returns expired when daysRemaining < 0', () => {
+    // postDate 2022-01-01 → expiration 2024-01-01. today 2026-05-27 → ~-877 days.
+    const s = computeListStatus(mkList('2022-01-01'), '2026-05-27');
+    expect(s.tone).toBe('expired');
+    expect(s.daysRemaining).toBeLessThan(0);
+  });
+
+  it('treats today === expiration as expiring-soon (0 days)', () => {
+    // postDate 2024-05-27 → expiration 2026-05-27. today 2026-05-27 → 0.
+    const s = computeListStatus(mkList('2024-05-27'), '2026-05-27');
+    expect(s.tone).toBe('expiring-soon');
+    expect(s.daysRemaining).toBe(0);
+  });
+
+  it('returns unknown when postDate is malformed', () => {
+    const s = computeListStatus(mkList(''), '2026-05-27');
+    expect(s.tone).toBe('unknown');
+    expect(s.expirationDate).toBe('');
+  });
+
+  it('returns unknown when today is empty', () => {
+    const s = computeListStatus(mkList('2026-05-01'), '');
+    expect(s.tone).toBe('unknown');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// countListTypes — Phase 2.2.n: section-header type breakdown.
+// ---------------------------------------------------------------------------
+
+describe('countListTypes', () => {
+  function mk(type: 'score-report' | 'eligible-list'): EligibilityList {
+    return {
+      jobCode: '1820', classTitle: '', listId: 'L',
+      postDate: '2026-01-01', fileUrl: 'x.pdf', type,
+    };
+  }
+
+  it('returns zeros for an empty array', () => {
+    expect(countListTypes([])).toEqual({ scoreReports: 0, eligibleLists: 0 });
+  });
+
+  it('counts only score-reports', () => {
+    expect(countListTypes([mk('score-report'), mk('score-report')]))
+      .toEqual({ scoreReports: 2, eligibleLists: 0 });
+  });
+
+  it('counts only eligible-lists', () => {
+    expect(countListTypes([mk('eligible-list')]))
+      .toEqual({ scoreReports: 0, eligibleLists: 1 });
+  });
+
+  it('counts mixed types', () => {
+    expect(countListTypes([
+      mk('score-report'), mk('eligible-list'), mk('score-report'),
+    ])).toEqual({ scoreReports: 2, eligibleLists: 1 });
   });
 });
