@@ -23,13 +23,23 @@
  * upstream body verbatim. We pass the same `?page=N` Drupal pagination
  * to whichever proxy is in use.
  *
- * Polite throttle: 500ms between page fetches to avoid spooking the
- * proxies' rate limiters. With ~66 pages, total scrape ≈ 33 seconds.
+ * Speed (Phase 2.2.v): pages are fetched in WAVES of `concurrency`
+ * (default 6) rather than one-at-a-time-with-a-500ms-throttle. The old
+ * polite throttle made a ~66-page scrape take ~50s (mostly idle waiting);
+ * S46 measured the public proxy tolerating 8 concurrent page fetches with
+ * zero rate-limiting (8/8 → 200 in 429ms), so bounded concurrency cuts a
+ * full scrape to ~5s. Each page still walks the full proxy fallback chain
+ * independently, and a per-proxy timeout (default 10s) keeps one slow /
+ * hung proxy from stalling its wave.
  *
  * Failure modes:
- *   - all proxies fail (e.g., user offline) → throw FetchDhrError with
- *     a message naming every proxy that was tried
- *   - one page parses 0 rows → assume end-of-data; stop iterating
+ *   - all proxies fail on the FIRST page (e.g., user offline) → throw
+ *     FetchDhrError naming every proxy that was tried
+ *   - a page parses 0 rows → assume end-of-data; stop launching waves
+ *     (later pages already in flight in that wave are discarded)
+ *   - all proxies fail on a LATER page → treat as end-of-data; return the
+ *     partial scrape (a transient blip near the tail shouldn't lose the
+ *     pages that already succeeded)
  *   - upstream HTML changes break the parser → caller surfaces 0 rows;
  *     user falls back to the manual-paste panel (still in the UI)
  *
@@ -44,9 +54,18 @@ const BASE_URL = 'https://sfdhr.org/past-examination-results';
 /** Safety cap so a malformed pagination doesn't loop forever. DHR had
  *  66 pages as of S33; 200 is generous headroom. */
 const MAX_PAGES = 200;
-/** Polite delay between page fetches (ms). Keeps us well below any
- *  reasonable rate-limit + matches the S33 research-doc recommendation. */
-const PAGE_DELAY_MS = 500;
+/** Pages fetched concurrently per wave. 6 is well under the 8-at-once the
+ *  public proxy tolerated in the S46 probe (8/8 → 200, no rate-limiting),
+ *  leaving headroom for the deployed origin's possibly-stricter limits
+ *  while still cutting a full scrape from ~50s to ~5s. Each page in a wave
+ *  walks its own proxy fallback chain, so concurrency multiplies
+ *  throughput without giving up resilience. */
+const DEFAULT_CONCURRENCY = 6;
+/** Per-proxy fetch timeout (ms). Before this existed a hung proxy could
+ *  block a page (and thus its wave) indefinitely — the most likely cause
+ *  of "the scrape used to be fast, now it hangs". On timeout the fetch is
+ *  aborted and the page falls through to the next proxy in the chain. */
+const PROXY_TIMEOUT_MS = 10_000;
 
 /**
  * One CORS-proxy strategy. The `wrap` function maps an upstream URL to
@@ -107,10 +126,20 @@ export interface FetchDhrOptions {
   workerUrl?: string;
   /** Cap pages to fetch (default MAX_PAGES). Tests lower this. */
   maxPages?: number;
-  /** Delay between page fetches in ms (default PAGE_DELAY_MS). Set to 0
-   *  in tests to keep them fast. */
+  /** Pages to fetch concurrently per wave (default DEFAULT_CONCURRENCY).
+   *  Set to 1 to force the old strictly-sequential behavior (tests that
+   *  assert exact call order / counts do this). */
+  concurrency?: number;
+  /** Per-proxy fetch timeout in ms (default PROXY_TIMEOUT_MS). A fetch that
+   *  doesn't settle within the window is aborted and the page falls through
+   *  to the next proxy. Set to 0 to disable the timeout (tests). */
+  timeoutMs?: number;
+  /** Delay between waves in ms (default 0 — bounded concurrency is itself
+   *  the throttle). Kept configurable for politeness if a proxy ever starts
+   *  rate-limiting. Tests pass 0. */
   pageDelayMs?: number;
-  /** Per-stage progress callback. Fires once per successful page parse. */
+  /** Per-page progress callback. Fires once per successfully parsed page,
+   *  in ascending page order. */
   onProgress?: (info: {
     page: number;
     pagesSoFar: number;
@@ -130,6 +159,29 @@ export class FetchDhrError extends Error {
 }
 
 /**
+ * Run `fetchImpl` with an AbortController-backed timeout. On timeout the
+ * request is aborted, which rejects the fetch so the caller falls through
+ * to the next proxy. When `timeoutMs <= 0` (or AbortController isn't
+ * available) the fetch runs untimed.
+ */
+async function fetchWithTimeout(
+  fetchImpl: FetchImpl,
+  url: string,
+  timeoutMs: number,
+): Promise<Response> {
+  if (!(timeoutMs > 0) || typeof AbortController === 'undefined') {
+    return fetchImpl(url);
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetchImpl(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Fetch one Drupal page through the proxy chain. Returns the first
  * successful response's text. Throws `FetchDhrError` when every proxy
  * fails, carrying the per-proxy failure detail for the UI to surface.
@@ -138,11 +190,12 @@ async function fetchPageThroughProxies(
   upstreamUrl: string,
   proxies: readonly CorsProxy[],
   fetchImpl: FetchImpl,
+  timeoutMs: number,
 ): Promise<{ html: string; proxyUsed: string }> {
   const attempts: Array<{ label: string; detail: string }> = [];
   for (const proxy of proxies) {
     try {
-      const resp = await fetchImpl(proxy.wrap(upstreamUrl));
+      const resp = await fetchWithTimeout(fetchImpl, proxy.wrap(upstreamUrl), timeoutMs);
       if (!resp.ok) {
         attempts.push({ label: proxy.label, detail: `HTTP ${resp.status}` });
         continue;
@@ -176,18 +229,31 @@ async function fetchPageThroughProxies(
   );
 }
 
+/** One page's fetch+parse outcome. `error` is set only when every proxy
+ *  failed for that page. */
+interface PageResult {
+  page: number;
+  rows: EligibilityList[];
+  proxyUsed: string;
+  error: FetchDhrError | null;
+}
+
 /**
  * Fetch + parse all pages of sfdhr.org/past-examination-results through
  * the proxy chain. Returns the flat `EligibilityList[]` ready to feed
  * `useScrapers.appendEligibilityLists` (or `setEligibilityLists` — this
  * fetch returns the WHOLE corpus, so a wholesale replace is appropriate).
  *
- * Pagination: Drupal `?page=N` (0-indexed). Iterates until a page parses
- * to zero rows (assumed end-of-data) or `maxPages` is hit (safety cap).
+ * Pagination: Drupal `?page=N` (0-indexed). Pages are fetched in waves of
+ * `concurrency`; iteration stops at the first page that parses to zero
+ * rows (assumed end-of-data) or `maxPages` (safety cap). Within a wave the
+ * fetches race, but results are processed in ascending page order so the
+ * output + `onProgress` stream are deterministic regardless of which fetch
+ * resolves first.
  *
  * @throws FetchDhrError when the first page fails (all proxies down).
- *         Subsequent-page failures stop the iteration but return whatever
- *         was successfully fetched (graceful degradation — partial scrape
+ *         A later-page failure stops iteration but returns whatever was
+ *         successfully fetched (graceful degradation — partial scrape
  *         beats no scrape).
  */
 export async function fetchDhrExamResults(
@@ -201,39 +267,74 @@ export async function fetchDhrExamResults(
     ? [...baseProxies, workerProxy(opts.workerUrl)]
     : baseProxies;
   const maxPages = opts.maxPages ?? MAX_PAGES;
-  const delayMs = opts.pageDelayMs ?? PAGE_DELAY_MS;
+  const concurrency = Math.max(1, opts.concurrency ?? DEFAULT_CONCURRENCY);
+  const timeoutMs = opts.timeoutMs ?? PROXY_TIMEOUT_MS;
+  const waveDelayMs = opts.pageDelayMs ?? 0;
 
-  const all: EligibilityList[] = [];
-  let pageNum = 0;
-  for (; pageNum < maxPages; pageNum++) {
-    const upstreamUrl = pageNum === 0
-      ? BASE_URL
-      : `${BASE_URL}?page=${pageNum}`;
-    const { html, proxyUsed } = await fetchPageThroughProxies(
-      upstreamUrl,
-      proxies,
-      fetchImpl,
-    );
-    const rows = parseDhrExamHtml(html);
-    if (rows.length === 0) {
-      // Empty page → assume end-of-data. Common pagination convention:
-      // requesting a page past the last one returns the same template
-      // shell with zero rows.
-      break;
+  const pageRows: EligibilityList[][] = [];
+  let processed = 0;
+  let totalRows = 0;
+  let reachedEnd = false;
+
+  for (let waveStart = 0; waveStart < maxPages && !reachedEnd; waveStart += concurrency) {
+    const waveEnd = Math.min(waveStart + concurrency, maxPages);
+    const pageNums: number[] = [];
+    for (let n = waveStart; n < waveEnd; n++) pageNums.push(n);
+
+    // Fire the whole wave concurrently. Each page independently walks the
+    // proxy fallback chain; a failed page resolves with `error` set rather
+    // than rejecting, so one bad page can't abort the whole Promise.all.
+    const settled: PageResult[] = await Promise.all(pageNums.map(async (n) => {
+      const upstreamUrl = n === 0 ? BASE_URL : `${BASE_URL}?page=${n}`;
+      try {
+        const { html, proxyUsed } = await fetchPageThroughProxies(
+          upstreamUrl, proxies, fetchImpl, timeoutMs,
+        );
+        return { page: n, rows: parseDhrExamHtml(html), proxyUsed, error: null };
+      } catch (err) {
+        return { page: n, rows: [], proxyUsed: '', error: err as FetchDhrError };
+      }
+    }));
+
+    // Process strictly in page order so end-of-data detection matches the
+    // old sequential behavior: the FIRST page that errors or parses to zero
+    // rows marks the end; later pages already fetched in this wave are
+    // dropped.
+    for (const r of settled) {
+      if (r.error) {
+        // First page failing on every proxy is a hard error (all proxies
+        // down / offline) — surface it. A later page failing is treated as
+        // end-of-data so a transient tail blip keeps the partial scrape.
+        if (r.page === 0) throw r.error;
+        reachedEnd = true;
+        break;
+      }
+      if (r.rows.length === 0) {
+        // Empty page → assume end-of-data. Common pagination convention:
+        // requesting a page past the last one returns the same template
+        // shell with zero rows.
+        reachedEnd = true;
+        break;
+      }
+      pageRows.push(r.rows);
+      processed += 1;
+      totalRows += r.rows.length;
+      opts.onProgress?.({
+        page: r.page + 1,
+        pagesSoFar: processed,
+        rowsSoFar: totalRows,
+        proxyUsed: r.proxyUsed,
+      });
     }
-    all.push(...rows);
-    opts.onProgress?.({
-      page: pageNum + 1,
-      pagesSoFar: pageNum + 1,
-      rowsSoFar: all.length,
-      proxyUsed,
-    });
-    // Polite throttle between pages.
-    if (delayMs > 0 && pageNum + 1 < maxPages) {
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+
+    // Polite inter-wave pause (off by default — bounded concurrency is the
+    // throttle). Skipped once we've hit the end.
+    if (!reachedEnd && waveDelayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, waveDelayMs));
     }
   }
-  return dedupeRows(all);
+
+  return dedupeRows(pageRows.flat());
 }
 
 /** Body-sniff helper — does the response look like HTML (any flavor)?

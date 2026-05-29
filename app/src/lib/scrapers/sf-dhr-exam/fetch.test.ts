@@ -1,10 +1,20 @@
 /**
  * Unit tests for `fetchDhrExamResults` — exercises the proxy chain,
- * pagination + termination, dedupe, and the Worker-URL extension.
+ * pagination + termination, dedupe, the Worker-URL extension, and the
+ * Phase 2.2.v bounded-concurrency + per-proxy-timeout fetching.
  *
  * Strategy: inject a mock `fetchImpl` + a mock proxy chain so we can
  * script per-page / per-proxy success and failure. Real DOMParser is
  * available in the test env via happy-dom (configured in vitest.config).
+ *
+ * Two mock styles:
+ *   - The behavioral tests (proxy fallback, termination, dedupe, …) run
+ *     with `concurrency: 1`, which forces the old strictly-sequential
+ *     order so `mockResolvedValueOnce` chains + exact call-count
+ *     assertions stay meaningful.
+ *   - The concurrency tests use `routedFetch` — a URL-aware mock that
+ *     answers by page number regardless of which proxy wraps it or which
+ *     order the concurrent fetches resolve in.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -31,7 +41,22 @@ function makeResponse(body: string, ok = true, status = 200): Response {
   } as Response;
 }
 
-describe('fetchDhrExamResults — happy path', () => {
+/** URL-aware mock fetch. Recovers the upstream `?page=N` from the wrapped
+ *  proxy URL and answers from `pages` (a map of page number → rows, or
+ *  `null`/absent → an empty end-of-data page). Order-independent, so it
+ *  works no matter which proxy is used or which concurrent fetch resolves
+ *  first. */
+function routedFetch(pages: Record<number, Array<{ postDate: string; listId: string; jobCode: string }>>) {
+  return vi.fn((input: string) => {
+    const decoded = decodeURIComponent(input);
+    const m = decoded.match(/[?&]page=(\d+)/);
+    const page = m ? Number(m[1]) : 0;
+    const rows = pages[page] ?? [];
+    return Promise.resolve(makeResponse(buildPageHtml(rows)));
+  });
+}
+
+describe('fetchDhrExamResults — happy path (sequential, concurrency:1)', () => {
   it('fetches a single page through the first proxy and stops when the next page has zero rows', async () => {
     const fetchImpl = vi.fn();
     // Page 0 → 2 rows; page 1 → 0 rows (empty page = end of data)
@@ -44,6 +69,7 @@ describe('fetchDhrExamResults — happy path', () => {
     const result = await fetchDhrExamResults({
       fetchImpl,
       pageDelayMs: 0,
+      concurrency: 1,
     });
     expect(result).toHaveLength(2);
     expect(result[0].jobCode).toBe('0932');
@@ -69,7 +95,7 @@ describe('fetchDhrExamResults — happy path', () => {
     ])));
     fetchImpl.mockResolvedValueOnce(makeResponse(buildPageHtml([])));
 
-    const result = await fetchDhrExamResults({ fetchImpl, pageDelayMs: 0 });
+    const result = await fetchDhrExamResults({ fetchImpl, pageDelayMs: 0, concurrency: 1 });
     expect(result).toHaveLength(3);
     expect(fetchImpl).toHaveBeenCalledTimes(4);
   });
@@ -85,6 +111,7 @@ describe('fetchDhrExamResults — happy path', () => {
     const result = await fetchDhrExamResults({
       fetchImpl,
       pageDelayMs: 0,
+      concurrency: 1,
       maxPages: 3,
     });
     expect(fetchImpl).toHaveBeenCalledTimes(3);
@@ -92,7 +119,7 @@ describe('fetchDhrExamResults — happy path', () => {
   });
 });
 
-describe('fetchDhrExamResults — proxy fallback', () => {
+describe('fetchDhrExamResults — proxy fallback (concurrency:1)', () => {
   it('falls back to the next proxy when the first one returns HTTP 500', async () => {
     const fetchImpl = vi.fn();
     // First proxy fails on page 0 with 500
@@ -104,7 +131,7 @@ describe('fetchDhrExamResults — proxy fallback', () => {
     // Next page empty
     fetchImpl.mockResolvedValueOnce(makeResponse(buildPageHtml([])));
 
-    const result = await fetchDhrExamResults({ fetchImpl, pageDelayMs: 0 });
+    const result = await fetchDhrExamResults({ fetchImpl, pageDelayMs: 0, concurrency: 1 });
     expect(result).toHaveLength(1);
     expect(fetchImpl).toHaveBeenCalledTimes(3);
     expect(fetchImpl.mock.calls[0][0]).toContain('corsproxy.io');
@@ -120,7 +147,7 @@ describe('fetchDhrExamResults — proxy fallback', () => {
     ])));
     fetchImpl.mockResolvedValueOnce(makeResponse(buildPageHtml([])));
 
-    const result = await fetchDhrExamResults({ fetchImpl, pageDelayMs: 0 });
+    const result = await fetchDhrExamResults({ fetchImpl, pageDelayMs: 0, concurrency: 1 });
     expect(result).toHaveLength(1);
     expect(fetchImpl.mock.calls[2][0]).toContain('codetabs.com');
   });
@@ -134,7 +161,7 @@ describe('fetchDhrExamResults — proxy fallback', () => {
     ])));
     fetchImpl.mockResolvedValueOnce(makeResponse(buildPageHtml([])));
 
-    const result = await fetchDhrExamResults({ fetchImpl, pageDelayMs: 0 });
+    const result = await fetchDhrExamResults({ fetchImpl, pageDelayMs: 0, concurrency: 1 });
     expect(result).toHaveLength(1);
   });
 
@@ -144,7 +171,7 @@ describe('fetchDhrExamResults — proxy fallback', () => {
     fetchImpl.mockResolvedValueOnce(makeResponse('', false, 503));
     fetchImpl.mockResolvedValueOnce(makeResponse('', false, 429));
 
-    await expect(fetchDhrExamResults({ fetchImpl, pageDelayMs: 0 })).rejects.toThrow(FetchDhrError);
+    await expect(fetchDhrExamResults({ fetchImpl, pageDelayMs: 0, concurrency: 1 })).rejects.toThrow(FetchDhrError);
 
     // Re-run to inspect the error payload
     let caught: unknown;
@@ -155,6 +182,7 @@ describe('fetchDhrExamResults — proxy fallback', () => {
           .mockResolvedValueOnce(makeResponse('', false, 503))
           .mockResolvedValueOnce(makeResponse('', false, 429)),
         pageDelayMs: 0,
+        concurrency: 1,
       });
     } catch (err) {
       caught = err;
@@ -168,7 +196,7 @@ describe('fetchDhrExamResults — proxy fallback', () => {
   });
 });
 
-describe('fetchDhrExamResults — Worker URL backup', () => {
+describe('fetchDhrExamResults — Worker URL backup (concurrency:1)', () => {
   it('appends the worker URL as a last-resort proxy when set', async () => {
     const fetchImpl = vi.fn();
     // First 3 proxies fail; worker succeeds
@@ -183,6 +211,7 @@ describe('fetchDhrExamResults — Worker URL backup', () => {
     const result = await fetchDhrExamResults({
       fetchImpl,
       pageDelayMs: 0,
+      concurrency: 1,
       workerUrl: 'https://my-worker.example.workers.dev',
     });
     expect(result).toHaveLength(1);
@@ -206,6 +235,7 @@ describe('fetchDhrExamResults — Worker URL backup', () => {
     const result = await fetchDhrExamResults({
       fetchImpl,
       pageDelayMs: 0,
+      concurrency: 1,
       proxies: customProxies,
     });
     expect(result).toHaveLength(1);
@@ -214,7 +244,7 @@ describe('fetchDhrExamResults — Worker URL backup', () => {
   });
 });
 
-describe('fetchDhrExamResults — onProgress + dedupe', () => {
+describe('fetchDhrExamResults — onProgress + dedupe (concurrency:1)', () => {
   it('fires onProgress per page with the proxy used', async () => {
     const fetchImpl = vi.fn();
     fetchImpl.mockResolvedValueOnce(makeResponse(buildPageHtml([
@@ -229,6 +259,7 @@ describe('fetchDhrExamResults — onProgress + dedupe', () => {
     await fetchDhrExamResults({
       fetchImpl,
       pageDelayMs: 0,
+      concurrency: 1,
       onProgress: e => events.push({ page: e.page, rowsSoFar: e.rowsSoFar, proxyUsed: e.proxyUsed }),
     });
     expect(events).toHaveLength(2);
@@ -248,8 +279,93 @@ describe('fetchDhrExamResults — onProgress + dedupe', () => {
     ])));
     fetchImpl.mockResolvedValueOnce(makeResponse(buildPageHtml([])));
 
-    const result = await fetchDhrExamResults({ fetchImpl, pageDelayMs: 0 });
+    const result = await fetchDhrExamResults({ fetchImpl, pageDelayMs: 0, concurrency: 1 });
     expect(result).toHaveLength(2);
+  });
+});
+
+describe('fetchDhrExamResults — bounded-concurrency fetching (Phase 2.2.v)', () => {
+  it('fetches a whole wave concurrently and returns rows in page order', async () => {
+    // pages 0–4 have data; page 5 is the empty end-of-data sentinel.
+    const fetchImpl = routedFetch({
+      0: [{ postDate: 'May 14, 2026', listId: 'L0', jobCode: '0001' }],
+      1: [{ postDate: 'May 14, 2026', listId: 'L1', jobCode: '0002' }],
+      2: [{ postDate: 'May 14, 2026', listId: 'L2', jobCode: '0003' }],
+      3: [{ postDate: 'May 14, 2026', listId: 'L3', jobCode: '0004' }],
+      4: [{ postDate: 'May 14, 2026', listId: 'L4', jobCode: '0005' }],
+    });
+    const result = await fetchDhrExamResults({ fetchImpl, concurrency: 6, pageDelayMs: 0 });
+    expect(result).toHaveLength(5);
+    // Deterministic page order regardless of resolve order.
+    expect(result.map(r => r.jobCode)).toEqual(['0001', '0002', '0003', '0004', '0005']);
+    // One wave of 6 (pages 0–5); page 5 was the empty sentinel, so no second wave.
+    expect(fetchImpl).toHaveBeenCalledTimes(6);
+  });
+
+  it('stops after the first empty page without launching the next wave', async () => {
+    // pages 0–1 have data; page 2 is empty. With concurrency 3, wave 1 is
+    // pages 0,1,2 — the empty page 2 ends iteration; pages 3+ never fetched.
+    const fetchImpl = routedFetch({
+      0: [{ postDate: 'May 14, 2026', listId: 'L0', jobCode: '0001' }],
+      1: [{ postDate: 'May 14, 2026', listId: 'L1', jobCode: '0002' }],
+    });
+    const result = await fetchDhrExamResults({ fetchImpl, concurrency: 3, pageDelayMs: 0 });
+    expect(result).toHaveLength(2);
+    // Bounded over-fetch: exactly the first wave (3 pages), no second wave.
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it('reports cumulative progress in ascending page order across a wave', async () => {
+    const fetchImpl = routedFetch({
+      0: [{ postDate: 'May 14, 2026', listId: 'L0', jobCode: '0001' }],
+      1: [
+        { postDate: 'May 14, 2026', listId: 'L1', jobCode: '0002' },
+        { postDate: 'May 13, 2026', listId: 'L2', jobCode: '0003' },
+      ],
+    });
+    const events: Array<{ page: number; pagesSoFar: number; rowsSoFar: number }> = [];
+    await fetchDhrExamResults({
+      fetchImpl,
+      concurrency: 4,
+      pageDelayMs: 0,
+      onProgress: e => events.push({ page: e.page, pagesSoFar: e.pagesSoFar, rowsSoFar: e.rowsSoFar }),
+    });
+    expect(events).toEqual([
+      { page: 1, pagesSoFar: 1, rowsSoFar: 1 },
+      { page: 2, pagesSoFar: 2, rowsSoFar: 3 },
+    ]);
+  });
+
+  it('aborts a hung proxy via the per-proxy timeout and falls through to the next', async () => {
+    // corsproxy.io hangs forever (until aborted); allorigins answers.
+    // A short timeout proves the abort fires — without it the test would
+    // hang and time out.
+    const fetchImpl = vi.fn((input: string, init?: RequestInit) => {
+      if (input.includes('corsproxy.io')) {
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        });
+      }
+      // allorigins / codetabs: answer by page (page 0 → 1 row, else empty).
+      const decoded = decodeURIComponent(input);
+      const m = decoded.match(/[?&]page=(\d+)/);
+      const page = m ? Number(m[1]) : 0;
+      const rows = page === 0 ? [{ postDate: 'May 14, 2026', listId: 'L1', jobCode: '0932' }] : [];
+      return Promise.resolve(makeResponse(buildPageHtml(rows)));
+    });
+
+    const result = await fetchDhrExamResults({
+      fetchImpl,
+      concurrency: 1,
+      timeoutMs: 20,
+      pageDelayMs: 0,
+    });
+    expect(result).toHaveLength(1);
+    expect(result[0].jobCode).toBe('0932');
+    // corsproxy.io was attempted (and timed out); allorigins.win served it.
+    const urls = fetchImpl.mock.calls.map(c => c[0] as string);
+    expect(urls.some(u => u.includes('corsproxy.io'))).toBe(true);
+    expect(urls.some(u => u.includes('allorigins.win'))).toBe(true);
   });
 });
 
