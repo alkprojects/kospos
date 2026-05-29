@@ -22,7 +22,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Modal } from '../../ui';
+import { Modal, Field, inputStyle, OverrideBox, ModalFooter, CloseButton } from '../../ui';
 import {
   PROBATIONARY_PERIOD_HOURS,
   PROBATION_STATUS_ORDER,
@@ -274,17 +274,7 @@ export function ProbationDetail({
               )}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              marginLeft: 'auto',
-              border: 'none', background: 'transparent', cursor: 'pointer',
-              fontSize: 18, color: 'var(--muted)',
-            }}
-          >
-            ✕
-          </button>
+          <CloseButton onClose={onClose} />
         </header>
 
         {/* Identity */}
@@ -576,33 +566,14 @@ export function ProbationDetail({
 
         {/* Status override row */}
         {statusNeedsOverride && (
-          <div style={{
-            display: 'flex', flexDirection: 'column', gap: 6,
-            background: '#fff8e6', border: '1px solid #d4a017', borderRadius: 4,
-            padding: '8px 12px', fontSize: 12, color: '#5b4500',
-          }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input
-                type="checkbox"
-                checked={forceStatus}
-                onChange={e => setForceStatus(e.target.checked)}
-              />
-              Force override (skip {probation.status} → {draft.status} guard — logged)
-            </label>
-            {forceStatus && (
-              <input
-                type="text"
-                value={overrideReason}
-                onChange={e => setOverrideReason(e.target.value)}
-                placeholder="Reason for override (required)"
-                aria-label="Override reason"
-                style={{
-                  ...inputStyle(),
-                  borderColor: overrideReason.trim() === '' ? '#b35a00' : 'var(--border)',
-                }}
-              />
-            )}
-          </div>
+          <OverrideBox
+            checked={forceStatus}
+            onCheckedChange={setForceStatus}
+            fromStatus={probation.status}
+            toStatus={draft.status}
+            reason={overrideReason}
+            onReasonChange={setOverrideReason}
+          />
         )}
 
         {/* Extensions */}
@@ -759,48 +730,12 @@ export function ProbationDetail({
         )}
 
         {/* Footer */}
-        <footer style={{
-          display: 'flex', gap: 8, justifyContent: 'flex-end',
-          borderTop: '1px solid var(--border)', paddingTop: 12,
-        }}>
-          <button
-            onClick={handleDelete}
-            style={{
-              marginRight: 'auto',
-              padding: '5px 12px',
-              border: '1px solid #b91c1c', borderRadius: 14,
-              background: 'transparent', color: '#b91c1c', cursor: 'pointer',
-              fontSize: 13, fontFamily: 'inherit',
-            }}
-          >
-            Delete
-          </button>
-          <button
-            onClick={onClose}
-            style={{
-              padding: '5px 12px',
-              border: '1px solid var(--border)', borderRadius: 14,
-              background: 'transparent', color: 'inherit', cursor: 'pointer',
-              fontSize: 13, fontFamily: 'inherit',
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!canSave}
-            style={{
-              padding: '5px 16px',
-              border: '1px solid var(--accent)', borderRadius: 14,
-              background: canSave ? 'var(--accent)' : 'var(--surface)',
-              color: canSave ? '#fff' : 'var(--muted)',
-              cursor: canSave ? 'pointer' : 'not-allowed',
-              fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-            }}
-          >
-            Save
-          </button>
-        </footer>
+        <ModalFooter
+          onDelete={handleDelete}
+          onCancel={onClose}
+          onSave={handleSave}
+          canSave={canSave}
+        />
     </Modal>
   );
 }
@@ -814,32 +749,4 @@ function summarize(value: unknown): string {
   if (Array.isArray(value)) return `[${value.length}]`;
   if (typeof value === 'object') return '{…}';
   return String(value);
-}
-
-function inputStyle(): React.CSSProperties {
-  return {
-    padding: '5px 10px',
-    border: '1px solid var(--border)', borderRadius: 4,
-    fontSize: 13, fontFamily: 'inherit',
-    background: 'var(--surface)', color: 'inherit',
-  };
-}
-
-function Field({ label, required, wide, children }: {
-  label: string;
-  required?: boolean;
-  wide?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <label style={{
-      display: 'flex', flexDirection: 'column', gap: 4,
-      flex: wide ? '1 1 100%' : '0 1 160px',
-    }}>
-      <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {label}{required && <span style={{ color: '#b91c1c' }}> *</span>}
-      </span>
-      {children}
-    </label>
-  );
 }

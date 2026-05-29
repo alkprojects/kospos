@@ -25,7 +25,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Modal } from '../../ui';
+import { Modal, ModalFooter, CloseButton, inputStyle } from '../../ui';
 import type { CostInput } from '../../cost';
 import type { Position } from '../../positions';
 import type {
@@ -297,17 +297,7 @@ export function PlannedActionDetail({ action, position, onClose }: PlannedAction
               Converting from auto
             </span>
           )}
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              marginLeft: 'auto',
-              border: 'none', background: 'transparent', cursor: 'pointer',
-              fontSize: 18, color: 'var(--muted)',
-            }}
-          >
-            ✕
-          </button>
+          <CloseButton onClose={onClose} />
         </header>
 
         {/* Type + status + mode + timing */}
@@ -318,12 +308,7 @@ export function PlannedActionDetail({ action, position, onClose }: PlannedAction
               <select
                 value={draft.type}
                 onChange={e => setDraft({ ...draft, type: e.target.value as PlannedActionType })}
-                style={{
-                  padding: '5px 10px',
-                  border: '1px solid var(--border)', borderRadius: 4,
-                  fontSize: 13, fontFamily: 'inherit',
-                  background: 'var(--surface)', color: 'inherit',
-                }}
+                style={inputStyle()}
               >
                 {ACTION_TYPE_ORDER.map(t => (
                   <option key={t} value={t}>{TYPE_LABELS[t]}</option>
@@ -338,10 +323,8 @@ export function PlannedActionDetail({ action, position, onClose }: PlannedAction
                   value={draft.status ?? ''}
                   onChange={e => setDraft({ ...draft, status: e.target.value as HiringStatus })}
                   style={{
-                    padding: '5px 10px',
+                    ...inputStyle(),
                     border: `1px solid ${statusNeedsOverride ? '#b35a00' : 'var(--border)'}`,
-                    borderRadius: 4, fontSize: 13, fontFamily: 'inherit',
-                    background: 'var(--surface)', color: 'inherit',
                   }}
                   aria-invalid={statusNeedsOverride}
                   aria-describedby={statusNeedsOverride ? 'status-override-warn' : undefined}
@@ -373,12 +356,7 @@ export function PlannedActionDetail({ action, position, onClose }: PlannedAction
                   ...draft,
                   actionMode: e.target.value === '' ? undefined : e.target.value as ActionMode,
                 })}
-                style={{
-                  padding: '5px 10px',
-                  border: '1px solid var(--border)', borderRadius: 4,
-                  fontSize: 13, fontFamily: 'inherit',
-                  background: 'var(--surface)', color: 'inherit',
-                }}
+                style={inputStyle()}
               >
                 <option value="">—</option>
                 {ACTION_MODES.map(m => <option key={m} value={m}>{m}</option>)}
@@ -396,12 +374,7 @@ export function PlannedActionDetail({ action, position, onClose }: PlannedAction
                       ? undefined
                       : e.target.value as SeparationConfidence,
                   })}
-                  style={{
-                    padding: '5px 10px',
-                    border: '1px solid var(--border)', borderRadius: 4,
-                    fontSize: 13, fontFamily: 'inherit',
-                    background: 'var(--surface)', color: 'inherit',
-                  }}
+                  style={inputStyle()}
                 >
                   <option value="">—</option>
                   {SEPARATION_CONFIDENCES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -415,12 +388,7 @@ export function PlannedActionDetail({ action, position, onClose }: PlannedAction
                 type="date"
                 value={draft.startPpe}
                 onChange={e => setDraft({ ...draft, startPpe: e.target.value })}
-                style={{
-                  padding: '5px 10px',
-                  border: '1px solid var(--border)', borderRadius: 4,
-                  fontSize: 13, fontFamily: 'inherit',
-                  background: 'var(--surface)', color: 'inherit',
-                }}
+                style={inputStyle()}
               />
             </label>
           </div>
@@ -434,12 +402,7 @@ export function PlannedActionDetail({ action, position, onClose }: PlannedAction
                 value={draft.holdReason}
                 onChange={e => setDraft({ ...draft, holdReason: e.target.value })}
                 placeholder="Free-text — e.g. budget freeze, CSC pending, etc."
-                style={{
-                  padding: '5px 10px',
-                  border: '1px solid var(--border)', borderRadius: 4,
-                  fontSize: 13, fontFamily: 'inherit',
-                  background: 'var(--surface)', color: 'inherit',
-                }}
+                style={inputStyle()}
               />
             </label>
           )}
@@ -536,50 +499,13 @@ export function PlannedActionDetail({ action, position, onClose }: PlannedAction
         )}
 
         {/* Footer */}
-        <footer style={{
-          display: 'flex', gap: 8, justifyContent: 'flex-end',
-          borderTop: '1px solid var(--border)', paddingTop: 12,
-        }}>
-          {!isDerived && (
-            <button
-              onClick={handleDelete}
-              style={{
-                marginRight: 'auto',
-                padding: '5px 12px',
-                border: '1px solid #b91c1c', borderRadius: 14,
-                background: 'transparent', color: '#b91c1c', cursor: 'pointer',
-                fontSize: 13, fontFamily: 'inherit',
-              }}
-            >
-              Delete
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            style={{
-              padding: '5px 12px',
-              border: '1px solid var(--border)', borderRadius: 14,
-              background: 'transparent', color: 'inherit', cursor: 'pointer',
-              fontSize: 13, fontFamily: 'inherit',
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!canSave}
-            style={{
-              padding: '5px 16px',
-              border: '1px solid var(--accent)', borderRadius: 14,
-              background: canSave ? 'var(--accent)' : 'var(--surface)',
-              color: canSave ? '#fff' : 'var(--muted)',
-              cursor: canSave ? 'pointer' : 'not-allowed',
-              fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-            }}
-          >
-            {isDerived ? 'Save (convert to manual)' : 'Save'}
-          </button>
-        </footer>
+        <ModalFooter
+          onDelete={isDerived ? undefined : handleDelete}
+          onCancel={onClose}
+          onSave={handleSave}
+          canSave={canSave}
+          saveLabel={isDerived ? 'Save (convert to manual)' : 'Save'}
+        />
     </Modal>
   );
 }
