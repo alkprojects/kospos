@@ -3695,3 +3695,57 @@ End-to-end confirmed working live: Alex published 331,893 rows from his main bro
 - **Test count discipline:** ✅ `npm test --run` after every PR; `npm run build` before every PR. No PR landed with failing tests.
 - **Trust + delegation:** ✅ Mid-session opted into Cloudflare API token autonomy — let Claude drive the cloud config directly. New pattern documented for reuse.
 - **Decisive cuts:** ✅ "hold the ADR until verification finishes" (Alex picked this) was the right call; the ADR ended up needing to document the gzip + memory-cap + same-origin lessons that only surfaced during real-data verification. Hardcoding the ADR text earlier would have been amended multiple times.
+
+---
+
+## Session 42 — Opus 4.8 setup review (setup-only, 4 PRs) (2026-05-28)
+
+**Setup-only session.** Alex opened with the S42 picker prompt (pick Phase 2.2.s + ship it) but prepended a directive: *"before continuing, opus 4.8 was just released. do a deep review and audit to determine if there are any improvements to this project setup and any new opportunities for improvement."* The override took priority. Via AskUserQuestion, Alex chose to do **all** recommended improvements except where there was a reason not to, and to keep this a **setup-only session** with the Phase 2.2.s pick moved to S43. No Phase 2.2 sub-phase shipped → the Phase 2.2.s close audit still fires when 2.2.s ships (S43).
+
+### The review — `docs/audits/internal-opus-4-8-setup-review.md`
+
+A capability-driven, out-of-band (triggered) review: *given Opus 4.8 (1M context + fast mode) and the current harness, where do the docs/habits encode stale assumptions, and what new capabilities should we adopt?* 7 findings (P1–P7); 6 applied, 1 deferred with reason. Disciplines deliberately left unchanged (PR-per-change, audit cadence, ADRs, memory system, data-sensitivity stance, single-hook footprint) — Opus 4.8 is not a reason to touch them.
+
+### Branches: 4 single-purpose PRs
+
+[PR #138](https://github.com/alkprojects/kospos/pull/138) — `docs(setup): Opus 4.8 capability review + refresh collaboration docs`. The review doc + applied **P1–P4**: model guidance → **Opus 4.8 (fast mode) default** (was sonnet-4-6 default / opus-4-7 for hard work); **agent-first visual verification** via the preview tools; new **"Skills and the Workflow tool"** section (xlsx / code-review / security-review / verify / consolidate-memory / deep-research + opt-in Workflow); **1M-context session-sizing** reframe (cross-session continuity machinery preserved).
+
+[PR #139](https://github.com/alkprojects/kospos/pull/139) — `chore(dev): pin dev-server port with strictPort so collisions fail loudly`. **P2** config half: `vite.config.ts` `server.strictPort` so a second concurrent `npm run dev` errors instead of silently serving on 5174 — where the preview tool (pointed at launch.json's 5173) would attach to the wrong worktree's app. Resolves the S19 Area-D port carry-forward (now live since Phase 2.2 is app-code work).
+
+[PR #140](https://github.com/alkprojects/kospos/pull/140) — `fix(session/cloudflare): constant-time publish-secret check + write-path security review`. **P7**: security pass over the S41 Cloudflare write path (`functions/api/snapshot.ts` + client). **SEC-1 (Low) fixed:** `!==` → a self-contained constant-time compare (no early-exit timing leak, no `crypto.subtle` dep). +2 tests (825/825). 6 other findings in `docs/audits/cloudflare-write-path-security-review.md`; no high/medium — auth is checked before the body is read, validation is two-layer.
+
+PR #141 (this docs PR) — slim SESSION_HANDOFF.md (P5) + this SESSION_LOG entry + S43 handoff.
+
+### P5 applied — SESSION_HANDOFF.md slimmed
+
+The handoff had grown to **494 KB / 6,143 lines** (stacked statuses back to S21), against ADR-008's "overwrite on shutdown" intent and duplicating SESSION_LOG.md. Rewritten lean (~200 lines: current status + carry-forwards + next prompt); archived tail dropped (history confirmed present in SESSION_LOG.md before cutting). Header now reminds: overwrite, don't append.
+
+### P6 deferred (with reason)
+
+labor-report.md split + SESSION_LOG summarization held: both are human-skim-only, and 1M context makes the labor-report split *lower* value (the model Greps it fine); summarizing the log would thin the per-prompt record Alex reviews like a hiring screen. Offer stands for a dedicated future session.
+
+### What's NOT done / carry-forward
+
+- **Alex revokes the Cloudflare API token** (S41) — his manual action if not already done.
+- **Phase 2.2.s pick + ship** — moved to S43 (setup-only session).
+- SEC-2 (read-path gzip-bomb size cap) + SEC-3 (POST rate-limit) — tracked for the named-workspace v2.
+- Carry-forwards B/C/D folded into P6's deferred-with-reason framing; H (modal overlay-frame) still queued.
+
+### Outcome
+
+4 PRs (#138–141). Tests 823 → **825** (+2 from the security fix). `npm run build` clean on the 2 code-touching PRs (practical clean-first-run streak continues). No phase shipped — deliberate setup-only session. Stale model IDs purged; preview-tool visual verification documented and the port hazard fixed; a write-path security review with one fix landed.
+
+### Lessons / improvements for next phase
+
+- **A model release is a legitimate audit trigger.** WORKFLOW.md's "triggered by drift / capability change" clause covered this without waiting for a phase close. The capability-review format (current state → what changed → recommendation → disposition) is reusable for future model/harness bumps.
+- **"Do all unless there's a reason not to" still needs the model to surface the reason.** The one genuine hold (P6) had a real downside (thinning Alex's review record; near-zero benefit under 1M context). Naming it explicitly was the value-add — not blindly maximizing the number of changes.
+- **Verify a documented capability before documenting it.** Confirmed the preview tool reads launch.json's port (from the tool schema) before writing the visual-verification reframe — which redirected the "port fix" from launch.json to `vite.config` strictPort, the actually-effective lever.
+- **The handoff had silently become a second log.** ADR-008 said "overwrite"; six sessions of prepend-without-trim drifted it to 494 KB. 1M context hid the cost from the model but not from cache/latency/Alex's skim. Worth a periodic "is this machine-updated file still doing its one job?" check.
+
+### Brief audit (Alex's collaboration this session)
+
+- **Prompt quality:** ✅ The override ("before continuing… deep review re: Opus 4.8") was a high-leverage redirect — caught that a model release should reshape the setup before more feature work piles onto the old assumptions.
+- **Scope discipline:** ✅ Setup-only session, 4 single-purpose PRs, no bundling; Phase 2.2.s deliberately deferred rather than rushed in alongside.
+- **Trust + delegation:** ✅ "whatever you suggest, any reason not doing all?" delegated the call while still asking for the tradeoff — the right shape for a setup audit.
+- **Audit cadence:** ✅ Out-of-band capability trigger; the Phase 2.2.s close audit correctly stays pending for S43 (no phase shipped).
+- **Test discipline:** ✅ Baseline 823 confirmed at start; +2 from the security fix; `npm run build` before every code PR.
