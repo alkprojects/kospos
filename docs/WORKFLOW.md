@@ -43,13 +43,15 @@ If a session goes off the rails (AI gets confused, fixes pile up, tests stop pas
 
 ## Picking a Claude model per session
 
+**Default: Opus 4.8 with fast mode (`/fast`) on.** It's the strongest model, its 1M-token context removes the old "Opus burns the window" worry, and fast mode closes most of the speed gap to Sonnet. For a project where Alex wants to be *guided* through decisions, the strongest model as the standing default beats per-session model-switching — whose main payoff was cost.
+
 | Work | Model |
 |---|---|
-| Architecture decisions, hard refactors, picking a stack, debugging confusing bugs | **Opus** |
-| Standard feature implementation against a clear spec, ordinary bugs, tests, docs | **Sonnet** (everyday default) |
-| Mechanical edits — renames, formatting, a single-file change you already know how to phrase | **Haiku** |
+| Everything by default — features, refactors, debugging, architecture, docs | **Opus 4.8** (fast mode on) |
+| Cost-sensitive docs-only or purely mechanical batches (bulk renames, formatting) | **Sonnet 4.6** — optional saver, not the default |
+| Throwaway one-file edits you've already fully specced | **Haiku** — rarely worth the context-switch |
 
-For each new Phase: **kick off with Opus**, then drop to **Sonnet** for individual feature branches within the phase.
+The only reason to drop below Opus 4.8 is cost. If that matters on your plan, use Sonnet for docs-only / mechanical sessions; otherwise stay on Opus 4.8 throughout, including each new Phase kickoff.
 
 ## When to use subagents
 
@@ -63,24 +65,41 @@ You usually do NOT need a subagent for: a single targeted edit, a small bug fix,
 
 Beginner rule of thumb: **try inline first**. If Claude says "this is getting big — should I spawn a subagent?", say yes. Otherwise don't worry about it.
 
+## Skills and the Workflow tool
+
+Beyond plain subagents, the harness ships **skills** (focused, reusable capabilities, invoked like `/name`) and a **Workflow** tool (deterministic multi-agent orchestration). Several map directly onto recurring KosPos work:
+
+| Capability | Use it for |
+|---|---|
+| `xlsx` skill | Building synthetic example workbooks for parser tests; inspecting Alex's workbook for the "match to the dollar" parity checks |
+| `code-review` skill | The PR-per-change self-review step. `code-review ultra` runs a deeper multi-agent review in the cloud (billed; Alex-triggered) |
+| `security-review` skill | A security pass before merging internet-facing code (e.g. the Cloudflare publish/fetch path) |
+| `verify` skill | Driving the app to confirm a change actually works (pairs with the visual-verification protocol below) |
+| `consolidate-memory` skill | The memory-hygiene pass during a setup audit |
+| `deep-research` skill | Multi-source research like the `docs/research/` work (Cat 17/18 rules, DHR scraping) |
+
+The **Workflow tool** is for deterministic fan-out/verify jobs — phase-close audits, the BVA reconciliation suite, scenario-test sweeps, the eventual cross-system change reports. It can spawn many agents and use a lot of tokens, so **it only runs when you explicitly opt in** — include the word "workflow" in your message (or say "fan out agents / orchestrate this"). Claude will not start one on its own.
+
 ## Visual verification protocol
 
-AI is bad at noticing visual issues. You are good at it. Use this asymmetry.
+Claude can now run the app itself via the **preview tools** (`preview_start` → `preview_screenshot` / `preview_snapshot` / `preview_inspect` / `preview_click`). So the default flipped: **Claude verifies first and shows you proof; you do the final aesthetic sign-off.** Your eye is still the last gate — the asymmetry isn't gone, the legwork just moved to Claude.
 
 When asking Claude to make a UI change:
 
 1. Tell Claude exactly what you expect to see — "after this, vacant nodes should have a dashed border and a small 'V' badge in the top right." Specific.
-2. After the change, **run the app yourself**. Don't trust "should work."
-3. Look for: text overlapping, edges going behind nodes, things shifting that shouldn't, missing icons, broken alignment.
-4. If something is wrong, **show Claude a screenshot** if possible, or describe specifically what's wrong: "the badge is on top of the title text" — not "it looks weird."
+2. Claude runs the app, screenshots/inspects the changed area, and **presents the evidence** (not "should work").
+3. You look at the screenshot for what Claude is worst at: text overlapping, edges behind nodes, things shifting that shouldn't, missing icons, broken alignment.
+4. If something's wrong, point at it specifically — "the badge is on top of the title text" — not "it looks weird."
+
+**One dev server at a time.** `preview_start` reads the dev-server port from `.claude/launch.json` (currently 5173). If a second worktree is already serving on 5173, Vite silently falls back to 5174 and the preview tool would connect to the *wrong* app — so stop other worktrees' dev servers before previewing.
 
 ## Session pacing
 
-Claude can't see remaining session budget from inside a conversation. To keep work from getting stranded mid-task:
+Claude still can't see remaining *usage* budget from inside a conversation, but with Opus 4.8's 1M-token context, running out of *context* mid-task is rarely the risk it used to be (the harness also auto-summarizes long sessions). So pacing is about usage limits and clean hand-offs, not context anxiety:
 
-1. **Estimate up front.** At the start of any non-trivial task, ask Claude to describe roughly how big the work is ("~5–8 file edits and a build verification — about a small session's worth") so you can decide whether to start now or in a fresh session.
-2. **Break at natural save points.** Each phase in `ROADMAP.md` is sized to fit 1–2 sessions.
-3. **If usage feels tight, stop early.** Better to land Phase N cleanly and start Phase N+1 fresh than to run out of context mid-edit.
+1. **Estimate up front.** At the start of any non-trivial task, ask Claude to describe roughly how big the work is so you can decide whether to start now or in a fresh session.
+2. **Break at natural save points.** Each phase in `ROADMAP.md` is sized to fit 1–2 sessions; a single session can now comfortably carry a whole sub-phase plus its close audit.
+3. **Stop clean, not early-in-a-panic.** Land the current PR, update the handoff, then stop. Better to finish a logical unit cleanly than to bail mid-edit because the transcript "feels long."
 
 ### Audit cadence
 
