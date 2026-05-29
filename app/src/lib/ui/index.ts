@@ -6,3 +6,5 @@
 export { CopyButton } from './CopyButton';
 export { Modal } from './Modal';
 export type { ModalProps } from './Modal';
+export { rowButtonProps } from './rowButtonProps';
+export type { RowButtonProps } from './rowButtonProps';

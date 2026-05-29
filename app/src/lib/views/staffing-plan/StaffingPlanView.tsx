@@ -46,7 +46,7 @@ import type {
 import { useSeparations } from '../../separations';
 import { PlannedActionDetail } from './PlannedActionDetail';
 import { matchesNeedle } from '../../search/needle';
-import { CopyButton } from '../../ui';
+import { CopyButton, rowButtonProps } from '../../ui';
 
 function fmtMoney(n: number): string {
   return n.toLocaleString('en-US', {
@@ -139,7 +139,7 @@ function ActionRow({ action, position, linkedSeparationCount, onDelete, onHide, 
   // propagation so Hide / Delete don't also fire the detail open.
   return (
     <tr
-      onClick={() => onOpen(action)}
+      {...rowButtonProps(() => onOpen(action))}
       style={{
         borderBottom: '1px solid var(--border)',
         cursor: 'pointer',

@@ -24,7 +24,7 @@ import type { Position, PersonRef } from '../../positions';
 import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import type { PsHcmPpRow } from '../../importers/types';
 import { matchesNeedle } from '../../search/needle';
-import { CopyButton } from '../../ui';
+import { CopyButton, rowButtonProps } from '../../ui';
 import {
   PROBATION_STATUS_ORDER,
   currentEndDate,
@@ -1161,7 +1161,7 @@ export function ProbationsView() {
               filtered.map(({ probation: p, currentEnd, approaching, pastDue }) => (
                 <tr
                   key={p.id}
-                  onClick={() => setSelectedId(p.id)}
+                  {...rowButtonProps(() => setSelectedId(p.id))}
                   aria-label={`Open details for probation ${p.employeeName}`}
                   style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
                 >

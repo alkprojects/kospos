@@ -22,7 +22,7 @@ import type { BfmPositionRow, ObiPayrollRow, PsHcmPpRow } from '../../importers/
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import { buildBudgetSnapshot } from '../../budget';
 import { matchesNeedle } from '../../search/needle';
-import { CopyButton } from '../../ui';
+import { CopyButton, rowButtonProps } from '../../ui';
 import { PositionDetail } from './PositionDetail';
 import { usePositionsScope } from './scope-store';
 
@@ -383,8 +383,9 @@ export function PositionsView({ onViewPayroll }: {
             {filtered.map(p => (
               <tr
                 key={p.id}
+                {...rowButtonProps(() => setSelectedId(p.id))}
+                aria-label={`Open details for position ${p.displayNumber}`}
                 style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
-                onClick={() => setSelectedId(p.id)}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent-soft)')}
                 onMouseLeave={e => (e.currentTarget.style.background = '')}
               >

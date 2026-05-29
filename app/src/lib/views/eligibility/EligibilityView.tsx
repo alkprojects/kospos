@@ -36,7 +36,7 @@
  */
 
 import { useMemo, useRef, useState } from 'react';
-import { CopyButton } from '../../ui';
+import { CopyButton, rowButtonProps } from '../../ui';
 import {
   EMPTY_ELIGIBILITY_FILTERS,
   applyEligibilityFilters,
@@ -340,10 +340,7 @@ function SummaryRow({
 
   return (
     <tr
-      onClick={onOpen}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
-      tabIndex={0}
-      role="button"
+      {...rowButtonProps(onOpen)}
       aria-label={`Open detail for ${rollup.jobCode} ${rollup.classTitle}`}
       style={{
         borderBottom: '1px solid var(--border)',
