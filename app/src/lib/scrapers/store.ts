@@ -6,10 +6,14 @@
  * own `lastRefreshedAt` ISO timestamp so the UI can show "Last refreshed
  * X minutes ago" per source.
  *
- * Lifetime: same as every other Zustand store — in-memory only, lost on
- * page reload. Hooks into `lib/session/snapshot.ts` if Alex wants the
- * scrapes saved alongside the rest of the session JSON (deferred — wait
- * for Alex to ask, since scrape data is cheap to refresh).
+ * Lifetime: persisted (since Phase 2.2.q). Although this is an in-memory
+ * Zustand store, its `jobPostings` / `eligibilityLists` / `pdfCache` are
+ * captured into the session snapshot (`lib/session/snapshot.ts`),
+ * auto-saved to IndexedDB + restored on app open
+ * (`lib/session/use-auto-persistence.ts`), and ride along in a Cloudflare
+ * publish — so a scrape survives reload and follows the session across
+ * devices. `restoreFromSession` below is the restore entry point;
+ * `dhrWorkerUrl` persists separately via localStorage.
  */
 
 import { create } from 'zustand';
