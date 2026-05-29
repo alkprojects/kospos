@@ -247,6 +247,28 @@ describe('POST /api/snapshot', () => {
     expect(response.status).toBe(401);
   });
 
+  it('returns 401 when X-Publish-Secret is wrong but same length (constant-time compare rejects near-misses)', async () => {
+    // 'expected' and 'expecteX' are both 8 chars and differ only in the
+    // last byte — locks in that the constant-time compare (which does not
+    // early-exit on the first mismatch) still rejects, same as `===` did.
+    const response = await onRequestPost({
+      request: mkRequest(envelope(), { 'X-Publish-Secret': 'expecteX' }),
+      env: { KOSPOS_SNAPSHOTS: makeMockKV() as any, PUBLISH_SECRET: 'expected' },
+    } as any);
+    expect(response.status).toBe(401);
+  });
+
+  it('accepts a correct X-Publish-Secret and writes to KV', async () => {
+    // Positive path for the secret gate: exact match is accepted.
+    const kv = makeMockKV();
+    const response = await onRequestPost({
+      request: mkRequest(envelope(), { 'X-Publish-Secret': 'expected' }),
+      env: { KOSPOS_SNAPSHOTS: kv as any, PUBLISH_SECRET: 'expected' },
+    } as any);
+    expect(response.status).toBe(200);
+    expect(kv._store.has('current')).toBe(true);
+  });
+
   it('returns 400 on invalid JSON', async () => {
     const response = await onRequestPost({
       request: mkRequest('{ not json', { 'X-Publish-Secret': 's' }),
