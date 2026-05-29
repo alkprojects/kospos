@@ -6,199 +6,180 @@ The next session reads this before doing anything else.
 
 ---
 
-## Current status (end of Session 45 — Phase 2.2.u, 2026-05-28)
+## Current status (end of Session 46 — Phase 2.2.v, 2026-05-28)
 
-**Phase:** **Phase 2.2.u shipped** — driven by Alex's freeform feedback (five items), not a menu sub-phase. Resolved across **4 feature/docs PRs + 1 chore**. The next sub-phase pick (**2.2.v**) moves to Session 46.
-**Last main commit:** this docs PR → [#152](https://github.com/alkprojects/kospos/pull/152) (chore: store comment) → [#151](https://github.com/alkprojects/kospos/pull/151) (Data tab) → [#150](https://github.com/alkprojects/kospos/pull/150) (Save/Load top bar) → [#149](https://github.com/alkprojects/kospos/pull/149) (dev toggle) → [#148](https://github.com/alkprojects/kospos/pull/148) (roadmap tiers).
-**Tests:** **857 / 857** (+1 #149, +1 net #150, +7 #151).
+**Phase:** **Phase 2.2.v shipped** — Alex's freeform bug report ("refreshing eligibility lists … used to run pretty fast but now seems very slow"), picked as the headline over the menu. Resolved as **1 perf PR** ([#154](https://github.com/alkprojects/kospos/pull/154)), evidence-led. The next sub-phase pick (**2.2.w**) moves to Session 47.
+**Last main commit:** this docs PR → [#154](https://github.com/alkprojects/kospos/pull/154) (concurrent-wave DHR fetch).
+**Tests:** **861 / 861** (+4 from #154).
 **Branches in flight:** none post-merge (this docs PR pending).
-**Live site:** GitHub Pages + Cloudflare deploys green; https://alkprojects.github.io/kospos/ and https://kospos.pages.dev in sync.
+**Live site:** GitHub Pages + Cloudflare deploys green; the eligibility refresh is now fast on the live site.
 
-### What shipped
+### What shipped / was produced
 
-| # | PR | What |
+| # | PR / artifact | What |
 |---|---|---|
-| 1 | [#148](https://github.com/alkprojects/kospos/pull/148) | **ROADMAP permission tiers** — Phase 8+ Regular / Dev / **Super-dev** (super-dev edits what the other tiers see + site functionality). Docs-only. |
-| 2 | [#149](https://github.com/alkprojects/kospos/pull/149) | **Dev-mode gear toggle** — `enableDevMode()` + a header ⚙ that toggles both ways; no more typing `?dev=1` (URL flag kept as a hatch). |
-| 3 | [#150](https://github.com/alkprojects/kospos/pull/150) | **Save/Load → top bar** — compact header control; Publish + Cloudflare settings stay on Load Data. New shared `useSessionSnapshot` hook. |
-| 4 | [#151](https://github.com/alkprojects/kospos/pull/151) | **Data tab** — new top-level tab with sub-tabs (Eligibility Lists + new **Job Postings** table); Eligibility folded under it; Load Data stays separate. |
-| 5 | [#152](https://github.com/alkprojects/kospos/pull/152) | **chore** — fixed the stale `scrapers/store.ts` "in-memory only" comment (clears carry-forward K). |
-| 6 | this docs PR | Phase 2.2.u close audit + S45 SESSION_LOG + this handoff |
+| 1 | [#154](https://github.com/alkprojects/kospos/pull/154) | **perf(scrapers): concurrent-wave DHR fetch.** Root cause = the ~66-page scrape ran strictly sequentially with a 500ms throttle (~50s, hard ~33s floor) — the *design*, not proxy rot (measured: proxy healthy, 8 concurrent fetches = 8/8 200 in 429ms). Now fetches in **bounded-concurrency waves (default 6)** + a **per-proxy `AbortController` timeout (10s)**. **Verified live: 6,727 lists / ~66 pages in 676ms** (was ~50s). +4 tests. |
+| 2 | spawned task (chip) | **Carry-forward O** — the post-refresh full-snapshot IndexedDB auto-save structured-clones the *entire* session on the main thread (~13 ms/MB → ~5s freeze at the 375 MB envelope). Filed as its own change (NOT bundled). |
+| 3 | [`docs/proposals/s46-ui-ux-review.md`](proposals/s46-ui-ux-review.md) | **UI/UX review** (Alex's "use my sleep time" directive) — 3 read-only review agents → a triaged backlog. Headlines below. |
+| 4 | this docs PR | Phase 2.2.v close audit + S46 SESSION_LOG + this handoff + the proposals doc. |
 
-**Cloudflare deploy emails (item 4, answered — no code):** they're an **account-level Notification**, not a Pages-project setting. Turn off at dash.cloudflare.com → account → **Notifications** → the Pages **"Project updates"** notification → toggle **Enabled** off (or **⋯ → Delete**).
-
-**Dev-mode model:** now a true in-app on/off toggle (gear), still gating both whole tabs and in-tab controls. The eventual tiered model (regular/dev/super-dev, auth-gated) is documented in ROADMAP Phase 8+.
+**UI/UX review headlines (full triage in the proposals doc):** the **modal-frame lift (H)** is now fully inventoried (6 dialogs in 2 families) and also closes **2 P1 a11y gaps** (no focus-trap/restore; Family-B dialogs lack role/Esc) → strongest 2.2.w pick. Plus: **file-load scraper parity (M)** has an exact one-block fix; **clickable rows aren't keyboard-operable** in 5 of 6 views (P1 a11y); **"Data" vs "Load Data" label collision** (P1); **dev-gear accidental-toggle risk** (P1); **write the dev-mode ADR now** (L).
 
 ### Carry-forward audit
 
 | # | Item | Prior status | This session | Disposition |
 |---|---|---|---|---|
-| B | Trim/summarize SESSION_LOG.md | ~3,826 ln (S44) | grew with S45 entry | **deferred-with-reason (P6)** |
+| B | Trim/summarize SESSION_LOG.md | grows each session | grew with S46 entry | **deferred-with-reason (P6)** |
 | C | Memory-citation anti-pattern in `labor-report.md` | 12 instances | unchanged | bundleable with a future labor-report pass |
 | D | `labor-report.md` split | 8,518 ln | unchanged | **deferred-with-reason (P6)** |
-| F | Audit cadence | 20th trigger (S44) | **21st trigger (this session)** | working as designed |
-| H | Lift modal overlay-frame → `lib/ui/Modal.tsx` | carries 6+ sessions | unchanged (no modal touched) | **leading standalone 2.2.v candidate** (6+ instances) |
-| I | Cloudflare hardening SEC-2 (gzip-bomb cap) + SEC-3 (POST rate-limit) | documented S42 | unchanged | tracked for named-workspace v2 |
-| K | ~~Stale `scrapers/store.ts` comment~~ | new S44 | **fixed (#152)** | **resolved** |
-| L | ADR for the evolved dev-mode model | new S44 (optional) | not added; **now stronger** (dev mode → in-app toggle; tiers on roadmap) | **optional — Alex's call** |
-| M | **Session file-load doesn't restore scraper data** (Save includes it; only IDB auto-restore restores it) | **new this session** | flagged in-code (`use-session-snapshot.ts`), not fixed | **new — real bug; own change** |
-| N | **Deep-link Data sub-tabs from the landing dashboard** (job-postings "Open →" → Job Postings sub-tab) | **new this session** | not done (current routing non-regressive) | **new — minor UX, optional** |
-| — | ~~Alex S45 freeform (Data tab / dev toggle / roadmap / Cloudflare email / Save-Load)~~ | new | **shipped / answered** | **resolved** |
-| — | A / E / G / J | retired/dropped earlier | n/a | E/G remain on the menu; A/J stay retired |
+| F | Audit cadence | 21st trigger (S45) | **22nd trigger (this session)** | working as designed |
+| H | Lift modal overlay-frame → `lib/ui/Modal.tsx` | carries 6+ sessions | **fully inventoried** by the S46 review; now also fixes P1 a11y | **leading 2.2.w candidate** |
+| I | Cloudflare hardening SEC-2 + SEC-3 | documented S42 | unchanged | tracked for named-workspace v2 |
+| L | ADR for the evolved dev-mode model | optional (S44/S45) | review **recommends writing it now** | optional — Alex's call |
+| M | Session file-load doesn't restore scraper data | new S45 | **exact fix site identified** by the review (`use-session-snapshot.ts:128-159`) | **real bug; small own change** |
+| N | Deep-link Data sub-tabs from the landing dashboard | new S45 | re-confirmed; `usePositionsScope` precedent noted | minor UX, optional |
+| O | **Post-refresh IDB auto-save main-thread freeze (~5s @ 375 MB)** | **new this session** | measured + **filed as a spawnable task** | **new — own change (persistence)** |
+| — | ~~Alex S46 freeform (eligibility slowness)~~ | new | **shipped (#154)** | **resolved** |
+| — | A / E / G / J | retired/on-menu | n/a | E/G remain on the menu; A/J stay retired |
 
 ### For Alex to weigh in on (non-blocking)
-- **Source tables under Data:** #151 left room to add the imported P&P / BFM / OBI tables as further **Data** sub-tabs — say the word and that's a clean 2.2.v.
-- **File-load parity gap (M):** loading a saved session file doesn't bring back the job-postings / eligibility-lists (it does come back from the browser auto-restore). Worth a small fix PR if you hit it.
-- **Optional dev-mode/permissions ADR (L):** only if you want the toggle + tiers formalized.
+- **Triage [the UI/UX proposals](proposals/s46-ui-ux-review.md)** — it's a ranked menu; pick what graduates to a sub-phase. Top picks: H (modal lift), M (file-load parity), the "Data"/"Load Data" rename, keyboard-operable rows.
+- **The IDB-freeze task (O)** is a ready-to-run chip — start it any time (it only bites at citywide data scale).
+- **dev-mode/permissions ADR (L):** the review recommends writing it now (cheap; prose already exists). Your call.
 
 ---
 
-## Next session prompt — Session 46 = Phase 2.2.v pick
+## Next session prompt — Session 47 = Phase 2.2.w pick
 
-This is the block Alex pastes to start Session 46. Normal interactive work.
+This is the block Alex pastes to start Session 47. Normal interactive work.
 
 ---
 
-This session picks the next Phase 2.2 sub-phase (2.2.v) and ships it. Session 45 shipped 2.2.u — Alex's freeform feedback: the **Data tab** (#151, Eligibility Lists + new Job Postings sub-tables), an **in-app dev-mode gear toggle** (#149), **Save/Load moved to the top bar** (#150), a **ROADMAP permission-tiers** addition (#148), and a chore (#152). Default model is **Opus 4.8 with fast mode**.
+This session picks the next Phase 2.2 sub-phase (2.2.w) and ships it. Session 46 shipped 2.2.v — the eligibility-scrape concurrency fix (#154, ~50s → ~5s, evidence-led) — and produced a triaged UI/UX proposals backlog (`docs/proposals/s46-ui-ux-review.md`). Default model is **Opus 4.8 with fast mode**.
 
 Read first, in order:
-- `docs/CLAUDE.md` (Opus 4.8 model default, agent-first visual verification)
+- `docs/CLAUDE.md` (Opus 4.8 default, agent-first visual verification)
 - `docs/SESSION_HANDOFF.md` (this file — recommendation + carry-forwards)
-- `docs/SESSION_LOG.md` (Session 45 entry — Phase 2.2.u)
+- `docs/SESSION_LOG.md` (Session 46 entry — Phase 2.2.v)
 - `memory/MEMORY.md` + the memory files
 - `docs/WORKFLOW.md` § "Skills and the Workflow tool" + "Visual verification protocol"
-- `docs/audits/phase-2-2-u-close-audit.md` (the S45 close audit — carry-forwards + the store-seeding / verification notes)
+- `docs/audits/phase-2-2-v-close-audit.md` (the S46 close audit — carry-forwards)
+- `docs/proposals/s46-ui-ux-review.md` (the S46 UI/UX triage — the 2.2.w menu is drawn from here)
 - `docs/domain/labor-report.md` § "Phase 2.2 sub-phases" — dependency graph
 
 Confirm state on main:
 - `git log --oneline origin/main -10`
-- Tests baseline: `cd app && npm install && npm test` should show **857 / 857** (run `npm install` first — a fresh worktree has no node_modules).
+- Tests baseline: `cd app && npm install && npm test` should show **861 / 861** (run `npm install` first — a fresh worktree has no node_modules).
 
 ==============================================================================
-STEP 0 — Phase 2.2.v close audit cadence check
+STEP 0 — Phase 2.2.w close audit cadence check
 ==============================================================================
-The Phase 2.2.u close audit fired in S45. The **Phase 2.2.v close audit fires when 2.2.v ships** — do it before this session ends, mirroring the [Phase 2.2.u close audit](audits/phase-2-2-u-close-audit.md) format (incl. its carry-forward table). If 2.2.v does NOT ship this session, no close audit fires.
-
-==============================================================================
-STEP 1 — Ask Alex to pick Phase 2.2.v
-==============================================================================
-Use AskUserQuestion. (S44/S45 lesson: keep options plain + concrete — live-site outcomes, not architecture. Batch any real design forks into one question.)
-
-  H. **Lift the modal overlay-frame → `lib/ui/Modal.tsx`** (SUGGESTED —
-     carry-forward 6+ sessions, the cleanest standalone). 6+ instances of
-     the same fixed-overlay-no-Portal pattern (Positions, Labor, Eligibility,
-     Probation, Separations, PlannedAction). NO behavior change; migrate call
-     sites one at a time within the PR; tests stay green + preview spot-check
-     2-3 modals. (Multi-file touch = the documented single-logical-change
-     exception, not bundling.)
-
-  P. **Source tables under Data** — add the imported P&P / BFM / OBI tables as
-     further sub-tabs on the new Data tab (#151 left room). Natural follow-on;
-     read-only tables like the new Job Postings view.
-
-  M. **Fix the file-load scraper parity gap** — a manual session file-load
-     restores everything except job postings / eligibility lists; make it
-     restore scrapers too (Save already includes them). Small fix + a
-     round-trip test. See the note in `lib/session/use-session-snapshot.ts`.
-
-  E. 2.2.19 `lib/views/temp-limits/` + TemporaryExchange typed entity —
-     Tab 12 Cat 16/17/18 expiry + 1040-hour gauges. Confirmation-only on the
-     4 TX TODOs per docs/research/cat-17-18-tx-rules-s40.md. devOnly initially.
-
-  F. 2.2.22 `lib/views/vacancies/` — Tab 23 filtered position list,
-     cross-checked against the Staffing Plan's planned actions. devOnly.
-
-  G. GitHub Pages → Cloudflare cutover (Step 10 of the runbook). Add
-     `_redirects` + HTML meta-refresh from github.io → pages.dev.
-
-  (Paste freeform feedback / UX rough edges instead — it has driven the last
-   several sessions' top scope. Or name anything else from the dependency
-   graph: 2.2.18 reporting-tree, the dev-mode/permissions ADR (L), etc.)
+The Phase 2.2.v close audit fired in S46. The **Phase 2.2.w close audit fires when 2.2.w ships** — do it before this session ends, mirroring [the 2.2.v close audit](audits/phase-2-2-v-close-audit.md) format (incl. its carry-forward table). If 2.2.w does NOT ship, no close audit fires.
 
 ==============================================================================
-STEP 2 — Start Phase 2.2.v (the picked sub-phase)
+STEP 1 — Ask Alex to pick Phase 2.2.w
+==============================================================================
+Use AskUserQuestion. (S44–S46 lesson: keep options plain + concrete — live-site outcomes, not architecture.) The S46 UI/UX review (`docs/proposals/s46-ui-ux-review.md`) is the curated menu; the strongest picks:
+
+  H. **Lift the modal overlay-frame → `lib/ui/Modal.tsx`** (SUGGESTED — now also fixes
+     2 P1 accessibility gaps, not just cleanliness). Fully inventoried: 6 dialogs in 2
+     families (4 detail editors + 2 read-only viewers; LoadingOverlay stays separate).
+     A shared Modal owns backdrop/card/✕/Esc/role=dialog + focus-trap+restore; migrate
+     Family A first, then B (which gains Esc + dialog role). NO behavior change beyond
+     the a11y additions; tests green + preview spot-check 2-3 modals.
+
+  M. **File-load scraper parity** — loading a saved session FILE silently drops the
+     scraper data it contains (only IDB auto-restore brings it back). Exact one-block
+     fix at `lib/session/use-session-snapshot.ts` mirroring `restoreStoresFromPayload`;
+     fold both paths into one shared helper. Small + a round-trip test.
+
+  R. **Rename "Data" vs "Load Data"** to kill the label collision (P1) — pure rename,
+     no logic (e.g. "Load Data" → "Import / Refresh", "Data" → "Source Tables").
+
+  K. **Keyboard-operable detail rows** (P1 a11y) — 5 of 6 list views can't open a detail
+     record without a mouse; replicate the correct `EligibilityView.tsx:342` row pattern
+     across Positions/Labor/Separations/Probations/StaffingPlan.
+
+  (Other menu items in the proposals doc: B2 de-risk the dev-gear · B3 write the
+   dev-mode ADR (L) · A3/A4 confirm-on-clear + auto-open paste fallback · N deep-link
+   sub-tabs · C4/C5 shared Button + color tokens. Plus the standing dependency-graph
+   menu: O the IDB-freeze (already a spawned task) · P source-tables-under-Data ·
+   2.2.19 temp-limits · 2.2.22 vacancies · Cloudflare cutover. Freeform feedback /
+   UX rough edges welcome — it has driven the last several sessions' top scope.)
+
+==============================================================================
+STEP 2 — Start Phase 2.2.w (the picked sub-phase)
 ==============================================================================
 Branch + scope depend on the pick:
 
-If H — modal-overlay-frame refactor:
+If H — modal-overlay-frame lift:
   Branch: `refactor/ui-modal-overlay-frame`
-  Scope: extract the repeated fixed-overlay (backdrop + centered card + Esc/
-    backdrop-close, role="dialog") into `lib/ui/Modal.tsx`; migrate the 6+
-    call sites one at a time within the PR; NO behavior change; tests green +
-    preview spot-check 2-3 modals.
-
-If P — source tables under Data:
-  Branch: `feat/data-source-tables`
-  Scope: add P&P / BFM / OBI (`loadedRows` by `_source`) as read-only tables
-    under the Data tab's sub-tab strip (`lib/views/data/DataView.tsx`); model
-    on `JobPostingsView`; tests + preview walkthrough.
+  Scope: build `lib/ui/Modal.tsx` (props per the proposals doc: `onClose ariaLabel
+    maxWidth align closeOnEsc closeOnBackdrop zIndex`, owning focus-trap+restore);
+    migrate the 6 dialogs (SeparationDetail:171, ProbationDetail:259,
+    PlannedActionDetail:277, EligibilityDetail:667, then PositionDetail:500,
+    LaborView:275) one at a time within the PR; leave LoadingOverlay as-is. Tests
+    green + preview spot-check. (Multi-file = the single-logical-change exception.)
 
 If M — file-load scraper parity:
   Branch: `fix/session-load-restores-scrapers`
-  Scope: in `lib/session/use-session-snapshot.ts` `loadFromFile`, restore
-    scraper state via `useScrapers.restoreFromSession(...)` from the parsed
-    payload (mirror the IDB auto-restore); add a save→load round-trip test;
-    preview spot-check.
+  Scope: in `use-session-snapshot.ts` `loadFromFile`, restore scrapers via the same
+    call the IDB path uses (`use-auto-persistence.ts:113-119`); factor a shared
+    `restoreStoresFromPayload` both paths call. Round-trip test + preview spot-check.
 
-If E — temp-limits-view:
-  Branch: `feat/temp-limits-view`
-  Scope: confirm the 4 TX TODOs (5a-5d) per cat-17-18-tx-rules-s40.md; add
-    `lib/temp-exchange/` typed entity; build `lib/views/temp-limits/` (Tab 12);
-    surface flags via `lib/quality/`; tab to App.tsx (devOnly); tests + preview.
+If R — Data/Load-Data rename:
+  Branch: `refactor/data-tab-labels`
+  Scope: rename the two tab labels + reconcile the landing "Load Reports" wording;
+    update any tabHint/label tests. No logic change; preview spot-check.
 
-If F — views/vacancies:
-  Branch: `feat/views-vacancies`
-  Scope: `lib/views/vacancies/` (Tab 23 filtered position list); cross-check
-    against Hiring Plan PlannedActions; tab to App.tsx (devOnly); tests.
+If K — keyboard-operable rows:
+  Branch: `fix/a11y-clickable-rows`
+  Scope: extract `<ClickableRow>` / `useRowButton` from the `EligibilityView.tsx:342`
+    pattern; apply to Positions/Labor/Separations/Probations/StaffingPlan. Tests +
+    keyboard spot-check in preview.
 
-If G — github-pages-cloudflare-cutover:
-  Branch: `chore/cloudflare-cutover`
-  Scope: app/public/_redirects → `/* https://kospos.pages.dev/:splat 302`;
-    app/index.html meta-refresh; tests + preview walkthrough.
-
-If freeform feedback:
-  Scope depends on what Alex says. Treat as primary; queue the menu as fallback.
+If a proposals-doc item / freeform feedback:
+  Scope per the doc / what Alex says. Treat freeform as primary; the menu is fallback.
 
 ==============================================================================
 Hard constraints
 ==============================================================================
-  - Branch from main, single-purpose name.
-  - Strict one-sub-phase-per-PR (a multi-file refactor like the modal lift or
-    a shared-hook extraction is one logical change — that is NOT bundling).
-  - `npm test` stays green (currently 857 / 857).
+  - Branch from `origin/main`, single-purpose name.
+  - Strict one-sub-phase-per-PR (a multi-file refactor like the modal lift or a
+    shared-hook extraction is one logical change — that is NOT bundling).
+  - `npm test` stays green (currently 861 / 861).
   - One PR per logical change; merge after CI passes; fast-forward main.
-  - Commit messages end with the `Co-authored-by:` line per CLAUDE.md. Use a
-    single-quoted heredoc `git commit -F -` for multiline messages (backticks
-    in a `-m` string trigger bash command substitution). Windows LF→CRLF
-    warnings on `git add` are benign.
-  - Worktree gotcha: don't `git checkout main` here (the main worktree holds
-    it). Branch each feature from `origin/main`; merge with `gh pr merge
-    --squash` (skip `--delete-branch` — it errors trying to switch to main).
+  - Commit messages end with the `Co-authored-by:` line. Use a single-quoted heredoc
+    `git commit -F -` for multiline messages (backticks in a `-m` string trigger bash
+    command substitution). Windows LF→CRLF warnings on `git add` are benign.
+  - Worktree gotcha: don't `git checkout main` here (the main worktree holds it).
+    Branch each feature from `origin/main`; merge with `gh pr merge --squash` (skip
+    `--delete-branch` — it errors trying to switch to main).
   - Run `npm run build` before opening any PR that touches app code.
-  - Agent-first visual verification for UI changes. `preview_screenshot`
-    worked reliably in S45 (it was flaky in S44) — still lean on
-    `preview_snapshot` / `preview_eval` / `preview_inspect` for structural
-    proof; the app's base path is `/kospos/`; clear `localStorage['kospos:dev-mode']`
-    + reload to test the dev-off default.
+  - Agent-first visual verification for UI changes. `preview_eval` carried the S46
+    proof (timed the real scrape end-to-end); lean on `preview_snapshot` /
+    `preview_eval` / `preview_inspect` for structural proof. App base path is
+    `/kospos/`; clear `localStorage['kospos:dev-mode']` + reload to test the dev-off
+    default.
 
 ==============================================================================
 What we are NOT doing
 ==============================================================================
   - No bundling (multi-file single-logical-change refactors excepted).
-  - No promotion of Payroll / Hiring Plan / Inactive / Separations / Temp
-    Limits / Reporting Tree to non-dev yet — exercise the new Data tab +
-    top-bar Save/Load + dev toggle on real data first.
-  - P6 docs cleanups (labor-report split, SESSION_LOG summarize) — deferred
-    with reason; only revisit if Alex asks.
-  - Named workspaces / R2 migration — later candidates; v1 single shared
-    snapshot is verified working; R2 only if snapshot > 25 MB compressed.
-  - Auth / login — deferred until Alex shares KosPos for testing (per item 2);
-    the dev toggle stays a plain switch until then.
+  - No promotion of Payroll / Hiring Plan / Inactive / Separations / Temp Limits /
+    Reporting Tree to non-dev yet — exercise the Data tab + top-bar Save/Load + dev
+    toggle + the now-fast scrape on real data first. (Separations / Inactive are the
+    eventual first promotion candidates per the S46 IA review.)
+  - P6 docs cleanups (labor-report split, SESSION_LOG summarize) — deferred with
+    reason; only revisit if Alex asks.
+  - Named workspaces / R2 migration — later candidates.
+  - Auth / login — deferred until Alex shares KosPos for testing; the dev toggle stays
+    a plain switch until then.
 
 ==============================================================================
 Session-end checklist
 ==============================================================================
 Before ending, update SESSION_HANDOFF.md (overwrite — keep it lean) with:
-  - Phase 2.2.v status + next-session prompt for Phase 2.2.w.
-  - Carry-forward update on items B, C, D, F, H, I, L, M, N (E/G as picked).
-  - Fire the Phase 2.2.v close audit (mirrors the 2.2.u audit format) **if 2.2.v shipped**.
+  - Phase 2.2.w status + next-session prompt for Phase 2.2.x.
+  - Carry-forward update on items B, C, D, F, I, L, N, O (+ H/M/R/K as picked).
+  - Fire the Phase 2.2.w close audit (mirrors the 2.2.v audit format) **if 2.2.w shipped**.
