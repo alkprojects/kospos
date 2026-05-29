@@ -91,7 +91,7 @@ When asking Claude to make a UI change:
 3. You look at the screenshot for what Claude is worst at: text overlapping, edges behind nodes, things shifting that shouldn't, missing icons, broken alignment.
 4. If something's wrong, point at it specifically — "the badge is on top of the title text" — not "it looks weird."
 
-**One dev server at a time.** `preview_start` reads the dev-server port from `.claude/launch.json` (currently 5173). If a second worktree is already serving on 5173, Vite silently falls back to 5174 and the preview tool would connect to the *wrong* app — so stop other worktrees' dev servers before previewing.
+**One dev server at a time.** `preview_start` reads the dev-server port from `.claude/launch.json` (5173). `vite.config.ts` sets `strictPort: true`, so a second concurrent `npm run dev` fails loudly ("Port 5173 is already in use") instead of silently serving on 5174 — where the preview tool, still pointed at 5173, would attach to the *wrong* worktree's app. Stop the other worktree's dev server first, then start this one.
 
 ## Session pacing
 
