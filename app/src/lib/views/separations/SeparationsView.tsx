@@ -49,16 +49,16 @@ const STATUS_LABEL: Record<SeparationStatus, string> = {
 
 const STATUS_COLOR: Record<SeparationStatus, [string, string]> = {
   // [text, background]
-  'rumored':         ['#7a4b1a', '#fde68a'], // yellow — uncertain
-  'confirmed':       ['#b35a00', '#fed7aa'], // orange — firming up
-  'paperwork-filed': ['#1f5fbf', '#e7f0fb'], // blue   — in-flight
-  'cleared':         ['#1a7a3c', '#d4f4e3'], // green  — done
+  'rumored':         ['var(--caution)', 'var(--caution-soft)'], // yellow — uncertain
+  'confirmed':       ['var(--warn)', 'var(--warn-soft)'], // orange — firming up
+  'paperwork-filed': ['var(--accent)', 'var(--accent-soft)'], // blue   — in-flight
+  'cleared':         ['var(--success)', 'var(--success-soft)'], // green  — done
 };
 
 const CONFIDENCE_COLOR: Record<ConfidenceLevel, [string, string]> = {
-  'low':    ['#6b7280', '#f3f4f6'],
-  'medium': ['#1f5fbf', '#e7f0fb'],
-  'high':   ['#1a7a3c', '#d4f4e3'],
+  'low':    ['var(--neutral)', 'var(--neutral-soft)'],
+  'medium': ['var(--accent)', 'var(--accent-soft)'],
+  'high':   ['var(--success)', 'var(--success-soft)'],
 };
 
 function StatusChip({ status }: { status: SeparationStatus }) {
@@ -284,8 +284,8 @@ function AddSeparationForm({
       </span>
       {error && (
         <div style={{
-          flexBasis: '100%', fontSize: 12, color: '#7f1d1d',
-          background: '#fecaca', border: '1px solid #dc2626', borderRadius: 4,
+          flexBasis: '100%', fontSize: 12, color: 'var(--danger)',
+          background: 'var(--danger-soft)', border: '1px solid #dc2626', borderRadius: 4,
           padding: '4px 10px',
         }}>
           {error}

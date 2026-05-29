@@ -226,8 +226,8 @@ function Cat1718Card({ position }: { position: Position }) {
             </div>
           </div>
           <div style={{ marginLeft: 'auto' }}>
-            {isPast && badge('Expired', '#7f1d1d', '#fecaca')}
-            {!isPast && isSoon && badge('Expiring soon', '#7a4b1a', '#fde68a')}
+            {isPast && badge('Expired', 'var(--danger)', 'var(--danger-soft)')}
+            {!isPast && isSoon && badge('Expiring soon', 'var(--caution)', 'var(--caution-soft)')}
           </div>
         </div>
       </div>
@@ -263,9 +263,9 @@ function BudgetVsActualCard({
   // mislead the eye into "this position is under budget."
   const varColor =
     !hasActuals               ? { fg: 'var(--muted)', bg: '#fafbfc' } :
-    v.direction === 'over'    ? { fg: '#7f1d1d',      bg: '#fecaca' } :
-    v.direction === 'under'   ? { fg: '#1a7a3c',      bg: '#d4f4e3' } :
-                                { fg: '#7a4b1a',      bg: '#fde68a' };
+    v.direction === 'over'    ? { fg: 'var(--danger)',      bg: 'var(--danger-soft)' } :
+    v.direction === 'under'   ? { fg: 'var(--success)',      bg: 'var(--success-soft)' } :
+                                { fg: 'var(--caution)',      bg: 'var(--caution-soft)' };
 
   // Arrow glyph (matches direction); used in the variance amount cell. No
   // arrow when actuals aren't available — the variance is undefined.

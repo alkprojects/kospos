@@ -228,7 +228,7 @@ export function CalculatorView() {
               )}
             </span>
           ) : codeInput && (
-            <span style={{ fontSize: '0.78rem', color: '#b35a00', marginTop: '2px' }}>
+            <span style={{ fontSize: '0.78rem', color: 'var(--warn)', marginTop: '2px' }}>
               Unknown class &mdash; check the spelling, or pick one from the dropdown.
             </span>
           )}

@@ -156,7 +156,7 @@ export function CostInputEditor({ value, onChange, disabled }: CostInputEditorPr
             {getJobTitle(code) && <> · {getJobTitle(code)}</>}
           </span>
         ) : code ? (
-          <span style={{ fontSize: 11, color: '#b35a00' }}>
+          <span style={{ fontSize: 11, color: 'var(--warn)' }}>
             Unknown class — pick one from the dropdown to enable pricing.
           </span>
         ) : null}

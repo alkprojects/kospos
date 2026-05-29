@@ -415,14 +415,14 @@ export function PositionsView({ onViewPayroll }: {
                 </td>
                 <td style={{ padding: '7px 12px' }}>{p.fte.toFixed(2)}</td>
                 <td style={{ padding: '7px 12px' }}>
-                  {p.fillStatus === 'FILLED'           && badge('Filled',   '#1a7a3c', '#d4f4e3')}
-                  {p.fillStatus === 'VACANT'           && badge('Vacant',   '#7a4b1a', '#f4e8d4')}
-                  {p.fillStatus === 'PARTIALLY FILLED' && badge('Partial',  '#1f5fbf', '#e7f0fb')}
-                  {p.fillStatus === 'OVER FILLED'      && badge('Over',     '#7f1d1d', '#fecaca')}
+                  {p.fillStatus === 'FILLED'           && badge('Filled',   'var(--success)', 'var(--success-soft)')}
+                  {p.fillStatus === 'VACANT'           && badge('Vacant',   'var(--caution)', '#f4e8d4')}
+                  {p.fillStatus === 'PARTIALLY FILLED' && badge('Partial',  'var(--accent)', 'var(--accent-soft)')}
+                  {p.fillStatus === 'OVER FILLED'      && badge('Over',     'var(--danger)', 'var(--danger-soft)')}
                   {!p.fillStatus                       && <span style={{ color: 'var(--muted)' }}>—</span>}
                   {' '}
                   {p.appointment?.cat1718 && badge(`Cat ${p.appointment.cat1718.category}`, '#6b21a8', '#f3e8ff')}
-                  {hasDeptMismatch(p) && badge('Dept ≠', '#7a4b1a', '#fde68a')}
+                  {hasDeptMismatch(p) && badge('Dept ≠', 'var(--caution)', 'var(--caution-soft)')}
                 </td>
                 <td style={{ padding: '7px 12px' }}>
                   {p.appointment?.name

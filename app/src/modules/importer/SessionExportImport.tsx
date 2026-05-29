@@ -253,8 +253,8 @@ export function SessionExportImport() {
       )}
       {status.kind === 'published' && (
         <div style={{
-          fontSize: 12, color: '#1a7a3c',
-          background: '#d4f4e3', border: '1px solid #1a7a3c', borderRadius: 4,
+          fontSize: 12, color: 'var(--success)',
+          background: 'var(--success-soft)', border: '1px solid var(--success)', borderRadius: 4,
           padding: '6px 10px',
         }}>
           Published snapshot ({(status.bytes / 1024).toLocaleString('en-US', { maximumFractionDigits: 1 })} KB).
@@ -263,8 +263,8 @@ export function SessionExportImport() {
       )}
       {status.kind === 'config-saved' && (
         <div style={{
-          fontSize: 12, color: '#1a7a3c',
-          background: '#d4f4e3', border: '1px solid #1a7a3c', borderRadius: 4,
+          fontSize: 12, color: 'var(--success)',
+          background: 'var(--success-soft)', border: '1px solid var(--success)', borderRadius: 4,
           padding: '6px 10px',
         }}>
           Cloudflare settings saved to this browser.
@@ -272,8 +272,8 @@ export function SessionExportImport() {
       )}
       {status.kind === 'error' && (
         <div style={{
-          fontSize: 12, color: '#7f1d1d',
-          background: '#fecaca', border: '1px solid #dc2626', borderRadius: 4,
+          fontSize: 12, color: 'var(--danger)',
+          background: 'var(--danger-soft)', border: '1px solid #dc2626', borderRadius: 4,
           padding: '6px 10px',
         }}>
           {status.message}

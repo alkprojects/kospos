@@ -66,7 +66,7 @@ export function SessionSaveLoad() {
         : status.kind === 'error'
           ? 'Load failed'
           : '';
-  const statusColor = status.kind === 'error' ? '#c0392b' : '#1a7a3c';
+  const statusColor = status.kind === 'error' ? '#c0392b' : 'var(--success)';
 
   const buttonBase: React.CSSProperties = {
     padding: '4px 10px',

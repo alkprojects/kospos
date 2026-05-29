@@ -189,7 +189,7 @@ function StatusPill({ tone, label }: { tone: ListStatusTone; label: string }) {
   const colors: Record<ListStatusTone, { bg: string; fg: string }> = {
     active:         { bg: 'var(--accent-soft)', fg: 'var(--accent)' },
     'expiring-soon': { bg: '#fef3c7',           fg: '#92400e' },
-    expired:        { bg: '#fee2e2',            fg: '#7f1d1d' },
+    expired:        { bg: '#fee2e2',            fg: 'var(--danger)' },
     unknown:        { bg: 'var(--surface)',     fg: 'var(--muted)' },
   };
   const c = colors[tone];

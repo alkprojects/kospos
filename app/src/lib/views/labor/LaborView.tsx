@@ -195,11 +195,11 @@ function fmtNumber(n: number, fractionDigits = 1): string {
 
 function bucketBadge(b: ReturnType<typeof bucketOf>) {
   const map: Record<ReturnType<typeof bucketOf>, [string, string, string]> = {
-    regular:  ['Reg', '#1a7a3c', '#d4f4e3'],
-    overtime: ['OT',  '#7a4b1a', '#fde68a'],
+    regular:  ['Reg', 'var(--success)', 'var(--success-soft)'],
+    overtime: ['OT',  'var(--caution)', 'var(--caution-soft)'],
     rpo:      ['RPO', '#6b21a8', '#f3e8ff'],
-    premium:  ['Prm', '#1f5fbf', '#e7f0fb'],
-    tempLsp:  ['TLS', '#7f1d1d', '#fecaca'],
+    premium:  ['Prm', 'var(--accent)', 'var(--accent-soft)'],
+    tempLsp:  ['TLS', 'var(--danger)', 'var(--danger-soft)'],
   };
   const [label, color, bg] = map[b];
   return (

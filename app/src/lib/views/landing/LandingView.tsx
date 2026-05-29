@@ -206,9 +206,9 @@ function Banner({ tone, children }: {
   children: React.ReactNode;
 }): React.JSX.Element {
   const palette = tone === 'success'
-    ? { bg: '#d4f4e3', border: '#1a7a3c', color: '#1a7a3c' }
+    ? { bg: 'var(--success-soft)', border: 'var(--success)', color: 'var(--success)' }
     : tone === 'error'
-      ? { bg: '#fecaca', border: '#dc2626', color: '#7f1d1d' }
+      ? { bg: 'var(--danger-soft)', border: '#dc2626', color: 'var(--danger)' }
       : { bg: '#dbeafe', border: '#2563eb', color: '#1e40af' };
   return (
     <div
