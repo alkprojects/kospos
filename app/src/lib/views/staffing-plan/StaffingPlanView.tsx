@@ -46,7 +46,7 @@ import type {
 import { useSeparations } from '../../separations';
 import { PlannedActionDetail } from './PlannedActionDetail';
 import { matchesNeedle } from '../../search/needle';
-import { CopyButton, rowButtonProps } from '../../ui';
+import { Badge, CopyButton, rowButtonProps } from '../../ui';
 
 function fmtMoney(n: number): string {
   return n.toLocaleString('en-US', {
@@ -89,22 +89,6 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
         <span style={{ fontSize: 10, color: 'var(--muted)' }}>{hint}</span>
       )}
     </div>
-  );
-}
-
-function badge(label: string, color: string, bg: string) {
-  return (
-    <span style={{
-      fontSize: 11,
-      fontWeight: 600,
-      padding: '2px 7px',
-      borderRadius: 10,
-      color,
-      background: bg,
-      whiteSpace: 'nowrap',
-    }}>
-      {label}
-    </span>
   );
 }
 
@@ -258,7 +242,7 @@ function Section({ type, actions, positionsById, linkedSeparationCounts, onDelet
         padding: '10px 14px',
         borderBottom: sectionActions.length > 0 ? '1px solid var(--border)' : 'none',
       }}>
-        {badge(`${TYPE_LABELS[type]} · ${sectionActions.length}`, color.fg, color.bg)}
+        <Badge color={color.fg} bg={color.bg}>{`${TYPE_LABELS[type]} · ${sectionActions.length}`}</Badge>
         {derivedCount > 0 && (
           <span title="Derived rows are auto-populated from the P&P data — Pending = vacant + no manual plan; TEMP = Cat 17/18 + no manual plan. Hide a row to suppress it; it'll move to the Manual user changes section below." style={{
             fontSize: 11, color: '#6b21a8',
@@ -338,7 +322,7 @@ function ManualOmissionsSection({ omissions, positionsById, onRestore }: {
         padding: '10px 14px',
         borderBottom: '1px solid var(--border)',
       }}>
-        {badge(`Manual user changes · ${omissions.length}`, '#444', '#e7e7e7')}
+        <Badge color="#444" bg="#e7e7e7">{`Manual user changes · ${omissions.length}`}</Badge>
         <span style={{ fontSize: 11, color: 'var(--muted)' }} title="Auto-populated rows you hid. Restore brings them back into their auto-derived section (Pending or TEMP).">
           Hidden auto rows — Restore to bring back
         </span>
@@ -377,7 +361,7 @@ function ManualOmissionsSection({ omissions, positionsById, onRestore }: {
                     {o.derivedReason}
                   </td>
                   <td style={{ padding: '6px 10px' }}>
-                    {badge(TYPE_LABELS[o.type], color.fg, color.bg)}
+                    <Badge color={color.fg} bg={color.bg}>{TYPE_LABELS[o.type]}</Badge>
                   </td>
                   <td style={{ padding: '6px 10px', textAlign: 'right' }}>
                     <button
