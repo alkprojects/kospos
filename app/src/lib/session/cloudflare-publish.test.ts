@@ -82,10 +82,23 @@ describe('fetchPublishedSnapshot', () => {
     localStorage.clear();
   });
 
-  it('returns not-configured when pagesUrl is empty', async () => {
-    const result = await fetchPublishedSnapshot({ pagesUrl: '', publishSecret: '' });
+  it('uses relative /api/snapshot URL when pagesUrl is empty (same-origin default)', async () => {
+    // S41 fix: empty pagesUrl no longer short-circuits; it falls back
+    // to a relative URL so any visitor to the Cloudflare deployment
+    // (including incognito windows + fresh browsers with empty
+    // localStorage) auto-loads the published snapshot with zero config.
+    let capturedUrl = '';
+    const fakeFetch = async (url: string | URL): Promise<Response> => {
+      capturedUrl = String(url);
+      return new Response('not found', { status: 404 });
+    };
+    const result = await fetchPublishedSnapshot(
+      { pagesUrl: '', publishSecret: '' },
+      fakeFetch as unknown as typeof fetch,
+    );
+    expect(capturedUrl).toBe('/api/snapshot');
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toBe('not-configured');
+    if (!result.ok) expect(result.reason).toBe('no-snapshot');
   });
 
   it('returns no-snapshot on 404', async () => {
@@ -211,10 +224,26 @@ describe('publishSnapshot', () => {
     localStorage.clear();
   });
 
-  it('returns not-configured when pagesUrl is empty', async () => {
-    const result = await publishSnapshot(emptyFile(), { pagesUrl: '', publishSecret: 'x' });
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toBe('not-configured');
+  it('uses relative /api/snapshot URL when pagesUrl is empty (same-origin default)', async () => {
+    // S41 fix: same shape as the fetch path — empty pagesUrl falls
+    // back to relative URL. The secret is still required (publishing
+    // is gated; reading is public), so publishing from the deployed
+    // site requires only the secret to be configured.
+    let capturedUrl = '';
+    const fakeFetch = async (url: string | URL): Promise<Response> => {
+      capturedUrl = String(url);
+      return new Response(JSON.stringify({ ok: true, savedAt: 'x', bytes: 0 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    };
+    const result = await publishSnapshot(
+      emptyFile(),
+      { pagesUrl: '', publishSecret: 's' },
+      fakeFetch as unknown as typeof fetch,
+    );
+    expect(capturedUrl).toBe('/api/snapshot');
+    expect(result.ok).toBe(true);
   });
 
   it('returns no-secret when secret is empty', async () => {

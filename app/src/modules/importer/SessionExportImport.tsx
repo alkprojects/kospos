@@ -220,7 +220,11 @@ export function SessionExportImport() {
   const saveDisabled =
     loadedRows.length === 0 && totalActions === 0 && totalNotes === 0 &&
     totalHidden === 0 && totalSeparations === 0 && totalProbations === 0;
-  const publishConfigured = config.pagesUrl !== '' && config.publishSecret !== '';
+  // S41 fix: pagesUrl is now optional (the cloudflare-publish helpers
+  // default to a relative /api/snapshot when it's empty), so the
+  // publish button only requires the secret. From the deployed site
+  // this means "paste the secret once, then publish" — no URL needed.
+  const publishConfigured = config.publishSecret !== '';
   const publishDisabled =
     saveDisabled || !publishConfigured || status.kind === 'publishing';
 
@@ -278,7 +282,7 @@ export function SessionExportImport() {
           aria-label="Publish snapshot to Cloudflare so other devices can load it"
           title={
             !publishConfigured
-              ? 'Configure Cloudflare Pages URL + publish secret in settings below.'
+              ? 'Paste the publish secret in settings below.'
               : saveDisabled
                 ? 'Nothing to publish — load some data first.'
                 : 'Publish current snapshot to Cloudflare. Other devices will load it on next open.'

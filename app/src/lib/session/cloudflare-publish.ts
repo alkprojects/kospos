@@ -14,8 +14,11 @@
  * Configuration (per-device, localStorage):
  *
  *   kospos.cloudflare.pagesUrl — base URL of the Cloudflare Pages
- *     deployment (e.g. `https://kospos.pages.dev`). Empty when not
- *     configured; publish/fetch are no-ops in that case.
+ *     deployment (e.g. `https://kospos.pages.dev`). Optional when the
+ *     page itself is served from the Cloudflare deployment (a relative
+ *     URL `/api/snapshot` resolves correctly against window.location).
+ *     Required when running from a different origin (localhost dev
+ *     pointing at production, GitHub Pages mirror, etc.).
  *   kospos.cloudflare.publishSecret — shared secret that Alex sets up
  *     in Cloudflare Pages → Settings → Environment variables as
  *     `PUBLISH_SECRET`. Required for POST; the GET path doesn't need it.
@@ -25,6 +28,15 @@
  * localStorage means each device that wants publish access has to be
  * configured once by the user pasting the secret. Read-only visitors
  * never need the secret.
+ *
+ * Same-origin default (S41 fix): the original implementation required
+ * an explicit `pagesUrl` in localStorage even for the read path. That
+ * blocked the entire cross-device "shared workspace" value prop — any
+ * fresh browser / incognito window / never-seen-before visitor has
+ * empty localStorage and would short-circuit to 'not-configured'
+ * without ever firing a network request. Now an empty `pagesUrl` falls
+ * back to a relative URL, so any visitor to the Cloudflare deployment
+ * auto-loads the published snapshot with zero per-device config.
  *
  * Compression (added S41): `publishSnapshot` gzips the JSON body via the
  * Web Streams CompressionStream API before POSTing, and sets
@@ -172,10 +184,17 @@ export async function fetchPublishedSnapshot(
   config: CloudflareConfig = readCloudflareConfig(),
   fetchImpl: typeof fetch = fetch,
 ): Promise<FetchResult> {
-  if (!config.pagesUrl) {
-    return { ok: false, reason: 'not-configured' };
-  }
-  const url = `${config.pagesUrl}/api/snapshot`;
+  // S41 fix: when pagesUrl is empty, default to a relative URL. This is
+  // the critical path for cross-device load — incognito windows + fresh
+  // browsers start with empty localStorage, so the original "require
+  // pagesUrl" gate blocked every read-only visitor from ever seeing
+  // the shared snapshot. Visitors to the Cloudflare Pages deployment
+  // (kospos.pages.dev) automatically hit /api/snapshot on the same
+  // origin — no localStorage config needed. Explicit pagesUrl still
+  // works (cross-origin: localhost dev pointing at production, etc.).
+  const url = config.pagesUrl
+    ? `${config.pagesUrl}/api/snapshot`
+    : '/api/snapshot';
   let response: Response;
   try {
     response = await fetchImpl(url, { method: 'GET' });
@@ -264,13 +283,15 @@ export async function publishSnapshot(
   fetchImpl: typeof fetch = fetch,
   onProgress?: (stage: PublishStage) => void,
 ): Promise<PublishResult> {
-  if (!config.pagesUrl) {
-    return { ok: false, reason: 'not-configured' };
-  }
   if (!config.publishSecret) {
     return { ok: false, reason: 'no-secret' };
   }
-  const url = `${config.pagesUrl}/api/snapshot`;
+  // Same relative-URL default as fetchPublishedSnapshot — publishing
+  // from the deployed page itself needs no pagesUrl config. The secret
+  // is still required (publishing is gated; reading is public).
+  const url = config.pagesUrl
+    ? `${config.pagesUrl}/api/snapshot`
+    : '/api/snapshot';
   // gzip the JSON body. See the module header — without this, the
   // 110K-row real-world dataset trips Cloudflare's 100 MB request
   // limit at the edge before the Worker even runs. Modern browsers
