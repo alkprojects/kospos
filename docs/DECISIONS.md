@@ -6,6 +6,51 @@ Each entry: what we decided, the context, what we considered instead, and the co
 
 ---
 
+## ADR-016 — Cross-device persistence via Cloudflare Pages + Workers KV (gzipped, same-origin default)
+
+**Date:** 2026-05-28
+**Status:** Accepted (designed Session 39 via [persistence-architecture-options.md § Option α](research/persistence-architecture-options.md#option-α--cloudflare-pages--workers-kv--recommended), code-shipped Session 40, verified end-to-end on real 331,893-row data Session 41)
+
+**Context:** KosPos data already persists per-browser via IndexedDB (Phase 2.2.q PR 1). The "shared workspace" promise — Alex publishing from one device, opening on another — needed a tiny backend. The S39 research doc evaluated four options (Cloudflare Pages + KV, Vercel + KV, GitHub Pages + data-branch commits, Supabase) on cost, latency, free-tier headroom, auth-UX, migration risk, and v2/v3 paths. Cloudflare Pages + Workers KV won on every axis except minor (Vercel ties on convenience).
+
+Implementation hit two hard limits when real-data publish was attempted in Session 41:
+
+1. **Cloudflare's 100 MB inbound request-body cap at the edge** — Alex's 110K-row dataset serialized to ~150 MB JSON, rejected with HTTP 413 before the Worker ran.
+2. **Workers KV's 25 MB value cap per key** — even if the body reached the Worker, the `put()` would have failed.
+
+Resolution: client-side gzip (`CompressionStream`) before POST + Worker stores the gzipped bytes verbatim in KV. JSON compresses 8-15× on this dataset (375 MB → 8.4 MB observed). A subsequent attempt with 221K rows tripped a third limit — Cloudflare Workers' **128 MB memory cap** during server-side decompression — fixed by removing server-side decompression entirely (the Worker now stores the bytes without parsing; envelope validation stays on the client where it already runs twice: at publish time and at read time).
+
+Cross-device load also needed a same-origin default: the original implementation required an explicit `pagesUrl` in localStorage, which blocked every fresh browser / incognito window from ever fetching (empty localStorage → fetch short-circuits with `not-configured`). Now an empty `pagesUrl` falls back to relative URL `/api/snapshot` — any visitor to the deployment fetches from the right place with zero per-device config.
+
+**Decision:** Cross-device persistence runs on **Cloudflare Pages + Workers KV**, configured as:
+
+- **Pages project** auto-builds from `main` push (root directory `app`, Vite preset, output `dist`, Node 24). The `vite.config.ts` `base` is `process.env.CF_PAGES ? '/' : '/kospos/'` so the same source serves both GitHub Pages (subpath) and Cloudflare Pages (root).
+- **KV namespace `KOSPOS_SNAPSHOTS`** bound at the Pages-project level. Singleton key `current` holds the gzipped snapshot bytes — one shared workspace per deployment in v1; named workspaces (`?workspace=<id>`) are the v2+ path.
+- **Worker function** at `app/functions/api/snapshot.ts` exposes `GET /api/snapshot` (public read, response carries `Content-Encoding: gzip` so browsers auto-decompress) and `POST /api/snapshot` (gated by `X-Publish-Secret` header matching the `PUBLISH_SECRET` env var). POST accepts gzipped bytes (`Content-Encoding: gzip`) with `X-Snapshot-SavedAt` header carrying the timestamp for response echo.
+- **Client helpers** at `app/src/lib/session/cloudflare-publish.ts`. `publishSnapshot` gzips JSON before POST; `fetchPublishedSnapshot` defensively peels up to 3 residual gzip layers (insurance against CDN re-encoding) and reads as ArrayBuffer (not `response.json()`) to handle any edge encoding behavior. Both use relative URL when `pagesUrl` is empty.
+- **Auto-load hook** (`use-auto-persistence.ts`) reads IDB + Cloudflare in parallel; newer `savedAt` wins. UI banner shows stage progress with an SMIL-animated spinner so the user has visible motion during the 5-15-second restore on a real-data envelope.
+
+**Alternatives considered (per [persistence-architecture-options.md](research/persistence-architecture-options.md)):**
+
+1. **Vercel + KV** — same architectural shape, tighter free-tier limits (30K KV reads/day vs Cloudflare's 100K), Vercel narrowed their free tier in Spring 2025. Rejected as objectively worse on the same axes.
+2. **GitHub Pages + data-branch commits** — no new host, but publish latency is 30-60s vs Cloudflare's ~100ms; PAT management is painful; commit-blob churn would balloon the `data` branch within months. Rejected.
+3. **Supabase** — full Postgres + Auth + RLS. Overkill for v1 (no multi-user editing); the right call when Phase 7+ wants per-row audit across users.
+4. **Server-side gzip decompression for validation** — initially tried in [PR #132](https://github.com/alkprojects/kospos/pull/132); blew Workers' 128 MB memory cap on real data ([PR #133](https://github.com/alkprojects/kospos/pull/133) removed it). The client-twice validation (publish + read) is sufficient and architecturally simpler.
+5. **Explicit `pagesUrl` required for read** — original [PR #126](https://github.com/alkprojects/kospos/pull/126) shape; blocked the entire cross-device value prop because incognito / fresh browsers have empty localStorage. [PR #135](https://github.com/alkprojects/kospos/pull/135) fell back to same-origin relative URL.
+
+**Consequences:**
+
+- **Free tier covers KosPos by ~1000×.** 100K KV reads/day, 1K writes/day, 1 GB storage on the free Cloudflare tier; KosPos's actual load is a handful of reads per device-open + a handful of writes per work-session.
+- **Anyone with the URL can read.** Acceptable because the data is SF public-employee public records (see [memory `data_sensitivity.md`]). Tightening would mean adding a read secret + a "share with key" UX — premature.
+- **Only publish-secret holders can write.** v1's single-tenant write model. v2 (named workspaces) would let each owner have their own secret + URL key.
+- **Browser memory pressure on read.** A 375 MB JSON parse + Zustand restore on a 330K-row envelope is slow (~5-15 seconds) and visible to the user. Mitigations shipped Session 41: yields between phases, in-place validation (no stringify→parse round-trip), animated spinner with stage text. A Web Worker for the initial `JSON.parse` is the next step if real-world payloads grow further.
+- **GitHub Pages stays alive in parallel** — not yet redirected. Cutover work is filed as a Phase 2.2.s+ follow-up. The conditional `vite.config.ts` `base` already produces correct builds for both hosts.
+- **`docs/runbooks/cloudflare-pages-setup.md` is the canonical setup procedure** for a fresh Cloudflare account through to verified cross-device publish. Includes lessons from this session: direct-URL Pages-create flow (dashboard reorg hid the path), "React (Vite)" framework preset label, Root directory + Build output under `(advanced)` expanders, conditional Vite `base`, gzip compression, server-side memory cap, same-origin default, optional API-token automation for future autonomous sessions.
+
+**See also:** [persistence-architecture-options.md](research/persistence-architecture-options.md) (S39 design); [cloudflare-pages-setup.md](runbooks/cloudflare-pages-setup.md) (setup procedure); [phase-2-2-q-close-audit.md](audits/phase-2-2-q-close-audit.md) (S40 code-only ship); [phase-2-2-r-close-audit.md](audits/phase-2-2-r-close-audit.md) (S41 verification + 7 follow-up PRs); PRs [#125](https://github.com/alkprojects/kospos/pull/125), [#126](https://github.com/alkprojects/kospos/pull/126), [#130](https://github.com/alkprojects/kospos/pull/130), [#131](https://github.com/alkprojects/kospos/pull/131), [#132](https://github.com/alkprojects/kospos/pull/132), [#133](https://github.com/alkprojects/kospos/pull/133), [#134](https://github.com/alkprojects/kospos/pull/134), [#135](https://github.com/alkprojects/kospos/pull/135), [#136](https://github.com/alkprojects/kospos/pull/136).
+
+---
+
 ## ADR-015 — BVA is a distinct PS Financials data source, separate from BFM
 
 **Date:** 2026-05-25

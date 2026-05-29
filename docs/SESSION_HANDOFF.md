@@ -4,6 +4,241 @@ Updated at the end of every session. The next session reads this before doing an
 
 ---
 
+## Current status (end of Session 41 — Phase 2.2.r: Cloudflare cross-device verification + 7 in-flight architectural-fix PRs, 2026-05-28)
+
+**Phase:** Phase 2.2.r — **Cloudflare cross-device verification (end-to-end on real 331,893-row data) + 7 architectural-fix PRs** that surfaced during the verification walkthrough. Phase 2.2.r close audit fired on schedule (18th event-based trigger). Phase 2.2.q deploy-verification carry-forward (item G in the S40 audit) is **RESOLVED**.
+**Last main commit:** this docs PR → [PR #136](https://github.com/alkprojects/kospos/pull/136) (cross-device load UX) → [PR #135](https://github.com/alkprojects/kospos/pull/135) (same-origin URL default) → [PR #134](https://github.com/alkprojects/kospos/pull/134) (publish UX + defensive load) → [PR #133](https://github.com/alkprojects/kospos/pull/133) (Worker skip decompression) → [PR #132](https://github.com/alkprojects/kospos/pull/132) (gzip publish/fetch) → [PR #131](https://github.com/alkprojects/kospos/pull/131) (gitignore .cloudflare-token/) → [PR #130](https://github.com/alkprojects/kospos/pull/130) (vite base conditional).
+**Tests:** 823 / 823 passing (+10 net from S41 start of 813; +5 from PR #132, +1 from PR #133, +3 from PR #134, +0 net from PR #135, +5 from PR #136, -4 from S40 docs PR #128).
+**Branches in flight:** none post-merge (this docs PR pending).
+**Worktree hygiene:** all 7 PR branches auto-archived on merge.
+
+### What landed this session — 7 code/fix PRs + this docs PR
+
+Alex picked Option A — Verify Cloudflare cross-device end-to-end — from the S41 menu. What looked like a runbook walkthrough turned into a 7-PR engineering session as real-data verification surfaced architectural issues at every layer (build, edge body cap, KV size cap, Worker memory cap, localStorage assumption, JSON parse perf, UX feedback). Session was **fully interactive** throughout — each PR triggered by a specific user-visible failure or UX complaint, not by speculative work.
+
+Mid-session Alex opted into **Cloudflare API token autonomy** (scoped Workers KV Edit + Pages Edit, today-only TTL, gitignored file). This let the session drive Cloudflare provisioning directly (KV namespace, binding, secret, redeploy, end-to-end API tests) instead of dashboard walkthroughs. Documented as Appendix A in the refreshed runbook.
+
+| # | PR | Title | Trigger |
+|---|---|---|---|
+| 1 | [#130](https://github.com/alkprojects/kospos/pull/130) | fix: vite base conditional for Cloudflare Pages vs GitHub Pages | "build was successful but page is blank" — `kospos.pages.dev` rendered blank because the bundle referenced `/kospos/assets/...` (GH Pages base). Fix: `base: process.env.CF_PAGES ? '/' : '/kospos/'`. |
+| 2 | [#131](https://github.com/alkprojects/kospos/pull/131) | chore: gitignore .cloudflare-token/ directory | After Alex created a Cloudflare API token + saved it in the repo, `git check-ignore` showed the path wasn't ignored. Token file never staged; rule added defensively. |
+| 3 | [#132](https://github.com/alkprojects/kospos/pull/132) | feat: gzip publish/fetch — unblocks 110K-row real-data publishing | HTTP 413 from Cloudflare's edge 100 MB body cap. Fix: client gzips via `CompressionStream`; Worker stores gzipped bytes. JSON gzips 8-15× on this dataset. +5 tests. |
+| 4 | [#133](https://github.com/alkprojects/kospos/pull/133) | fix: Worker stops decompressing gzipped POSTs (memory cap) | HTTP 400 "Memory limit exceeded before EOF" from Workers' 128 MB memory cap. Fix: skip server-side decompression; magic-bytes sniff + `X-Snapshot-SavedAt` header. Validation now client-only. +1 test net. |
+| 5 | [#134](https://github.com/alkprojects/kospos/pull/134) | fix: publish UX (spinner + stage progress) + defensive cross-device load | "computer became sluggish and 'page unresponsive' popup appeared." Fix: set status BEFORE heavy work + yield to event loop + SMIL-animated SVG spinner + stage-aware text. Bonus: defensive decompression loop (peels up to 3 layers). +3 tests. |
+| 6 | [#135](https://github.com/alkprojects/kospos/pull/135) | fix: empty pagesUrl falls back to relative URL (same-origin default) | "incognito doesn't load the data" + DevTools showed ZERO `/api/snapshot` requests. Root cause: empty `localStorage.pagesUrl` short-circuited the fetch. Fix: empty `pagesUrl` → relative URL → any visitor auto-loads with zero config. |
+| 7 | [#136](https://github.com/alkprojects/kospos/pull/136) | fix: cross-device load UX — accurate source, spinner, skip 375MB re-parse | "shouldn't say loading from browser, it's Cloudflare" + computer slowdown during 375 MB JSON parse. Fix: `parseSessionFileFromValue` skips wasteful round-trip + yields + spinner + accurate banner text. +5 tests. |
+
+End-to-end verification result: Alex published 331,893 rows from his main browser (375 MB JSON gzipped to 8,230 KB). Opened incognito window → "Restored from shared (Cloudflare) (saved HH:MM)" banner + Loaded Data table populated + Positions tab showed all rows.
+
+### What landed this session — this docs PR
+
+- **ADR-016** — `docs/DECISIONS.md` prepended with the cross-device persistence decision (Cloudflare Pages + KV + gzipped + same-origin default). Captures the 5 tightly-coupled S41 decisions as one ADR with full alternatives + consequences.
+- **Runbook refresh** — `docs/runbooks/cloudflare-pages-setup.md` substantially rewritten incorporating every S41 gotcha (Pages-dashboard direct URL, "React (Vite)" preset label, Root directory under `(advanced)` expander, conditional Vite base, gzip + memory cap notes, same-origin default, troubleshooting table) + new Appendix A documenting the API-token automation pattern.
+- **Phase 2.2.r close audit** — `docs/audits/phase-2-2-r-close-audit.md` (14 findings, 2 carry-forwards resolved, 12 recommendations not actioned).
+- **S41 SESSION_LOG entry** — full chronological narrative of the 7-PR sequence with triggers + fixes + lessons.
+- This SESSION_HANDOFF update (for S42).
+
+### What's NOT done
+
+- **Alex revokes the Cloudflare API token** — Cloudflare → My Profile → API Tokens. Today-only TTL means it auto-expires (2026-06-27 actually, the token's expires_on), but explicit revoke is cleaner. **Recommended action for Alex on wake.**
+- **GitHub Pages → Cloudflare redirect cutover** (Step 10 of the refreshed runbook) — Alex's S40 design pick was "redirect immediately." Filed as a Phase 2.2.s+ follow-up; bundleable with cross-tab nav.
+- **Cross-tab nav from Eligibility → Positions** (carries from S39 + S40 + S41). Original "Recommended Option C" for both S40 and S41 menus; bumped both times. Strongly recommended for S42.
+- **Lift modal overlay-frame to `lib/ui/Modal.tsx`** (carries 4+ sessions).
+- **R2 migration** if snapshot ever exceeds 25 MB compressed — currently at ~8 MB, ~3× headroom. Tracking only.
+- **Web Worker for `JSON.parse`** — would eliminate the 5-15 second main-thread block on real-data restore. Tracking only; not urgent after the S41 UX work made the freeze tolerable.
+
+### Top decisions surfaced for Alex this session
+
+1. **gzip on both wire AND storage.** Required for Cloudflare's 100 MB edge cap + KV's 25 MB value cap. JSON gzips 8-15× on this dataset.
+2. **No server-side decompression.** Workers' 128 MB memory cap can't hold a fully decompressed real-data envelope. Validation moves client-only.
+3. **Same-origin URL default.** The actual unlock for cross-device sharing — without it, fresh browsers + incognito windows can't load published snapshots.
+4. **In-place envelope validation.** `parseSessionFileFromValue` skips JSON-roundtrip in `validateOnly`. Saves several seconds on 375 MB envelopes.
+5. **UX feedback is necessary at real-data scale.** Spinner + stage progress + yields between heavy phases. Without these, "page unresponsive" dialogs fire during 5-15 second main-thread blocks.
+6. **Cloudflare API token autonomy is a valid pattern** for cloud-provisioning sessions. Documented as runbook Appendix A.
+7. **Verify gitignore before reading user-chosen secret paths.** Defensive pattern; reusable for any user-chosen path.
+
+### Carry-forward audit (from [`phase-2-2-r-close-audit.md`](audits/phase-2-2-r-close-audit.md))
+
+| # | Item | Prior status | This audit status | Disposition |
+|---|---|---|---|---|
+| A | ~~Auto-archive monitoring~~ | resolved S33 | n/a | **stays dropped** |
+| B | Trim SESSION_LOG.md sessions 1–16 | ~3,450 lines after S40 | **~3,610 lines after S41 (est.)** | unchanged — still queued |
+| C | Migrate memory-file citation anti-pattern in `labor-report.md` | 12 instances | 12 instances (no labor-report.md changes) | unchanged; bundleable with B |
+| D | Defer `labor-report.md` split until Phase 2.4 | 8,518 lines | 8,518 lines (unchanged) | unchanged — defer holds |
+| E | ~~Phase 2.2 first sub-phase pick~~ | resolved S24 | n/a | **stays dropped** |
+| F | Audit cadence — working as designed | 17th event-based trigger S40 | **18th event-based trigger this session** | working as designed |
+| G | ~~Cloudflare deploy verification gap~~ | open S40 | **RESOLVED this session** (ADR-016 codified) | **resolved**; retired from carry-forwards |
+
+---
+
+## Recommended next-session prompt (Session 42 = Phase 2.2.s pick)
+
+This is the prompt block Alex should paste to start Session 42. It's shorter than the S41 prompt because S41's autonomous-overnight pattern doesn't apply — S42 is normal interactive work.
+
+---
+
+This session asks Alex to pick the next Phase 2.2 sub-phase (2.2.s), then ships it. Phase 2.2.r resolved the long-standing Cloudflare-deploy-verification carry-forward via 7 architectural-fix PRs (PRs #130 through #136); cross-device persistence is now verified end-to-end on real 331,893-row data. The Cloudflare API token Alex used in S41 should be revoked at the start of this session.
+
+Read first, in order:
+- `docs/CLAUDE.md`
+- `docs/SESSION_HANDOFF.md` (this file — recommendation + carry-forwards)
+- `docs/SESSION_LOG.md` (Session 41 entry — 7 fix PRs + 1 docs PR)
+- `memory/MEMORY.md` + the 10 memory files
+- `docs/audits/phase-2-2-r-close-audit.md` (carry-forwards B-F; A + E stay dropped; G resolved)
+- `docs/DECISIONS.md` § ADR-016 (the cross-device persistence decision)
+- `docs/runbooks/cloudflare-pages-setup.md` (refreshed runbook + Appendix A API-token pattern)
+- `docs/domain/labor-report.md` § "Phase 2.2 sub-phases" — dependency graph
+
+Confirm state on main:
+- `git log --oneline origin/main -10`
+- Tests baseline: `cd app && npm test --run` should show 823 / 823.
+
+==============================================================================
+STEP 0 — Phase 2.2.s close audit cadence check
+==============================================================================
+Per WORKFLOW.md § Audit cadence, the Phase 2.2.r close audit fired in S41. This session, the audit cadence check is only the Phase 2.2.s close audit when 2.2.s ships. Don't re-audit 2.2.r.
+
+DO fire the 2.2.s audit before this session ends. Use the Phase 2.2.r close audit format; mirror the prior audit's table of carry-forwards.
+
+==============================================================================
+STEP 1 — Token revocation (~30 sec)
+==============================================================================
+
+Alex: revoke the Cloudflare API token at Cloudflare → My Profile → API Tokens. It was scoped to Workers KV Edit + Cloudflare Pages Edit, today-only TTL. The token has actually 30-day expiration; explicit revoke is the cleaner finish.
+
+If Alex wants future Cloudflare-related sessions to be autonomous, see runbook Appendix A — create a fresh scoped token then.
+
+==============================================================================
+STEP 2 — Ask Alex to pick Phase 2.2.s
+==============================================================================
+
+Use AskUserQuestion. Recommended options (Option C is the top pick — it's been the Recommended choice for THREE consecutive sessions now: S40, S41, S42; bumped both times by higher-priority work that's now resolved):
+
+  C. Cross-tab nav from Eligibility → Positions + lift devOnly
+     (RECOMMENDED — carries 3+ sessions, finally up) — Clicking a job
+     code in Eligibility filters the Positions tab. ~1-2 hours. Unlocks
+     promoting Eligibility + Probation tabs to non-dev.
+
+  D. 2.2.18 lib/views/reporting-tree/ + Change Mode precursor.
+     Tab 21. lib/changes/ stub needs to lift alongside (scope risk).
+
+  E. 2.2.19 lib/views/temp-limits/ + TemporaryExchange typed entity.
+     Cat 17/18 expiry + 1040-hour gauges. Confirmation-only on the
+     4 TX TODOs (per docs/research/cat-17-18-tx-rules-s40.md).
+
+  F. 2.2.22 lib/views/vacancies/ — Tab 23 light-weight filtered
+     position list. ~2-3 hours.
+
+  G. GitHub Pages → Cloudflare cutover (Step 10 of the runbook).
+     Add `_redirects` + HTML meta-refresh from github.io → pages.dev.
+     ~1-2 hours. Bundleable with C (cross-tab nav).
+
+  H. Paste freeform feedback on what shipped this session
+     (publish/load UX, ADR-016 framing, runbook clarity, any
+     remaining UX rough edges). Alex's freeform feedback has driven
+     5 of last 6 sessions' top scope.
+
+  (Escape hatch: Alex names something else from the dependency graph.)
+
+==============================================================================
+STEP 3 — Start Phase 2.2.s (the picked sub-phase)
+==============================================================================
+Branch + scope depend on the pick:
+
+If C — eligibility-positions-crosstabnav-and-promote:
+  Branch: feat/eligibility-positions-crosstabnav-and-promote
+  Scope:
+    - Cross-tab nav (shared Zustand "active filter" slice OR URL
+      hash route — design pick at top of session)
+    - Lift devOnly: true on Eligibility + Probation tabs in App.tsx
+    - Tests + preview-MCP walkthrough
+
+If D — views/reporting-tree/:
+  Branch: feat/views-reporting-tree
+  Scope:
+    - lib/views/reporting-tree/ — Tab 21 surface
+    - Surface Scenario 1 flags via lib/quality/
+    - Optionally lift lib/changes/ from stub
+    - Tab to App.tsx (devOnly initially)
+    - Tests
+
+If E — views/temp-limits/:
+  Branch: feat/temp-limits-view
+  Scope:
+    - Confirm the 4 TX TODOs (5a-5d) per cat-17-18-tx-rules-s40.md
+      research — 5-min confirmation, not open research.
+    - Add lib/temp-exchange/ typed entity
+    - Build lib/views/temp-limits/ — Tab 12 surface
+    - Surface temp-tx-expiration-imminent + temp-tx-expired flags
+    - Tab to App.tsx (devOnly until ready)
+    - Tests + preview-MCP walkthrough
+
+If F — views/vacancies/:
+  Branch: feat/views-vacancies
+  Scope:
+    - lib/views/vacancies/ — Tab 23 filtered position list
+    - Cross-check against Hiring Plan PlannedActions
+    - Tab to App.tsx (devOnly initially)
+    - Tests
+
+If G — github-pages-cloudflare-cutover:
+  Branch: chore/cloudflare-cutover
+  Scope:
+    - app/public/_redirects → `/* https://kospos.pages.dev/:splat 302`
+    - app/index.html → meta-refresh (ONLY when serving from github.io)
+    - Workflow nuance: the `vite.config.ts` base is already conditional;
+      ensure the GitHub Pages build still produces the right paths
+      while the meta-refresh exists
+    - Tests + preview-MCP walkthrough
+
+If H — Alex's freeform feedback:
+  Scope depends on what Alex says. Treat as the primary scope; queue
+  the original menu options as the next session's fallback.
+
+==============================================================================
+Hard constraints
+==============================================================================
+
+  - Branch from main, single-purpose name.
+  - Strict one-sub-phase-per-PR.
+  - `npm test` stays green (currently 823 / 823).
+  - One PR per logical change; merge after CI passes; fast-forward main.
+  - Commit messages end with the Co-Authored-By line per CLAUDE.md.
+  - **Run `npm run build` before opening PR** — 12 of 12 practical
+    clean first-run streak (S41 added 7 PRs to the streak).
+
+==============================================================================
+What we are NOT doing
+==============================================================================
+
+  - No bundling.
+  - No tab walkthroughs. Phase 2.0 is closed.
+  - No ADR amendments. Phase 2.4 ADR queue: 5 remaining (was 6, ADR-016
+    shipped this session).
+  - No tool / setting / hook changes unless surfaced by audit.
+  - No promotion of Payroll / Hiring Plan / Inactive / Separations /
+    Temp Limits / Reporting Tree to non-dev yet — wait until cross-tab
+    nav has been used end-to-end on real data (Option C above is the
+    explicit unlock for Eligibility + Probation).
+  - Don't lift the modal overlay-frame to lib/ui/Modal.tsx in the same
+    PR as Option C/D/F/G — that's a separate refactor (filed as
+    follow-up).
+  - Named workspaces / multi-user editing — Phase 2.2.s+ candidate.
+    v1 (anyone-with-the-link single shared snapshot) is verified working.
+  - R2 migration — only if snapshot exceeds 25 MB compressed; currently
+    ~8 MB at 331K rows.
+
+==============================================================================
+Session-end checklist
+==============================================================================
+
+Before ending, update SESSION_HANDOFF.md with:
+  - Phase 2.2.s status + next-session prompt for Phase 2.2.t.
+  - Carry-forward update on items B-F (A, E stay dropped; G resolved).
+  - Fire the Phase 2.2.s close audit (mirrors Phase 2.2.r audit format).
+
+---
+
 ## Current status (end of Session 40 — Phase 2.2.q: IndexedDB persistence + Welcome landing + Cloudflare publish/fetch code, 2026-05-28)
 
 **Phase:** Phase 2.2.q — **A+B combo: IndexedDB auto-persistence + Welcome landing dashboard ([PR #125](https://github.com/alkprojects/kospos/pull/125)) + Cloudflare Pages Worker + cross-device publish/fetch code ([PR #126](https://github.com/alkprojects/kospos/pull/126))**. Phase 2.2.q close audit fired on schedule (17th event-based trigger).
