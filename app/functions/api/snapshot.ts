@@ -155,6 +155,29 @@ function looksGzipped(bytes: Uint8Array): boolean {
   return bytes.length >= 2 && bytes[0] === GZIP_MAGIC_0 && bytes[1] === GZIP_MAGIC_1;
 }
 
+/**
+ * Constant-time comparison for the publish-secret check. Unlike `===`,
+ * this never early-exits on the first differing character, so a caller
+ * can't use response timing to learn how many leading characters of a
+ * guess were correct. The loop length is the (constant, server-side)
+ * expected-secret length, so timing is independent of the attacker-
+ * supplied value; the length XOR folds in any length mismatch so unequal
+ * lengths can never compare equal. Cloudflare's edge + network jitter
+ * already make a timing attack against a Worker impractical — this is
+ * defense-in-depth, keeping the secret off the trivially-attackable path.
+ */
+function constantTimeEqual(expected: string, presented: string): boolean {
+  let mismatch = expected.length ^ presented.length;
+  for (let i = 0; i < expected.length; i++) {
+    // charCodeAt past the end of `presented` is NaN; `| 0` coerces it to
+    // 0. The length XOR above already guarantees a non-zero accumulator
+    // when lengths differ, so the substituted 0 can never produce a
+    // false match.
+    mismatch |= expected.charCodeAt(i) ^ (presented.charCodeAt(i) | 0);
+  }
+  return mismatch === 0;
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/snapshot
 // ---------------------------------------------------------------------------
@@ -214,7 +237,7 @@ export const onRequestPost = async ({ request, env }: PagesContext): Promise<Res
     }, 503);
   }
   const presentedSecret = request.headers.get('X-Publish-Secret');
-  if (presentedSecret !== env.PUBLISH_SECRET) {
+  if (presentedSecret === null || !constantTimeEqual(env.PUBLISH_SECRET, presentedSecret)) {
     return jsonResponse({
       error: 'Invalid or missing X-Publish-Secret header.',
     }, 401);
