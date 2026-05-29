@@ -3,7 +3,7 @@
  *
  * Extracted from SessionExportImport (Phase 2.2.u) so the local-file Save /
  * Load controls (now in the header top bar — `SessionSaveLoad`) and the
- * Publish + Cloudflare-settings panel (still on the Load Data tab —
+ * Publish + Cloudflare-settings panel (still on the Load Reports tab —
  * `SessionExportImport`) build the *exact same* snapshot from one place. No
  * risk of the two surfaces drifting as new session fields are added.
  *

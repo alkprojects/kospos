@@ -1,5 +1,5 @@
 /**
- * Render test for SessionExportImport — the Load Data tab's Publish panel.
+ * Render test for SessionExportImport — the Load Reports tab's Publish panel.
  *
  * Save / Load gating moved to session-save-load.test.tsx in Phase 2.2.u (the
  * Save / Load buttons relocated to the header top bar). What stays here is the

@@ -19,13 +19,13 @@
  *     only), exam type (score-report / eligible-list), department
  *     multi-select, citywide-only toggle.
  *
- * Layout (read-only view — data acquisition lives on the Load Data tab):
+ * Layout (read-only view — data acquisition lives on the Load Reports tab):
  *   - Summary header: per-source totals + last-refreshed-at (status only)
  *   - Filter toolbar (search · status · exam type · department · citywide)
  *   - Per-jobCode summary table — click row to open detail modal
  *
  * Phase 2.2.t (Alex's S44 directive): the refresh buttons + backup-proxy +
- * manual-paste controls moved to the Load Data tab (ScrapeSourcesPanel) so
+ * manual-paste controls moved to the Load Reports tab (ScrapeSourcesPanel) so
  * all data acquisition lives in one place; this tab is now a pure view.
  *
  * Phase 2.2.s (Option C): each summary row gains a "Positions →" affordance
@@ -577,7 +577,7 @@ export function EligibilityView({ onViewPositions }: {
         Tab 11. KosPos is the system of record for the per-job-code
         "active posting / active list" rollup. Click any row for the
         per-list / per-posting drill-down. Refresh job postings +
-        eligibility lists from the Load Data tab (postings via
+        eligibility lists from the Load Reports tab (postings via
         SmartRecruiters / SF Careers; eligibility lists from sfdhr.org via a
         public CORS-proxy chain). Active = posted within 2 years (CSC Rule
         411A/412 — lists may be extended; v1 is age-only).

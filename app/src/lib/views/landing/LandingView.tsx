@@ -120,7 +120,7 @@ export function LandingView({ persistence, onNavigate }: LandingViewProps) {
       <section aria-label="Quick actions" style={{ marginTop: 24, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <NavButton onClick={() => onNavigate('importer')} label="📂 Load Reports" primary />
         <NavButton onClick={() => onNavigate('positions')} label="Positions" />
-        <NavButton onClick={() => onNavigate('data')} label="Data" />
+        <NavButton onClick={() => onNavigate('data')} label="Source Tables" />
         <NavButton onClick={() => onNavigate('calculator')} label="Job Class Calculator" />
       </section>
 

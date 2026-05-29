@@ -40,8 +40,8 @@ const ALL_TABS: TabDef[] = [
   { id: 'separations',   label: 'Separations',           devOnly: true },
   { id: 'probation',     label: 'Probation' },
   { id: 'inactive',      label: 'Inactive',              devOnly: true },
-  { id: 'data',          label: 'Data' },
-  { id: 'importer',      label: 'Load Data' },
+  { id: 'data',          label: 'Source Tables' },
+  { id: 'importer',      label: 'Load Reports' },
   { id: 'special-class', label: 'Special Class',         devOnly: true },
 ];
 
