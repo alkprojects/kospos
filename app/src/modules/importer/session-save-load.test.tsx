@@ -1,16 +1,18 @@
 /**
- * Render test for SessionExportImport — the Load Data tab's Publish panel.
+ * Render tests for SessionSaveLoad — the top-bar Save / Load control.
  *
- * Save / Load gating moved to session-save-load.test.tsx in Phase 2.2.u (the
- * Save / Load buttons relocated to the header top bar). What stays here is the
- * status **summary** line, which still lives on this panel and must surface
- * scraper counts (live job postings + DHR eligibility lists) — first-class
- * session content that rides along in the published snapshot.
+ * The Save-enable gating moved here from SessionExportImport in Phase 2.2.u
+ * (Save / Load relocated to the header top bar). Scraper data (live job
+ * postings + DHR eligibility lists) is first-class session content, so a
+ * scraper-only session must be savable just like an uploaded labor report.
+ *
+ * The snapshot round-trip itself is covered in session.test.ts; the shared
+ * build/save/load plumbing lives in useSessionSnapshot.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { SessionExportImport } from './SessionExportImport';
+import { SessionSaveLoad } from './SessionSaveLoad';
 import { useAppStore } from '../../lib/store';
 import { useStaffingPlan } from '../../lib/staffing-plan';
 import { useSeparations } from '../../lib/separations';
@@ -35,8 +37,7 @@ function mkList(over: Partial<EligibilityList> = {}): EligibilityList {
   };
 }
 
-/** Reset every store the panel reads so each test starts from a clean,
- *  fully-empty session. */
+/** Reset every store the control reads so each test starts fully empty. */
 beforeEach(() => {
   useAppStore.getState().restoreFromSession([], '');
   useStaffingPlan.getState().restoreFromSession([], []);
@@ -46,13 +47,28 @@ beforeEach(() => {
   useScrapers.getState().clearAll();
 });
 
-describe('SessionExportImport — status summary', () => {
-  it('surfaces the scraper counts in the status summary', () => {
+const saveButton = () => screen.getByLabelText('Save current session to a JSON file');
+
+describe('SessionSaveLoad — Save gating', () => {
+  it('disables Save when every store is empty', () => {
+    render(<SessionSaveLoad />);
+    expect(saveButton()).toBeDisabled();
+  });
+
+  it('enables Save when only job postings are loaded (no labor rows)', () => {
     useScrapers.getState().setJobPostings([mkPosting(), mkPosting({ id: 'p2', jobCode: '2622' })]);
+    render(<SessionSaveLoad />);
+    expect(saveButton()).not.toBeDisabled();
+  });
+
+  it('enables Save when only eligibility lists are loaded (no labor rows)', () => {
     useScrapers.getState().setEligibilityLists([mkList()]);
-    render(<SessionExportImport />);
-    // One posting count is plural, the single list is singular.
-    expect(screen.getByText(/2 postings/)).toBeInTheDocument();
-    expect(screen.getByText(/1 eligibility list(?!s)/)).toBeInTheDocument();
+    render(<SessionSaveLoad />);
+    expect(saveButton()).not.toBeDisabled();
+  });
+
+  it('always offers a Load button', () => {
+    render(<SessionSaveLoad />);
+    expect(screen.getByLabelText('Load a previously-saved session file')).toBeInTheDocument();
   });
 });

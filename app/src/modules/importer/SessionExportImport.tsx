@@ -1,38 +1,28 @@
 /**
- * SessionExportImport — Save / Load session affordances above the
- * FilePicker on the Load Reports tab.
+ * SessionExportImport — the **Publish** panel on the Load Data tab.
  *
- * Three save/load modes:
+ * Local-file Save / Load moved to the header top bar (`SessionSaveLoad`) in
+ * Phase 2.2.u. This panel now owns the heavier, less-frequent session-sharing
+ * controls:
  *
- *   1. **File** (since Phase 2.2.h): download the session as a JSON
- *      file. Useful for offline backup + emailing to a colleague.
- *   2. **IndexedDB** (since Phase 2.2.q PR 1): auto-saves to this
- *      browser. No UI here — see `useAutoSessionPersistence` +
- *      `LandingView` for status.
- *   3. **Cloudflare publish** (Phase 2.2.q PR 2): push the current
- *      snapshot to a shared Cloudflare Workers KV namespace so other
- *      browsers / devices load it on next open. Gated by a publish
- *      secret stored in localStorage.
+ *   - **Cloudflare publish** (Phase 2.2.q PR 2): push the current snapshot to a
+ *     shared Cloudflare Workers KV namespace so other browsers / devices load
+ *     it on next open. Gated by a publish secret stored in localStorage.
+ *   - The Cloudflare Pages URL + publish-secret settings (one-time setup).
+ *   - The session status summary (rows / actions / notes / scraper counts).
  *
- * The publish flow requires Alex to set up the Cloudflare Pages project
- * + KV binding once, then paste the Pages URL + publish secret here.
- * See `docs/research/persistence-architecture-options.md` for the
- * architecture rationale + setup steps.
+ * IndexedDB auto-save runs separately — see `useAutoSessionPersistence` +
+ * `LandingView` for that status. The snapshot itself is built by the shared
+ * `useSessionSnapshot` hook so Save, Load, and Publish never drift.
+ *
+ * The publish flow requires Alex to set up the Cloudflare Pages project + KV
+ * binding once, then paste the Pages URL + publish secret here. See
+ * `docs/research/persistence-architecture-options.md` for the rationale + steps.
  */
 
-import { useEffect, useRef, useState } from 'react';
-import { useAppStore } from '../../lib/store';
-import { useStaffingPlan } from '../../lib/staffing-plan';
-import { useSeparations } from '../../lib/separations';
-import { useProbations } from '../../lib/probation';
-import { usePositionNotes } from '../../lib/positions/notes';
-import { useScrapers } from '../../lib/scrapers/store';
-import {
-  SESSION_SCHEMA_VERSION,
-  buildSessionFile,
-  defaultSessionFilename,
-  parseSessionFile,
-} from '../../lib/session/snapshot';
+import { useEffect, useState } from 'react';
+import { SESSION_SCHEMA_VERSION } from '../../lib/session/snapshot';
+import { useSessionSnapshot } from '../../lib/session/use-session-snapshot';
 import {
   publishSnapshot,
   readCloudflareConfig,
@@ -43,99 +33,33 @@ import {
 
 type Status =
   | { kind: 'idle' }
-  | { kind: 'saved'; filename: string; rowCount: number }
-  | { kind: 'loaded'; filename: string; rowCount: number }
-  // S41 UX: `stage` lets the banner show what phase we're in (building
-  // the in-memory snapshot, gzip-compressing, uploading) so the user
-  // sees motion + meaningful progress instead of a static
-  // "Publishing…" line for 5-15 seconds on 300K-row data.
+  // S41 UX: `stage` lets the banner show what phase we're in (building the
+  // in-memory snapshot, gzip-compressing, uploading) so the user sees motion
+  // instead of a static "Publishing…" line for several seconds on large data.
   | { kind: 'publishing'; stage: 'building' | PublishStage }
   | { kind: 'published'; savedAt: string; bytes: number }
   | { kind: 'config-saved' }
   | { kind: 'error'; message: string };
 
 export function SessionExportImport() {
-  const loadedRows = useAppStore(s => s.loadedRows);
-  const lastBfmImportAt = useAppStore(s => s.lastBfmImportAt);
-  const restoreApp = useAppStore(s => s.restoreFromSession);
+  const { buildCurrentSnapshot, isEmpty, counts } = useSessionSnapshot();
 
-  const staffingActions = useStaffingPlan(s => s.actions);
-  const staffingDerivedRemoved = useStaffingPlan(s => s.derivedRemoved);
-  const restoreStaffing = useStaffingPlan(s => s.restoreFromSession);
-
-  const pendingSeparations = useSeparations(s => s.separations);
-  const restoreSeparations = useSeparations(s => s.restoreFromSession);
-
-  const probations = useProbations(s => s.probations);
-  const restoreProbations = useProbations(s => s.restoreFromSession);
-
-  const notes = usePositionNotes(s => s.notes);
-  const restoreNotes = usePositionNotes(s => s.restoreFromSession);
-
-  // Phase 2.2.q PR 2 — scrapers state goes into the snapshot so a
-  // publish carries the eligibility lists + PDF cache alongside the
-  // rest. Per-field selectors (NOT an object-returning selector) to
-  // avoid a fresh reference per render — Zustand's
-  // `useSyncExternalStore` would flag an infinite loop otherwise.
-  const jobPostings = useScrapers(s => s.jobPostings);
-  const jobPostingsRefreshedAt = useScrapers(s => s.jobPostingsRefreshedAt);
-  const eligibilityLists = useScrapers(s => s.eligibilityLists);
-  const eligibilityListsRefreshedAt = useScrapers(s => s.eligibilityListsRefreshedAt);
-  const pdfCache = useScrapers(s => s.pdfCache);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [config, setConfig] = useState<CloudflareConfig>(() => readCloudflareConfig());
   const [showConfig, setShowConfig] = useState(false);
 
-  // Re-read config when the toggle opens — covers the case where the
-  // user pastes a value in DevTools then opens the panel.
+  // Re-read config when the toggle opens — covers the case where the user
+  // pastes a value in DevTools then opens the panel.
   useEffect(() => {
     if (showConfig) setConfig(readCloudflareConfig());
   }, [showConfig]);
 
-  function buildCurrentSnapshot() {
-    return buildSessionFile({
-      loadedRows,
-      lastBfmImportAt,
-      staffingPlanActions: staffingActions,
-      staffingPlanDerivedRemoved: staffingDerivedRemoved,
-      positionNotes: notes,
-      pendingSeparations,
-      probations,
-      jobPostings,
-      jobPostingsRefreshedAt,
-      eligibilityLists,
-      eligibilityListsRefreshedAt,
-      pdfCache,
-    });
-  }
-
-  function handleSave() {
-    const file = buildCurrentSnapshot();
-    const json = JSON.stringify(file, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const filename = defaultSessionFilename(new Date());
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    setStatus({ kind: 'saved', filename, rowCount: loadedRows.length });
-  }
-
   async function handlePublish() {
-    // S41 UX: set the publishing banner BEFORE the heavy work starts,
-    // then yield to React (await a microtask) so the banner paints
-    // before JSON.stringify on 300K rows blocks the main thread for
-    // several seconds. Without this, the user sees nothing happen
-    // after clicking the button — and Chrome eventually shows its
-    // "page unresponsive" dialog. With these yields, the banner +
-    // spinner are visible immediately + the browser stays responsive
-    // enough to skip the dialog.
+    // S41 UX: set the publishing banner BEFORE the heavy work starts, then
+    // yield to React (await a microtask) so the banner paints before
+    // JSON.stringify on a large payload blocks the main thread for several
+    // seconds. With these yields the spinner is visible immediately + the
+    // browser stays responsive enough to skip its "page unresponsive" dialog.
     setStatus({ kind: 'publishing', stage: 'building' });
     await new Promise(r => setTimeout(r, 0));
     const file = buildCurrentSnapshot();
@@ -167,126 +91,25 @@ export function SessionExportImport() {
     setStatus({ kind: 'config-saved' });
   }
 
-  async function handleLoad(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    const file = files[0];
-    try {
-      const text = await file.text();
-      const result = parseSessionFile(text);
-      if (!result.ok) {
-        const msg = (() => {
-          switch (result.reason) {
-            case 'invalid-json':
-              return `Not a valid JSON file: ${result.detail}`;
-            case 'not-a-session-file':
-              return `This doesn't look like a KosPos session file. ${result.detail}`;
-            case 'schema-mismatch':
-              return `Schema version mismatch (file v${result.got}, app expects v${result.expected}). Save a fresh session in the current build.`;
-          }
-        })();
-        setStatus({ kind: 'error', message: msg });
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        return;
-      }
-      const { payload } = result.file;
-      restoreApp(payload.loadedRows, payload.lastBfmImportAt);
-      restoreStaffing(payload.staffingPlanActions, payload.staffingPlanDerivedRemoved);
-      restoreNotes(payload.positionNotes);
-      // Backward-compatible: v1 files saved before Phase 2.2.i don't carry
-      // `pendingSeparations`. Default to []; existing in-memory rows are
-      // wiped (the "load replaces the session" contract).
-      restoreSeparations(payload.pendingSeparations ?? []);
-      // Same back-compat rule for `probations` (Phase 2.2.j).
-      restoreProbations(payload.probations ?? []);
-      setStatus({
-        kind: 'loaded',
-        filename: file.name,
-        rowCount: payload.loadedRows.length,
-      });
-    } catch (err) {
-      setStatus({
-        kind: 'error',
-        message: err instanceof Error ? err.message : 'Failed to read file.',
-      });
-    }
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  }
-
-  const totalActions = staffingActions.size;
-  const totalNotes = notes.size;
-  const totalHidden = staffingDerivedRemoved.size;
-  const totalSeparations = pendingSeparations.size;
-  const totalProbations = probations.size;
-  // Scraper data (live job postings + DHR eligibility lists) is first-class
-  // session content: it auto-saves to IDB and rides along in the published
-  // snapshot via buildCurrentSnapshot(). Count it here so a scraper-only
-  // session (e.g. an eligibility refresh with no labor report loaded) is
-  // still savable + publishable — otherwise the buttons stay disabled and
-  // the refresh can't persist across devices (S44 directive: treat
-  // refreshes like data uploads).
-  const totalPostings = jobPostings.length;
-  const totalEligibilityLists = eligibilityLists.length;
-  const saveDisabled =
-    loadedRows.length === 0 && totalActions === 0 && totalNotes === 0 &&
-    totalHidden === 0 && totalSeparations === 0 && totalProbations === 0 &&
-    totalPostings === 0 && totalEligibilityLists === 0;
-  // S41 fix: pagesUrl is now optional (the cloudflare-publish helpers
-  // default to a relative /api/snapshot when it's empty), so the
-  // publish button only requires the secret. From the deployed site
-  // this means "paste the secret once, then publish" — no URL needed.
+  // S41 fix: pagesUrl is optional (the cloudflare-publish helpers default to a
+  // relative /api/snapshot when it's empty), so the publish button only requires
+  // the secret. From the deployed site: "paste the secret once, then publish".
   const publishConfigured = config.publishSecret !== '';
-  const publishDisabled =
-    saveDisabled || !publishConfigured || status.kind === 'publishing';
+  const publishDisabled = isEmpty || !publishConfigured || status.kind === 'publishing';
 
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
         <strong style={{ fontSize: 14 }}>Session</strong>
         <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-          Save the current in-memory state to a JSON file on your machine, then
-          reload it on a fresh browser to skip re-importing every file.
-          Includes loaded rows + Hiring Plan actions + position notes + the
+          Publish the current snapshot to Cloudflare so other devices load it on
+          next open. (Save / Load a local file are in the top bar.) The snapshot
+          includes loaded rows + Hiring Plan actions + position notes + the
           latest job-posting / eligibility-list refresh.
         </span>
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button
-          onClick={handleSave}
-          disabled={saveDisabled}
-          aria-label="Save current session to a JSON file"
-          title={saveDisabled ? 'Nothing to save — load some data or add a planned action first.' : undefined}
-          style={{
-            padding: '5px 14px',
-            border: `1px solid ${saveDisabled ? 'var(--border)' : 'var(--accent)'}`,
-            borderRadius: 14,
-            background: saveDisabled ? 'var(--surface)' : 'var(--accent)',
-            color: saveDisabled ? 'var(--muted)' : '#fff',
-            cursor: saveDisabled ? 'not-allowed' : 'pointer',
-            fontSize: 13, fontFamily: 'inherit', fontWeight: 600,
-          }}
-        >
-          💾 Save session
-        </button>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          aria-label="Load a previously-saved session file"
-          style={{
-            padding: '5px 14px',
-            border: '1px solid var(--accent)', borderRadius: 14,
-            background: 'transparent', color: 'var(--accent)', cursor: 'pointer',
-            fontSize: 13, fontFamily: 'inherit', fontWeight: 600,
-          }}
-        >
-          📂 Load session…
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json,application/json"
-          style={{ display: 'none' }}
-          onChange={e => handleLoad(e.target.files)}
-        />
         <button
           onClick={handlePublish}
           disabled={publishDisabled}
@@ -294,7 +117,7 @@ export function SessionExportImport() {
           title={
             !publishConfigured
               ? 'Paste the publish secret in settings below.'
-              : saveDisabled
+              : isEmpty
                 ? 'Nothing to publish — load some data first.'
                 : 'Publish current snapshot to Cloudflare. Other devices will load it on next open.'
           }
@@ -324,14 +147,14 @@ export function SessionExportImport() {
           ⚙ Cloudflare settings
         </button>
         <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>
-          schema v{SESSION_SCHEMA_VERSION} · {loadedRows.length.toLocaleString('en-US')} rows
-          {totalActions > 0 && <> · {totalActions} planned action{totalActions === 1 ? '' : 's'}</>}
-          {totalHidden > 0 && <> · {totalHidden} hidden</>}
-          {totalNotes > 0 && <> · {totalNotes} note{totalNotes === 1 ? '' : 's'}</>}
-          {totalSeparations > 0 && <> · {totalSeparations} separation{totalSeparations === 1 ? '' : 's'}</>}
-          {totalProbations > 0 && <> · {totalProbations} probation{totalProbations === 1 ? '' : 's'}</>}
-          {totalPostings > 0 && <> · {totalPostings.toLocaleString('en-US')} posting{totalPostings === 1 ? '' : 's'}</>}
-          {totalEligibilityLists > 0 && <> · {totalEligibilityLists.toLocaleString('en-US')} eligibility list{totalEligibilityLists === 1 ? '' : 's'}</>}
+          schema v{SESSION_SCHEMA_VERSION} · {counts.loadedRows.toLocaleString('en-US')} rows
+          {counts.actions > 0 && <> · {counts.actions} planned action{counts.actions === 1 ? '' : 's'}</>}
+          {counts.hidden > 0 && <> · {counts.hidden} hidden</>}
+          {counts.notes > 0 && <> · {counts.notes} note{counts.notes === 1 ? '' : 's'}</>}
+          {counts.separations > 0 && <> · {counts.separations} separation{counts.separations === 1 ? '' : 's'}</>}
+          {counts.probations > 0 && <> · {counts.probations} probation{counts.probations === 1 ? '' : 's'}</>}
+          {counts.postings > 0 && <> · {counts.postings.toLocaleString('en-US')} posting{counts.postings === 1 ? '' : 's'}</>}
+          {counts.eligibilityLists > 0 && <> · {counts.eligibilityLists.toLocaleString('en-US')} eligibility list{counts.eligibilityLists === 1 ? '' : 's'}</>}
         </span>
       </div>
 
@@ -405,26 +228,6 @@ export function SessionExportImport() {
         </div>
       )}
 
-      {status.kind === 'saved' && (
-        <div style={{
-          fontSize: 12, color: '#1a7a3c',
-          background: '#d4f4e3', border: '1px solid #1a7a3c', borderRadius: 4,
-          padding: '6px 10px',
-        }}>
-          Saved <span style={{ fontFamily: 'monospace' }}>{status.filename}</span>{' '}
-          ({status.rowCount.toLocaleString('en-US')} rows). Check your Downloads folder.
-        </div>
-      )}
-      {status.kind === 'loaded' && (
-        <div style={{
-          fontSize: 12, color: '#1a7a3c',
-          background: '#d4f4e3', border: '1px solid #1a7a3c', borderRadius: 4,
-          padding: '6px 10px',
-        }}>
-          Loaded <span style={{ fontFamily: 'monospace' }}>{status.filename}</span>{' '}
-          ({status.rowCount.toLocaleString('en-US')} rows). Existing in-memory state was replaced.
-        </div>
-      )}
       {status.kind === 'publishing' && (
         <div style={{
           fontSize: 12, color: '#1e40af',
@@ -432,10 +235,9 @@ export function SessionExportImport() {
           padding: '6px 10px',
           display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          {/* SMIL-animated spinner — no CSS keyframes needed, supported in
-              every modern browser. Gives the banner motion so the user
-              knows the work isn't frozen even when the main thread is
-              briefly blocked by JSON.stringify on a large payload. */}
+          {/* SMIL-animated spinner — no CSS keyframes needed. Gives the banner
+              motion so the user knows the work isn't frozen even when the main
+              thread is briefly blocked by JSON.stringify on a large payload. */}
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <circle cx="12" cy="12" r="10" stroke="#93c5fd" strokeWidth="3" fill="none" />
             <path d="M 12 2 A 10 10 0 0 1 22 12" stroke="#2563eb" strokeWidth="3" fill="none" strokeLinecap="round">

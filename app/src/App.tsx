@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import './App.css';
 import { CalculatorView } from './modules/calculator/CalculatorView';
 import { ImporterView } from './modules/importer/ImporterView';
+import { SessionSaveLoad } from './modules/importer/SessionSaveLoad';
 import { PositionsView } from './lib/views/positions';
 import { LaborView } from './lib/views/labor';
 import { StaffingPlanView } from './lib/views/staffing-plan';
@@ -187,6 +188,7 @@ export default function App() {
           </nav>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <SessionSaveLoad />
             <button
               type="button"
               onClick={handleToggleDevMode}
