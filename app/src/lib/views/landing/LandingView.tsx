@@ -137,7 +137,12 @@ function PersistenceBanner({ persistence }: { persistence: AutoPersistenceState 
   if (status === 'init' || status === 'empty') return null;
   if (status === 'loading') {
     return (
-      <Banner tone="info">Loading saved session from this browser…</Banner>
+      <Banner tone="info">
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <LoadingSpinner />
+          Restoring saved session… (checking this browser + any shared snapshot)
+        </span>
+      </Banner>
     );
   }
   if (status === 'load-error') {
@@ -174,6 +179,25 @@ function PersistenceBanner({ persistence }: { persistence: AutoPersistenceState 
       {savedAt && <>Last auto-save {savedAt}.</>}
       {!restoredAt && !savedAt && <>Session will auto-save on every change.</>}
     </Banner>
+  );
+}
+
+/**
+ * Inline SVG spinner using SMIL `<animateTransform>` (no CSS keyframes
+ * needed, supported in every modern browser). Used in the loading
+ * banner so the user has visible motion during the 5-15 second blocking
+ * work of restoring a real-data Cloudflare snapshot (375 MB JSON
+ * parse + Zustand restore on 330K+ rows). Matches the spinner style
+ * from `SessionExportImport.tsx`'s publish banner.
+ */
+function LoadingSpinner(): React.JSX.Element {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="12" r="10" stroke="#93c5fd" strokeWidth="3" fill="none" />
+      <path d="M 12 2 A 10 10 0 0 1 22 12" stroke="#2563eb" strokeWidth="3" fill="none" strokeLinecap="round">
+        <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
+      </path>
+    </svg>
   );
 }
 

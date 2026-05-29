@@ -47,7 +47,7 @@ import { usePositionNotes } from '../positions/notes';
 import { useScrapers } from '../scrapers/store';
 import {
   buildSessionFile,
-  parseSessionFile,
+  parseSessionFileFromValue,
   type SessionFile,
 } from './snapshot';
 import {
@@ -153,20 +153,21 @@ export function captureCurrentSnapshot(): SessionFile {
  * load path to compare IDB vs Cloudflare envelopes before deciding
  * which to restore.
  *
- * Why we re-parse even though the source returns the typed object: the
+ * Why we validate even though the source returns the typed object: the
  * value could be from an older app version that wrote a different
  * envelope shape (different schemaVersion, missing `kind`, etc.). The
  * same validator we use for user-uploaded JSON files protects against
  * stale data after an app upgrade.
+ *
+ * Validates IN PLACE (no JSON.stringify + JSON.parse round-trip). The
+ * earlier implementation re-parsed via parseSessionFile(JSON.stringify(value))
+ * which on a 375 MB Cloudflare-restored envelope (S41 real-world data)
+ * took several seconds and reliably tripped Chrome's "page unresponsive"
+ * dialog. parseSessionFileFromValue applies the same checks to the
+ * already-parsed value directly.
  */
 export function validateOnly(value: unknown): SessionFile | null {
-  let raw: string;
-  try {
-    raw = JSON.stringify(value);
-  } catch {
-    return null;
-  }
-  const result = parseSessionFile(raw);
+  const result = parseSessionFileFromValue(value);
   return result.ok ? result.file : null;
 }
 
@@ -185,37 +186,24 @@ export function tryRestoreSnapshot(value: unknown): {
   ok: false;
   error: string;
 } {
-  const validated = validateOnly(value);
-  if (!validated) {
-    // Re-run the parser to surface the *reason* — `validateOnly` only
-    // returns ok/null, but the test surface wants the error message.
-    let raw: string;
-    try {
-      raw = JSON.stringify(value);
-    } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : 'stringify failed' };
-    }
-    const result = parseSessionFile(raw);
-    if (result.ok) {
-      // Unreachable — validateOnly returns the same value parseSessionFile
-      // would. Belt-and-suspenders: restore + report success.
-      restoreStoresFromPayload(result.file);
-      return { ok: true, file: result.file };
-    }
-    const detail = (() => {
-      switch (result.reason) {
-        case 'invalid-json':
-          return result.detail;
-        case 'not-a-session-file':
-          return result.detail;
-        case 'schema-mismatch':
-          return `schema v${result.got} (app expects v${result.expected})`;
-      }
-    })();
-    return { ok: false, error: `IDB snapshot rejected: ${detail}` };
+  // Validate in place (no stringify round-trip — same S41 perf concern
+  // as validateOnly).
+  const result = parseSessionFileFromValue(value);
+  if (result.ok) {
+    restoreStoresFromPayload(result.file);
+    return { ok: true, file: result.file };
   }
-  restoreStoresFromPayload(validated);
-  return { ok: true, file: validated };
+  const detail = (() => {
+    switch (result.reason) {
+      case 'invalid-json':
+        return result.detail;
+      case 'not-a-session-file':
+        return result.detail;
+      case 'schema-mismatch':
+        return `schema v${result.got} (app expects v${result.expected})`;
+    }
+  })();
+  return { ok: false, error: `IDB snapshot rejected: ${detail}` };
 }
 
 /**
@@ -277,9 +265,17 @@ export function useAutoSessionPersistence(opts: { enabled?: boolean } = {}): Aut
         .then(r => r.ok ? r.file : null)
         .catch(() => null),
     ])
-      .then(([idbValue, cloudflareFile]) => {
+      .then(async ([idbValue, cloudflareFile]) => {
         if (cancelled) return;
-        // Validate both candidates through the same parse step so a
+        // S41 UX: yield between heavy phases so the browser can paint
+        // the loading spinner + reset its "page unresponsive" timer.
+        // On a 375 MB Cloudflare-restored envelope, JSON.parse already
+        // blocked the main thread inside fetchPublishedSnapshot;
+        // validation + Zustand restore add more sync work. Yielding
+        // here gives the user visible progress between phases instead
+        // of one long freeze.
+        await new Promise(r => setTimeout(r, 0));
+        // Validate both candidates through the same shape check so a
         // stale envelope (older app version) doesn't slip through.
         const idbValidated = idbValue !== null ? validateOnly(idbValue) : null;
         const cloudflareValidated = cloudflareFile !== null ? validateOnly(cloudflareFile) : null;
@@ -314,6 +310,10 @@ export function useAutoSessionPersistence(opts: { enabled?: boolean } = {}): Aut
           });
           return;
         }
+        // Yield once more before the Zustand restore — multiple stores
+        // setState() in quick succession trigger React batched
+        // rerenders, more chances for the browser to repaint.
+        await new Promise(r => setTimeout(r, 0));
         restoreStoresFromPayload(winner);
         setState({
           status: 'loaded',

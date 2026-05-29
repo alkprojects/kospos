@@ -170,6 +170,24 @@ export function parseSessionFile(raw: string): ParseResult {
       detail: err instanceof Error ? err.message : 'JSON parse failed',
     };
   }
+  return parseSessionFileFromValue(parsed);
+}
+
+/**
+ * Same validation as `parseSessionFile` but takes an already-parsed
+ * value (skipping the JSON.parse step). Exists so the auto-load path
+ * can validate the SessionFile it just received from fetch/IDB
+ * without burning seconds on a wasteful JSON.stringify + JSON.parse
+ * round-trip — on a 375 MB envelope (S41 real data) that round-trip
+ * alone was the difference between a snappy load and Chrome's
+ * "page unresponsive" dialog firing.
+ *
+ * Kept in this file (rather than use-auto-persistence) so the
+ * validation rules stay co-located with the snapshot type
+ * definitions. Any new payload field added to SessionFile gets
+ * validated here once and benefits both paths.
+ */
+export function parseSessionFileFromValue(parsed: unknown): ParseResult {
   if (!isObject(parsed)) {
     return { ok: false, reason: 'not-a-session-file', detail: 'Top-level value is not an object.' };
   }
