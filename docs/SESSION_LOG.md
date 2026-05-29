@@ -3823,3 +3823,46 @@ Preview tools: verified non-dev (nav shows Load Data; file importer greyed + hin
 - **Trust + delegation:** ✅ "guide me, then act" — clarified the one consequential fork (tab visibility) via AskUserQuestion, executed the rest.
 - **Audit cadence:** ✅ 20th event-based trigger; fired on this sub-phase close.
 - **Test discipline:** ✅ Baseline 839 confirmed after `npm install`; +9 across two new test files; `npm run build` before each PR.
+
+## Session 45 — Phase 2.2.u: Data tab + dev-mode toggle + Save/Load top bar (freeform feedback, 5 PRs) (2026-05-28)
+
+**Phase 2.2.u shipped — driven by Alex's freeform feedback, not a menu sub-phase** (same pattern as S44). The S45 handoff offered a sub-phase menu (H modal-lift / E temp-limits / F vacancies / D reporting-tree / G cloudflare-cutover), but Alex pasted five freeform items, which the handoff designates as primary. Resolved across 4 feature/docs PRs + 1 chore (carry-forward K). Default model: Opus 4.8 (fast mode).
+
+### Alex's five items
+1. A main **"Data" tab with sub-tabs** for the individual data-source tables — eligibility lists + job postings as separate tables.
+2. **Dev mode as an in-app toggle** (gear/button), not a separate web address; plain toggle for now, auth much later.
+3. **Roadmap:** different user types with different permissions, incl. a **"super-dev"** tier that edits what regular/dev users see + site functionality.
+4. **Question:** how to turn off Cloudflare deploy emails.
+5. **Move Save/Load session to the top bar.**
+
+### What shipped
+- **[#148](https://github.com/alkprojects/kospos/pull/148) docs(roadmap): tiered user types.** Expanded Phase 8+ (Citywide) "Per-user permissions" into Regular / Dev / **Super-dev** tiers (super-dev = the control surface that edits what the other tiers see + what the site does). Anchored to today's auth-free dev-mode toggle as step one; auth deferred. Docs-only.
+- **[#149](https://github.com/alkprojects/kospos/pull/149) feat(dev-mode): in-app gear toggle.** Added `enableDevMode()` + a header **⚙** that toggles dev mode both directions (no more typing `?dev=1`). On/off visual state (`--accent-soft` + `aria-pressed`); `?dev=1`/`?dev=0` kept as a harness hatch. +1 test.
+- **[#150](https://github.com/alkprojects/kospos/pull/150) feat(session): Save/Load → top bar.** Per the S45 fork answer ("just Save + Load"), the local-file Save/Load moved to a compact header control (`SessionSaveLoad`) with a transient inline status; Publish + Cloudflare settings stay on Load Data. Extracted a shared **`useSessionSnapshot`** hook so both surfaces build the same snapshot (the mechanism for the single change). Net +1 test (split gating into `session-save-load.test.tsx`).
+- **[#151](https://github.com/alkprojects/kospos/pull/151) feat(data): Data tab.** New **Data** top-level tab (`DataView`) with a sub-tab strip — **Eligibility Lists** (existing view, folded under Data) + **Job Postings** (new flat table; postings had no dedicated table before). "Load Data" stays separate (acquire vs. view). Landing nav updated (Eligibility quick action → Data; "Open →" links → Data, non-regressive). +7 tests.
+- **[#152](https://github.com/alkprojects/kospos/pull/152) chore(scrapers): fix stale store comment.** Cleared carry-forward K — the `scrapers/store.ts` header claimed "in-memory only … deferred," false since Phase 2.2.q. Comment-only.
+- Plus this docs PR (close audit + this entry + S46 handoff). Item 4 (Cloudflare emails) answered inline: account-level **Notifications** → Pages "Project updates" → toggle off / delete.
+
+### Key findings / decisions
+- **Two design forks resolved up front** via one `AskUserQuestion`: the Data tab structure ("Data + keep Load Data") and what moves to the top bar ("just Save + Load"). Knowing both let the build run cleanly.
+- **Dev-mode model evolved again.** S44: tab-hiding → in-tab gating. S45: → in-app on/off toggle. Strengthens the optional ADR (carry-forward L); the eventual tiered model (regular/dev/super-dev) now lives in ROADMAP Phase 8+.
+- **Shared snapshot hook (#150).** Moving Save/Load out while Publish stays put would have duplicated the ~10-selector snapshot builder; `useSessionSnapshot` keeps the two surfaces from drifting. Single-logical-change exception, like the modal-lift.
+- **New parity gap (M):** a manual session file-load restores everything *except* scraper data, though Save includes it and IDB auto-restore restores it. Preserved verbatim + flagged in-code (working agreement #8); filed as carry-forward, not folded in.
+
+### Verification (agent-first)
+Preview tools verified all four UI states: dev toggle OFF (6 tabs, gear muted) → click → ON (11 tabs, banner, gear accent, localStorage `1`) → click → OFF (cleared, falls back to Calculator); top-bar Save → transient "Saved ✓" + Load Data panel slimmed to Publish; Data tab → sub-tab strip, Eligibility Lists default, Job Postings table sorted newest-first with links; landing "Data"/"Open →" route to Data. No console errors. **`preview_screenshot` worked reliably this session** (unlike S44) — captured the gear, the top-bar Save/Load, and the Job Postings table.
+
+### Outcome
+4 feature/docs PRs + 1 chore + 1 docs close PR. Tests **848 → 857** (+1 #149, +1 net #150, +7 #151). `npm run build` clean each PR. All merged; GitHub Pages + Cloudflare deploys green. Phase 2.2.u close audit fired (sub-phase shipped) → [`docs/audits/phase-2-2-u-close-audit.md`](audits/phase-2-2-u-close-audit.md).
+
+### Lessons / improvements for next phase
+- **Batch the design forks into one question.** Five items, but only two had real ambiguity — one `AskUserQuestion` with both forks (framed as live-site outcomes, per the S44 lesson) settled the whole runway without back-and-forth.
+- **Check existing routing before a nav restructure.** The job-postings "Open →" already pointed at the eligibility rollup, so folding Eligibility under Data and routing those links to the Data tab was non-regressive — verified rather than assumed.
+- **Clear a flagged quick win while in the neighborhood.** Carry-forward K (stale comment) was a 2-minute chore and its new contradiction (the `use-session-snapshot.ts` note) made closing it now the tidy call.
+
+### Brief audit (Alex's collaboration this session)
+- **Prompt quality:** ✅ Five concrete freeform items; the handoff's freeform-as-primary escape hatch worked again.
+- **Scope discipline:** ✅ One logical change per PR (4 + 1 chore); the Data-tab and session-hook multi-file touches are documented single-logical-change exceptions, not bundling.
+- **Trust + delegation:** ✅ "guide me, then act" — the two consequential forks went to `AskUserQuestion`; everything else executed with a recommendation.
+- **Audit cadence:** ✅ 21st event-based trigger; fired on this sub-phase close.
+- **Test discipline:** ✅ Baseline 848 confirmed after `npm install`; +9 net; `npm run build` before each PR.
