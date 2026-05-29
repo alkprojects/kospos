@@ -23,6 +23,7 @@ import {
   defaultSessionFilename,
   parseSessionFile,
 } from './snapshot';
+import { restoreStoresFromPayload } from './use-auto-persistence';
 
 export interface SessionCounts {
   loadedRows: number;
@@ -53,20 +54,15 @@ export interface UseSessionSnapshot {
 export function useSessionSnapshot(): UseSessionSnapshot {
   const loadedRows = useAppStore(s => s.loadedRows);
   const lastBfmImportAt = useAppStore(s => s.lastBfmImportAt);
-  const restoreApp = useAppStore(s => s.restoreFromSession);
 
   const staffingActions = useStaffingPlan(s => s.actions);
   const staffingDerivedRemoved = useStaffingPlan(s => s.derivedRemoved);
-  const restoreStaffing = useStaffingPlan(s => s.restoreFromSession);
 
   const pendingSeparations = useSeparations(s => s.separations);
-  const restoreSeparations = useSeparations(s => s.restoreFromSession);
 
   const probations = useProbations(s => s.probations);
-  const restoreProbations = useProbations(s => s.restoreFromSession);
 
   const notes = usePositionNotes(s => s.notes);
-  const restoreNotes = usePositionNotes(s => s.restoreFromSession);
 
   // Per-field selectors (NOT an object-returning selector) so Zustand's
   // useSyncExternalStore doesn't see a fresh reference every render.
@@ -142,19 +138,16 @@ export function useSessionSnapshot(): UseSessionSnapshot {
       return { ok: false, message };
     }
     const { payload } = result.file;
-    restoreApp(payload.loadedRows, payload.lastBfmImportAt);
-    restoreStaffing(payload.staffingPlanActions, payload.staffingPlanDerivedRemoved);
-    restoreNotes(payload.positionNotes);
-    // Backward-compatible: v1 files saved before Phase 2.2.i / 2.2.j don't carry
-    // these. Default to []; existing in-memory rows are wiped (load replaces the
-    // session).
-    restoreSeparations(payload.pendingSeparations ?? []);
-    restoreProbations(payload.probations ?? []);
-    // NOTE (parity gap, tracked for a follow-up): the snapshot *carries* scraper
-    // data (job postings / eligibility lists / pdfCache via buildCurrentSnapshot),
-    // but a manual file-load does NOT restore it here — only the IDB auto-restore
-    // path (use-auto-persistence) does. Preserved as-is in the 2.2.u top-bar move;
-    // fixing it would change load behavior and belongs in its own change.
+    // Restore through the SAME shared helper the IDB auto-restore path uses
+    // (use-auto-persistence) so the two load paths can't drift. This restores
+    // all six stores — including the scraper data (job postings / eligibility
+    // lists / pdfCache) that an earlier version silently dropped on a manual
+    // file-load (Phase 2.2.w / carry-forward M; the snapshot always *carried*
+    // it via buildCurrentSnapshot — only this restore was missing it).
+    // restoreFromSession defaults the back-compat-optional fields (separations
+    // / probations / scrapers) to empty, and a load replaces the session
+    // (existing in-memory rows are wiped).
+    restoreStoresFromPayload(result.file);
     return { ok: true, filename: file.name, rowCount: payload.loadedRows.length };
   }
 
