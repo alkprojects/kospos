@@ -3943,3 +3943,37 @@ Asked up front whether last session's popup was the standard `/fewer-permission-
 - **Trust + delegation:** ✅ Front-loaded both decisions before he left; drove four PRs autonomously with live verification.
 - **Audit cadence:** ✅ 23rd event-based trigger; fired on this sub-phase close.
 - **Test discipline:** ✅ Baseline 861 confirmed after `npm install`; +13 (7+1+5); `npm run build` before every PR.
+
+## Session 48 — Phase 2.2.x: the C-series UI-primitives arc (C1 + C5), C4 deferred for sign-off (2026-05-29)
+
+**Phase 2.2.x shipped — the no-visual-change core of the C-series UI-primitives arc, as three single-purpose PRs.** Alex picked **C1+C4+C5** via `AskUserQuestion` and was away on remote (short replies only) asking for ≥4h of productive work. Front-loaded the pick + the popup in one batch; Alex picked the arc and said to **drop the popup** ("don't remember — skip it"). Baseline confirmed **874 / 874** after `npm install`.
+
+### What shipped — C1 → C5p1 → C5p2 (merged serially, re-branching each from updated main)
+- **[#161](https://github.com/alkprojects/kospos/pull/161) — C1: modal/detail-editor primitives → `lib/ui`.** The 2.2.w `Modal` lift shared the dialog frame; C1 extracted the *inside*: `inputStyle()` (2 copies + ~6 inline objects in PlannedActionDetail), `Field` (2), `ModalFooter` (3; `onDelete` optional + `saveLabel`), `OverrideBox` (2, the amber force-override box), `CloseButton` (3, the borderless ✕). Separation/Probation drop their local helpers; the 3 editors collapse to field schemas. **+290 / −311.**
+- **[#162](https://github.com/alkprojects/kospos/pull/162) — C5 part 1: semantic color tokens.** 108 hard-coded status-palette hex literals → 10 `--success/--warn/--caution/--danger/--neutral(+ -soft)` tokens at their *exact* values; folded re-hardcoded accent blue back into `--accent`. Zero value change.
+- **[#163](https://github.com/alkprojects/kospos/pull/163) — C5 part 2: `lib/ui/Badge`.** 3 copied `badge()` helpers → 1 component (`tone` + `color`/`bg` escape hatch).
+
+### Verified live (agent-first, real IDB-restored data: 2 positions)
+C1: all 3 editors render byte-identically; drove a guard-rejected status transition to make the amber `OverrideBox` appear (#fff8e6/#d4a017, orange empty-reason border). C5p1: "Cleared" badge still computes to rgb(26,122,60)/rgb(212,244,227) = #1a7a3c/#d4f4e3. C5p2: Positions "Filled" pill + Staffing-Plan section pills (tone path + explicit-color TEMP purple) compute identically. Tests **874 → 874** (pure refactors, no delta); `tsc -b` + `npm run build` clean every PR.
+
+### The key judgment call — deferring C4 + the C5 color-consolidation tail
+Mid-arc, surfaced that the *rest* of C4/C5 is **not** no-visual-change: button radii sprawl across 11 distinct values (2…20), and ~60 near-duplicate color shades would need merging into the palette. Both **move pixels** → fall under "Alex does the final aesthetic sign-off." With Alex away + short-reply-only, shipping them blind was the wrong call. Wrote them up as a decision-ready proposal ([s48-ui-primitives-followups.md](proposals/s48-ui-primitives-followups.md), items **D1/D2/D3**) — each ~1 PR once Alex answers two questions (canonical pill radius; should `#b91c1c` become `--danger-strong`). This is the away-time-memory pattern: when blocked on judgment, produce a menu, don't idle or overreach.
+
+### Popup follow-up
+Asked again (front-loaded). Alex: **"don't remember — skip it."** Dropped the carry-forward; no settings change made (`/fewer-permission-prompts` never run). Resolved.
+
+### Outcome
+3 code PRs (#161–163) + 1 docs close PR (close audit + this entry + S49 handoff + the deferred-work proposal). Tests **874 → 874**. Merged; GitHub Pages + Cloudflare green. Phase 2.2.x close audit fired → [`docs/audits/phase-2-2-x-close-audit.md`](audits/phase-2-2-x-close-audit.md). C1 + popup retired; new carry-forward **D1/D2/D3** (the C-series aesthetic tail).
+
+### Lessons / improvements for next phase
+- **"Invisible refactor" isn't always invisible — check before committing the framing.** I pitched C4/C5 as "mostly invisible foundational cleanup" in the pick question; on inspection, the *consolidation* parts move pixels. Caught it before shipping and split the arc into the genuinely-safe core (shipped) vs the aesthetic tail (deferred to a proposal). Next time, scope the visual-change surface *before* framing the pick.
+- **Computed-style assertions are the right proof for a "no visual change" claim.** Rather than eyeballing screenshots, read the rendered `color`/`background`/`borderRadius` rgb values and compare to the pre-refactor literals — turns "looks the same" into "is the same."
+- **Respect the aesthetic-sign-off boundary even under a broad mandate.** Alex picked the arc and was away; the disciplined move was to ship what's provably safe and defer what needs his eye, with a crisp menu — not to spend the away-time pushing pixel changes he couldn't review.
+- **Serial-merge + re-branch held up again** across three PRs touching overlapping files (the 3 editors appear in C1 *and* C5p1).
+
+### Brief audit (Alex's collaboration this session)
+- **Prompt quality:** ✅ Picked the arc + the away-time directive ("do as much as you can, ≥4h if productive"); the freeform hatch wasn't needed.
+- **Scope discipline:** ✅ Three logical changes, three PRs — C5 split into tokens (p1) vs component (p2) as distinct logical changes; C4 *consciously deferred* rather than bundled or rushed.
+- **Trust + delegation:** ✅ Front-loaded both decisions; drove three PRs + a proposal autonomously with computed-style live verification.
+- **Audit cadence:** ✅ 24th event-based trigger; fired on this sub-phase close.
+- **Test discipline:** ✅ Baseline 874 confirmed after `npm install`; 874 → 874 (pure refactors); `tsc -b` + `npm run build` before every PR.
