@@ -9,7 +9,7 @@ import { StaffingPlanView } from './lib/views/staffing-plan';
 import { SeparationsView } from './lib/views/separations';
 import { ProbationsView } from './lib/views/probation';
 import { InactiveView } from './lib/views/inactive';
-import { EligibilityView } from './lib/views/eligibility';
+import { DataView } from './lib/views/data';
 import { LandingView } from './lib/views/landing';
 import { SpecialClassView } from './modules/special-class/SpecialClassView';
 import { useAppStore } from './lib/store';
@@ -26,7 +26,7 @@ type Tab =
   | 'separations'
   | 'probation'
   | 'inactive'
-  | 'eligibility'
+  | 'data'
   | 'special-class';
 
 type TabDef = { id: Tab; label: string; devOnly?: boolean };
@@ -40,7 +40,7 @@ const ALL_TABS: TabDef[] = [
   { id: 'separations',   label: 'Separations',           devOnly: true },
   { id: 'probation',     label: 'Probation' },
   { id: 'inactive',      label: 'Inactive',              devOnly: true },
-  { id: 'eligibility',   label: 'Eligibility' },
+  { id: 'data',          label: 'Data' },
   { id: 'importer',      label: 'Load Data' },
   { id: 'special-class', label: 'Special Class',         devOnly: true },
 ];
@@ -232,8 +232,8 @@ export default function App() {
         {tab === 'separations'   && <SeparationsView />}
         {tab === 'probation'     && <ProbationsView />}
         {tab === 'inactive'      && <InactiveView />}
-        {tab === 'eligibility'   && (
-          <EligibilityView onViewPositions={() => setTab('positions')} />
+        {tab === 'data'          && (
+          <DataView onViewPositions={() => setTab('positions')} />
         )}
         {tab === 'special-class' && <SpecialClassView />}
       </main>

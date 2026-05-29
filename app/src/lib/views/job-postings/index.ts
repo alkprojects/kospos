@@ -1,0 +1,1 @@
+export { JobPostingsView } from './JobPostingsView';
