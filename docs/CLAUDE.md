@@ -1,6 +1,6 @@
 # CLAUDE.md — Read this first
 
-**Every AI session working on KosPos starts by reading this file. Keep it short and dense — long context dilutes.**
+**Every AI session working on KosPos starts by reading this file. Keep it short and dense — this is the orientation Alex and every session re-read, so brevity is for human skim. (It's no longer about the model's window: Opus 4.8 has a 1M-token context and the harness auto-summarizes when a session runs long.)**
 
 ## Session startup sequence (mandatory)
 
@@ -20,20 +20,19 @@ Before ending any session:
 3. **Update `docs/SESSION_HANDOFF.md`** with:
    - Current status (what's done, what's not).
    - The exact prompt Alex should paste to start the next session.
-   - Recommended model (default: `claude-sonnet-4-6`; use `claude-opus-4-7` for heavy reasoning tasks like parser design).
+   - Recommended model (default: `claude-opus-4-8` with fast mode on — see WORKFLOW.md § "Picking a Claude model"). Opus 4.8's 1M context + fast mode make it the standing default; only drop to `claude-sonnet-4-6` for cost-sensitive docs-only or mechanical sessions.
    - Branch name if work is in progress (should be `none` post-merge).
    - Any blockers Alex needs to resolve.
 4. **Hand off with a review-this-on-the-live-site checklist.** Final message includes: what to look at on https://alkprojects.github.io/kospos/, what's new in `docs/`, and the copyable next-session prompt.
 
 Non-negotiable: a session that ends with unmerged code, stale local-vs-origin state, or a missing handoff has wasted context that the next session must recreate.
 
-## On usage limits
+## On session pacing and usage limits
 
-There is no API available to check remaining usage from inside a session. Mitigation:
-- Commit after every meaningful chunk (not just at end of session).
-- Keep `SESSION_HANDOFF.md` current throughout — if a session is cut off, the next session picks up from it.
-- Size individual sessions to one phase sub-step (1.a, 1.b, 1.c, etc.), not an entire phase.
-- If context feels long (many tool calls, large diffs), finish the current logical unit, update the handoff, and suggest Alex start a fresh session.
+There is no API to check remaining *usage* from inside a session — but with Opus 4.8's 1M-token context, running out of *context* mid-task is rarely the constraint it used to be (the harness also auto-summarizes when a session runs long). Pace by natural save points and Alex's review load, not context anxiety:
+- Commit after every meaningful chunk (not just at end of session). This guards against a usage cutoff and still matters.
+- Keep `SESSION_HANDOFF.md` current throughout — if a session is cut off, the next session picks up from it. Cross-session continuity is a fresh-start problem 1M context does *not* solve.
+- A session can now comfortably hold a whole sub-phase plus its close audit. Stop at a clean save point (PR merged, handoff updated), not the moment the transcript "feels long."
 
 ---
 
@@ -75,7 +74,7 @@ Alex Lewis-Koskinen, Deputy Director (Admin), SF Department of Building Inspecti
 These exist because beginner Claude users + bundled changes is how v1 of orgchartbuilder collapsed. Future AI sessions: enforce these even if the user doesn't ask.
 
 1. **One change per branch. One branch per feature. Never bundle.**
-2. **Verify visually.** When a UI change is made, run the app and inspect the rendered output. "It should look right" is not done.
+2. **Verify visually — agent-first.** When a UI change is made, the session runs the app via the preview tools, screenshots/inspects the rendered output, and presents that proof. Alex does the final aesthetic sign-off. "It should look right" is not done. (See WORKFLOW.md § "Visual verification protocol".)
 3. **Data quality and Change Mode are cross-cutting.** Every module surfaces likely errors (`lib/quality/`) and records edits as proposed changes (`lib/changes/`). See ADR-003.
 4. **Reference data is versioned by effective date.** Never hardcode "FY 2025-26" — look up by date.
 5. **Real labor reports are never committed.** All `.xlsx`/`.xlsm` files are gitignored. **Rationale:** the workbook is Alex's active working file (commits would create binary-blob churn + obscure diffs). The data *itself* is **SF public-employee public records** (names, IDs, classifications, salaries) and NOT confidential per the Sunshine Ordinance + state law — see [memory `data_sensitivity.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/data_sensitivity.md). Hosting / sharing decisions (Vercel, shared state, cloud storage) should be made on engineering + cost grounds, not data-confidentiality grounds.
