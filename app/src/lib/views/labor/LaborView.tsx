@@ -27,7 +27,7 @@ import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import { normalizePositionKey } from '../../chartfields/resolve';
 import type { ObiPayrollRow, PsHcmPpRow } from '../../importers/types';
-import { CopyButton } from '../../ui';
+import { CopyButton, Modal } from '../../ui';
 import {
   EMPTY_FILTERS, aggregate, applyFilters, bucketOf, distinctValues,
 } from './aggregate';
@@ -272,25 +272,7 @@ function TraceModal({ row, onClose }: { row: ObiPayrollRow; onClose: () => void 
   ];
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 100,
-      background: 'rgba(0,0,0,0.45)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }} onClick={onClose}>
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 10,
-          padding: 28,
-          maxWidth: 640,
-          width: '92vw',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.22)',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
+    <Modal onClose={onClose} ariaLabel="Payroll source row detail" align="center" maxWidth={640}>
         <div style={{
           display: 'flex', justifyContent: 'space-between',
           alignItems: 'flex-start', marginBottom: 18,
@@ -340,8 +322,7 @@ function TraceModal({ row, onClose }: { row: ObiPayrollRow; onClose: () => void 
           39 columns from the OBI BI Payroll export. The 4 special-class account
           descriptions drive the bucket math in <code>lib/payroll/</code>.
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

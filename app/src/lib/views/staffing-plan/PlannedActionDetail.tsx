@@ -25,6 +25,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { Modal } from '../../ui';
 import type { CostInput } from '../../cost';
 import type { Position } from '../../positions';
 import type {
@@ -274,25 +275,7 @@ export function PlannedActionDetail({ action, position, onClose }: PlannedAction
     : '—';
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Planned action detail"
-      onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
-      style={{
-        position: 'fixed', inset: 0,
-        background: 'rgba(0, 0, 0, 0.4)',
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-        zIndex: 1000, overflow: 'auto', padding: '40px 20px',
-      }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="card" style={{
-        background: 'var(--surface)',
-        width: '100%', maxWidth: 720,
-        display: 'flex', flexDirection: 'column', gap: 16,
-        padding: 20,
-      }}>
+    <Modal onClose={onClose} ariaLabel="Planned action detail" maxWidth={720}>
         {/* Header */}
         <header style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div>
@@ -597,8 +580,7 @@ export function PlannedActionDetail({ action, position, onClose }: PlannedAction
             {isDerived ? 'Save (convert to manual)' : 'Save'}
           </button>
         </footer>
-      </div>
-    </div>
+    </Modal>
   );
 }
 

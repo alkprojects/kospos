@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import type { Position } from '../../positions';
 import { hasDeptMismatch, usePositionNotes } from '../../positions';
-import { CopyButton } from '../../ui';
+import { CopyButton, Modal } from '../../ui';
 import type { ResolvedChartfields } from '../../chartfields/types';
 import type { PositionYtdActuals } from '../../payroll';
 import type { PositionBudget, BfmBudgetPhase } from '../../budget';
@@ -497,25 +497,7 @@ export function PositionDetail({
     onViewPayroll?.();
   }
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 100,
-      background: 'rgba(0,0,0,0.45)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }} onClick={onClose}>
-      <div
-        style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 10,
-          padding: 28,
-          maxWidth: 640,
-          width: '92vw',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.22)',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
+    <Modal onClose={onClose} ariaLabel="Position detail" align="center" maxWidth={640}>
         {/* Header */}
         <div style={{
           display: 'flex', justifyContent: 'space-between',
@@ -843,7 +825,6 @@ export function PositionDetail({
               : null;
           })()}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
