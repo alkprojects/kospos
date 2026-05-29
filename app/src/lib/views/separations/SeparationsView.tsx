@@ -23,7 +23,7 @@ import type { Position, PersonRef } from '../../positions';
 import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import type { PsHcmPpRow } from '../../importers/types';
 import { matchesNeedle } from '../../search/needle';
-import { CopyButton } from '../../ui';
+import { CopyButton, rowButtonProps } from '../../ui';
 import {
   SEPARATION_STATUS_ORDER,
   rollupByStatus,
@@ -476,7 +476,7 @@ export function SeparationsView() {
               filtered.map(s => (
                 <tr
                   key={s.id}
-                  onClick={() => setSelectedId(s.id)}
+                  {...rowButtonProps(() => setSelectedId(s.id))}
                   aria-label={`Open details for separation ${s.employeeName}`}
                   style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
                 >

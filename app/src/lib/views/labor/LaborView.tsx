@@ -27,7 +27,7 @@ import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import { normalizePositionKey } from '../../chartfields/resolve';
 import type { ObiPayrollRow, PsHcmPpRow } from '../../importers/types';
-import { CopyButton, Modal } from '../../ui';
+import { CopyButton, Modal, rowButtonProps } from '../../ui';
 import {
   EMPTY_FILTERS, aggregate, applyFilters, bucketOf, distinctValues,
 } from './aggregate';
@@ -595,8 +595,9 @@ export function LaborView() {
             {filtered.slice(0, 500).map((r, i) => (
               <tr
                 key={`${r._row}-${i}`}
+                {...rowButtonProps(() => setTraceRow(r))}
+                aria-label={`Trace payroll row for ${r.personFullName || r.positionIdentifier || 'row'}`}
                 style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
-                onClick={() => setTraceRow(r)}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent-soft)')}
                 onMouseLeave={e => (e.currentTarget.style.background = '')}
               >
