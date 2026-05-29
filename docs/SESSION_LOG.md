@@ -3906,3 +3906,40 @@ Launched **3 read-only UI/UX review agents** in parallel (Data-tab UX / IA + dev
 - **Trust + delegation:** ✅ Asked the one pick question up front (before he slept), then drove autonomously with evidence-led decisions.
 - **Audit cadence:** ✅ 22nd event-based trigger; fired on this sub-phase close.
 - **Test discipline:** ✅ Baseline 857 confirmed after `npm install`; +4; `npm run build` before the PR.
+
+## Session 47 — Phase 2.2.w: ship all four top UI/UX picks (H / M / R / K) (2026-05-29)
+
+**Phase 2.2.w shipped — four sub-phases in one session, four single-purpose PRs.** Alex was away and delegated the pick: *"whatever you suggest, can you do all this session?"* Read as: ship the strongest S46 proposals-backlog picks and do all of them. Front-loaded the pick + a popup-confirmation via `AskUserQuestion` before any work. Default model: Opus 4.8 (fast mode). Baseline confirmed **861 / 861** after `npm install`.
+
+### What shipped — H → M → R → K (merged serially, re-branching each from updated main)
+- **[#156](https://github.com/alkprojects/kospos/pull/156) — H: modal overlay-frame → `lib/ui/Modal`.** Lifted the overlay+card shell copy-pasted across 6 dialogs (2 families) into one component owning backdrop / card / `role=dialog`+`aria-modal`+`aria-label` / Esc / backdrop-close / **focus-trap + focus-restore** (new for all 6) + `align` (top/center). Closes 2 P1 a11y gaps (C3 focus management; C6 Family-B viewers gain role + Esc). Deliberately did NOT unify the ✕ buttons (they differ in style → would change appearance; that's the C1 follow-up). z-index reconciled to 1000. **+7 Modal tests.** Pre-validated the 6-dialog inventory before asking the pick — it was exact.
+- **[#157](https://github.com/alkprojects/kospos/pull/157) — M: file-load scraper parity.** `loadFromFile` silently dropped the scraper data a saved file carried; routed it through the same shared `restoreStoresFromPayload` the IDB path uses (removed 5 unused selectors), so both paths restore all 6 stores identically. **+1 round-trip test.**
+- **[#158](https://github.com/alkprojects/kospos/pull/158) — R: kill the "Data"/"Load Data" tab collision.** "Data" → **Source Tables**, "Load Data" → **Load Reports** (aligned the label to the "Load Reports" copy the app already used everywhere, rather than a third synonym). Pure text across labels + landing + empty states + stale comments. No logic.
+- **[#159](https://github.com/alkprojects/kospos/pull/159) — K: keyboard-operable rows.** 5 of 6 list views' clickable `<tr>`s lacked `role`/`tabIndex`/key handler. Lifted the correct Eligibility pattern into `lib/ui/rowButtonProps` (plain fn, safe in `.map()`); Enter/Space guarded by `e.target === e.currentTarget` so nested controls don't double-fire. Applied to 5 views + retrofitted Eligibility (one source of truth); Positions+Labor gained missing aria-labels. **Composes with H** (keyboard-open → focus into Modal → restore on close). **+5 tests.**
+
+### Verified live (agent-first, real IDB-restored data: 2 positions, 6,727 eligibility lists)
+H: both modal families render identically; Esc now closes the Family-B viewer; focus enters the dialog. M: Save/Load UI healthy; round-trip restores scrapers. R: tab strip reads "… Source Tables · Load Reports"; no "Load Data" anywhere. K: tab to a Positions row + Enter opens PositionDetail. Tests **861 → 874**; `npm run build` clean on every PR.
+
+### Notable judgment calls
+- **"Modal doesn't own ✕"** — the 6 dialogs' close buttons differ in style; owning them would change appearance, violating the no-visual-change constraint. Left as the C1 follow-up. The live spot-check confirmed each ✕ kept its original look.
+- **"Load Reports" over the handoff's example "Import / Refresh"** — the app's copy already said "Load Reports" everywhere, so aligning the label to it = one noun, least churn, no third synonym.
+- **Hook-order false alarm (M)** — a dev-only React warning appeared mid-edit; confirmed it was an HMR artifact (hot-swapping the hook's changed selector count) via an instrumented `console.error` counter → **0** fresh warnings on a clean mount. Not a real bug; production build unaffected.
+
+### Popup follow-up (Alex's S47 note)
+Asked up front whether last session's popup was the standard `/fewer-permission-prompts` tip (transcript search is blocked in unsupervised mode). Alex: **"it was something else."** Held off on any settings change; carried forward awaiting his description.
+
+### Outcome
+4 feature PRs (#156–159) + 1 docs close PR (close audit + this entry + S48 handoff). Tests **861 → 874**. Merged; GitHub Pages + Cloudflare deploys green. Phase 2.2.w close audit fired → [`docs/audits/phase-2-2-w-close-audit.md`](audits/phase-2-2-w-close-audit.md). H + M retired from carry-forwards; new follow-up **C1** (extract `ModalFooter`/`Field`/✕ now that `Modal` exists).
+
+### Lessons / improvements for next phase
+- **Pre-validate the suggested pick while the decision is pending.** Reading the 6 dialog shells before asking made the pick question concrete AND made H ship-ready the instant it was (implicitly) chosen — no dead time waiting on the away user.
+- **Serial-merge with re-branch beats parallel branches** when changes overlap a file (H + K both touch `LaborView.tsx`). Merging each and re-branching the next from updated main kept every squash conflict-free.
+- **Run false alarms to ground; don't hand-wave.** The hook-order warning *looked* serious; an instrumented counter proved it was HMR noise in seconds, so M shipped with confidence rather than a hedge.
+- **Spread-prop helpers > components for heterogeneous rows.** `rowButtonProps` (a plain fn) dropped into 6 differently-shaped `<tr>`s without restructuring any of them, and sidestepped rules-of-hooks in `.map()`.
+
+### Brief audit (Alex's collaboration this session)
+- **Prompt quality:** ✅ One delegation + throughput ask ("do all this session?") + the away-time directive; the freeform-as-primary hatch wasn't needed since the menu picks were strong.
+- **Scope discipline:** ✅ Four logical changes, four PRs — explicitly NOT bundled despite shipping together; multi-file refactors (H, K, R) are each one logical change.
+- **Trust + delegation:** ✅ Front-loaded both decisions before he left; drove four PRs autonomously with live verification.
+- **Audit cadence:** ✅ 23rd event-based trigger; fired on this sub-phase close.
+- **Test discipline:** ✅ Baseline 861 confirmed after `npm install`; +13 (7+1+5); `npm run build` before every PR.
