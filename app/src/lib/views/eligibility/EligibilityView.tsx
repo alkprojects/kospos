@@ -27,8 +27,11 @@
  *   - Filter toolbar (search · status · exam type · department · citywide)
  *   - Per-jobCode summary table — click row to open detail modal
  *
- * `devOnly` tab until cross-tab nav from Eligibility → Positions lands
- * (Phase 2.2.k S34 carry-forward).
+ * Phase 2.2.s (Option C): each summary row gains a "Positions →" affordance
+ * that sets the Positions job-code scope (usePositionsScope) and fires the
+ * onViewPositions callback so the App shell switches tabs — the cross-tab nav
+ * that was the S34 carry-forward. With that landed, this tab is promoted out
+ * of `devOnly` (alongside Probation) in App.tsx.
  */
 
 import { useMemo, useRef, useState } from 'react';
@@ -52,6 +55,7 @@ import type {
   JobCodeRollup,
 } from '../../scrapers';
 import { EligibilityDetail } from './EligibilityDetail';
+import { usePositionsScope } from '../positions/scope-store';
 
 // ---------------------------------------------------------------------------
 // Display helpers
@@ -616,9 +620,13 @@ function FilterToolbar({
 function SummaryRow({
   rollup,
   onOpen,
+  onViewPositions,
 }: {
   rollup: JobCodeRollup;
   onOpen: () => void;
+  /** When provided, renders a "Positions →" pill that cross-navigates to the
+   *  Positions tab filtered to this job code. Hidden when omitted. */
+  onViewPositions?: () => void;
 }) {
   const s = summarizeRollup(rollup);
 
@@ -640,6 +648,9 @@ function SummaryRow({
   // Stop-propagation on the inner Copy button so it doesn't bubble to
   // the row's click handler (which opens the modal).
   function stop(e: React.MouseEvent) { e.stopPropagation(); }
+  // Keyboard equivalent for the nested "Positions →" button — keeps Enter /
+  // Space on it from also firing the row's open-detail key handler.
+  function stopKey(e: React.KeyboardEvent) { e.stopPropagation(); }
 
   return (
     <tr
@@ -704,6 +715,22 @@ function SummaryRow({
             : `${s.departments.length} depts`}
       </td>
       <td style={{ padding: '6px 10px', whiteSpace: 'nowrap', textAlign: 'right', color: 'var(--muted)' }}>
+        {onViewPositions && (
+          <button
+            onClick={e => { e.stopPropagation(); onViewPositions(); }}
+            onKeyDown={stopKey}
+            title={`Show ${rollup.jobCode} positions in the Positions tab`}
+            aria-label={`Show positions for job code ${rollup.jobCode}`}
+            style={{
+              marginRight: 8, padding: '2px 8px', borderRadius: 10,
+              border: '1px solid var(--accent)', background: 'var(--accent-soft)',
+              color: 'var(--accent)', cursor: 'pointer',
+              fontSize: 10, fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap',
+            }}
+          >
+            Positions →
+          </button>
+        )}
         {s.citywideHint && (
           <span title="Citywide candidate (list with no posting, or 2+ depts posting)"
                 style={{
@@ -724,15 +751,29 @@ function SummaryRow({
 // Main view
 // ---------------------------------------------------------------------------
 
-export function EligibilityView() {
+export function EligibilityView({ onViewPositions }: {
+  /** Fires after a row's job code is set as the Positions scope, so the App
+   *  shell can switch to the Positions tab. Mirrors PositionsView's
+   *  onViewPayroll. When omitted (e.g. the Positions tab is unavailable), the
+   *  per-row "Positions →" affordance is hidden. */
+  onViewPositions?: () => void;
+} = {}) {
   const jobPostings = useScrapers(s => s.jobPostings);
   const jobPostingsRefreshedAt = useScrapers(s => s.jobPostingsRefreshedAt);
   const eligibilityLists = useScrapers(s => s.eligibilityLists);
   const eligibilityListsRefreshedAt = useScrapers(s => s.eligibilityListsRefreshedAt);
   const clearAll = useScrapers(s => s.clearAll);
+  const setPositionsScope = usePositionsScope(s => s.setJobCode);
 
   const [filters, setFilters] = useState<EligibilityFilters>(EMPTY_ELIGIBILITY_FILTERS);
   const [openCode, setOpenCode] = useState<string | null>(null);
+
+  // Cross-tab nav: set the Positions job-code scope, then ask the App shell
+  // to switch tabs. Mirrors PositionDetail → setLaborScope + onViewPayroll.
+  function viewPositionsFor(jobCode: string): void {
+    setPositionsScope(jobCode);
+    onViewPositions?.();
+  }
 
   // Today pinned per render — see ProbationsView for rationale.
   const todayIso = useMemo(() => {
@@ -855,6 +896,7 @@ export function EligibilityView() {
                   key={r.jobCode}
                   rollup={r}
                   onOpen={() => setOpenCode(r.jobCode)}
+                  onViewPositions={onViewPositions ? () => viewPositionsFor(r.jobCode) : undefined}
                 />
               ))
             )}

@@ -24,6 +24,7 @@ import { act, render, screen, fireEvent, within } from '@testing-library/react';
 import { EligibilityView } from './EligibilityView';
 import { useScrapers } from '../../scrapers';
 import type { EligibilityList, JobPosting, PdfExtract } from '../../scrapers';
+import { usePositionsScope } from '../positions/scope-store';
 
 // ---------------------------------------------------------------------------
 // Test fixtures — 4 job codes mirroring the applyEligibilityFilters test
@@ -734,5 +735,43 @@ describe('EligibilityView — filters', () => {
     fireEvent.click(screen.getByRole('button', { name: /Reset filters/i }));
     expect(screen.getByText('1820')).toBeInTheDocument();
     expect(screen.getByText('Q002')).toBeInTheDocument();
+  });
+});
+
+describe('EligibilityView — cross-tab nav to Positions (Phase 2.2.s)', () => {
+  beforeEach(() => {
+    usePositionsScope.getState().clearScope();
+  });
+
+  it('renders a per-row "Positions →" affordance when onViewPositions is provided', () => {
+    seedFourRollups();
+    render(<EligibilityView onViewPositions={() => {}} />);
+    expect(
+      screen.getByRole('button', { name: /Show positions for job code 1820/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('hides the "Positions →" affordance when onViewPositions is omitted', () => {
+    seedFourRollups();
+    render(<EligibilityView />);
+    expect(
+      screen.queryByRole('button', { name: /Show positions for job code 1820/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('clicking "Positions →" sets the Positions job-code scope and fires onViewPositions', () => {
+    seedFourRollups();
+    const onViewPositions = vi.fn();
+    render(<EligibilityView onViewPositions={onViewPositions} />);
+    fireEvent.click(screen.getByRole('button', { name: /Show positions for job code 1820/i }));
+    expect(onViewPositions).toHaveBeenCalledTimes(1);
+    expect(usePositionsScope.getState().jobCode).toBe('1820');
+  });
+
+  it('clicking "Positions →" does not open the row detail modal (stopPropagation)', () => {
+    seedFourRollups();
+    render(<EligibilityView onViewPositions={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Show positions for job code 1820/i }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

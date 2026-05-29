@@ -1,0 +1,141 @@
+/**
+ * Render tests for PositionsView's cross-tab job-code scope (Phase 2.2.s,
+ * Option C). The job code is set from the Eligibility tab via
+ * usePositionsScope; this view filters its list to it, shows a clearable
+ * banner, and surfaces a job-code-aware empty state.
+ *
+ * Heavy Position-building coverage lives in positions/positions.test.ts (pure
+ * buildPositions). This file pins the view-layer scope behavior.
+ *
+ * Both stores are reset between tests.
+ */
+
+import { describe, it, expect, beforeEach } from 'vitest';
+import { render, screen, fireEvent, within } from '@testing-library/react';
+import { PositionsView } from './PositionsView';
+import { usePositionsScope } from './scope-store';
+import { useAppStore } from '../../store';
+import type { PsHcmPpRow } from '../../importers/types';
+
+/** Canonical-shape PS-HCM P&P row (mirrors positions/positions.test.ts). */
+function ppRow(overrides: Partial<PsHcmPpRow> = {}): PsHcmPpRow {
+  return {
+    _source: 'ps-hcm-pp',
+    snapshotDate: '2026-05-20',
+    positionNumber: '10001',
+    jobCode: '6278',
+    jobCodeDescription: 'Building Inspector',
+    positionDivision: 'DBI Inspection Services',
+    departmentCode: '232000',
+    departmentName: 'DBI Inspection Services',
+    positionMaxHeadcount: 1,
+    positionStatus: 'Approved',
+    fillStatus: 'FILLED',
+    vice1EmplId: '',
+    vice1Name: '',
+    previousEmployee: '',
+    emplId: 'E12345',
+    employeeName: 'Smith, Jane',
+    employeeStatus: 'A',
+    appointmentType: 'PCS',
+    exemptCategory: '00 Not Exempt',
+    salaryStep: '5',
+    hourlyRate: 63.46,
+    meritIncreaseDate: '2026-07-01',
+    reportsToPosition: '',
+    managerFirstName: '',
+    managerLastName: '',
+    cat1718AppointmentDate: '',
+    cat1718ExemptCode: '',
+    cat1718ExemptMonths: 0,
+    cat1718TxExpiredDate: '',
+    rosterCode: '21',
+    rosterDescription: 'SEIU 1021',
+    comboCode: '',
+    comboDepartmentCode: '',
+    comboDepartmentName: '',
+    rtfId: '',
+    rtfSubmittedDate: '',
+    rtfStatus: '',
+    rtfExpectedFillDate: '',
+    budgetDepartmentCode: '232000',
+    budgetDepartmentName: 'DBI Inspection Services',
+    budgetJobCode: '6278',
+    fte: 1,
+    employeeJobCode: '6278',
+    vacantDate: '',
+    _row: 2,
+    ...overrides,
+  } as PsHcmPpRow;
+}
+
+/** Two positions with distinct job codes + incumbents so assertions can
+ *  tell them apart regardless of the (shared) job-code column text. */
+function seedTwoPositions() {
+  useAppStore.getState().addRows([
+    ppRow({ positionNumber: '10001', jobCode: '6278',
+            jobCodeDescription: 'Building Inspector', employeeName: 'Smith, Jane' }),
+    ppRow({ positionNumber: '10002', jobCode: '1820',
+            jobCodeDescription: 'Junior Admin Analyst', employeeName: 'Doe, John',
+            budgetJobCode: '1820', employeeJobCode: '1820', _row: 3 }),
+  ]);
+}
+
+beforeEach(() => {
+  useAppStore.getState().clearAll();
+  usePositionsScope.getState().clearScope();
+});
+
+describe('PositionsView — cross-tab job-code scope', () => {
+  it('shows all positions and no scope banner when nothing is scoped', () => {
+    seedTwoPositions();
+    render(<PositionsView />);
+    expect(screen.getByText('Smith, Jane')).toBeInTheDocument();
+    expect(screen.getByText('Doe, John')).toBeInTheDocument();
+    expect(screen.queryByText(/Filtered to job code:/i)).not.toBeInTheDocument();
+  });
+
+  it('filters the list to the scoped job code and shows a banner with the class title', () => {
+    seedTwoPositions();
+    usePositionsScope.getState().setJobCode('6278');
+    render(<PositionsView />);
+    // Banner present, with the class title resolved from the matching position.
+    const banner = screen.getByText(/Filtered to job code:/i).closest('div')!;
+    expect(within(banner).getByText('6278')).toBeInTheDocument();
+    expect(within(banner).getByText('Building Inspector')).toBeInTheDocument();
+    // Only the 6278 incumbent is in the table; the 1820 one is filtered out.
+    expect(screen.getByText('Smith, Jane')).toBeInTheDocument();
+    expect(screen.queryByText('Doe, John')).not.toBeInTheDocument();
+  });
+
+  it('normalizes case/whitespace when matching the scoped code', () => {
+    useAppStore.getState().addRows([
+      ppRow({ positionNumber: '20001', jobCode: 'Q002',
+              jobCodeDescription: 'Police Officer', employeeName: 'Roe, Pat',
+              budgetJobCode: 'Q002', employeeJobCode: 'Q002' }),
+    ]);
+    usePositionsScope.getState().setJobCode('  q002  ');
+    render(<PositionsView />);
+    expect(screen.getByText('Roe, Pat')).toBeInTheDocument();
+    expect(screen.getByText(/Filtered to job code:/i)).toBeInTheDocument();
+  });
+
+  it('clearing the banner filter restores the full list', () => {
+    seedTwoPositions();
+    usePositionsScope.getState().setJobCode('6278');
+    render(<PositionsView />);
+    expect(screen.queryByText('Doe, John')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Clear filter/i }));
+    expect(usePositionsScope.getState().jobCode).toBeNull();
+    expect(screen.getByText('Doe, John')).toBeInTheDocument();
+  });
+
+  it('shows a job-code-aware empty state when no position has the scoped code', () => {
+    seedTwoPositions();
+    usePositionsScope.getState().setJobCode('9999');
+    render(<PositionsView />);
+    expect(
+      screen.getByText(/No positions in the loaded P&P snapshot have job code 9999\./i),
+    ).toBeInTheDocument();
+  });
+});

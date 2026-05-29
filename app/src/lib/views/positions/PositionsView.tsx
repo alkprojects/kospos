@@ -24,6 +24,7 @@ import { buildBudgetSnapshot } from '../../budget';
 import { matchesNeedle } from '../../search/needle';
 import { CopyButton } from '../../ui';
 import { PositionDetail } from './PositionDetail';
+import { usePositionsScope } from './scope-store';
 
 function badge(label: string, color: string, bg: string) {
   return (
@@ -90,6 +91,14 @@ function FilterGroup({
 type FillFilter = 'all' | 'filled' | 'vacant' | 'partial' | 'over';
 type DeptGroupFilter = 'all' | string;
 
+/** Normalize a job code for cross-source equality (the Eligibility rollup
+ *  code vs the P&P position's job code): trim + uppercase. SF job codes are
+ *  short alphanumerics (e.g. "0922", "Q002"); this guards against stray
+ *  whitespace / case divergence between the two upstream feeds. */
+function normJobCode(s: string): string {
+  return s.trim().toUpperCase();
+}
+
 export function PositionsView({ onViewPayroll }: {
   /** Fires after "View payroll" sets the labor scope, so the App shell can
    *  switch tabs. The scope is already set by PositionDetail before this fires. */
@@ -97,6 +106,12 @@ export function PositionsView({ onViewPayroll }: {
 } = {}) {
   const loadedRows = useAppStore(s => s.loadedRows);
   const userNotes = usePositionNotes(s => s.notes);
+
+  // Cross-tab nav: a job code set from the Eligibility tab filters this list.
+  // Persists in its own store (mirrors useLaborScope) so it survives this
+  // view's remount-on-tab-switch; cleared via the banner's "Clear filter".
+  const scopedJobCode = usePositionsScope(s => s.jobCode);
+  const clearScope = usePositionsScope(s => s.clearScope);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [fillFilter, setFillFilter] = useState<FillFilter>('all');
@@ -163,7 +178,10 @@ export function PositionsView({ onViewPayroll }: {
   }, [positions]);
 
   const filtered = useMemo(() => {
+    const scopedNorm = scopedJobCode ? normJobCode(scopedJobCode) : null;
     return positions.filter(p => {
+      // Cross-tab job-code scope (from Eligibility) — exact, normalized match.
+      if (scopedNorm && normJobCode(p.jobCode ?? '') !== scopedNorm) return false;
       if (fillFilter === 'filled'  && p.fillStatus !== 'FILLED') return false;
       if (fillFilter === 'vacant'  && p.fillStatus !== 'VACANT') return false;
       if (fillFilter === 'partial' && p.fillStatus !== 'PARTIALLY FILLED') return false;
@@ -178,7 +196,19 @@ export function PositionsView({ onViewPayroll }: {
       if (!matchesNeedle(p, search)) return false;
       return true;
     });
-  }, [positions, fillFilter, deptGroupFilter, tempOnly, search]);
+  }, [positions, scopedJobCode, fillFilter, deptGroupFilter, tempOnly, search]);
+
+  // Positions matching the scoped job code alone (ignoring the local fill /
+  // dept / search filters) — drives the banner's class-title label and the
+  // job-code-aware empty-state copy so "no match" can distinguish "no such
+  // job code in this snapshot" from "hidden by the other active filters".
+  const scopedMatches = useMemo(() => {
+    if (!scopedJobCode) return null;
+    const n = normJobCode(scopedJobCode);
+    return positions.filter(p => normJobCode(p.jobCode ?? '') === n);
+  }, [positions, scopedJobCode]);
+  const scopedDescription =
+    scopedMatches?.find(p => p.jobCodeDescription)?.jobCodeDescription ?? '';
 
   const totals = useMemo(() => ({
     total:    positions.length,
@@ -240,6 +270,37 @@ export function PositionsView({ onViewPayroll }: {
           onClose={() => setSelectedId(null)}
           onViewPayroll={() => { setSelectedId(null); onViewPayroll?.(); }}
         />
+      )}
+
+      {/* Cross-tab scope banner — shown when filtered to a job code from the
+          Eligibility tab. Mirrors the Labor view's "Scoped to" banner. */}
+      {scopedJobCode && (
+        <div className="card" style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          background: 'var(--accent-soft)', border: '1px solid var(--accent)',
+        }}>
+          <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>
+            Filtered to job code:
+          </span>
+          <span style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 600 }}>
+            {scopedJobCode}
+          </span>
+          {scopedDescription && (
+            <span style={{ fontSize: 13, color: 'var(--muted)' }}>{scopedDescription}</span>
+          )}
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>· from Eligibility</span>
+          <button
+            onClick={clearScope}
+            style={{
+              marginLeft: 'auto', fontSize: 11, padding: '3px 10px',
+              border: '1px solid var(--accent)', borderRadius: 12,
+              background: 'transparent', color: 'var(--accent)', cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Clear filter
+          </button>
+        </div>
       )}
 
       {/* Summary bar */}
@@ -375,7 +436,11 @@ export function PositionsView({ onViewPayroll }: {
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={8} style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>
-                  No positions match the current filters.
+                  {scopedJobCode && scopedMatches?.length === 0
+                    ? `No positions in the loaded P&P snapshot have job code ${scopedJobCode}.`
+                    : scopedJobCode
+                      ? `No job-code ${scopedJobCode} positions match the other active filters.`
+                      : 'No positions match the current filters.'}
                 </td>
               </tr>
             )}
