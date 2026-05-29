@@ -3785,3 +3785,41 @@ The feature needs data in two independent stores (`useScrapers` for Eligibility 
 - **Trust + delegation:** ✅ Picked the recommended option and let the design pick + implementation run, consistent with the "guide me, then act" working agreement.
 - **Audit cadence:** ✅ 19th event-based trigger; fired correctly on this sub-phase close (S42 setup-only correctly fired none).
 - **Test discipline:** ✅ Baseline 825 confirmed after `npm install` in the fresh worktree; +14 from three new test files; `npm run build` before the PR.
+
+## Session 44 — Phase 2.2.t: eligibility-refresh persistence + Load Data hub (freeform feedback, 3 PRs) (2026-05-28)
+
+**Phase 2.2.t shipped — driven by Alex's freeform feedback, not a menu sub-phase.** The S44 handoff offered a sub-phase menu (E temp-limits / H modal-lift / F vacancies / D reporting-tree / G cloudflare-cutover), but Alex pasted two freeform items instead — which the handoff designates as primary. Both resolved across three single-purpose PRs. Default model: Opus 4.8 (fast mode).
+
+### Alex's two items
+1. *"eligibility refreshes should be treated the same as data uploads … persist across sessions/users until refreshed/deleted."* Clarified on follow-up: *"job posting and eligibility list data should persist across sessions in different devices until refreshed"* + *"both refresh buttons should be moved to the load data tab"* + *"make load data visible outside of dev mode but grey out the upload for other sources outside of dev mode."*
+2. *"the text is off for open posting and active lists"* (Eligibility summary header — screenshot).
+
+### What shipped
+- **[#144](https://github.com/alkprojects/kospos/pull/144) fix(views/eligibility): top-align summary-header stats.** The header row used `alignItems: center`; stats with a hint sub-line (Open postings, Active lists) are one line taller than those without, so the big numbers sat off a shared baseline ("never" drooped below "2 / 2 / 0"). `flex-start` fixes it. Verified via preview: the four stat-value tops went 101/109-staggered → uniform 101. Style-only.
+- **[#145](https://github.com/alkprojects/kospos/pull/145) fix(session): count scraper data in Save/Publish gating + status.** Investigation found the persistence pipeline ALREADY carries scraper data (auto-saves to IDB + included in the published snapshot via `buildCurrentSnapshot`). The gap: `saveDisabled` + the status summary ignored the scrapers store, so an eligibility-only refresh couldn't be saved/published. Now counts jobPostings + eligibilityLists. +4 tests.
+- **[#146](https://github.com/alkprojects/kospos/pull/146) feat(load-data): always-visible Load Data hub.** Promoted the importer tab out of `devOnly` + renamed Load Reports → Load Data; moved the two refresh buttons (+ backup-proxy + manual-paste + Clear) out of EligibilityView into a new `ScrapeSourcesPanel` on the Load Data tab; dev-gated the file importers (FilePicker `disabled` prop) + the "Clear all loaded data" button; Eligibility is now a pure read-only view (stats + filter + table + Positions cross-nav). +5 tests.
+- Plus this docs PR (close audit + this entry + S45 handoff).
+
+### Key findings / decisions
+- **Persistence already worked across sessions (IDB).** The Welcome dashboard showed "Restored from this browser … Last auto-save" with postings intact — so "across sessions" was never broken; the real gaps were the Save/Publish gating (#145) and that Publish was unreachable on the non-dev site (resolved by promoting Load Data in #146).
+- **Dev-mode model evolved.** Previously dev mode = show/hide whole tabs. Now it ALSO gates in-tab controls (file imports + clear) on an always-visible tab. The live scrapes stay available to all (the routine action); the heavy file imports stay dev-gated ("managed centrally"). _Possible short ADR — flagged for Alex (carry-forward)._
+- **One-logical-change multi-file PR (#146).** The hub reorg touched 6 files but is one cohesive change; splitting would leave a broken intermediate (refresh on a hidden tab). Same exception class as the modal-lift.
+- **Scope extension flagged:** dev-gating the "Clear all loaded data" button went slightly beyond Alex's literal "grey out the upload" — done for consistency (a normal user shouldn't wipe source data they can't re-import); noted in #146 + handoff so Alex can veto.
+
+### Verification (agent-first)
+Preview tools: verified non-dev (nav shows Load Data; file importer greyed + hint; refresh usable; Eligibility has no refresh controls) AND dev (file importer enabled). No console errors. **NOTE:** `preview_screenshot` timed out repeatedly this session (renderer/JPEG capture); `preview_snapshot` + `preview_eval` + `preview_inspect` worked fine and provided the structural proof. The #144 alignment fix got a clean screenshot before the tool started timing out.
+
+### Outcome
+3 code PRs + 1 docs PR. Tests **839 → 848** (+4 #145, +5 #146). `npm run build` clean each PR. All merged; GitHub Pages + Cloudflare deploys green. Phase 2.2.t close audit fired (sub-phase shipped) → [`docs/audits/phase-2-2-t-close-audit.md`](audits/phase-2-2-t-close-audit.md).
+
+### Lessons / improvements for next phase
+- **Investigate before building.** "Persist across sessions/users" sounded like a from-scratch feature; reading the auto-persistence hook showed scraper data was already wired end-to-end — narrowing the work to a gating bug + a UI reorg. Cheaper + more accurate than assuming.
+- **Ask plainly when the user says options are confusing.** The first AskUserQuestion used architecture jargon; Alex replied "I don't fully understand the options" + gave plain directives. Re-asking with concrete consequences ("the tab is hidden unless dev mode — refresh would vanish") got a precise answer.
+- **preview_screenshot is flaky in this env.** Lean on snapshot/eval/inspect for structural proof; reserve screenshots for the final aesthetic shot and retry/skip if they hang.
+
+### Brief audit (Alex's collaboration this session)
+- **Prompt quality:** ✅ The handoff's freeform-feedback escape hatch worked exactly as designed — two concrete items + a screenshot took priority over the menu.
+- **Scope discipline:** ✅ Three single-purpose PRs (visual / gating / hub); no bundling. The hub's multi-file touch is the documented single-logical-change exception.
+- **Trust + delegation:** ✅ "guide me, then act" — clarified the one consequential fork (tab visibility) via AskUserQuestion, executed the rest.
+- **Audit cadence:** ✅ 20th event-based trigger; fired on this sub-phase close.
+- **Test discipline:** ✅ Baseline 839 confirmed after `npm install`; +9 across two new test files; `npm run build` before each PR.
