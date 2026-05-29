@@ -52,8 +52,9 @@ export interface DataSourceSummary {
    *  2026-05-25", "latest PP 2026-05-08", "refreshed 14:31". */
   latestLabel: string;
   /** Tab the user should click to interact with this data (Load Reports
-   *  vs Eligibility vs Positions). Used by the dashboard's "Open" link. */
-  tabHint?: 'importer' | 'positions' | 'labor' | 'eligibility' | 'staffing-plan';
+   *  vs Data vs Positions). Used by the dashboard's "Open" link. The Data
+   *  tab hosts the Eligibility Lists + Job Postings source tables. */
+  tabHint?: 'importer' | 'positions' | 'labor' | 'data' | 'staffing-plan';
 }
 
 /** Per-user-edits row (planned actions / separations / probations / notes). */
@@ -167,7 +168,7 @@ export function buildDataSummary(input: {
       latestLabel: input.jobPostingsRefreshedAt
         ? `refreshed ${formatRefreshedAt(input.jobPostingsRefreshedAt)}`
         : '',
-      tabHint: 'eligibility',
+      tabHint: 'data',
     },
     {
       source: 'eligibility-lists',
@@ -177,7 +178,7 @@ export function buildDataSummary(input: {
       latestLabel: input.eligibilityListsRefreshedAt
         ? `refreshed ${formatRefreshedAt(input.eligibilityListsRefreshedAt)}`
         : '',
-      tabHint: 'eligibility',
+      tabHint: 'data',
     },
     {
       source: 'pdf-extracts',
@@ -185,7 +186,7 @@ export function buildDataSummary(input: {
       count: input.pdfCacheCount,
       countLabel: 'cached extracts',
       latestLabel: input.pdfCacheCount > 0 ? 'lazy — populated on modal open' : '',
-      tabHint: 'eligibility',
+      tabHint: 'data',
     },
   ];
 
