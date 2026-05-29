@@ -61,7 +61,7 @@ export function OverrideBox({
           aria-label="Override reason"
           style={{
             ...inputStyle(),
-            borderColor: reason.trim() === '' ? '#b35a00' : 'var(--border)',
+            borderColor: reason.trim() === '' ? 'var(--warn)' : 'var(--border)',
           }}
         />
       )}

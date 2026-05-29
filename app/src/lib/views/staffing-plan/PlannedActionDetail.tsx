@@ -324,7 +324,7 @@ export function PlannedActionDetail({ action, position, onClose }: PlannedAction
                   onChange={e => setDraft({ ...draft, status: e.target.value as HiringStatus })}
                   style={{
                     ...inputStyle(),
-                    border: `1px solid ${statusNeedsOverride ? '#b35a00' : 'var(--border)'}`,
+                    border: `1px solid ${statusNeedsOverride ? 'var(--warn)' : 'var(--border)'}`,
                   }}
                   aria-invalid={statusNeedsOverride}
                   aria-describedby={statusNeedsOverride ? 'status-override-warn' : undefined}
@@ -335,7 +335,7 @@ export function PlannedActionDetail({ action, position, onClose }: PlannedAction
                 {statusNeedsOverride && (
                   <label id="status-override-warn" style={{
                     display: 'flex', alignItems: 'center', gap: 6,
-                    fontSize: 11, color: '#b35a00',
+                    fontSize: 11, color: 'var(--warn)',
                   }}>
                     <input
                       type="checkbox"
@@ -519,9 +519,9 @@ function DeltaStat({ label, cost, signed, emphasize }: {
   const color = cost == null
     ? 'var(--muted)'
     : emphasize && cost > 0
-      ? '#7f1d1d'
+      ? 'var(--danger)'
       : emphasize && cost < 0
-        ? '#1a7a3c'
+        ? 'var(--success)'
         : 'inherit';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

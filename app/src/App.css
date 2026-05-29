@@ -8,6 +8,18 @@
   --muted: #5b6776;
   --accent: #1f5fbf;
   --accent-soft: #e7f0fb;
+
+  /* Semantic status palette — the [text, soft-background] pairs the status
+     badges + confidence/alert chips + delta-cost figures already used as raw
+     hex literals across the views (Separations / Probations / Staffing Plan /
+     Positions / …). Tokenized here so the palette has one source of truth.
+     Values are unchanged from the literals they replace — pure naming. The
+     blue/info tone reuses --accent / --accent-soft. */
+  --success: #1a7a3c;       --success-soft: #d4f4e3;   /* green  — done / positive */
+  --warn: #b35a00;          --warn-soft: #fed7aa;      /* orange — needs attention */
+  --caution: #7a4b1a;       --caution-soft: #fde68a;   /* yellow — uncertain / approaching */
+  --danger: #7f1d1d;        --danger-soft: #fecaca;    /* red    — failed / past-due / increase */
+  --neutral: #6b7280;       --neutral-soft: #f3f4f6;   /* gray   — inactive / low */
 }
 
 * {

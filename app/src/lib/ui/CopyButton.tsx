@@ -103,7 +103,7 @@ export function CopyButton({ value, label = 'value', size = 14 }: CopyButtonProp
         border: 'none',
         background: 'transparent',
         cursor: value ? 'pointer' : 'not-allowed',
-        color: state === 'copied' ? '#1a7a3c'
+        color: state === 'copied' ? 'var(--success)'
              : state === 'failed' ? '#b91c1c'
              : 'var(--muted)',
         opacity: value ? 1 : 0.4,

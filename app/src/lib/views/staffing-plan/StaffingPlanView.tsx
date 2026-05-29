@@ -71,11 +71,11 @@ const TYPE_LABELS: Record<PlannedActionType, string> = {
 /** Type-keyed color for the section header badge. Matches the Cat 17/18
  *  palette used elsewhere so the visual language stays consistent. */
 const TYPE_COLORS: Record<PlannedActionType, { fg: string; bg: string }> = {
-  'active-hire':   { fg: '#1a7a3c', bg: '#d4f4e3' }, // green — gains
-  'separation':    { fg: '#7f1d1d', bg: '#fecaca' }, // red   — losses
-  'pending':       { fg: '#1f5fbf', bg: '#e7f0fb' }, // blue  — paused
+  'active-hire':   { fg: 'var(--success)', bg: 'var(--success-soft)' }, // green — gains
+  'separation':    { fg: 'var(--danger)', bg: 'var(--danger-soft)' }, // red   — losses
+  'pending':       { fg: 'var(--accent)', bg: 'var(--accent-soft)' }, // blue  — paused
   'temp-tracking': { fg: '#6b21a8', bg: '#f3e8ff' }, // purple — temp
-  'unfunded':      { fg: '#7a4b1a', bg: '#fde68a' }, // yellow — caution
+  'unfunded':      { fg: 'var(--caution)', bg: 'var(--caution-soft)' }, // yellow — caution
 };
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -267,7 +267,7 @@ function Section({ type, actions, positionsById, linkedSeparationCounts, onDelet
           </span>
         )}
         {diag.unpriced > 0 && (
-          <span style={{ fontSize: 11, color: '#7a4b1a' }} title="Actions without a cost basis aren't summed into the section total.">
+          <span style={{ fontSize: 11, color: 'var(--caution)' }} title="Actions without a cost basis aren't summed into the section total.">
             ⚠ {diag.priced} of {diag.total} priced
           </span>
         )}
@@ -511,8 +511,8 @@ function AddActionForm({ positions }: { positions: Position[] }) {
       </button>
       {error && (
         <div style={{
-          flexBasis: '100%', fontSize: 12, color: '#7f1d1d',
-          background: '#fecaca', border: '1px solid #dc2626', borderRadius: 4,
+          flexBasis: '100%', fontSize: 12, color: 'var(--danger)',
+          background: 'var(--danger-soft)', border: '1px solid #dc2626', borderRadius: 4,
           padding: '4px 10px',
         }}>
           {error}
@@ -655,7 +655,7 @@ export function StaffingPlanView() {
           </div>
           <div style={{
             fontSize: 22, fontWeight: 700, fontFamily: 'monospace',
-            color: net.annual > 0 ? '#7f1d1d' : net.annual < 0 ? '#1a7a3c' : 'var(--muted)',
+            color: net.annual > 0 ? 'var(--danger)' : net.annual < 0 ? 'var(--success)' : 'var(--muted)',
           }}>
             {net.annual !== 0 ? fmtSignedMoney(net.annual) : '$0'}
           </div>

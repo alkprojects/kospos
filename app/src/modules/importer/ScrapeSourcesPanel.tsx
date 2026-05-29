@@ -84,7 +84,7 @@ function RefreshPostingsButton() {
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>{progress}</span>
       )}
       {error && (
-        <span style={{ fontSize: 11, color: '#7f1d1d' }}>
+        <span style={{ fontSize: 11, color: 'var(--danger)' }}>
           {error}
         </span>
       )}
@@ -157,7 +157,7 @@ function RefreshEligibilityListsButton() {
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>{progress}</span>
       )}
       {error && (
-        <span style={{ fontSize: 11, color: '#7f1d1d' }}>
+        <span style={{ fontSize: 11, color: 'var(--danger)' }}>
           {error}
         </span>
       )}
@@ -192,7 +192,7 @@ function WorkerUrlSettings() {
   return (
     <details className="card" style={{ display: 'flex', flexDirection: 'column' }}>
       <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-        Backup proxy: Cloudflare-Worker URL {dhrWorkerUrl && <span style={{ color: '#1a7a3c', fontWeight: 400 }}>· configured</span>}
+        Backup proxy: Cloudflare-Worker URL {dhrWorkerUrl && <span style={{ color: 'var(--success)', fontWeight: 400 }}>· configured</span>}
       </summary>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>
@@ -331,7 +331,7 @@ function PasteDhrPanel() {
           Parse + add to KosPos
         </button>
         {status && (
-          <span style={{ fontSize: 11, color: status.startsWith('Parsed') ? '#1a7a3c' : '#7f1d1d' }}>
+          <span style={{ fontSize: 11, color: status.startsWith('Parsed') ? 'var(--success)' : 'var(--danger)' }}>
             {status}
           </span>
         )}

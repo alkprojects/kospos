@@ -304,7 +304,7 @@ export function SeparationDetail({
               aria-invalid={statusNeedsOverride}
               style={{
                 ...inputStyle(),
-                borderColor: statusNeedsOverride ? '#b35a00' : 'var(--border)',
+                borderColor: statusNeedsOverride ? 'var(--warn)' : 'var(--border)',
               }}
             >
               {SEPARATION_STATUS_ORDER.map(s => <option key={s} value={s}>{s}</option>)}
@@ -417,7 +417,7 @@ export function SeparationDetail({
                     {String(h.before ?? '∅')} → {String(h.after ?? '∅')}
                   </span>
                   {h.overrideReason && (
-                    <span style={{ flex: '1 1 100%', color: '#b35a00', fontStyle: 'italic' }}>
+                    <span style={{ flex: '1 1 100%', color: 'var(--warn)', fontStyle: 'italic' }}>
                       override: {h.overrideReason}
                     </span>
                   )}

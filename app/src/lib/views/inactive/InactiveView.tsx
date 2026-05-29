@@ -43,8 +43,8 @@ const REASON_LABEL: Record<InactiveReasonHint, string> = {
 const REASON_COLOR: Record<InactiveReasonHint, [string, string]> = {
   // [text, background]
   'retirement-payout':   ['#6b21a8', '#f3e8ff'],
-  'temp-lumpsum-payoff': ['#7f1d1d', '#fecaca'],
-  'wages-only':          ['#1f5fbf', '#e7f0fb'],
+  'temp-lumpsum-payoff': ['var(--danger)', 'var(--danger-soft)'],
+  'wages-only':          ['var(--accent)', 'var(--accent-soft)'],
 };
 
 function ReasonChip({ hint }: { hint: InactiveReasonHint }) {

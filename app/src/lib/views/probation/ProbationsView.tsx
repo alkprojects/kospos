@@ -89,11 +89,11 @@ const STATUS_LABEL: Record<ProbationStatus, string> = {
 
 const STATUS_COLOR: Record<ProbationStatus, [string, string]> = {
   // [text, background]
-  'open':     ['#1f5fbf', '#e7f0fb'], // blue   — in progress
-  'extended': ['#b35a00', '#fed7aa'], // orange — needs attention
-  'cleared':  ['#1a7a3c', '#d4f4e3'], // green  — passed
-  'failed':   ['#7f1d1d', '#fecaca'], // red    — didn't pass
-  'resigned': ['#6b7280', '#f3f4f6'], // gray   — left
+  'open':     ['var(--accent)', 'var(--accent-soft)'], // blue   — in progress
+  'extended': ['var(--warn)', 'var(--warn-soft)'], // orange — needs attention
+  'cleared':  ['var(--success)', 'var(--success-soft)'], // green  — passed
+  'failed':   ['var(--danger)', 'var(--danger-soft)'], // red    — didn't pass
+  'resigned': ['var(--neutral)', 'var(--neutral-soft)'], // gray   — left
 };
 
 function StatusChip({ status }: { status: ProbationStatus }) {
@@ -109,8 +109,8 @@ function StatusChip({ status }: { status: ProbationStatus }) {
 
 function AlertChip({ kind }: { kind: 'approaching' | 'past-due' }) {
   const [color, bg, label, title] = kind === 'approaching'
-    ? ['#7a4b1a', '#fde68a', '⏳ Approaching', 'Probation ends within 30 days']
-    : ['#7f1d1d', '#fecaca', '⚠ Past due',   'Probation end date is today or past with no completion'];
+    ? ['var(--caution)', 'var(--caution-soft)', '⏳ Approaching', 'Probation ends within 30 days']
+    : ['var(--danger)', 'var(--danger-soft)', '⚠ Past due',   'Probation end date is today or past with no completion'];
   return (
     <span title={title} style={{
       fontSize: 10, fontWeight: 700,
@@ -720,8 +720,8 @@ function AddProbationForm({
       </span>
       {error && (
         <div style={{
-          flexBasis: '100%', fontSize: 12, color: '#7f1d1d',
-          background: '#fecaca', border: '1px solid #dc2626', borderRadius: 4,
+          flexBasis: '100%', fontSize: 12, color: 'var(--danger)',
+          background: 'var(--danger-soft)', border: '1px solid #dc2626', borderRadius: 4,
           padding: '4px 10px',
         }}>
           {error}
