@@ -22,25 +22,9 @@ import type { BfmPositionRow, ObiPayrollRow, PsHcmPpRow } from '../../importers/
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import { buildBudgetSnapshot } from '../../budget';
 import { matchesNeedle } from '../../search/needle';
-import { CopyButton, rowButtonProps } from '../../ui';
+import { Badge, CopyButton, rowButtonProps } from '../../ui';
 import { PositionDetail } from './PositionDetail';
 import { usePositionsScope } from './scope-store';
-
-function badge(label: string, color: string, bg: string) {
-  return (
-    <span style={{
-      fontSize: 11,
-      fontWeight: 600,
-      padding: '2px 7px',
-      borderRadius: 10,
-      color,
-      background: bg,
-      whiteSpace: 'nowrap',
-    }}>
-      {label}
-    </span>
-  );
-}
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -415,14 +399,14 @@ export function PositionsView({ onViewPayroll }: {
                 </td>
                 <td style={{ padding: '7px 12px' }}>{p.fte.toFixed(2)}</td>
                 <td style={{ padding: '7px 12px' }}>
-                  {p.fillStatus === 'FILLED'           && badge('Filled',   'var(--success)', 'var(--success-soft)')}
-                  {p.fillStatus === 'VACANT'           && badge('Vacant',   'var(--caution)', '#f4e8d4')}
-                  {p.fillStatus === 'PARTIALLY FILLED' && badge('Partial',  'var(--accent)', 'var(--accent-soft)')}
-                  {p.fillStatus === 'OVER FILLED'      && badge('Over',     'var(--danger)', 'var(--danger-soft)')}
+                  {p.fillStatus === 'FILLED'           && <Badge tone="success">Filled</Badge>}
+                  {p.fillStatus === 'VACANT'           && <Badge color="var(--caution)" bg="#f4e8d4">Vacant</Badge>}
+                  {p.fillStatus === 'PARTIALLY FILLED' && <Badge tone="accent">Partial</Badge>}
+                  {p.fillStatus === 'OVER FILLED'      && <Badge tone="danger">Over</Badge>}
                   {!p.fillStatus                       && <span style={{ color: 'var(--muted)' }}>—</span>}
                   {' '}
-                  {p.appointment?.cat1718 && badge(`Cat ${p.appointment.cat1718.category}`, '#6b21a8', '#f3e8ff')}
-                  {hasDeptMismatch(p) && badge('Dept ≠', 'var(--caution)', 'var(--caution-soft)')}
+                  {p.appointment?.cat1718 && <Badge color="#6b21a8" bg="#f3e8ff">{`Cat ${p.appointment.cat1718.category}`}</Badge>}
+                  {hasDeptMismatch(p) && <Badge tone="caution">Dept ≠</Badge>}
                 </td>
                 <td style={{ padding: '7px 12px' }}>
                   {p.appointment?.name

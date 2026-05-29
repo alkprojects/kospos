@@ -15,3 +15,5 @@ export { OverrideBox } from './OverrideBox';
 export type { OverrideBoxProps } from './OverrideBox';
 export { CloseButton } from './CloseButton';
 export type { CloseButtonProps } from './CloseButton';
+export { Badge } from './Badge';
+export type { BadgeProps, BadgeTone } from './Badge';

@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import type { Position } from '../../positions';
 import { hasDeptMismatch, usePositionNotes } from '../../positions';
-import { CopyButton, Modal } from '../../ui';
+import { Badge, CopyButton, Modal } from '../../ui';
 import type { ResolvedChartfields } from '../../chartfields/types';
 import type { PositionYtdActuals } from '../../payroll';
 import type { PositionBudget, BfmBudgetPhase } from '../../budget';
@@ -44,22 +44,6 @@ function fmtDate(s: string): string {
 function phaseLabel(phase: BfmBudgetPhase): string {
   if (phase === 'TechnicalAdjustment') return 'Technical Adjustment';
   return phase;
-}
-
-function badge(label: string, color: string, bg: string) {
-  return (
-    <span style={{
-      fontSize: 11,
-      fontWeight: 600,
-      padding: '2px 7px',
-      borderRadius: 10,
-      color,
-      background: bg,
-      whiteSpace: 'nowrap',
-    }}>
-      {label}
-    </span>
-  );
 }
 
 function DeptRow({ label, code, name, asOfDate }: {
@@ -226,8 +210,8 @@ function Cat1718Card({ position }: { position: Position }) {
             </div>
           </div>
           <div style={{ marginLeft: 'auto' }}>
-            {isPast && badge('Expired', 'var(--danger)', 'var(--danger-soft)')}
-            {!isPast && isSoon && badge('Expiring soon', 'var(--caution)', 'var(--caution-soft)')}
+            {isPast && <Badge tone="danger">Expired</Badge>}
+            {!isPast && isSoon && <Badge tone="caution">Expiring soon</Badge>}
           </div>
         </div>
       </div>
