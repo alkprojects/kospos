@@ -162,7 +162,18 @@ be drafted and exported as a Change Report.
 - Backend (Cloudflare D1 or Supabase).
 - `@sfgov.org` SSO.
 - Multi-department tenancy.
-- Per-user permissions and audit log.
+- **Tiered user types + per-user permissions** (with audit log). The in-app
+  dev-mode toggle introduced in Phase 2.x is the first, deliberately auth-free
+  step toward this — a plain switch during development, gated by SSO above only
+  once KosPos is shared with other users for testing. The eventual model:
+  - **Regular users** — see the user-facing tabs only; read access plus their
+    own edits (notes, planned actions) within their department.
+  - **Dev users** — also see the dev-gated tabs and the in-tab controls (file
+    imports, "clear all") for managing centrally-loaded source data.
+  - **Super-dev users** — can edit *what regular and dev users see and what the
+    site does*: configure which tabs and controls each tier gets, manage
+    reference data, and adjust site-wide functionality. The control surface for
+    the other tiers, rather than just another visibility level.
 - Possibly: write-back to source systems (if IT permits).
 - Snowflake direct integration (if/when the city's data platform lands and IT permits).
 
