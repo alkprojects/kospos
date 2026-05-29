@@ -3607,3 +3607,91 @@ Recommendation: **Option α — Cloudflare Pages + Workers KV.** Cleanest deploy
 - **Test count discipline:** ✅ Baseline `npm test` at session start confirmed 762 (no recount drift). +51 net.
 - **Up-front question batching:** ✅ Single AskUserQuestion with 4 questions covered the 7-option menu pick + 3 Cloudflare design picks. Alex was offline within ~5 minutes of session start; everything else was autonomous.
 - **Trust + delegation:** ✅ Alex's "max plan + try to work for as long as you can + bonus deep-dives if context remains" → roughly 6 hours of unattended Opus 4.7 time. Worked because the up-front questions removed all dependencies on his return.
+
+---
+
+## Session 41 — Phase 2.2.r: Cloudflare cross-device verification (7 in-flight PRs) (2026-05-28)
+
+**Phase 2.2.r complete.** Alex picked Option A — Verify Cloudflare cross-device end-to-end — from the S41 menu. What looked like a runbook walkthrough turned into a 7-PR engineering session as real-data verification surfaced architectural issues at every layer (build, edge, KV size cap, Worker memory cap, localStorage assumption, JSON parse perf, UX feedback). All 7 PRs shipped + verified live on Alex's actual 331,893-row dataset.
+
+### Branch: multiple feature branches; all squash-merged to main
+
+### How the session unfolded — 7 PRs, each triggered by a real failure
+
+The session was **fully interactive** (vs. S40's autonomous unattended pattern). Each PR was triggered by a specific user-visible failure Alex hit during the verification walkthrough.
+
+[PR #130](https://github.com/alkprojects/kospos/pull/130) — `fix: vite base must be conditional for Cloudflare Pages vs GitHub Pages`. **Trigger:** "build was successful but page is blank" — `kospos.pages.dev` rendered blank because the bundle referenced `/kospos/assets/...` (GH Pages base) but Cloudflare serves at root. **Fix:** `vite.config.ts` `base: process.env.CF_PAGES ? '/' : '/kospos/'`; favicon switched to `%BASE_URL%` substitution. Both builds verified clean (default + `CF_PAGES=1`).
+
+[PR #131](https://github.com/alkprojects/kospos/pull/131) — `chore: gitignore .cloudflare-token/ directory`. **Trigger:** Alex created a Cloudflare API token + saved it inside the repo at `.cloudflare-token/claudecftoken.txt`. `git check-ignore` showed the path was NOT ignored — a stray `git add .` would have committed the secret. **Fix:** added `.cloudflare-token/` to `.gitignore` BEFORE reading the token. Token file was never staged (verified with `git ls-files`).
+
+[PR #132](https://github.com/alkprojects/kospos/pull/132) — `feat(session/cloudflare): gzip publish/fetch — unblocks 110K-row real-data publishing`. **Trigger:** "Publishing snapshot to Cloudflare…" stuck for minutes; DevTools eventually showed HTTP 413 (Cloudflare's edge 100 MB body cap). **Fix:** client gzips JSON via `CompressionStream('gzip')` before POST + `Content-Encoding: gzip` header; Worker decompresses for envelope validation + stores gzipped bytes in KV (8-15× compression ratio observed). +5 tests.
+
+[PR #133](https://github.com/alkprojects/kospos/pull/133) — `fix(session/cloudflare): Worker stops decompressing gzipped POSTs (memory cap)`. **Trigger:** Alex retried with 221K rows; HTTP 400 "Memory limit exceeded before EOF" from Workers' 128 MB memory cap during server-side decompression. **Fix:** Worker stops decompressing; magic-bytes sniff + size guard + `X-Snapshot-SavedAt` header (savedAt no longer parsed from body). Trade-off: lose server-side envelope validation; client validates twice (publish + read) so a buggy publish only corrupts singleton KV until next valid publish overwrites. +1 test net.
+
+[PR #134](https://github.com/alkprojects/kospos/pull/134) — `fix(session/cloudflare): publish UX (immediate spinner + stage progress) + defensive cross-device load`. **Trigger:** "computer became sluggish and it took a while for the publishing message to show up. A warning popped up saying it was taking a long time…". **Fix:** `setStatus({kind:'publishing', stage})` BEFORE `buildCurrentSnapshot`; yields via `await new Promise(r => setTimeout(r,0))` between heavy phases; SMIL-animated SVG spinner; stage-aware text. Bonus: defensive decompression loop in `fetchPublishedSnapshot` (peels up to 3 residual gzip layers). +3 tests.
+
+[PR #135](https://github.com/alkprojects/kospos/pull/135) — `fix(session/cloudflare): empty pagesUrl falls back to relative URL (same-origin default)`. **Trigger:** "the incognito window doesn't appear to be loading the data" + DevTools Network panel filtered for "snapshot" showed ZERO requests in incognito. **Diagnosis:** `localStorage.getItem('kospos.cloudflare.pagesUrl')` returned `null` in incognito (empty localStorage by design); `fetchPublishedSnapshot` short-circuited with 'not-configured'. **Fix:** empty `pagesUrl` defaults to relative URL `/api/snapshot` — any visitor to `kospos.pages.dev` auto-loads with zero per-device config. Publish button gate also relaxed (URL no longer required). Existing "not-configured" tests rewrote to verify relative-URL fallback behavior.
+
+[PR #136](https://github.com/alkprojects/kospos/pull/136) — `fix(session): cross-device load UX — accurate source, spinner, skip 375MB re-parse, yield between phases`. **Trigger:** Alex's incognito window successfully restored 331,893 rows but: (1) banner falsely said "from this browser" (was actually Cloudflare); (2) page slowed to a crawl with "page unresponsive" dialog during the 375 MB JSON parse; (3) no animated indicator. **Fix:** new `parseSessionFileFromValue` skips wasteful `JSON.stringify`+`JSON.parse` round-trip in `validateOnly` (saves several seconds on real data); 2 yields in the auto-load chain; SMIL spinner in LandingView's loading banner; banner reworded to "Restoring saved session… (checking this browser + any shared snapshot)" — accurate about parallel work, no premature source claim. +5 tests.
+
+### What shipped — this docs PR
+
+[ADR-016](DECISIONS.md#adr-016--cross-device-persistence-via-cloudflare-pages--workers-kv-gzipped-same-origin-default) codifies the as-shipped cross-device persistence decision. `docs/runbooks/cloudflare-pages-setup.md` substantially refreshed with every S41 gotcha + API-token automation appendix. `docs/audits/phase-2-2-r-close-audit.md` (14 findings, 2 carry-forwards resolved, 12 recommendations). This SESSION_LOG entry. S42 SESSION_HANDOFF.
+
+### Real-world verification result
+
+End-to-end confirmed working live: Alex published 331,893 rows from his main browser (375 MB JSON gzipped to 8,230 KB). Opened incognito window → "Restored from shared (Cloudflare) (saved HH:MM)" banner displayed + Loaded Data table populated with the right counts + Positions tab showed all rows.
+
+### Top decisions surfaced for Alex
+
+1. **gzip on both wire AND storage** — required for both Cloudflare's 100 MB edge cap + KV's 25 MB value cap. JSON of repetitive labor-data structure compresses 8-15× (375 MB → 8.4 MB observed).
+2. **No server-side decompression** — Workers' 128 MB memory cap can't hold a fully decompressed real-data envelope. Validation moves to client-only (publish + read both validate). Trade-off documented in code + ADR.
+3. **Same-origin URL default** — empty `pagesUrl` falls back to relative URL. This is the actual unlock for cross-device sharing — without it, fresh browsers / incognito windows can't load published snapshots because they have empty localStorage by design.
+4. **In-place envelope validation** — `parseSessionFileFromValue` skips the JSON-roundtrip in `validateOnly`. Saves several seconds on 375 MB envelopes during auto-load.
+5. **UX feedback is necessary for real-data scale** — spinner + stage progress + yields between heavy phases. Without these, browser shows "page unresponsive" dialog during 5-15 second main-thread blocks.
+6. **Cloudflare API token autonomous setup** — scoped token (Workers KV Edit + Pages Edit, today-only TTL) lets future sessions provision Cloudflare directly instead of dashboard walkthroughs. Documented as runbook Appendix A. Alex revokes after each session.
+7. **Verify gitignore before reading user-chosen secret paths** — defensive pattern after the close call on `.cloudflare-token/`.
+
+### Carry-forward audit (from [`phase-2-2-r-close-audit.md`](audits/phase-2-2-r-close-audit.md))
+
+- A — Auto-archive monitoring: ~~resolved S33~~. Stays dropped.
+- B — SESSION_LOG.md trim: **~3,610 lines after S41 entry (est.).** Past 2,000-line trim trigger; bundleable with C.
+- C — Memory-file citation anti-pattern in labor-report.md: 12 instances unchanged.
+- D — labor-report.md split: 8,518 lines unchanged. Defer until Phase 2.4.
+- E — Phase 2.2 first sub-phase pick: ~~resolved S24~~. Stays dropped.
+- F — Audit cadence: **18th event-based trigger** fired on schedule.
+- G — Cloudflare deploy verification gap: ~~**RESOLVED this session**~~. ADR-016 codified. Carry-forward retired.
+
+### What's NOT done
+
+- **Alex revokes the Cloudflare API token** — Cloudflare → My Profile → API Tokens. Today-only TTL means it auto-expires, but explicit revoke is cleaner.
+- **GitHub Pages → Cloudflare redirect cutover** (Step 10 of refreshed runbook) — Alex's S40 design pick was "redirect immediately"; filed as a Phase 2.2.s+ follow-up.
+- **Cross-tab nav from Eligibility → Positions** (carries from S39 + S40). Original "Recommended Option C" for S41; bumped by verification-first pick. Probable S42 pick.
+- **Lift modal overlay-frame to `lib/ui/Modal.tsx`** (carries).
+- **R2 migration** if snapshot ever exceeds 25 MB compressed. Tracking only.
+- **Web Worker for `JSON.parse`** — would eliminate the 5-15 second main-thread block on real-data restore. Tracking only; not urgent after the S41 UX work.
+
+### Outcome
+
+7 code/fix PRs shipped (#130–136) + 1 docs PR (this one). 823/823 tests passing (+10 net from S41 start of 813). `npm run build` clean across all 7 PRs (2 in-session fixes: TS 5.7 cast pattern + worktree-deps refresh — neither counted as regressions). Phase 2.2.r close audit fired on schedule (18th event-based trigger). 2 carry-forwards resolved this session (G — Cloudflare deploy verification gap + the doc-vs-impl gap on the runbook). Cross-device persistence verified end-to-end on real 331,893-row data; auto-load works in any fresh browser including incognito.
+
+### Lessons / improvements for next phase
+
+- **Real-data verification surfaces real architecture issues.** The S40 A+B combo (ship code-only + defer human verification) is a valid pattern, but the human-side verification IS NOT optional. The 7-PR S41 sequence is the proof that the runbook + verification step is where the real engineering happens — code shipped against mocks does not survive contact with real-data scale + edge behavior.
+- **Tight, single-purpose PRs scale.** Each of the 7 PRs solved one specific user-visible failure with one targeted change. Tests + build verified before merging. No regressions across the session.
+- **gzip is the unlock for large-data shared-state.** Without compression, Cloudflare's edge body cap + KV's value cap make any real-data publish impossible. With it, KosPos's largest realistic envelopes (375 MB JSON) compress to ~8 MB and fit comfortably under both limits.
+- **Server-side decompression of large gzipped bodies is impractical** on Cloudflare Workers' 128 MB memory cap. Storing gzipped bytes verbatim + moving validation client-side is the right shape.
+- **Same-origin defaults are the right shape for client-side config.** Requiring an explicit URL was the bug that blocked the entire cross-device value prop — fresh visitors don't have localStorage. Relative URLs resolve against the current page origin, which is what's needed.
+- **Interactive user-driven PR sequence is a valid collaboration shape** complementing the S40 autonomous-batched-upfront pattern. Pick based on whether the work is heavily-explorable (S41) or scoped (S40).
+- **Verify gitignore before reading user-chosen secret paths.** The `git check-ignore` + `git ls-files` check before `cat`ing the token file caught a real "stray git add would commit secret" risk. Reusable pattern for any user-chosen path.
+- **API-token autonomy is the right shape for cloud provisioning sessions.** Scoped tokens (least-privilege, short-TTL) + gitignored storage + post-session revocation = reproducible + auditable + secure cloud config. Runbook Appendix A documents the pattern.
+
+### Brief audit (Alex's collaboration this session)
+
+- **Prompt quality:** ✅ Interactive throughout. Each prompt was triggered by a real user-visible failure or UX complaint — never speculative. Screenshots when needed. Clear "ux is ok, proceed" signal at the end.
+- **Scope discipline:** ✅ 7 code PRs each single-purpose. Docs PR separate. No bundling.
+- **Verification habits:** ✅ Alex tested every PR in his actual browser, sent screenshots when something failed. The session's progression was failure-driven, not theoretical.
+- **Audit cadence:** ✅ 18th event-based trigger fires on schedule.
+- **Test count discipline:** ✅ `npm test --run` after every PR; `npm run build` before every PR. No PR landed with failing tests.
+- **Trust + delegation:** ✅ Mid-session opted into Cloudflare API token autonomy — let Claude drive the cloud config directly. New pattern documented for reuse.
+- **Decisive cuts:** ✅ "hold the ADR until verification finishes" (Alex picked this) was the right call; the ADR ended up needing to document the gzip + memory-cap + same-origin lessons that only surfaced during real-data verification. Hardcoding the ADR text earlier would have been amended multiple times.
