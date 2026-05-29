@@ -807,8 +807,13 @@ export function EligibilityView({ onViewPositions }: {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* Summary header */}
+      {/* Top-align: stats with a hint sub-line (Open postings, Active lists)
+          are taller than those without (Job codes, Lists last parsed);
+          `alignItems: center` staggered the big numbers off a shared
+          baseline. flex-start anchors every label + value to the same top
+          edge and lets the hints hang below. */}
       <div className="card" style={{
-        display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center',
+        display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start',
       }}>
         <Stat
           label="Job codes"
