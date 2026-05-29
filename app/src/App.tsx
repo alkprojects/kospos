@@ -37,9 +37,9 @@ const ALL_TABS: TabDef[] = [
   { id: 'labor',         label: 'Payroll',               devOnly: true },
   { id: 'staffing-plan', label: 'Hiring Plan',           devOnly: true },
   { id: 'separations',   label: 'Separations',           devOnly: true },
-  { id: 'probation',     label: 'Probation',             devOnly: true },
+  { id: 'probation',     label: 'Probation' },
   { id: 'inactive',      label: 'Inactive',              devOnly: true },
-  { id: 'eligibility',   label: 'Eligibility',           devOnly: true },
+  { id: 'eligibility',   label: 'Eligibility' },
   { id: 'importer',      label: 'Load Reports',          devOnly: true },
   { id: 'special-class', label: 'Special Class',         devOnly: true },
 ];
@@ -194,7 +194,9 @@ export default function App() {
         {tab === 'separations'   && <SeparationsView />}
         {tab === 'probation'     && <ProbationsView />}
         {tab === 'inactive'      && <InactiveView />}
-        {tab === 'eligibility'   && <EligibilityView />}
+        {tab === 'eligibility'   && (
+          <EligibilityView onViewPositions={() => setTab('positions')} />
+        )}
         {tab === 'special-class' && <SpecialClassView />}
       </main>
 
