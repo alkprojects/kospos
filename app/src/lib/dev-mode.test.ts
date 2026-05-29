@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { resolveDevMode, disableDevMode } from './dev-mode';
+import { resolveDevMode, disableDevMode, enableDevMode } from './dev-mode';
 
 const STORAGE_KEY = 'kospos:dev-mode';
 
@@ -33,6 +33,13 @@ describe('dev-mode', () => {
 
   it('reads from localStorage when no URL flag is present', () => {
     window.localStorage.setItem(STORAGE_KEY, '1');
+    expect(resolveDevMode()).toBe(true);
+  });
+
+  it('enableDevMode persists the flag so resolveDevMode reads true', () => {
+    expect(resolveDevMode()).toBe(false);
+    enableDevMode();
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe('1');
     expect(resolveDevMode()).toBe(true);
   });
 

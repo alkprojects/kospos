@@ -12,7 +12,7 @@ import { EligibilityView } from './lib/views/eligibility';
 import { LandingView } from './lib/views/landing';
 import { SpecialClassView } from './modules/special-class/SpecialClassView';
 import { useAppStore } from './lib/store';
-import { resolveDevMode, disableDevMode } from './lib/dev-mode';
+import { resolveDevMode, enableDevMode, disableDevMode } from './lib/dev-mode';
 import { useAutoSessionPersistence } from './lib/session/use-auto-persistence';
 
 type Tab =
@@ -85,10 +85,18 @@ export default function App() {
     return () => { delete window.__kospos; };
   }, [devMode]);
 
-  function handleDisableDevMode(): void {
-    disableDevMode();
-    setDevMode(false);
-    setTab('calculator');
+  // Single toggle behind both the header gear and the banner button. Enabling
+  // only reveals more tabs (the active one stays valid); disabling can hide the
+  // active tab, so fall back to the always-visible calculator as before.
+  function handleToggleDevMode(): void {
+    if (devMode) {
+      disableDevMode();
+      setDevMode(false);
+      setTab('calculator');
+    } else {
+      enableDevMode();
+      setDevMode(true);
+    }
   }
 
   const devOnlyCount = ALL_TABS.filter(t => t.devOnly).length;
@@ -114,7 +122,7 @@ export default function App() {
             <strong>Dev mode</strong> — {devOnlyCount} extra tabs visible
           </span>
           <button
-            onClick={handleDisableDevMode}
+            onClick={handleToggleDevMode}
             style={{
               fontSize: 11,
               padding: '2px 10px',
@@ -134,7 +142,7 @@ export default function App() {
       <header className="site-header">
         <div className="header-inner">
           <div className="logo">KosPos</div>
-          <nav style={{ display: 'flex', gap: 4, overflowX: 'auto', whiteSpace: 'nowrap', flexShrink: 1, minWidth: 0 }}>
+          <nav style={{ display: 'flex', gap: 4, overflowX: 'auto', whiteSpace: 'nowrap', flex: '1 1 auto', minWidth: 0 }}>
             {visibleTabs.map(t => (
               <button
                 key={t.id}
@@ -177,6 +185,34 @@ export default function App() {
               </button>
             ))}
           </nav>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={handleToggleDevMode}
+              aria-label={devMode ? 'Turn off dev mode' : 'Turn on dev mode'}
+              aria-pressed={devMode}
+              title={devMode ? 'Dev mode is on — click to turn off' : 'Turn on dev mode'}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 30,
+                height: 30,
+                padding: 0,
+                border: '1px solid',
+                borderColor: devMode ? 'var(--accent)' : 'var(--border)',
+                borderRadius: 8,
+                background: devMode ? 'var(--accent-soft)' : 'transparent',
+                color: devMode ? 'var(--accent)' : 'var(--muted)',
+                cursor: 'pointer',
+                fontSize: 15,
+                lineHeight: 1,
+              }}
+            >
+              ⚙
+            </button>
+          </div>
         </div>
       </header>
 
