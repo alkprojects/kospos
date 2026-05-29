@@ -10,6 +10,16 @@ export default defineConfig({
   // without manual configuration. See docs/runbooks/cloudflare-pages-setup.md.
   base: process.env.CF_PAGES ? '/' : '/kospos/',
   plugins: [react()],
+  server: {
+    // Pin the dev-server port and fail loudly if it's taken instead of
+    // silently falling back to 5174+. The preview tooling connects to the
+    // port named in .claude/launch.json (5173); a silent fallback would
+    // leave it pointed at a *different* worktree's app. With strictPort, a
+    // second concurrent `npm run dev` errors out clearly instead. See
+    // docs/WORKFLOW.md § "Visual verification protocol".
+    port: 5173,
+    strictPort: true,
+  },
   test: {
     environment: 'jsdom',
     globals: true,
