@@ -1,9 +1,9 @@
 /**
- * ScrapeSourcesPanel — live data-source acquisition for the Load Data tab.
+ * ScrapeSourcesPanel — live data-source acquisition for the Load Reports tab.
  *
  * Phase 2.2.t (Alex's S44 directive): the two scrape refresh controls used
  * to live on the Eligibility tab's summary header. They moved here so the
- * Load Data tab is the single home for ALL data acquisition — uploaded
+ * Load Reports tab is the single home for ALL data acquisition — uploaded
  * labor reports (FilePicker, dev-gated) plus the live scrapes — sitting
  * right next to the Save/Publish controls (SessionExportImport). The
  * Eligibility tab is now a pure read-only view of the rollup.

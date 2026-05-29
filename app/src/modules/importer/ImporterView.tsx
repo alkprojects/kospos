@@ -5,7 +5,7 @@ import { DataIssuesPanel } from '../issues/DataIssuesPanel';
 import { useAppStore } from '../../lib/store';
 
 /**
- * Load Data tab — the single home for data acquisition + session
+ * Load Reports tab — the single home for data acquisition + session
  * persistence. Always visible (Phase 2.2.t). The live scrapes
  * (ScrapeSourcesPanel) and Save/Publish work for everyone; the
  * labor-report file importers (FilePicker) are dev-gated since those are

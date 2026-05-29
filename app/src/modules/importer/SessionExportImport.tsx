@@ -1,5 +1,5 @@
 /**
- * SessionExportImport — the **Publish** panel on the Load Data tab.
+ * SessionExportImport — the **Publish** panel on the Load Reports tab.
  *
  * Local-file Save / Load moved to the header top bar (`SessionSaveLoad`) in
  * Phase 2.2.u. This panel now owns the heavier, less-frequent session-sharing

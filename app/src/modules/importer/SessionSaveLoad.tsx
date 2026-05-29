@@ -1,10 +1,10 @@
 /**
  * SessionSaveLoad — compact Save / Load-session control for the header top bar.
  *
- * Moved out of the Load Data tab's session panel (Phase 2.2.u, Alex's S45 ask:
+ * Moved out of the Load Reports tab's session panel (Phase 2.2.u, Alex's S45 ask:
  * "move save/load session to the top bar") so the local-file Save / Load is
  * reachable from any tab. The heavier Publish + Cloudflare-settings controls
- * stay on the Load Data tab (`SessionExportImport`). Both share the snapshot
+ * stay on the Load Reports tab (`SessionExportImport`). Both share the snapshot
  * plumbing via `useSessionSnapshot`.
  *
  * Status is a transient inline note to the left of the buttons: success

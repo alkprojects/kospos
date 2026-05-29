@@ -10,7 +10,7 @@
  *     of postings + DHR lists, with its filter toolbar + detail modal).
  *   - **Job Postings** — the flat SF Careers postings table.
  *
- * Acquisition / refresh stays on the **Load Data** tab (a separate top-level
+ * Acquisition / refresh stays on the **Load Reports** tab (a separate top-level
  * tab) — this tab is for *viewing* the loaded tables. Room to add the imported
  * source tables (P&P / BFM / OBI) as further sub-tabs later.
  *

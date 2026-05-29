@@ -1,5 +1,5 @@
 /**
- * Tests for the Load Data hub (Phase 2.2.t — Alex's S44 directive):
+ * Tests for the Load Reports hub (Phase 2.2.t — Alex's S44 directive):
  *  - FilePicker honors `disabled` (the dev-gated file imports).
  *  - ScrapeSourcesPanel renders the refresh controls relocated from the
  *    Eligibility tab.
@@ -42,7 +42,7 @@ describe('ScrapeSourcesPanel', () => {
   });
 });
 
-describe('ImporterView — Load Data hub', () => {
+describe('ImporterView — Load Reports hub', () => {
   it('dev-gates the file importer outside dev mode but keeps the live scrapes', () => {
     render(<ImporterView devMode={false} />);
     expect(screen.getByLabelText('Upload labor report files')).toHaveAttribute('aria-disabled', 'true');

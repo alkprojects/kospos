@@ -6,7 +6,7 @@
  * Posting API). Sibling of the Eligibility Lists table under the Data tab;
  * Alex's S45 ask was "eligibility lists and job postings as separate tables."
  *
- * Data acquisition (the Refresh job-postings button) lives on the Load Data
+ * Data acquisition (the Refresh job-postings button) lives on the Load Reports
  * tab (ScrapeSourcesPanel) — same split as the Eligibility view. This is a
  * pure view: summary stats + a search box + the table, newest posting first.
  *
@@ -138,7 +138,7 @@ export function JobPostingsView() {
               <tr>
                 <td colSpan={5} style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>
                   {jobPostings.length === 0
-                    ? 'No job postings loaded — refresh job postings from the Load Data tab.'
+                    ? 'No job postings loaded — refresh job postings from the Load Reports tab.'
                     : 'No postings match your search.'}
                 </td>
               </tr>
@@ -183,7 +183,7 @@ export function JobPostingsView() {
 
       <div style={{ fontSize: 11, color: 'var(--muted)' }}>
         Open postings from SF Careers (SmartRecruiters Posting API). Refresh them
-        from the Load Data tab. Job codes are parsed from the posting title; a
+        from the Load Reports tab. Job codes are parsed from the posting title; a
         blank job code means the parser couldn't find one (the posting still
         lists here). The per-job-code "active posting / active list" rollup is on
         the Eligibility Lists tab.
