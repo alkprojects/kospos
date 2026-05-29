@@ -3749,3 +3749,39 @@ labor-report.md split + SESSION_LOG summarization held: both are human-skim-only
 - **Trust + delegation:** ✅ "whatever you suggest, any reason not doing all?" delegated the call while still asking for the tradeoff — the right shape for a setup audit.
 - **Audit cadence:** ✅ Out-of-band capability trigger; the Phase 2.2.s close audit correctly stays pending for S43 (no phase shipped).
 - **Test discipline:** ✅ Baseline 823 confirmed at start; +2 from the security fix; `npm run build` before every code PR.
+
+## Session 43 — Phase 2.2.s: cross-tab nav Eligibility→Positions + promote tabs (1 feature PR) (2026-05-28)
+
+**Phase 2.2.s shipped.** Alex's pick (via AskUserQuestion) was **Option C — cross-tab nav from Eligibility → Positions + lift `devOnly`**, the recommendation that had carried for four consecutive sessions (S40–S43), bumped each time by higher-priority work that is now all resolved. Default model: Opus 4.8 (fast mode), per the S42-refreshed WORKFLOW.md.
+
+### What shipped
+
+[PR #142](https://github.com/alkprojects/kospos/pull/142) — `feat: cross-tab nav Eligibility→Positions + promote Eligibility/Probation tabs`. Each Eligibility summary row gains a **"Positions →"** pill that sets a shared job-code scope (`usePositionsScope`) and fires an `onViewPositions` callback so the App shell switches to the Positions tab. PositionsView reads the scope, filters its list to that job code (trim+uppercase normalized), shows a clearable **"Filtered to job code: … · from Eligibility"** banner, and a job-code-aware empty state. With the nav landed (the S34 carry-forward), the **Eligibility + Probation** tabs were promoted out of `devOnly` in App.tsx.
+
+Plus this docs PR — Phase 2.2.s close audit + this SESSION_LOG entry + the S44 SESSION_HANDOFF.
+
+### Design pick (the "top of session" decision)
+
+Shared **Zustand scope store**, *not* URL hash routing. The app has no router; every cross-cutting concern is already a Zustand store; the Positions→Payroll nav already works exactly this way (`useLaborScope` + a parameterless tab-switch callback). The new `usePositionsScope` is a near-clone of `useLaborScope` minus the unused `requestSeq` counter (verified unused via grep). URL routing would be net-new infrastructure entangled with the GitHub Pages `/kospos/` base path and the pending Cloudflare cutover. Trade-off: the filter isn't URL-bookmarkable — accepted for a single-snapshot local workspace. No ADR: within-pattern extension, not a new direction.
+
+### Visual verification (agent-first, first feature-PR use of the S42 protocol)
+
+The feature needs data in two independent stores (`useScrapers` for Eligibility + `useAppStore` for P&P), neither exposed on `window`. Technique: since the dev server is Vite, `preview_eval` can `import('/kospos/src/lib/.../store.ts')` to reach the **same module-singleton store instances** the app uses, then `.getState().setX(...)` to seed them live — no code change, no network. Seeded 2 eligibility rollups + 2 P&P positions sharing job codes, drove the real pill click. Verified: devOnly lift (non-dev nav = Welcome · Job Class Calculator · Positions · Probation · Eligibility), clean pill rendering, end-to-end nav + banner + filter (Shown 1 of 2), Clear-filter restore, scope persistence across tab switches, zero console errors.
+
+### Outcome
+
+1 feature PR (#142) + 1 docs PR. Tests **825 → 839** (+14: 5 scope-store unit + 5 PositionsView scope render + 4 Eligibility pill). `npm run build` clean first-run (`tsc -b` + vite). GitHub Pages deploy succeeded; live site in sync. Phase 2.2.s close audit fired (this session shipped a sub-phase). The standing four-session "Recommended Option C" is now done.
+
+### Lessons / improvements for next phase
+
+- **The precedent made the design pick trivial.** The prompt framed "scope store vs URL route" as an open decision, but `useLaborScope` had already answered it. Recognizing the existing cross-tab idiom (set scope + fire parameterless callback) turned a design question into a mirror-the-pattern task — and kept the change small, testable, and consistent.
+- **Vite dynamic-`import()` is the clean way to stage store state in the preview.** For store-driven features whose stores aren't on `window`, `import('/kospos/src/...')` from `preview_eval` gets the live singleton without test-only hooks or exposing internals. Reusable for every future view sub-phase.
+- **Cut the cargo-cult field.** `useLaborScope` carries a `requestSeq` counter that App.tsx never reads (grep-confirmed). The new store omits it with a comment explaining why — copying the *working* shape, not the *whole* shape.
+
+### Brief audit (Alex's collaboration this session)
+
+- **Prompt quality:** ✅ The handoff prompt was self-contained and ranked — Option C clearly recommended with the four-session carry rationale, scope + branch name pre-specified, guardrails explicit. Minimal back-and-forth needed.
+- **Scope discipline:** ✅ Single-purpose PR, no bundling; the modal overlay-frame lift (carry-forward H) correctly left out per the guardrail; the Cloudflare cutover (a bundleable temptation) left for its own session.
+- **Trust + delegation:** ✅ Picked the recommended option and let the design pick + implementation run, consistent with the "guide me, then act" working agreement.
+- **Audit cadence:** ✅ 19th event-based trigger; fired correctly on this sub-phase close (S42 setup-only correctly fired none).
+- **Test discipline:** ✅ Baseline 825 confirmed after `npm install` in the fresh worktree; +14 from three new test files; `npm run build` before the PR.
