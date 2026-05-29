@@ -97,7 +97,9 @@ function RefreshPostingsButton() {
 // CORS-proxy chain (replaces the manual-paste-as-primary path per Alex's
 // S35 directive). Tries corsproxy.io → allorigins.win → codetabs.com per
 // page; falls back to the optional Cloudflare-Worker URL when configured.
-// Each page is ~500ms apart (polite throttle); 66 pages takes ~30s.
+// Pages are fetched in bounded-concurrency waves (Phase 2.2.v) instead of
+// one-at-a-time with a 500ms throttle, cutting a full ~66-page scrape from
+// ~50s to ~5s. A per-proxy timeout keeps a hung proxy from stalling a wave.
 // ---------------------------------------------------------------------------
 
 function RefreshEligibilityListsButton() {
