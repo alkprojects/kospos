@@ -10,6 +10,7 @@ import {
   buildSessionFile,
   defaultSessionFilename,
   parseSessionFile,
+  parseSessionFileFromValue,
 } from './snapshot';
 import type { ImportedRow } from '../importers/types';
 import type { PlannedAction } from '../staffing-plan';
@@ -108,6 +109,80 @@ function probation(id: string, employeeName: string): Probation {
     createdAt: '2026-05-28T00:00:00.000Z',
   };
 }
+
+// ---------------------------------------------------------------------------
+// parseSessionFileFromValue — skips JSON.parse (S41 perf fix)
+// ---------------------------------------------------------------------------
+
+describe('parseSessionFileFromValue', () => {
+  it('accepts an already-parsed envelope without re-parsing', () => {
+    const file = buildSessionFile({
+      loadedRows: [],
+      lastBfmImportAt: '',
+      staffingPlanActions: new Map(),
+      staffingPlanDerivedRemoved: new Set(),
+      positionNotes: new Map(),
+    });
+    // Pass the live object directly — no JSON.stringify round-trip.
+    // On a real 375 MB envelope this is what saves the page from
+    // freezing during the auto-load.
+    const result = parseSessionFileFromValue(file);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Same object identity (or structurally identical — the validator
+      // doesn't clone).
+      expect(result.file.kind).toBe('kospos-session');
+      expect(result.file.schemaVersion).toBe(SESSION_SCHEMA_VERSION);
+    }
+  });
+
+  it('rejects a non-envelope value', () => {
+    const result = parseSessionFileFromValue({ wrong: 'shape' });
+    expect(result.ok).toBe(false);
+    if (!result.ok && result.reason === 'not-a-session-file') {
+      expect(result.detail).toMatch(/kospos-session/);
+    }
+  });
+
+  it('rejects null', () => {
+    const result = parseSessionFileFromValue(null);
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects schema-version mismatch', () => {
+    const result = parseSessionFileFromValue({
+      kind: 'kospos-session',
+      schemaVersion: 99,
+      savedAt: '2026-05-28T00:00:00Z',
+      payload: { loadedRows: [], lastBfmImportAt: '', staffingPlanActions: [], staffingPlanDerivedRemoved: [], positionNotes: [] },
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok && result.reason === 'schema-mismatch') {
+      expect(result.got).toBe(99);
+      expect(result.expected).toBe(SESSION_SCHEMA_VERSION);
+    }
+  });
+
+  it('parseSessionFile + parseSessionFileFromValue give identical results on the same input', () => {
+    // Documents that the JSON-string path and the parsed-value path
+    // never diverge — same validator, just different entry points.
+    const file = buildSessionFile({
+      loadedRows: [],
+      lastBfmImportAt: '2026-05-28',
+      staffingPlanActions: new Map(),
+      staffingPlanDerivedRemoved: new Set(),
+      positionNotes: new Map(),
+    });
+    const json = JSON.stringify(file);
+    const fromString = parseSessionFile(json);
+    const fromValue = parseSessionFileFromValue(file);
+    expect(fromString.ok).toBe(true);
+    expect(fromValue.ok).toBe(true);
+    if (fromString.ok && fromValue.ok) {
+      expect(fromString.file.savedAt).toBe(fromValue.file.savedAt);
+    }
+  });
+});
 
 // ---------------------------------------------------------------------------
 // buildSessionFile + parseSessionFile round-trip
