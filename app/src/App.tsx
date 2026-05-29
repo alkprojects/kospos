@@ -40,7 +40,7 @@ const ALL_TABS: TabDef[] = [
   { id: 'probation',     label: 'Probation' },
   { id: 'inactive',      label: 'Inactive',              devOnly: true },
   { id: 'eligibility',   label: 'Eligibility' },
-  { id: 'importer',      label: 'Load Reports',          devOnly: true },
+  { id: 'importer',      label: 'Load Data' },
   { id: 'special-class', label: 'Special Class',         devOnly: true },
 ];
 
@@ -185,7 +185,7 @@ export default function App() {
           <LandingView persistence={persistence} onNavigate={setTab} />
         )}
         {tab === 'calculator'    && <CalculatorView />}
-        {tab === 'importer'      && <ImporterView />}
+        {tab === 'importer'      && <ImporterView devMode={devMode} />}
         {tab === 'positions'     && (
           <PositionsView onViewPayroll={() => setTab('labor')} />
         )}

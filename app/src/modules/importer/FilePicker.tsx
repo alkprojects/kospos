@@ -31,7 +31,7 @@ function nextFrame(): Promise<void> {
   return new Promise(resolve => requestAnimationFrame(() => resolve()));
 }
 
-export function FilePicker() {
+export function FilePicker({ disabled = false }: { disabled?: boolean } = {}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const addRows = useAppStore(s => s.addRows);
   const [statuses, setStatuses] = useState<FileStatus[]>([]);
@@ -152,14 +152,16 @@ export function FilePicker() {
           padding: '28px 24px',
           textAlign: 'center',
           background: 'var(--surface)',
-          cursor: 'pointer',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.55 : 1,
         }}
-        onClick={() => inputRef.current?.click()}
+        onClick={disabled ? undefined : () => inputRef.current?.click()}
         onDragOver={e => e.preventDefault()}
-        onDrop={e => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
+        onDrop={disabled ? e => e.preventDefault() : e => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
         role="button"
-        tabIndex={0}
-        onKeyDown={e => e.key === 'Enter' && inputRef.current?.click()}
+        tabIndex={disabled ? -1 : 0}
+        aria-disabled={disabled}
+        onKeyDown={disabled ? undefined : e => e.key === 'Enter' && inputRef.current?.click()}
         aria-label="Upload labor report files"
       >
         <input
@@ -167,12 +169,15 @@ export function FilePicker() {
           type="file"
           accept=".xlsx,.xlsm,.csv"
           multiple
+          disabled={disabled}
           style={{ display: 'none' }}
           onChange={e => handleFiles(e.target.files)}
         />
         <div style={{ fontSize: 28, marginBottom: 8 }}>📂</div>
         <div style={{ fontWeight: 600, marginBottom: 4 }}>
-          {loading ? 'Reading…' : 'Drop files here or click to browse'}
+          {disabled
+            ? 'Importing source files requires dev mode'
+            : loading ? 'Reading…' : 'Drop files here or click to browse'}
         </div>
         <div style={{ fontSize: 13, color: 'var(--muted)' }}>
           Accepts .xlsx, .xlsm, and .csv — BFM Eturns, PS HCM P&P, OBI Payroll

@@ -19,13 +19,14 @@
  *     only), exam type (score-report / eligible-list), department
  *     multi-select, citywide-only toggle.
  *
- * Layout:
- *   - Summary header: totals + last-refreshed-at per source + refresh
- *     buttons + clear-all
- *   - Backup proxy settings (collapsed)
- *   - Advanced fallback: manual paste (collapsed)
+ * Layout (read-only view — data acquisition lives on the Load Data tab):
+ *   - Summary header: per-source totals + last-refreshed-at (status only)
  *   - Filter toolbar (search · status · exam type · department · citywide)
  *   - Per-jobCode summary table — click row to open detail modal
+ *
+ * Phase 2.2.t (Alex's S44 directive): the refresh buttons + backup-proxy +
+ * manual-paste controls moved to the Load Data tab (ScrapeSourcesPanel) so
+ * all data acquisition lives in one place; this tab is now a pure view.
  *
  * Phase 2.2.s (Option C): each summary row gains a "Positions →" affordance
  * that sets the Positions job-code scope (usePositionsScope) and fires the
@@ -41,13 +42,8 @@ import {
   applyEligibilityFilters,
   buildJobCodeRollups,
   collectDepartments,
-  fetchDhrExamResults,
-  fetchJobPostings,
-  parseDhrExamHtml,
   summarizeRollup,
   useScrapers,
-  FetchDhrError,
-  FetchJobPostingsError,
 } from '../../scrapers';
 import type {
   EligibilityFilters,
@@ -86,316 +82,6 @@ function timeAgo(iso: string): string {
   if (hr < 24) return `${hr}h ago`;
   const d = Math.floor(hr / 24);
   return `${d}d ago`;
-}
-
-// ---------------------------------------------------------------------------
-// Refresh-postings affordance — fires the live fetch + manages the
-// progress / error UI inline (avoids dragging in the full LoadingOverlay
-// modal since this scrape is fast).
-// ---------------------------------------------------------------------------
-
-function RefreshPostingsButton() {
-  const setJobPostings = useScrapers(s => s.setJobPostings);
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<string>('');
-  const [error, setError] = useState<string | null>(null);
-
-  async function run() {
-    setBusy(true);
-    setError(null);
-    setProgress('Connecting to SmartRecruiters…');
-    try {
-      const postings = await fetchJobPostings({
-        onProgress: info => {
-          setProgress(`Fetched ${info.postingsSoFar} of ${info.totalFound} postings (page ${info.page})…`);
-        },
-      });
-      setJobPostings(postings);
-      setProgress(`Loaded ${postings.length} postings.`);
-    } catch (err) {
-      const msg = err instanceof FetchJobPostingsError
-        ? err.message
-        : err instanceof Error ? err.message : String(err);
-      setError(msg);
-      setProgress('');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <button
-        onClick={run}
-        disabled={busy}
-        style={{
-          padding: '6px 14px',
-          border: '1px solid var(--accent)', borderRadius: 14,
-          background: busy ? 'var(--surface)' : 'var(--accent)',
-          color: busy ? 'var(--muted)' : '#fff',
-          cursor: busy ? 'not-allowed' : 'pointer',
-          fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-        }}
-      >
-        {busy ? '↻ Refreshing…' : '↻ Refresh job postings'}
-      </button>
-      {progress && (
-        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{progress}</span>
-      )}
-      {error && (
-        <span style={{ fontSize: 11, color: '#7f1d1d' }}>
-          {error}
-        </span>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Refresh-eligibility-lists affordance — live fetch through the public
-// CORS-proxy chain (replaces the manual-paste-as-primary path per Alex's
-// S35 directive). Tries corsproxy.io → allorigins.win → codetabs.com per
-// page; falls back to the optional Cloudflare-Worker URL when configured.
-// Each page is ~500ms apart (polite throttle); 66 pages takes ~30s.
-// ---------------------------------------------------------------------------
-
-function RefreshEligibilityListsButton() {
-  const setEligibilityLists = useScrapers(s => s.setEligibilityLists);
-  const dhrWorkerUrl = useScrapers(s => s.dhrWorkerUrl);
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<string>('');
-  const [error, setError] = useState<string | null>(null);
-
-  async function run() {
-    setBusy(true);
-    setError(null);
-    setProgress('Connecting to sfdhr.org via CORS proxy…');
-    try {
-      const lists = await fetchDhrExamResults({
-        workerUrl: dhrWorkerUrl || undefined,
-        onProgress: info => {
-          setProgress(`Fetched ${info.rowsSoFar} rows from ${info.pagesSoFar} pages (via ${info.proxyUsed})…`);
-        },
-      });
-      // Wholesale replace — this fetch returns the entire corpus, not
-      // an additive paste like the manual fallback.
-      setEligibilityLists(lists);
-      setProgress(`Loaded ${lists.length} eligibility lists.`);
-    } catch (err) {
-      if (err instanceof FetchDhrError) {
-        const detail = err.proxyAttempts.map(a => `${a.label}: ${a.detail}`).join(' · ');
-        setError(`All proxies failed. ${detail}. Try again, or use the manual-paste fallback below.`);
-      } else {
-        setError(err instanceof Error ? err.message : String(err));
-      }
-      setProgress('');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <button
-        onClick={run}
-        disabled={busy}
-        style={{
-          padding: '6px 14px',
-          border: '1px solid var(--accent)', borderRadius: 14,
-          background: busy ? 'var(--surface)' : 'var(--accent)',
-          color: busy ? 'var(--muted)' : '#fff',
-          cursor: busy ? 'not-allowed' : 'pointer',
-          fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-        }}
-      >
-        {busy ? '↻ Refreshing eligibility lists…' : '↻ Refresh eligibility lists'}
-      </button>
-      {progress && (
-        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{progress}</span>
-      )}
-      {error && (
-        <span style={{ fontSize: 11, color: '#7f1d1d' }}>
-          {error}
-        </span>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Worker URL settings — Alex's optional Cloudflare-Worker proxy slot. The
-// default public proxy chain handles the common case; this is the backup
-// for when those proxies are flaky / rate-limited. Persists to localStorage
-// so the URL survives reloads (see store.ts `dhrWorkerUrl`).
-// ---------------------------------------------------------------------------
-
-function WorkerUrlSettings() {
-  const dhrWorkerUrl = useScrapers(s => s.dhrWorkerUrl);
-  const setDhrWorkerUrl = useScrapers(s => s.setDhrWorkerUrl);
-  const [draft, setDraft] = useState(dhrWorkerUrl);
-  const [saved, setSaved] = useState(false);
-
-  function save() {
-    setDhrWorkerUrl(draft);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
-  }
-
-  function clear() {
-    setDraft('');
-    setDhrWorkerUrl('');
-  }
-
-  return (
-    <details className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-      <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-        Backup proxy: Cloudflare-Worker URL {dhrWorkerUrl && <span style={{ color: '#1a7a3c', fontWeight: 400 }}>· configured</span>}
-      </summary>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-          The default public CORS proxies (corsproxy.io, allorigins.win, codetabs.com)
-          handle the common case. If they're rate-limited / down / blocked, deploy
-          a 10-line Cloudflare Worker that proxies <code>?url=&lt;upstream&gt;</code>
-          to fetch and return the body. Paste its URL here as a backup.
-        </span>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input
-            type="url"
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            placeholder="https://my-worker.example.workers.dev"
-            aria-label="Cloudflare Worker URL"
-            style={{
-              flex: '1 1 280px',
-              padding: '4px 10px',
-              border: '1px solid var(--border)', borderRadius: 4,
-              fontSize: 12, fontFamily: 'monospace',
-              background: 'var(--surface)', color: 'inherit',
-            }}
-          />
-          <button
-            onClick={save}
-            disabled={draft === dhrWorkerUrl}
-            style={{
-              padding: '4px 12px',
-              border: '1px solid var(--accent)', borderRadius: 12,
-              background: draft === dhrWorkerUrl ? 'var(--surface)' : 'var(--accent)',
-              color: draft === dhrWorkerUrl ? 'var(--muted)' : '#fff',
-              cursor: draft === dhrWorkerUrl ? 'not-allowed' : 'pointer',
-              fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
-            }}
-          >
-            {saved ? '✓ Saved' : 'Save'}
-          </button>
-          {dhrWorkerUrl && (
-            <button
-              onClick={clear}
-              style={{
-                padding: '4px 12px',
-                border: '1px solid var(--border)', borderRadius: 12,
-                background: 'transparent', color: 'var(--muted)', cursor: 'pointer',
-                fontSize: 12, fontFamily: 'inherit',
-              }}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      </div>
-    </details>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Manual-paste fallback — kept as a `<details>`-collapsed escape hatch
-// for the rare case the proxy chain is fully blocked. Was the primary
-// path in Phase 2.2.k; demoted in Phase 2.2.l per Alex's directive.
-// ---------------------------------------------------------------------------
-
-function PasteDhrPanel() {
-  const appendEligibilityLists = useScrapers(s => s.appendEligibilityLists);
-  const [paste, setPaste] = useState('');
-  const [status, setStatus] = useState<string | null>(null);
-
-  function parseAndApply() {
-    setStatus(null);
-    const trimmed = paste.trim();
-    if (!trimmed) {
-      setStatus('Paste the page HTML from sfdhr.org first.');
-      return;
-    }
-    try {
-      const lists = parseDhrExamHtml(trimmed);
-      if (lists.length === 0) {
-        setStatus('No exam-results rows found in the pasted HTML. Check that you copied the whole page or just the <table> from sfdhr.org/past-examination-results.');
-        return;
-      }
-      appendEligibilityLists(lists);
-      setStatus(`Parsed ${lists.length} rows.`);
-      setPaste('');
-    } catch (err) {
-      setStatus(`Parse error: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
-  return (
-    <details className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-      <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-        Advanced fallback: paste DHR HTML manually
-      </summary>
-      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-        Use this only when the live refresh above fails (all proxies blocked /
-        offline). Open{' '}
-        <a
-          href="https://sfdhr.org/past-examination-results"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: 'var(--accent)' }}
-        >
-          https://sfdhr.org/past-examination-results
-        </a>
-        {' '}in a new tab, copy the page (Ctrl+A · Ctrl+C), paste below, click Parse.
-        Repeat per page — Parse appends without replacing prior pastes.
-      </span>
-      <textarea
-        value={paste}
-        onChange={e => setPaste(e.target.value)}
-        placeholder="Paste the copied HTML here…"
-        rows={6}
-        aria-label="Paste DHR HTML"
-        style={{
-          padding: '6px 10px',
-          border: '1px solid var(--border)', borderRadius: 4,
-          fontSize: 11, fontFamily: 'monospace',
-          background: 'var(--surface)', color: 'inherit',
-          resize: 'vertical',
-        }}
-      />
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button
-          onClick={parseAndApply}
-          disabled={!paste.trim()}
-          style={{
-            padding: '5px 14px',
-            border: '1px solid var(--accent)', borderRadius: 14,
-            background: paste.trim() ? 'var(--accent)' : 'var(--surface)',
-            color: paste.trim() ? '#fff' : 'var(--muted)',
-            cursor: paste.trim() ? 'pointer' : 'not-allowed',
-            fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-          }}
-        >
-          Parse + add to KosPos
-        </button>
-        {status && (
-          <span style={{ fontSize: 11, color: status.startsWith('Parsed') ? '#1a7a3c' : '#7f1d1d' }}>
-            {status}
-          </span>
-        )}
-      </div>
-      </div>
-    </details>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -762,7 +448,6 @@ export function EligibilityView({ onViewPositions }: {
   const jobPostingsRefreshedAt = useScrapers(s => s.jobPostingsRefreshedAt);
   const eligibilityLists = useScrapers(s => s.eligibilityLists);
   const eligibilityListsRefreshedAt = useScrapers(s => s.eligibilityListsRefreshedAt);
-  const clearAll = useScrapers(s => s.clearAll);
   const setPositionsScope = usePositionsScope(s => s.setJobCode);
 
   const [filters, setFilters] = useState<EligibilityFilters>(EMPTY_ELIGIBILITY_FILTERS);
@@ -838,28 +523,7 @@ export function EligibilityView({ onViewPositions }: {
           label="Lists last parsed"
           value={eligibilityListsRefreshedAt ? timeAgo(eligibilityListsRefreshedAt) : 'never'}
         />
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <RefreshPostingsButton />
-          <RefreshEligibilityListsButton />
-          {(jobPostings.length > 0 || eligibilityLists.length > 0) && (
-            <button
-              onClick={clearAll}
-              style={{
-                padding: '6px 12px', height: 30,
-                border: '1px solid var(--border)', borderRadius: 14,
-                background: 'transparent', color: 'var(--muted)', cursor: 'pointer',
-                fontSize: 12, fontFamily: 'inherit',
-              }}
-            >
-              Clear all
-            </button>
-          )}
-        </div>
       </div>
-
-      {/* Backup proxy settings + manual-paste fallback (both collapsed by default) */}
-      <WorkerUrlSettings />
-      <PasteDhrPanel />
 
       {/* Filter toolbar */}
       <FilterToolbar
@@ -912,15 +576,11 @@ export function EligibilityView({ onViewPositions }: {
       <div style={{ fontSize: 11, color: 'var(--muted)' }}>
         Tab 11. KosPos is the system of record for the per-job-code
         "active posting / active list" rollup. Click any row for the
-        per-list / per-posting drill-down. Open postings come live from
-        SmartRecruiters (the SF Careers platform). Eligibility lists come
-        from sfdhr.org via a public CORS-proxy chain (corsproxy.io →
-        allorigins.win → codetabs.com); if all proxies fail, a Cloudflare-
-        Worker URL can be configured as backup, and a manual-paste panel
-        remains as last-resort fallback. Active = posted within 2 years
-        (CSC Rule 411A/412 — lists may be extended; v1 is age-only).
-        Refreshing replaces the lists wholesale; manual paste appends with
-        dedupe by (jobCode, listId, postDate).
+        per-list / per-posting drill-down. Refresh job postings +
+        eligibility lists from the Load Data tab (postings via
+        SmartRecruiters / SF Careers; eligibility lists from sfdhr.org via a
+        public CORS-proxy chain). Active = posted within 2 years (CSC Rule
+        411A/412 — lists may be extended; v1 is age-only).
       </div>
 
       {openRollup && (
