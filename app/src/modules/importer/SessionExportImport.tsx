@@ -217,9 +217,19 @@ export function SessionExportImport() {
   const totalHidden = staffingDerivedRemoved.size;
   const totalSeparations = pendingSeparations.size;
   const totalProbations = probations.size;
+  // Scraper data (live job postings + DHR eligibility lists) is first-class
+  // session content: it auto-saves to IDB and rides along in the published
+  // snapshot via buildCurrentSnapshot(). Count it here so a scraper-only
+  // session (e.g. an eligibility refresh with no labor report loaded) is
+  // still savable + publishable — otherwise the buttons stay disabled and
+  // the refresh can't persist across devices (S44 directive: treat
+  // refreshes like data uploads).
+  const totalPostings = jobPostings.length;
+  const totalEligibilityLists = eligibilityLists.length;
   const saveDisabled =
     loadedRows.length === 0 && totalActions === 0 && totalNotes === 0 &&
-    totalHidden === 0 && totalSeparations === 0 && totalProbations === 0;
+    totalHidden === 0 && totalSeparations === 0 && totalProbations === 0 &&
+    totalPostings === 0 && totalEligibilityLists === 0;
   // S41 fix: pagesUrl is now optional (the cloudflare-publish helpers
   // default to a relative /api/snapshot when it's empty), so the
   // publish button only requires the secret. From the deployed site
@@ -235,7 +245,8 @@ export function SessionExportImport() {
         <span style={{ fontSize: 12, color: 'var(--muted)' }}>
           Save the current in-memory state to a JSON file on your machine, then
           reload it on a fresh browser to skip re-importing every file.
-          Includes loaded rows + Hiring Plan actions + position notes.
+          Includes loaded rows + Hiring Plan actions + position notes + the
+          latest job-posting / eligibility-list refresh.
         </span>
       </div>
 
@@ -319,6 +330,8 @@ export function SessionExportImport() {
           {totalNotes > 0 && <> · {totalNotes} note{totalNotes === 1 ? '' : 's'}</>}
           {totalSeparations > 0 && <> · {totalSeparations} separation{totalSeparations === 1 ? '' : 's'}</>}
           {totalProbations > 0 && <> · {totalProbations} probation{totalProbations === 1 ? '' : 's'}</>}
+          {totalPostings > 0 && <> · {totalPostings.toLocaleString('en-US')} posting{totalPostings === 1 ? '' : 's'}</>}
+          {totalEligibilityLists > 0 && <> · {totalEligibilityLists.toLocaleString('en-US')} eligibility list{totalEligibilityLists === 1 ? '' : 's'}</>}
         </span>
       </div>
 
