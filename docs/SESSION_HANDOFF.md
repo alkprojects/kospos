@@ -9,9 +9,9 @@ The next session reads this before doing anything else.
 ## Current status (end of Session 48 — Phase 2.2.x, 2026-05-29)
 
 **Phase:** **Phase 2.2.x shipped — the no-visual-change core of the C-series UI-primitives arc** (Alex picked C1+C4+C5; away on remote). Shipped as three single-purpose PRs. **C4 + the C5 color-consolidation tail were deliberately deferred** — they move pixels and need Alex's aesthetic sign-off — into a decision-ready proposal. Next sub-phase pick (**2.2.y**) moves to Session 49.
-**Last main commit:** this docs PR (Phase 2.2.x close). Three feature PRs merged: [#161](https://github.com/alkprojects/kospos/pull/161) [#162](https://github.com/alkprojects/kospos/pull/162) [#163](https://github.com/alkprojects/kospos/pull/163).
+**Last main commit:** the S48 code-health-review docs PR (a bonus safe-dedup menu the away-time review agents produced — [s48-code-health-review.md](proposals/s48-code-health-review.md)); before it, the Phase 2.2.x close PR ([#164](https://github.com/alkprojects/kospos/pull/164)) + the three feature PRs [#161](https://github.com/alkprojects/kospos/pull/161) [#162](https://github.com/alkprojects/kospos/pull/162) [#163](https://github.com/alkprojects/kospos/pull/163).
 **Tests:** **874 / 874** (no delta — pure refactors).
-**Branches in flight:** none post-merge (this docs PR pending).
+**Branches in flight:** none post-merge.
 **Live site:** GitHub Pages + Cloudflare deploys green.
 
 ### What shipped
@@ -38,6 +38,7 @@ The next session reads this before doing anything else.
 | ~~C1~~ | ~~Extract `ModalFooter`/`Field`/✕/`OverrideBox`~~ | **shipped (#161)** | **RESOLVED — retired** |
 | ~~popup~~ | ~~The popup suggestion~~ | Alex: **"don't remember — skip it"** | **RESOLVED — dropped** |
 | **D1/D2/D3** | **The C-series aesthetic tail** (Button+radius scale · color consolidation · chip-shape/close-button unification) | **new — deferred for sign-off** | **strong 2.2.y candidate** — see [proposal](proposals/s48-ui-primitives-followups.md) |
+| **CH** | **Code-health safe-dedup menu** (S48 review agents — `Stat`/`fmtMoney`/importer helpers/store-history/stale comments) | **new — proposals doc** | behavior-neutral away-session fodder — [s48-code-health-review.md](proposals/s48-code-health-review.md) |
 
 ### For Alex to weigh in on (non-blocking) — two small aesthetic decisions unblock the rest of the C-series
 - **D1 — canonical pill/button radius?** Buttons currently use 2…20 inconsistently. A shared `Button` standardizes them. Recommend **`--radius-pill: 12`** (least movement). Pick 10 / 12 / 14.
@@ -62,6 +63,7 @@ Read first, in order:
 - `docs/WORKFLOW.md` § "Skills and the Workflow tool" + "Visual verification protocol"
 - `docs/audits/phase-2-2-x-close-audit.md` (the S48 close audit — carry-forwards)
 - `docs/proposals/s48-ui-primitives-followups.md` (the deferred C-series tail — D1/D2/D3, decision-ready)
+- `docs/proposals/s48-code-health-review.md` (NEW — behavior-neutral safe-dedup batches from the S48 review agents; ideal away-session PRs)
 - `docs/proposals/s46-ui-ux-review.md` (the still-live broader UI/UX menu)
 - `docs/domain/labor-report.md` § "Phase 2.2 sub-phases" — dependency graph
 
@@ -87,7 +89,9 @@ Use `AskUserQuestion` for the pick (S44–S48 lesson: plain + concrete options �
 
   B3 / L. **Write the dev-mode/permissions ADR** (docs-only) — consolidate the rationale before a 4th drift. Cheap.
 
-  (Other menu items: D3 chip-shape/close-button unification · A3/A4 confirm-on-clear + auto-open paste fallback · A2/N deep-link the right Data sub-tab. Plus the standing dependency-graph menu: O the IDB-freeze (spawned task) · P source-tables-under-Data · 2.2.19 temp-limits · 2.2.22 vacancies · Cloudflare cutover. Freeform feedback / a bug report is welcome — it has driven several sessions' top scope.)
+  CH. **Safe-dedup batches** (`docs/proposals/s48-code-health-review.md`) — behavior-neutral, no sign-off needed: `lib/format.ts` (money formatters, 5+3 copies), `lib/ui/Stat` (7 copies), importer `cells.ts` (`num`/`str`/`col`), the stale-"lost on reload"-comment sweep (clears the 3-audit `pdfCache` carry-forward + 4 siblings), `lib/store-history.ts` (the biggest LOC win). Each ~1 small PR, computed-style/test verifiable. Ideal if Alex wants safe throughput or another away-session.
+
+  (Other menu items: D3 chip-shape/close-button unification (= U7 in the code-health doc) · A3/A4 confirm-on-clear + auto-open paste fallback · A2/N deep-link the right Data sub-tab. Plus the standing dependency-graph menu: O the IDB-freeze (spawned task) · P source-tables-under-Data · 2.2.19 temp-limits · 2.2.22 vacancies · Cloudflare cutover. Freeform feedback / a bug report is welcome — it has driven several sessions' top scope.)
 
 ==============================================================================
 STEP 2 — Start Phase 2.2.y (the picked sub-phase)
