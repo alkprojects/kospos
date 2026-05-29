@@ -67,7 +67,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CopyButton } from '../../ui';
+import { CopyButton, Modal } from '../../ui';
 import {
   applyEligibilityDetailFilters,
   collectExamTypes,
@@ -664,25 +664,12 @@ export function EligibilityDetail({ rollup, today, onClose }: EligibilityDetailP
   const expiredBreakdown = formatTypeBreakdown(sortedExpired);
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Eligibility detail for job code ${rollup.jobCode}`}
-      onKeyDown={e => { if (e.key === 'Escape') onClose(); }}
-      style={{
-        position: 'fixed', inset: 0,
-        background: 'rgba(0, 0, 0, 0.4)',
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-        zIndex: 1000, overflow: 'auto', padding: '40px 20px',
-      }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    <Modal
+      onClose={onClose}
+      ariaLabel={`Eligibility detail for job code ${rollup.jobCode}`}
+      maxWidth={1040}
+      contentStyle={{ gap: 12 }}
     >
-      <div className="card" style={{
-        background: 'var(--surface)',
-        width: '100%', maxWidth: 1040,
-        display: 'flex', flexDirection: 'column', gap: 12,
-        padding: 20,
-      }}>
         {/* Header */}
         <header style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -887,8 +874,7 @@ export function EligibilityDetail({ rollup, today, onClose }: EligibilityDetailP
             Close
           </button>
         </footer>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
