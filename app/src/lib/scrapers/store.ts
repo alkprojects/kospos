@@ -65,10 +65,10 @@ interface ScrapersState {
    *  proves flaky. Persisted to localStorage so it survives reloads. */
   dhrWorkerUrl: string;
   /** Per-list PDF cover-sheet extracts — Phase 2.2.o. Keyed by
-   *  `pdfCacheKey(jobCode, listId, postDate)`. In-memory only (lost on
-   *  reload, same as the rest of the scraper data); a follow-up may wire
-   *  this into the session snapshot if Alex hits the re-extract cost
-   *  often enough across reloads. */
+   *  `pdfCacheKey(jobCode, listId, postDate)`. Persisted with the rest of
+   *  the scraper data (captured into the session snapshot + IndexedDB
+   *  auto-save/restore + Cloudflare publish — see the store header), so
+   *  extracts survive a reload. */
   pdfCache: Record<string, PdfExtract>;
 
   setJobPostings: (postings: JobPosting[]) => void;

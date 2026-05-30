@@ -6,9 +6,9 @@
  * Unlike `lib/budget/` (built from BFM Position eturn rows) or `lib/payroll/`
  * (built from OBI BI Payroll rows), there is no upstream file for the
  * staffing plan in v1 — KosPos's spec IS the staffing plan workspace. The
- * entity is in-app data, persisted via a Zustand store (`lib/staffing-plan/
- * store.ts`); IndexedDB persistence is queued behind Phase 2.2.33
- * `snapshots/`.
+ * entity is in-app data in a Zustand store (`lib/staffing-plan/store.ts`),
+ * auto-persisted to IndexedDB + the session snapshot since Phase 2.2.q
+ * (`lib/session/use-auto-persistence.ts`).
  *
  * One position can carry multiple PlannedActions (Marco Jacobo example —
  * see [memory `temporary_exchange_tx.md`]: one position can have an

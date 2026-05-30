@@ -6,11 +6,10 @@
  * "Cat 18 set up for 5-year IS project per DHR override letter" context stays
  * attached to the position).
  *
- * v1 storage: in-memory zustand slice. Persistence to IndexedDB (`idb`) lands
- * in a follow-up PR — until then, notes are lost on page reload. This is
- * acceptable because the spine view will surface a banner reminding the user
- * notes aren't yet persisted; the schema is stable so persistence is purely
- * additive.
+ * Storage: a zustand slice, persisted since Phase 2.2.q — notes are captured
+ * into the session snapshot, auto-saved to IndexedDB and restored on app open
+ * (`lib/session/use-auto-persistence.ts`), and ride along in a session-file
+ * save / Cloudflare publish, so they survive a reload.
  */
 
 import { create } from 'zustand';

@@ -545,9 +545,9 @@ export function SeparationsView() {
         Track rumored and pending separations before they're formally entered as
         PlannedActions in the Hiring Plan. Link a row to a Hiring Plan Separation
         action via the detail editor — the link surfaces a reciprocal indicator on
-        the Hiring Plan side. Rows are in-memory; persistence to IndexedDB lands in
-        Phase 2.2.33 snapshots/. Session JSON save/load preserves the list across
-        page reloads.
+        the Hiring Plan side. Rows auto-save to your browser and persist across
+        reloads; the session file save/load + publish carry the list across
+        devices.
       </div>
     </div>
   );
