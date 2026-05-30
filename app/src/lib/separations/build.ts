@@ -7,6 +7,7 @@
  */
 
 import { normalizePositionKey } from '../chartfields/resolve';
+import { makeId } from '../id';
 import { SEPARATION_STATUS_ORDER } from './types';
 import type {
   PendingSeparation,
@@ -14,16 +15,9 @@ import type {
   SeparationStatusRollup,
 } from './types';
 
-/**
- * Generate a stable id — UUID v4 when available, millisecond+random
- * fallback otherwise (mirrors `lib/staffing-plan/build.ts:newActionId`
- * for environments — happy-dom in vitest — that don't always expose
- * `crypto.randomUUID`).
- */
+/** Generate a stable separation id (see `lib/id.ts:makeId`). */
 export function newSeparationId(): string {
-  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
-  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
-  return `sep-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return makeId('sep');
 }
 
 /**
