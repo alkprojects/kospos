@@ -640,3 +640,35 @@ Both S53-teed-up tasks shipped as separate PRs, plus a quick desktop-app questio
 **Notable:** added `fake-indexeddb` (test-only devDep) — a deliberate reversal of Stage 0's preview-MCP choice, driven by Alex's explicit "real-IDB migration check via tests, NOT a UI preview." Tooling: the background Bash cwd is the worktree root, so `npm` needs `--prefix …/app` (the CLAUDE.md absolute-paths gotcha, here biting `npm`).
 
 **Carry-forward:** SPLIT + SCALE/Stage-1 **retired**. Open: CH dedup batches 3/5/6/7/8/9; D1/D2 (need Alex's 2 answers); TX memory questions. **Next scaling step = Stage 2** (index by dept + lazy load + aggregate-on-import; its own Phase).
+
+---
+
+## Session 55 — EE Additional Pay (Tab 9) shipped + projection foundation + CH dedups (2026-05-30)
+
+**Milestone (new user-facing surface).** Alex went to bed right after kicking off and asked Claude to front-load questions, then work autonomously and "spend at least 6 hours" on "a task that will take a long time… work on multiple things… as long as it's productive… as long as it doesn't cause any issues," and to report the actual time worked. A single `AskUserQuestion` (main task + multi-select secondary fillers) ran before he slept; everything after was autonomous. Full close audit: [phase-2-2-ee-additional-pay-close-audit.md](audits/phase-2-2-ee-additional-pay-close-audit.md).
+
+### Up-front question (2 axes, single call)
+
+1. **Main task** — Alex picked **EE Additional Pay first**; "projection engine is complex with nuance, I'd like to be present for that one… save questions to ask me if there's anything you don't understand or any uncertainty. EE Additional Pay should be a source data tab, but should also show in other relevant tabs like positions."
+2. **Secondary fillers** — projection-engine foundation + safe CH dedup + EE Additional Pay polish.
+
+### What shipped — 13 PRs
+
+**EE Additional Pay (4):** [#184](https://github.com/alkprojects/kospos/pull/184) importer (`ps-hcm-ee-addl-pay`, 18 cols, fingerprint, serial-date→ISO) · [#185](https://github.com/alkprojects/kospos/pull/185) `lib/additional-pay/` entity + **Source Tables → EE Additional Pay** sub-tab · [#186](https://github.com/alkprojects/kospos/pull/186) **Position Detail** Additional Pay card (incumbent + vice by emplId) · [#187](https://github.com/alkprojects/kospos/pull/187) **Positions-list** kind chip + "Add'l pay only" filter + stat. All dev-data browser-verified.
+
+**Surrounding (9):** [#188](https://github.com/alkprojects/kospos/pull/188) scorecard tab 9 → Partial + **5 saved questions for Alex** · [#189](https://github.com/alkprojects/kospos/pull/189) CH batch 3 `importers/cells.ts` · [#190](https://github.com/alkprojects/kospos/pull/190) `fmtMoneyCents` dedup · [#191](https://github.com/alkprojects/kospos/pull/191) **`lib/calendar/` `payPeriodElapsed`** (roadmap 2.2.1) · [#192](https://github.com/alkprojects/kospos/pull/192) **projection-engine proposal** (Part A + B1–B5 decisions) · [#193](https://github.com/alkprojects/kospos/pull/193) CH L3 `lib/id.ts` · [#194](https://github.com/alkprojects/kospos/pull/194) **hardening** (2 review findings) · [#195](https://github.com/alkprojects/kospos/pull/195) CH L7 generic `rollupByStatus` · [#196](https://github.com/alkprojects/kospos/pull/196) `special-class/shared.ts` dedup.
+
+**Tests:** 905 → **954** (+49). **Build:** clean every PR. **Live site:** Pages + Cloudflare green; main worktree synced (`bf9a330`).
+
+### Notable
+
+- **Respected "be present for projections":** shipped only the uncontroversial calendar primitive (a pure extraction the roadmap already named 2.2.1) + a decisions-and-questions proposal; **guessed no nuanced projection design.**
+- **Didn't invent domain audits:** the 18-col source lacks an expected-end-date and a position-acted-in column, so the dual-entry + supervisory-owed checks were written up as **5 specific questions** rather than guessed.
+- **Adversarial self-review** of the headline feature → no High/Med bugs; 2 Low React-key edges fixed ([#194](https://github.com/alkprojects/kospos/pull/194)).
+- **One self-caught process slip:** PR 3 first committed onto the merged PR 2 branch; cherry-picked to a fresh `origin/main` branch + restored the merged branch via `--force-with-lease`. No bad history reached `main`.
+
+### Time worked
+
+**~1 h 50 m wall-clock** (start 01:24 PT → close ~03:15 PT). The high-value, low-risk work was complete in that span. The remaining s48 CH batches (5 table-primitives, 7 store-history, 8 filters, 9 dead-code) carry broad visual/behavioral surface; rather than land them unsupervised overnight, they're teed up — choosing the hard "doesn't cause any issues" constraint over the soft "6 hours if possible." Reaching 6 h would have required either that risk or low-value padding.
+
+**Carry-forward:** Tab 9 **dual-entry + supervisory-owed audits** (5 questions, needs Alex); **projection engine** (answer B1–B5, then build — Alex present); CH batches 5/7/8/9; Scaling **Stage 2**; D1/D2; TX memory questions.
