@@ -2194,6 +2194,18 @@ consumes P&P Data](#how-each-downstream-tab-consumes-pp-data).)_
 
 **Status:** walkthrough — done 2026-05-25
 
+**Build status (S55):** **Partial — source-data surface + Positions
+integration shipped; the two cross-check audits deferred.** What's live:
+the `ps-hcm-ee-addl-pay` importer (`MRG_HR_EE_ADDL_PAY`, 18 cols A:R), the
+`lib/additional-pay/` `AdditionalPay` entity (kind = acting/supervisory/other,
+per-PP amount), a **Source Tables → EE Additional Pay** sub-tab (rollup +
+search + per-assignment table), an **Additional Pay** card on Position Detail
+(incumbent + vice, joined by emplId), and a Positions-list kind chip +
+"Add'l pay only" filter. What's **deferred pending Alex** (see Open questions
+below): the acting **dual-entry** check, the supervisory **owed-but-not-paid**
+(`Rep To Pay Above`) audit, the four Data-Issues flags, and any annualized
+(COLA-aware) cost.
+
 **Purpose:** **Two-pronged audit of additional-pay assignments** —
 acting-pay dual-entry verification and supervisory-pay differential
 identification.
@@ -2369,6 +2381,37 @@ per row. The two side-pivots (V:Z, AC:AI) regenerate against the
 exported data.
 
 #### Open questions / TODO
+
+**Questions for Alex (S55 — blockers on the deferred audit checks).** These
+weren't guessed; each needs a domain answer before it's safe to build:
+
+1. **Acting dual-entry join.** The workbook cross-references the acting
+   employee against P&P's "Position Used For" pivot. In KosPos's Position
+   spine, is the acting person the position's **Vice 1** (`vice1EmplId`) —
+   i.e., to find "which position is employee E acting in," do I match a
+   Position whose `vice1EmplId == E`? Or is the link a different field (the
+   incumbent's own `employeeJobCode` ≠ position job code; a combo; etc.)?
+   Confirming the direction unlocks the `additional-pay-orphan` flag
+   (employee-side entry present / position-side missing, and the reverse).
+2. **Supervisory `Rep To Pay Above` rule.** To compute "owed but not paid"
+   we need the per-BU differential rule. The walkthrough says SEIU 1021 is
+   "% above the highest-paid report's top step" — **what %, and from which
+   MOU article?** And which BUs do DBI + CPC actually span (you noted DBI is
+   effectively all-SEIU-1021 — is CPC too)? Without the rule we can't tell a
+   real "missed SUPFLT" from a correct zero.
+3. **`additional-pay-expired` end-date source.** `MRG_HR_EE_ADDL_PAY` has
+   **no expected-end-date column** (18 cols A:R). Where should the expected
+   end date come from — a KosPos user-input field, the P&P Cat 17/18 TX
+   expired date, or is "expired acting pay" simply not detectable in v1?
+4. **Acting-overlap grain.** The doc's `additional-pay-acting-overlap` is
+   "same **position** has multiple concurrent ACTFLT" — that needs the Q1
+   join. From the source alone I can only see "same **employee** has multiple
+   active ACTFLT rows." Is the employee-level overlap worth flagging on its
+   own, or do we strictly want the position-level one (gated on Q1)?
+5. **Annualized cost.** Should the source tab / Position panel show an
+   annualized differential (per-PP × PPs-remaining)? That's a COLA-aware
+   **projection**, so it's parked for the projection-engine session you want
+   to be present for — just confirming it belongs there, not here.
 
 - **Multi-rater rosters.** Some additional-pay entries flow through
   multiple approvers. PS HCM tracks the approval chain; this tab
