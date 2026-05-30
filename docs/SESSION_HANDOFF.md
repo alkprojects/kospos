@@ -6,60 +6,69 @@ The next session reads this first.
 
 ---
 
-## Current status (end of Session 56 — EE Additional Pay audits + Issues/Corrections tab, 2026-05-30)
+## Current status (end of Session 57 — Issues expand+redesign, gzip 350 MB, Cloudflare publish cutover + DHR worker, 2026-05-30)
 
-S56 finished **Track B (EE Additional Pay)**: the four cross-check audits + a dedicated **Issues / Corrections** tab. **7 PRs** shipped, all merged.
+S57 took Alex's **five appended asks** (not the A/B/C/D menu). **7 PRs — 6 merged, 1 open for sign-off.**
 
-**Last main commit:** the Issues/Corrections tab ([#204](https://github.com/alkprojects/kospos/pull/204)) + this S56-close docs PR.
-**Tests:** **981 / 981** (954 → 981, +27). **Build:** clean. **Branches in flight:** none post-merge.
-**Live site:** Pages deploy green; main worktree synced.
+**Last main commit:** the DHR proxy ([#212](https://github.com/alkprojects/kospos/pull/212)). **Tests:** **1000 / 1000** (981 → 1000). **Build:** clean. **Live site:** Pages deploys green; main worktree synced.
 
-### What shipped (S56) — 7 PRs
-- [#198](https://github.com/alkprojects/kospos/pull/198) docs: correct the **Vice-vs-Acting** conflation.
-- [#199](https://github.com/alkprojects/kospos/pull/199) capture **Position Used For (cols U/V)** on P&P rows.
-- [#200](https://github.com/alkprojects/kospos/pull/200) **QR-006** acting-pay dual-entry orphan.
-- [#201](https://github.com/alkprojects/kospos/pull/201) **QR-007** acting+supervisory conflict (error).
-- [#202](https://github.com/alkprojects/kospos/pull/202) **QR-008** supervisory-differential-owed (+ `cost.ts:topClassBiweekly`).
-- [#203](https://github.com/alkprojects/kospos/pull/203) **QR-009** acting-overlap.
-- [#204](https://github.com/alkprojects/kospos/pull/204) **Issues / Corrections** tab.
+**⚠️ One PR OPEN — needs your sign-off:** [#210](https://github.com/alkprojects/kospos/pull/210) the **Issues / Corrections redesign** (clickable list + side detail panel). Built + browser-verified (desktop side-by-side + mobile stacked, console clean); held only for your aesthetic OK. Review the screenshots in the S57 chat, then `gh pr merge 210 --squash` (or tell me the tweaks).
 
-Confirmed the supervisory 5%-of-grade rule + acting/supervisory mutual-exclusivity against SF DHR before building (saved to memory `dhr-acting-supervisory-pay`, `vice-vs-acting`).
+### What shipped (S57)
+| PR | What |
+|---|---|
+| [#206](https://github.com/alkprojects/kospos/pull/206) | Rule metadata (rationale / fix / citations / sourceTabs) on every rule + completeness test — foundation for the redesign |
+| [#207](https://github.com/alkprojects/kospos/pull/207) | **QR-011** position dept ≠ budget dept |
+| [#208](https://github.com/alkprojects/kospos/pull/208) | **QR-012** orphan payroll — OBI spend with no BFM budget line or PS HCM position |
+| [#209](https://github.com/alkprojects/kospos/pull/209) | **gzip the `imported-rows` IDB record** — ~350 MB → ~25-35 MB on disk + reload-read (Q5) |
+| [#211](https://github.com/alkprojects/kospos/pull/211) | **Publish fix** — github.io routes `/api/snapshot` to kospos.pages.dev (Q3) |
+| [#212](https://github.com/alkprojects/kospos/pull/212) | **DHR CORS proxy** Pages Function + worker-tried-first (Q4) |
+| [#210](https://github.com/alkprojects/kospos/pull/210) | **Issues redesign** — list + detail panel · **OPEN (sign-off)** |
 
-**Review on the live site:** open the new **Issues / Corrections** tab (between Positions and the dev tabs). With reports loaded, it lists everything the audits flagged — missing supervisory pay (QR-008), acting/supervisory conflicts (QR-007), unreconciled acting pay (QR-006), and acting overlaps (QR-009) — grouped by severity with filter chips.
+### Your actions (no code — in the app / Cloudflare)
+1. **Merge [#210]** once you've eyeballed the redesign.
+2. **Publish from github.io:** load works now; publishing needs the **publish secret entered once** in ⚙ Cloudflare settings on the github.io origin (different localStorage than pages.dev).
+3. **DHR proxy:** after the Cloudflare Pages project redeploys, set Load Reports → "Cloudflare-Worker URL" to `https://kospos.pages.dev/api/dhr-proxy` — then live refresh uses your proxy first. (`docs/runbooks/cloudflare-pages-setup.md`.)
 
 ### Carry-forward
 | # | Item | Status |
 |---|---|---|
-| **PROJ** | **Projection engine** — answer **B1–B5** in [`proposals/s55-projection-engine.md`](proposals/s55-projection-engine.md), then build (`lib/projections`; lifts Special Class tabs 16–19 Partial→Shipped, unblocks OPS 26/27). **You said you want to be present.** Biggest lever. | open — needs you |
-| **EE/expired** | The last EE Additional Pay flag: **`additional-pay-expired` (QR-010)** — needs a manual user-input expected-end-date store + a Position-Detail input + a decision on where the expired check runs (it needs user-input data the standard `runRules` pipeline doesn't pass). | open |
-| CH | s48 batches **5** (table primitives), **7** (store-history), **8** (filters), **9** (dead-code) — broader surface; supervised or paired with a review. | open |
-| SCALE/2 | Scaling **Stage 2** (index rows by dept + lazy per-dept load) — its own Phase. | open |
-| D1/D2 | C-series aesthetic tail (pill radius; `#b91c1c`→`--danger-strong`) — needs your 2 answers. | open |
+| **SIGN-OFF** | Merge [#210] (Issues redesign) after review | open — needs you |
+| **CUTOVER/finish** | Cosmetic "one canonical URL" — redirect github.io → kospos.pages.dev (runbook Step 10). Functional publish/load already works (#211). Its own small PR; needs the mechanism / custom-domain call. | open |
+| **PROJ** | **Projection engine** — answer B1–B5 in [`proposals/s55-projection-engine.md`](proposals/s55-projection-engine.md), then build (`lib/projections`; lifts Special Class tabs 16–19, unblocks OPS 26/27). Biggest lever; you wanted to be present. | open — needs you |
+| **EE/expired** | QR-010 `additional-pay-expired` — manual end-date store + Position-Detail input + a non-standard rule context. | open |
+| **PDF/worker** | Wire the PDF cover-sheet fetch (`pdf-parse.ts`) to `dhrWorkerUrl` too (it still uses only the public proxy chain). Small. | open |
+| **SCALE/2** | Scaling Stage 2 (index rows by dept + lazy per-dept load) — its own Phase. | open |
+| CH | s48 batches 5/7/8/9 (table primitives / store-history / filters / dead-code) — supervised. | open |
 
 ---
 
-## Next session prompt — Session 57
+## Next session prompt — Session 58
 
-Paste this verbatim to start Session 57.
+Paste this verbatim to start Session 58.
 
 **Model:** `claude-opus-4-8` (fast mode on)
 
 ```
-Session 57. S56 finished EE Additional Pay (Tab 9 → Shipped): four cross-check audits — QR-006 acting dual-entry orphan, QR-007 acting+supervisory conflict, QR-008 supervisory-differential-owed (grade-to-grade via cost.ts:topClassBiweekly), QR-009 acting-overlap — plus a dedicated Issues / Corrections tab (#198–#204). Confirmed the supervisory 5%-of-grade rule + acting/supervisory mutual-exclusivity against SF DHR. Tests 981/981, main clean.
+Session 58. S57 shipped 7 PRs for my 5 asks: rule metadata (#206), QR-011 dept-mismatch (#207), QR-012 orphan-payroll (#208), gzip the imported-rows IDB record 350MB→~30MB (#209), publish fix routing github.io→kospos.pages.dev (#211), DHR CORS proxy Pages Function + worker-first (#212). The Issues/Corrections REDESIGN (#210, clickable list + side detail panel) is OPEN awaiting my sign-off. Tests 1000/1000, main clean.
 
-Read first: docs/CLAUDE.md (Windows-worktree gotchas — Bash cwd is the WORKTREE ROOT, not app/, so npm needs `--prefix app`; absolute paths for Read/Glob/Grep; the harness cancels sibling tool calls in a batch if one errors, so keep calls error-proof; branch each PR from origin/main BEFORE editing), docs/SESSION_HANDOFF.md, docs/DECISIONS.md ADR-017 (milestone-only audit cadence), memory dhr-acting-supervisory-pay + vice-vs-acting.
+Read first: docs/CLAUDE.md (Windows-worktree gotchas — Bash cwd is the WORKTREE ROOT so npm needs `--prefix app`; absolute paths for Read/Glob/Grep; the harness cancels sibling tool calls in a batch if one errors, so keep calls error-proof; branch each PR from origin/main BEFORE editing), docs/SESSION_HANDOFF.md, docs/SESSION_LOG.md S57 entry.
 
-Confirm state on main BEFORE trusting anything: git log --oneline origin/main -5 (tops at the S56-close docs PR); then npm --prefix app install && npm --prefix app test → 981/981 (install FIRST — a fresh worktree has no node_modules). Single error-proof tool calls; absolute paths only.
+Confirm state on main BEFORE trusting anything: git log --oneline origin/main -5 (tops at #212 DHR proxy); then npm --prefix app install && npm --prefix app test → 1000/1000 (install FIRST — a fresh worktree has no node_modules). Single error-proof tool calls; absolute paths only.
 
-This session is decision-gated — front-load the pick with me, then I run autonomously:
-  A. (recommended) THE PROJECTION ENGINE. You wanted to be present for it. Read docs/proposals/s55-projection-engine.md and answer B1–B5 (COLA-weighting vs partial-period weighting; per-bucket method incl. Premium; attrition modelling; STEPM merit events; surface order). Then I build lib/projections per the staged plan — lifts Special Class tabs 16–19 Partial→Shipped and unblocks the headline OPS 26/27 pages. Biggest lever in the product.
-  B. FINISH the last EE Additional Pay flag — additional-pay-expired (QR-010): a manual user-input expected-end-date (entity field + Position-Detail input + persistence, like lib/positions/notes.ts), then flag active acting pay past its end date. One decision needed: where the expired check runs, since it needs user-input data the standard runRules(records) pipeline doesn't pass.
-  C. Another build-status gap from the scorecard (docs/domain/labor-report.md), or Scaling Stage 2 (its own Phase).
-  D. CH batches 5/7/8/9 — broader (table primitives / store-history / filters / dead-code); supervised or paired with /code-review, not blind.
+FIRST: decide on the OPEN Issues-redesign PR #210 — review it (gh pr diff 210, or merge then open the live Issues tab) and either merge (gh pr merge 210 --squash) or tell me the tweaks. S57 verification: desktop side-by-side + mobile stacked, clean console, row-select + source-tab nav all work.
 
-If I'm away: A needs my B1–B5 and B needs the one expired-check decision, so don't start either blind — ask, or do a supervised-style safe task.
+My in-app actions still pending (no code): (a) enter the publish secret once in ⚙ Cloudflare settings on the github.io origin to publish from there; (b) set Load Reports "Cloudflare-Worker URL" to https://kospos.pages.dev/api/dhr-proxy.
 
-Hard constraints: branch each PR from origin/main BEFORE editing; one logical change per PR; npm test stays green (981); npm run build before any app PR; merge gh pr merge --squash (skip --delete-branch); fast-forward main + sync the main worktree after each merge. Per ADR-017: full close audit only for a milestone — but SESSION_LOG always gets at least a short entry.
+Then pick the next lever:
+  A. (recommended) THE PROJECTION ENGINE — answer B1–B5 in docs/proposals/s55-projection-engine.md, then build lib/projections (lifts Special Class tabs 16–19 Partial→Shipped, unblocks OPS 26/27). Biggest lever; I wanted to be present.
+  B. Finish the cosmetic cutover — one canonical URL (redirect github.io → kospos.pages.dev, runbook Step 10). Small; needs my call on mechanism (kospos.pages.dev vs a custom domain; keep github.io as a mirror?).
+  C. QR-010 additional-pay-expired (manual end-date store), OR wire the PDF cover-sheet fetch to the DHR worker.
+  D. Scaling Stage 2 (its own Phase), or CH batches 5/7/8/9 (supervised).
 
-End by updating SESSION_HANDOFF.md (lean) and pasting the S58 prompt verbatim in chat.
+If I'm away: #210 sign-off + A's B1–B5 + B's mechanism all need me — don't start those blind. Safe autonomous fills: C (QR-010 or PDF/worker wiring) or a supervised CH batch.
+
+Hard constraints: branch each PR from origin/main BEFORE editing; one logical change per PR; npm test stays green (1000); npm run build before any app PR; merge gh pr merge --squash (skip --delete-branch); fast-forward main + sync the main worktree after each merge. UI changes get browser-verified + my aesthetic sign-off before merge. Per ADR-017: full close audit only for a milestone — SESSION_LOG always gets at least a short entry.
+
+End by updating SESSION_HANDOFF.md (lean) and pasting the S59 prompt verbatim in chat.
 ```

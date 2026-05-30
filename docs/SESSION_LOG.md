@@ -708,3 +708,37 @@ Both S53-teed-up tasks shipped as separate PRs, plus a quick desktop-app questio
 - **Browser-verified the headline surface** with synthetic data (1 error + 5 warnings) and the empty state.
 
 **Deferred (one carry-forward):** the **`additional-pay-expired` flag (QR-010)** — needs a manual user-input end-date persistence store + a Position-Detail input + a non-standard rule context (the audits run on imported rows only; end-dates are user input). Scoped for a follow-up. Projection engine + CH 5/7/8/9 + Scaling Stage 2 + D1/D2 still open.
+
+## Session 57 — Issues tab expand+redesign, gzip 350 MB fix, Cloudflare publish cutover + DHR worker (2026-05-30)
+
+Alex appended **five concrete asks** to the handoff (superseding the A/B/C/D menu): expand the Issues tab, redesign it (too text-heavy → clickable list + detail), fix "Publish failed: Failed to fetch", make the Cloudflare worker the default for live refresh, and explain/optimize the ~350 MB load. Investigated all five with four parallel sub-agents, front-loaded the three real decisions in one AskUserQuestion, then ran autonomously.
+
+### Up-front answers (Alex's picks)
+1. **Publish bug** → *finish the Cloudflare cutover* (not the band-aid).
+2. **DHR live refresh** → *author the worker + make it the preferred path*.
+3. **Issues UX** → *list + side detail panel* ("not sure there's room until built").
+
+### What shipped — 6 merged + 1 open (sign-off)
+- [#206](https://github.com/alkprojects/kospos/pull/206) **rule metadata** — `rationale`/`fix`/`citations`/`sourceTabs` on `QualityRule` (required at compile time) + a completeness test; populated all 8 rules. Foundation for the redesign.
+- [#207](https://github.com/alkprojects/kospos/pull/207) **QR-011** position dept ≠ budget dept (single `PsHcmPpRow` compare).
+- [#208](https://github.com/alkprojects/kospos/pull/208) **QR-012** orphan payroll — OBI spend with no BFM budget line or PS HCM position.
+- [#209](https://github.com/alkprojects/kospos/pull/209) **perf: gzip the `imported-rows` IDB record** — ~350 MB → ~25-35 MB on disk + reload-read (Q5). Back-compatible; detect the gz envelope by its marker key (`instanceof` is unreliable across the structured-clone realm). Real-IDB tests.
+- [#211](https://github.com/alkprojects/kospos/pull/211) **fix(publish):** the github.io mirror now routes `/api/snapshot` to kospos.pages.dev (Q3 — a relative URL 404'd because Pages Functions only run on Cloudflare). `resolveSnapshotUrl`. The functional core of the cutover.
+- [#212](https://github.com/alkprojects/kospos/pull/212) **DHR CORS proxy** as a Pages Function (`app/functions/api/dhr-proxy.ts`, sfdhr.org-allowlisted) + `fetch.ts` tries a configured worker **first** (Q4).
+- [#210](https://github.com/alkprojects/kospos/pull/210) **Issues/Corrections redesign** — clickable list + side detail panel (rationale / fix / citations / source-tab links). **OPEN — held for Alex's aesthetic sign-off.**
+
+**Tests:** 981 → **1000** (+19). **Build:** clean every PR. **Live site:** Pages deploys green; main worktree synced.
+
+### Notable
+- **Diagnosed before building** — 4 parallel sub-agents mapped publish / 350 MB / Issues / proxy; a `curl` probe confirmed kospos.pages.dev is alive (200, the S41 snapshot intact at 8.2 MB), so the publish bug was an origin mismatch, not a dead deployment.
+- **gzip realm gotcha** — a `Uint8Array` round-tripped through IDB structured-clone can come back from another JS realm, so `instanceof Uint8Array` fails; detect the gz envelope by its marker key instead (a real-IDB test caught it).
+- **Issues page width** — opted out of the 880px `.main` cap via a `.main--wide` modifier so two columns fit; verified desktop side-by-side + mobile stacked, console clean.
+- **DHR proxy as a Pages Function** (not a standalone Worker) — auto-deploys with the project Alex already has; his only action is setting the URL once.
+
+### Alex's remaining actions
+- **Review + merge [#210]** (redesign) — the screenshots are in the S57 chat; or merge and look on the live site.
+- **Publish from github.io:** load works now; **publishing needs the publish secret entered once in ⚙ Cloudflare settings on the github.io origin** (different localStorage than pages.dev).
+- **DHR proxy:** set the Load Reports "Cloudflare-Worker URL" to `https://kospos.pages.dev/api/dhr-proxy` (runbook updated).
+- **(Optional) cosmetic cutover finish** — one canonical URL via a github.io→pages.dev redirect (runbook Step 10); its own small PR, needs the mechanism / custom-domain call.
+
+**Deferred:** QR-010 additional-pay-expired; projection engine; CH 5/7/8/9; Scaling Stage 2; wiring the PDF cover-sheet fetch to the worker.
