@@ -19,6 +19,8 @@ function row(overrides: Partial<PsHcmPpRow> = {}): PsHcmPpRow {
     vice1EmplId: '',
     vice1Name: '',
     previousEmployee: '',
+    positionUsedFor: '',
+    positionUsedForDescription: '',
     emplId: 'E12345',
     employeeName: 'Smith, Jane',
     employeeStatus: 'A',

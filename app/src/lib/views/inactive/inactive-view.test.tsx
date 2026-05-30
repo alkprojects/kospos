@@ -61,6 +61,7 @@ function pp(positionNumber: string, partial: Partial<PsHcmPpRow> = {}): PsHcmPpR
     departmentCode: '229000', departmentName: 'BUILDING INSPECTION',
     positionMaxHeadcount: 1, positionStatus: 'A', fillStatus: 'FILLED',
     vice1EmplId: '', vice1Name: '',
+    positionUsedFor: '', positionUsedForDescription: '',
     previousEmployee: '', emplId: '11111', employeeName: 'Active, Person',
     employeeStatus: 'A', appointmentType: 'PCS', exemptCategory: '',
     salaryStep: '4', hourlyRate: 50,

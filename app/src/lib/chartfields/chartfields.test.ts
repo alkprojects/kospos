@@ -127,6 +127,8 @@ function makeHcmRow(overrides: Partial<PsHcmPpRow> = {}): PsHcmPpRow {
     vice1EmplId: '',
     vice1Name: '',
     previousEmployee: '',
+    positionUsedFor: '',
+    positionUsedForDescription: '',
     emplId: 'E12345',
     employeeName: 'Jane Smith',
     employeeStatus: 'A',

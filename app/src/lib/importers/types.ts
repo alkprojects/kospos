@@ -216,6 +216,8 @@ export interface PsHcmPpRow {
   vice1EmplId: string;          // P
   vice1Name: string;            // Q
   previousEmployee: string;     // T  "Previous Employee" — last known incumbent
+  positionUsedFor: string;            // U  "Position Used For" — manual `Acting Assignment` marker
+  positionUsedForDescription: string; // V  acting employee's emplid (who is acting INTO this position; NOT a position number — see labor-report-tabs.md § Vice / acting)
   emplId: string;               // W  "Current Employee ID" — blank if vacant
   employeeName: string;         // Z  "Person Full Name"
   employeeStatus: string;       // Y  "A" / "L" leave / blank

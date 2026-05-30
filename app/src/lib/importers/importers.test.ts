@@ -413,6 +413,23 @@ describe('importPsHcmPp', () => {
     expect(importPsHcmPp(ws)).toHaveLength(1);
   });
 
+  it('extracts the acting marker — Position Used For (U) + Description (V)', () => {
+    // Per the Vice-vs-Acting model: U = "Acting Assignment", V = the acting
+    // employee's emplid (who is acting INTO this position). Distinct headers,
+    // exact-matched, so 'position used for' does not collide with its Description.
+    const ws = makeSheet([
+      ['Position Number', 'Position Used For', 'Position Used For Description'],
+      ['10001', 'Acting Assignment', 'E12345'],
+      ['10002', '', ''],
+    ]);
+    const rows = importPsHcmPp(ws);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].positionUsedFor).toBe('Acting Assignment');
+    expect(rows[0].positionUsedForDescription).toBe('E12345');
+    expect(rows[1].positionUsedFor).toBe('');
+    expect(rows[1].positionUsedForDescription).toBe('');
+  });
+
   it('extracts the spine fields (Cat 17/18 + 3 dept concepts + vice + manager)', () => {
     const HEADERS_FULL = [
       'Snapshot Date', 'Position Number', 'Position Job Code', 'Position Description',
