@@ -22,20 +22,9 @@ import type { BfmPositionRow, ObiPayrollRow, PsHcmPpRow } from '../../importers/
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import { buildBudgetSnapshot } from '../../budget';
 import { matchesNeedle } from '../../search/needle';
-import { Badge, CopyButton, rowButtonProps } from '../../ui';
+import { Badge, CopyButton, rowButtonProps, Stat } from '../../ui';
 import { PositionDetail } from './PositionDetail';
 import { usePositionsScope } from './scope-store';
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {label}
-      </span>
-      <span style={{ fontSize: 20, fontWeight: 700 }}>{value}</span>
-    </div>
-  );
-}
 
 function FilterGroup({
   label, value, options, onChange,
