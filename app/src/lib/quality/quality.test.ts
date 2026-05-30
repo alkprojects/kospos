@@ -6,6 +6,7 @@ import { payrollExceedsBudget } from './rules/payroll-exceeds-budget';
 import { hcmFteBfmMismatch } from './rules/hcm-fte-bfm-mismatch';
 import { positionInHcmNotBfm } from './rules/position-in-hcm-not-bfm';
 import { additionalPayOrphan } from './rules/additional-pay-orphan';
+import { additionalPayActingSupervisoryConflict } from './rules/additional-pay-acting-supervisory-conflict';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -344,5 +345,52 @@ describe('QR-006 additionalPayOrphan (acting dual-entry)', () => {
   it('does not check when only one source is loaded', () => {
     expect(additionalPayOrphan.check([eeAddl({ rateCode: 'ACTFLT' })])).toHaveLength(0);
     expect(additionalPayOrphan.check([markedActing('187518')])).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// QR-007 additionalPayActingSupervisoryConflict — acting + supervisory both
+// ---------------------------------------------------------------------------
+
+describe('QR-007 additionalPayActingSupervisoryConflict', () => {
+  it('flags an employee with both active ACTFLT and SUPFLT', () => {
+    const issues = additionalPayActingSupervisoryConflict.check([
+      eeAddl({ emplId: '187518', rateCode: 'ACTFLT', _row: 5 }),
+      eeAddl({ emplId: '187518', rateCode: 'SUPFLT', _row: 9 }),
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].ruleId).toBe('QR-007');
+    expect(issues[0].severity).toBe('error');
+    expect(issues[0].emplId).toBe('187518');
+    expect(issues[0].sourceRows).toEqual([5, 9]);
+  });
+
+  it('does not flag acting-only or supervisory-only', () => {
+    expect(additionalPayActingSupervisoryConflict.check([
+      eeAddl({ emplId: '187518', rateCode: 'ACTFLT' }),
+    ])).toHaveLength(0);
+    expect(additionalPayActingSupervisoryConflict.check([
+      eeAddl({ emplId: '187518', rateCode: 'SUPFLT' }),
+    ])).toHaveLength(0);
+  });
+
+  it('does not flag when one side is inactive', () => {
+    const issues = additionalPayActingSupervisoryConflict.check([
+      eeAddl({ emplId: '187518', rateCode: 'ACTFLT', payStatus: 'A' }),
+      eeAddl({ emplId: '187518', rateCode: 'SUPFLT', payStatus: 'I' }),
+    ]);
+    expect(issues).toHaveLength(0);
+  });
+
+  it('does not flag two different employees each holding one kind', () => {
+    const issues = additionalPayActingSupervisoryConflict.check([
+      eeAddl({ emplId: '187518', rateCode: 'ACTFLT' }),
+      eeAddl({ emplId: '204417', rateCode: 'SUPFLT' }),
+    ]);
+    expect(issues).toHaveLength(0);
+  });
+
+  it('does not check when no additional-pay rows are loaded', () => {
+    expect(additionalPayActingSupervisoryConflict.check([])).toHaveLength(0);
   });
 });
