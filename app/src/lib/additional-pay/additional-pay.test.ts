@@ -3,6 +3,7 @@ import type { PsHcmEeAddlPayRow } from '../importers/types';
 import {
   buildAdditionalPay,
   rollupByKind,
+  indexByEmplId,
   classifyRateCode,
 } from './build';
 
@@ -131,5 +132,27 @@ describe('rollupByKind', () => {
 
   it('returns [] for no entities', () => {
     expect(rollupByKind([])).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// indexByEmplId
+// ---------------------------------------------------------------------------
+
+describe('indexByEmplId', () => {
+  it('groups every assignment for an employee under their id', () => {
+    const idx = indexByEmplId(buildAdditionalPay([
+      row({ emplId: '187518', rateCode: 'ACTFLT', _row: 2 }),
+      row({ emplId: '187518', rateCode: 'SUPFLT', _row: 3 }),
+      row({ emplId: '204417', rateCode: 'ACTFLT', _row: 4 }),
+    ]));
+    expect(idx.get('187518')).toHaveLength(2);
+    expect(idx.get('204417')).toHaveLength(1);
+    expect(idx.get('999999')).toBeUndefined();
+  });
+
+  it('skips rows with a blank employee id', () => {
+    const idx = indexByEmplId(buildAdditionalPay([row({ emplId: '' })]));
+    expect(idx.size).toBe(0);
   });
 });

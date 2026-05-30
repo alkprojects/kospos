@@ -69,6 +69,22 @@ export function buildAdditionalPay(rows: PsHcmEeAddlPayRow[]): AdditionalPay[] {
 }
 
 /**
+ * Index entities by employee id (one employee can hold several assignments).
+ * Used to join additional pay onto a position's incumbent / vice by emplId.
+ * Rows with a blank emplId are skipped.
+ */
+export function indexByEmplId(entities: AdditionalPay[]): Map<string, AdditionalPay[]> {
+  const byEmplId = new Map<string, AdditionalPay[]>();
+  for (const e of entities) {
+    if (!e.emplId) continue;
+    const list = byEmplId.get(e.emplId);
+    if (list) list.push(e);
+    else byEmplId.set(e.emplId, [e]);
+  }
+  return byEmplId;
+}
+
+/**
  * Roll up entities by classified kind: count + summed per-PP dollars. Only
  * kinds actually present are returned, in the stable `KIND_ORDER`.
  */

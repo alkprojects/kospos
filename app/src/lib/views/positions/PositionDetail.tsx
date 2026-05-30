@@ -17,12 +17,22 @@ import type { ResolvedChartfields } from '../../chartfields/types';
 import type { PositionYtdActuals } from '../../payroll';
 import type { PositionBudget, BfmBudgetPhase } from '../../budget';
 import { computeBudgetVsActual } from '../../budget';
+import { KIND_LABEL } from '../../additional-pay';
+import type { AdditionalPayKind, PositionAdditionalPay } from '../../additional-pay';
 import { useLaborScope } from '../labor';
 import { fmtMoney, fmtSignedMoney } from '../../format';
 
 function fmtPercent(pct: number): string {
   const sign = pct > 0 ? '+' : pct < 0 ? '−' : '';
   return sign + (Math.abs(pct) * 100).toFixed(1) + '%';
+}
+
+/** Per-pay-period dollars with cents (additional-pay differentials are small). */
+function fmtPerPP(n: number): string {
+  return n.toLocaleString('en-US', {
+    style: 'currency', currency: 'USD',
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  });
 }
 
 function fmtDate(s: string): string {
@@ -430,8 +440,77 @@ function YtdPayrollCard({ actuals, asOfDate, onViewPayroll }: {
   );
 }
 
+const ADDL_PAY_KIND_COLOR: Record<AdditionalPayKind, [string, string]> = {
+  acting:      ['var(--accent)', 'var(--accent-soft)'],
+  supervisory: ['var(--success)', 'var(--success-soft)'],
+  other:       ['var(--neutral)', 'var(--neutral-soft)'],
+};
+
+/**
+ * Additional Pay — acting / supervisory differentials carried by the people
+ * on this position (the incumbent and any vice). Shown only when the EE
+ * Additional Pay source is loaded and at least one assignment joins by emplId.
+ *
+ * Each row's role says *whose* pay it is, not that the pay is for this exact
+ * position — the acting-target dual-entry check is a deferred follow-up.
+ */
+function AdditionalPayCard({ items }: { items: PositionAdditionalPay[] }) {
+  if (items.length === 0) return null;
+  return (
+    <section style={{ marginBottom: 18 }}>
+      <div style={{
+        fontSize: 11, fontWeight: 600, color: 'var(--muted)',
+        textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8,
+      }}>
+        Additional Pay
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <tbody>
+          {items.map(({ role, personName, item }) => {
+            const [color, bg] = ADDL_PAY_KIND_COLOR[item.kind];
+            return (
+              <tr key={item.sourceRow} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '5px 0' }}>
+                  <span style={{ fontWeight: 600 }}>{personName || item.displayName || '—'}</span>
+                  <span style={{
+                    marginLeft: 6, fontSize: 10, color: 'var(--muted)',
+                    textTransform: 'uppercase', letterSpacing: 0.3,
+                  }}>{role}</span>
+                </td>
+                <td style={{ padding: '5px 0' }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '1px 7px',
+                    borderRadius: 10, color, background: bg, whiteSpace: 'nowrap',
+                  }}>{KIND_LABEL[item.kind]}</span>
+                  <span style={{ marginLeft: 6, fontFamily: 'monospace', fontSize: 11, color: 'var(--muted)' }}>
+                    {item.rateCode}
+                  </span>
+                </td>
+                <td style={{ padding: '5px 0', textAlign: 'right', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                  {fmtPerPP(item.amount)}
+                  <span style={{ marginLeft: 4, fontSize: 10, color: 'var(--muted)' }}>/PP</span>
+                </td>
+                <td style={{ padding: '5px 0', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  {item.isActive
+                    ? <span style={{ color: 'var(--success)', fontWeight: 600, fontSize: 12 }}>Active</span>
+                    : <span style={{ color: 'var(--muted)', fontSize: 12 }}>{item.payStatus || 'Inactive'}</span>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+        Acting / supervisory differentials carried by the people on this position
+        (per pay period). Full list on <strong>Source Tables → EE Additional Pay</strong>.
+      </div>
+    </section>
+  );
+}
+
 export function PositionDetail({
   position,
+  additionalPay = [],
   chartfields,
   ytdActuals,
   ytdAsOfDate,
@@ -443,6 +522,10 @@ export function PositionDetail({
   onViewPayroll,
 }: {
   position: Position;
+  /** Additional-pay assignments joined to this position's incumbent / vice by
+   *  emplId. Empty when the EE Additional Pay source isn't loaded or nothing
+   *  matched. */
+  additionalPay?: PositionAdditionalPay[];
   chartfields?: ResolvedChartfields | null;
   ytdActuals?: PositionYtdActuals | null;
   ytdAsOfDate?: string;
@@ -615,6 +698,11 @@ export function PositionDetail({
             </table>
           </section>
         )}
+
+        {/* Additional Pay — acting / supervisory differentials on the people
+            attached to this position (incumbent + vice). Renders only when the
+            EE Additional Pay source is loaded and something joined. */}
+        <AdditionalPayCard items={additionalPay} />
 
         {/* Cat 17/18 */}
         <Cat1718Card position={position} />
