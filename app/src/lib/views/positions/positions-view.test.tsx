@@ -127,6 +127,22 @@ describe('PositionsView — Additional Pay on Position Detail', () => {
     expect(within(dialog).getByText('$250.50')).toBeInTheDocument();
   });
 
+  it('lists an assignment once when the incumbent is also the vice (same emplId)', () => {
+    // Regression (S55 review finding): a messy P&P row where Current Employee
+    // ID == Employee ID Vice 1 must not double-list each assignment / emit
+    // duplicate React keys.
+    useAppStore.getState().addRows([
+      ppRow({ positionNumber: '10001', emplId: 'E12345', employeeName: 'Smith, Jane',
+              vice1EmplId: 'E12345', vice1Name: 'Smith, Jane' }),
+      eeRow({ emplId: 'E12345', rateCode: 'ACTFLT' }),
+    ]);
+    render(<PositionsView />);
+    fireEvent.click(screen.getByLabelText(/Open details for position 10001/i));
+    const dialog = screen.getByRole('dialog');
+    // The ACTFLT rate cell appears exactly once — not once per role.
+    expect(within(dialog).getAllByText('ACTFLT')).toHaveLength(1);
+  });
+
   it('omits the Additional Pay card when the incumbent has no matching rows', () => {
     useAppStore.getState().addRows([
       ppRow({ positionNumber: '10001', emplId: 'E12345', employeeName: 'Smith, Jane' }),
