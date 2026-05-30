@@ -139,6 +139,45 @@ describe('PositionsView — Additional Pay on Position Detail', () => {
   });
 });
 
+describe('PositionsView — Additional Pay in the list', () => {
+  it('shows an at-a-glance kind chip on a position whose incumbent has additional pay', () => {
+    useAppStore.getState().addRows([
+      ppRow({ positionNumber: '10001', emplId: 'E12345', employeeName: 'Smith, Jane' }),
+      eeRow({ emplId: 'E12345', rateCode: 'SUPFLT' }),
+    ]);
+    render(<PositionsView />);
+    // No modal open — "Supervisory" only appears as the list chip.
+    expect(screen.getByText('Supervisory')).toBeInTheDocument();
+    // The summary stat + filter toggle surface only when the source is loaded.
+    expect(screen.getByText("Add'l pay")).toBeInTheDocument();
+  });
+
+  it('"Add’l pay only" filter narrows to positions with additional pay', () => {
+    useAppStore.getState().addRows([
+      ppRow({ positionNumber: '10001', jobCode: '0922', emplId: 'E12345', employeeName: 'Smith, Jane' }),
+      ppRow({ positionNumber: '10002', jobCode: '1820', emplId: 'E22222', employeeName: 'Doe, John',
+              budgetJobCode: '1820', employeeJobCode: '1820', _row: 3 }),
+      eeRow({ emplId: 'E12345', rateCode: 'ACTFLT' }), // only Smith has additional pay
+    ]);
+    render(<PositionsView />);
+    expect(screen.getByText('Smith, Jane')).toBeInTheDocument();
+    expect(screen.getByText('Doe, John')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /pay only/i }));
+    expect(screen.getByText('Smith, Jane')).toBeInTheDocument();
+    expect(screen.queryByText('Doe, John')).not.toBeInTheDocument();
+  });
+
+  it('shows no additional-pay stat or filter when the source is not loaded', () => {
+    useAppStore.getState().addRows([
+      ppRow({ positionNumber: '10001', emplId: 'E12345', employeeName: 'Smith, Jane' }),
+    ]);
+    render(<PositionsView />);
+    expect(screen.queryByText("Add'l pay")).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /pay only/i })).not.toBeInTheDocument();
+  });
+});
+
 describe('PositionsView — cross-tab job-code scope', () => {
   it('shows all positions and no scope banner when nothing is scoped', () => {
     seedTwoPositions();

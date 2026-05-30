@@ -21,8 +21,8 @@ import { resolvePositionChartfields, normalizePositionKey } from '../../chartfie
 import type { BfmPositionRow, ObiPayrollRow, PsHcmPpRow, PsHcmEeAddlPayRow } from '../../importers/types';
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import { buildBudgetSnapshot } from '../../budget';
-import { buildAdditionalPay, indexByEmplId } from '../../additional-pay';
-import type { PositionAdditionalPay } from '../../additional-pay';
+import { buildAdditionalPay, indexByEmplId, KIND_LABEL } from '../../additional-pay';
+import type { AdditionalPayKind, PositionAdditionalPay } from '../../additional-pay';
 import { matchesNeedle } from '../../search/needle';
 import { Badge, CopyButton, rowButtonProps, Stat } from '../../ui';
 import { PositionDetail } from './PositionDetail';
@@ -66,6 +66,32 @@ function FilterGroup({
 type FillFilter = 'all' | 'filled' | 'vacant' | 'partial' | 'over';
 type DeptGroupFilter = 'all' | string;
 
+const ADDL_KIND_CHIP: Record<AdditionalPayKind, [string, string]> = {
+  acting:      ['var(--accent)', 'var(--accent-soft)'],
+  supervisory: ['var(--success)', 'var(--success-soft)'],
+  other:       ['var(--neutral)', 'var(--neutral-soft)'],
+};
+
+/** Compact at-a-glance chips for the additional-pay kinds on a position's
+ *  people (acting → supervisory → other). */
+function AddlPayChips({ kinds }: { kinds: Set<AdditionalPayKind> }) {
+  const order: AdditionalPayKind[] = ['acting', 'supervisory', 'other'];
+  return (
+    <>
+      {order.filter(k => kinds.has(k)).map(k => {
+        const [color, bg] = ADDL_KIND_CHIP[k];
+        return (
+          <span key={k} title={`${KIND_LABEL[k]} additional pay`} style={{
+            marginLeft: 6, fontSize: 9, fontWeight: 700, padding: '1px 6px',
+            borderRadius: 8, color, background: bg, whiteSpace: 'nowrap',
+            textTransform: 'uppercase', letterSpacing: 0.3,
+          }}>{KIND_LABEL[k]}</span>
+        );
+      })}
+    </>
+  );
+}
+
 /** Normalize a job code for cross-source equality (the Eligibility rollup
  *  code vs the P&P position's job code): trim + uppercase. SF job codes are
  *  short alphanumerics (e.g. "0922", "Q002"); this guards against stray
@@ -92,6 +118,7 @@ export function PositionsView({ onViewPayroll }: {
   const [fillFilter, setFillFilter] = useState<FillFilter>('all');
   const [deptGroupFilter, setDeptGroupFilter] = useState<DeptGroupFilter>('all');
   const [tempOnly, setTempOnly] = useState(false);
+  const [addlPayOnly, setAddlPayOnly] = useState(false);
   const [search, setSearch] = useState('');
 
   // Build positions from loaded P&P rows.
@@ -154,6 +181,22 @@ export function PositionsView({ onViewPayroll }: {
   const obiLoaded = latestPayroll !== null;
   const bfmLoaded = latestBudget !== null;
 
+  // Per-position set of additional-pay kinds carried by its people (incumbent
+  // + vice). Drives the at-a-glance list chip + the "Add'l pay only" filter.
+  const addlPayKindsByPosition = useMemo(() => {
+    const byPos = new Map<string, Set<AdditionalPayKind>>();
+    if (!additionalPayByEmplId) return byPos;
+    for (const p of positions) {
+      const emplIds = [p.appointment?.emplId, p.vice1?.emplId].filter(Boolean) as string[];
+      const kinds = new Set<AdditionalPayKind>();
+      for (const id of emplIds) {
+        for (const item of additionalPayByEmplId.get(id) ?? []) kinds.add(item.kind);
+      }
+      if (kinds.size > 0) byPos.set(p.id, kinds);
+    }
+    return byPos;
+  }, [positions, additionalPayByEmplId]);
+
   const deptGroups = useMemo(() => {
     const set = new Set<string>();
     for (const p of positions) {
@@ -174,6 +217,7 @@ export function PositionsView({ onViewPayroll }: {
       if (fillFilter === 'over'    && p.fillStatus !== 'OVER FILLED') return false;
       if (deptGroupFilter !== 'all' && p.effectiveDept.node?.deptGroup !== deptGroupFilter) return false;
       if (tempOnly && !p.appointment?.cat1718) return false;
+      if (addlPayOnly && !addlPayKindsByPosition.has(p.id)) return false;
       // Global needle: every whitespace-separated term must appear in some
       // string/numeric leaf on the Position record. Covers all the
       // previously-hardcoded fields (displayNumber, jobCode, dept name/code,
@@ -182,7 +226,7 @@ export function PositionsView({ onViewPayroll }: {
       if (!matchesNeedle(p, search)) return false;
       return true;
     });
-  }, [positions, scopedJobCode, fillFilter, deptGroupFilter, tempOnly, search]);
+  }, [positions, scopedJobCode, fillFilter, deptGroupFilter, tempOnly, addlPayOnly, addlPayKindsByPosition, search]);
 
   // Positions matching the scoped job code alone (ignoring the local fill /
   // dept / search filters) — drives the banner's class-title label and the
@@ -202,7 +246,8 @@ export function PositionsView({ onViewPayroll }: {
     vacant:   positions.filter(p => p.fillStatus === 'VACANT').length,
     cat1718:  positions.filter(p => p.appointment?.cat1718).length,
     mismatch: positions.filter(hasDeptMismatch).length,
-  }), [positions]);
+    addlPay:  addlPayKindsByPosition.size,
+  }), [positions, addlPayKindsByPosition]);
 
   // Empty state — no data loaded.
   if (loadedRows.length === 0) {
@@ -316,6 +361,7 @@ export function PositionsView({ onViewPayroll }: {
         <Stat label="Vacant"       value={String(totals.vacant)} />
         <Stat label="Cat 17/18"    value={String(totals.cat1718)} />
         <Stat label="Dept mismatch" value={String(totals.mismatch)} />
+        {additionalPayByEmplId && <Stat label="Add'l pay" value={String(totals.addlPay)} />}
       </div>
 
       {/* Filters */}
@@ -363,6 +409,12 @@ export function PositionsView({ onViewPayroll }: {
           <input type="checkbox" checked={tempOnly} onChange={e => setTempOnly(e.target.checked)} />
           Cat 17/18 only
         </label>
+        {additionalPayByEmplId && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={addlPayOnly} onChange={e => setAddlPayOnly(e.target.checked)} />
+            Add&rsquo;l pay only
+          </label>
+        )}
       </div>
 
       {/* Table */}
@@ -433,6 +485,9 @@ export function PositionsView({ onViewPayroll }: {
                   {p.appointment?.name
                     ? <>{p.appointment.name}<CopyButton value={p.appointment.name} label="Incumbent name" /></>
                     : <span style={{ color: 'var(--muted)' }}>—</span>}
+                  {addlPayKindsByPosition.has(p.id) && (
+                    <AddlPayChips kinds={addlPayKindsByPosition.get(p.id)!} />
+                  )}
                 </td>
                 <td style={{ padding: '7px 12px', color: 'var(--muted)', fontSize: 11 }}>
                   {p.userNotes ? '●' : ''}
