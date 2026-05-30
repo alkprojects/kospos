@@ -419,6 +419,66 @@ export function getBiweeklyRate(
 }
 
 /**
+ * Top-of-class **grade** (biweekly) for a job code — the figure DHR compares
+ * when assessing a supervisory differential ("we look at top step when
+ * evaluating salary grade", grade-to-grade not paycheck-to-paycheck).
+ *
+ * Self-contained over the reference data so it needs no setid from the caller:
+ *   - step class → the highest step rate across the code's set IDs;
+ *   - range class → the top of the entitlement Range A (falling back to the
+ *     highest range max), exclusive of nothing fancier since this is a grade
+ *     comparison, not a pay calculation.
+ *
+ * Reads the snapshot covering `asOfDate`. Returns `null` when the class isn't in
+ * the reference data or no snapshot covers the date (caller then skips it).
+ */
+export function topClassBiweekly(code: string, asOfDate: string): number | null {
+  const steps = pickSnapshot(stepsFile.snapshots, asOfDate);
+  if (steps) {
+    const bySetid = steps.rates[code];
+    if (bySetid) {
+      let top = 0;
+      let found = false;
+      for (const setid of Object.keys(bySetid)) {
+        for (const rate of Object.values(bySetid[setid])) {
+          if (rate > top) top = rate;
+          found = true;
+        }
+      }
+      if (found) return top * 80;
+    }
+  }
+
+  const ranges = pickSnapshot(rangesFile.snapshots, asOfDate);
+  if (ranges) {
+    const bySetid = ranges.entries[code];
+    if (bySetid) {
+      let top = 0;
+      let found = false;
+      for (const setid of Object.keys(bySetid)) {
+        const r = bySetid[setid].ranges;
+        const a = r['A']?.max;
+        if (a != null) {
+          if (a > top) top = a;
+          found = true;
+          continue;
+        }
+        for (const letter of Object.keys(r)) {
+          const m = r[letter]?.max;
+          if (m != null) {
+            if (m > top) top = m;
+            found = true;
+          }
+        }
+      }
+      if (found) return top * 80;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Returns benefits dollars for one pay period given a biweekly base salary.
  *
  * `cumulativeAnnualSalary` is the gross wages the employee has already earned
