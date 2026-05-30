@@ -180,6 +180,21 @@ Once Step 9 verifies, the original S40 design pick was "redirect immediately" �
 | Incognito window shows "No data loaded yet" with empty Network panel | localStorage doesn't have `pagesUrl` AND the same-origin default isn't kicking in (shouldn't happen post-PR-135) | Confirm main has [PR #135](https://github.com/alkprojects/kospos/pull/135). |
 | Page becomes unresponsive during load for many seconds | Real-data JSON parse on 375 MB envelope | Mitigations shipped in [PR #136](https://github.com/alkprojects/kospos/pull/136); if still bad, the next architectural step is a Web Worker for `JSON.parse`. |
 
+## DHR scrape proxy (S57) — `/api/dhr-proxy`
+
+The DHR eligibility / exam-results / job-postings scrape (Load Reports → refresh) can't read `sfdhr.org` directly (no CORS), so it routes through CORS proxies. The free public proxies rot (2 of the 3 were dead as of S57). A durable replacement ships **with this Pages project** as a second Pages Function — `app/functions/api/dhr-proxy.ts` — so there's no separate Worker to deploy. It proxies only `https` `sfdhr.org` URLs (not an open relay).
+
+**One-time setup (after this is on `main` and the Pages project has redeployed):**
+
+1. Open the deployed site → **Load Reports** → the scraper settings.
+2. In **Backup proxy: Cloudflare-Worker URL**, paste:
+   `https://kospos.pages.dev/api/dhr-proxy` (or `https://<your-custom-domain>/api/dhr-proxy`).
+3. Save. The scrape now tries your proxy **first**; the public proxies remain as an automatic fallback.
+
+Verify directly in a browser tab — `https://kospos.pages.dev/api/dhr-proxy?url=https://sfdhr.org/past-examination-results` should return the DHR page HTML (with `Access-Control-Allow-Origin: *`).
+
+> Note: the PDF cover-sheet fetch (`pdf-parse.ts`) still uses only the public proxy chain — wiring it to `dhrWorkerUrl` is a small follow-up.
+
 ## Appendix A — Optional: enable autonomous Cloudflare setup via API token
 
 For sessions where you'd like Claude to drive the Cloudflare setup steps directly (instead of walking you through the dashboard), you can create a scoped API token + paste it into a local gitignored file. The S41 session used this — it cut the dashboard-clicking time from ~20 minutes to a few API calls.
