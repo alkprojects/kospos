@@ -10,9 +10,11 @@
  * The S35 workaround that replaced manual-paste (which Alex called "way
  * too much manual work" for 66 pages): a chain of public CORS proxies.
  * Tries each in order; takes the first that returns 200 with HTML body.
- * Falls back to an optional configurable Cloudflare-Worker URL slot
- * (Alex's backup option, set up only if the public proxies prove flaky).
- * Manual paste remains as the ultimate last-resort fallback in the UI.
+ * When a Cloudflare-Worker URL is configured it is tried FIRST (S57) — a
+ * proxy KosPos controls is more reliable than the free public proxies, which
+ * rot on their own schedule and then serve as the fallback chain. The
+ * deployable Worker ships as app/functions/api/dhr-proxy.ts. Manual paste
+ * remains the ultimate last-resort fallback in the UI.
  *
  * Proxy order (re-checked S49 — lead with the one still working for free;
  * see DEFAULT_PROXIES below for the per-proxy health notes):
@@ -140,8 +142,9 @@ export interface FetchDhrOptions {
   fetchImpl?: FetchImpl;
   /** Override the default proxy chain. Tests inject mock proxies. */
   proxies?: readonly CorsProxy[];
-  /** Optional Cloudflare-Worker URL (appended to the proxy chain when set
-   *  — tried LAST since it's the user's backup, not the default). */
+  /** Optional Cloudflare-Worker URL. When set it's tried FIRST (S57): a proxy
+   *  the user controls is more reliable than the rotating free public proxies,
+   *  which fall back behind it. */
   workerUrl?: string;
   /** Cap pages to fetch (default MAX_PAGES). Tests lower this. */
   maxPages?: number;
@@ -284,10 +287,12 @@ export async function fetchDhrExamResults(
 ): Promise<EligibilityList[]> {
   const fetchImpl = opts.fetchImpl ?? fetch.bind(globalThis);
   const baseProxies = opts.proxies ?? DEFAULT_PROXIES;
-  // Optional Worker URL appended LAST so the default proxies handle the
-  // common case; the worker is the user's hand-rolled backup.
+  // A configured Worker is tried FIRST (S57) — a proxy KosPos controls is far
+  // more reliable than the rotating free public proxies (2 of the 3 were dead
+  // as of S57). The public proxies stay as the fallback chain behind it; with
+  // no Worker configured, they're the whole chain as before.
   const proxies: readonly CorsProxy[] = opts.workerUrl
-    ? [...baseProxies, workerProxy(opts.workerUrl)]
+    ? [workerProxy(opts.workerUrl), ...baseProxies]
     : baseProxies;
   const maxPages = opts.maxPages ?? MAX_PAGES;
   const concurrency = Math.max(1, opts.concurrency ?? DEFAULT_CONCURRENCY);
