@@ -74,13 +74,22 @@ describe('Stage-1 layout: round-trip + store placement', () => {
     expect(loaded).toEqual(file);
   });
 
-  it('stores loadedRows in the dedicated imported-rows store, never in snapshots', async () => {
+  it('stores the rows record gzipped in imported-rows (not a raw object), never in snapshots', async () => {
     await saveGroupsToIdb(fullFile(), ['rows', 'scrapers', 'planning']);
     const raw = await rawDb();
-    const inRowsStore = (await raw.get(ROWS_STORE, ROWS_KEY)) as { loadedRows: ImportedRow[] } | undefined;
+    const stored = (await raw.get(ROWS_STORE, ROWS_KEY)) as
+      | { gz?: number; data?: Uint8Array; loadedRows?: unknown }
+      | undefined;
     const inSnapshots = await raw.get(SNAPSHOTS_STORE, 'rows');
     raw.close();
-    expect(inRowsStore?.loadedRows).toHaveLength(2);
+    // A gzipped { gz, data } envelope — NOT a structured-clone object with a
+    // raw loadedRows array (the pre-S57 layout the ~350 MB came from). Assert
+    // the gzip magic bytes (1f 8b) rather than `instanceof Uint8Array`, which
+    // is unreliable across the IDB structured-clone realm boundary.
+    expect(stored?.gz).toBeGreaterThan(0);
+    expect(stored?.data?.[0]).toBe(0x1f);
+    expect(stored?.data?.[1]).toBe(0x8b);
+    expect(stored?.loadedRows).toBeUndefined();
     expect(inSnapshots).toBeUndefined();
   });
 
@@ -191,5 +200,57 @@ describe('clearSnapshotFromIdb', () => {
     expect(await raw.get(ROWS_STORE, ROWS_KEY)).toBeUndefined();
     expect(await raw.get(SNAPSHOTS_STORE, 'meta')).toBeUndefined();
     raw.close();
+  });
+});
+
+describe('S57: rows-record compression + back-compat', () => {
+  it('reads a legacy un-gzipped rows record (written before compression)', async () => {
+    // A Stage-1-but-pre-S57 browser has a PLAIN RowsRecord in imported-rows.
+    // decodeRowsRecord must pass it through so no saved data is lost.
+    const file = fullFile([row('A'), row('B')]);
+    const split = splitSessionFile(file);
+    const seed = await openDB(DB_NAME, 2, {
+      upgrade(db) {
+        if (!db.objectStoreNames.contains(SNAPSHOTS_STORE)) db.createObjectStore(SNAPSHOTS_STORE);
+        if (!db.objectStoreNames.contains(ROWS_STORE)) db.createObjectStore(ROWS_STORE);
+      },
+    });
+    await seed.put(ROWS_STORE, split.rows, ROWS_KEY); // plain, un-gzipped
+    await seed.put(SNAPSHOTS_STORE, split.meta, 'meta');
+    seed.close();
+    _resetDbForTests();
+
+    const loaded = await loadSnapshotFromIdb();
+    const nums = loaded?.payload.loadedRows.map(r => (r as { positionNumber: string }).positionNumber);
+    expect(nums).toEqual(['A', 'B']);
+  });
+
+  it('round-trips rows through gzip on save -> reload -> load', async () => {
+    const file = fullFile([row('X1'), row('X2'), row('X3')]);
+    await saveGroupsToIdb(file, ['rows']);
+    _resetDbForTests();
+    const loaded = await loadSnapshotFromIdb();
+    expect(loaded?.payload.loadedRows.map(r => (r as { positionNumber: string }).positionNumber))
+      .toEqual(['X1', 'X2', 'X3']);
+  });
+
+  it('compresses the rows payload far below the raw JSON size', async () => {
+    // Repetitive rows mirror real OBI data (the same long strings on every
+    // row). Gzip should shrink this by well over 5x.
+    const rows = Array.from(
+      { length: 1000 },
+      (_, i) =>
+        ({
+          positionNumber: '10001',
+          desc: 'Dept of Building Inspection - Regular Biweekly Pay - 1GAGF',
+          _row: i,
+        }) as unknown as ImportedRow,
+    );
+    await saveGroupsToIdb(fullFile(rows), ['rows']);
+    const raw = await rawDb();
+    const stored = (await raw.get(ROWS_STORE, ROWS_KEY)) as { data: Uint8Array };
+    raw.close();
+    const rawJsonLen = JSON.stringify({ loadedRows: rows, lastBfmImportAt: '2026-05-20' }).length;
+    expect(stored.data.length).toBeLessThan(rawJsonLen / 5);
   });
 });

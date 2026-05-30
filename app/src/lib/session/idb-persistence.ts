@@ -80,10 +80,14 @@
  *     (Stage-0) + `'current'` monolith (pre-Stage-0), both migrated away on
  *     first load.
  *   - Object store `imported-rows` (string-keyed; added in v2) — the single
- *     key `'current'` holds the heavy `{ loadedRows, lastBfmImportAt }`
- *     payload, written only on import.
- *   - Values: plain objects (NOT JSON-serialized — IDB handles
- *     structured-clone natively).
+ *     key `'current'` holds the heavy `{ loadedRows, lastBfmImportAt }` payload
+ *     as a gzipped envelope (S57; see "Rows-record compression" below),
+ *     written only on import.
+ *   - Values: `snapshots` records are plain objects (IDB structured-clones them
+ *     natively); the `imported-rows` record is a gzipped `{ gz, data }` envelope
+ *     (the rows are highly repetitive JSON — they compress ~8-15× — and are read
+ *     into memory on every reload, so compressing them cuts both disk and the
+ *     reload-read by the same factor).
  *
  * Failure modes (all caller-handled by the React hook):
  *   - `idb` open failure (private browsing, denied permissions): the
@@ -295,6 +299,78 @@ function getDb(): Promise<IDBPDatabase> {
   return dbPromise;
 }
 
+// ---------------------------------------------------------------------------
+// Rows-record compression (S57)
+//
+// `loadedRows` dominates the snapshot — one OBI row per position × earning code
+// × pay period, ~110K-330K rows at DBI+CPC scale — and it is highly repetitive
+// JSON (the same fund / dept / account / person / description strings recur on
+// every row). IDB stores values via structured-clone, which does NOT compress,
+// so the rows record sat on disk (and was read into memory on every reload) at
+// its full ~350 MB. Gzipping the record before `put` shrinks the on-disk + the
+// reload-read size ~8-15× (the ratio the Cloudflare publish path already gets
+// on this data). We store a small `{ gz, data }` envelope instead of the raw
+// object.
+//
+// Round-trip safety: the importers coerce every numeric cell to a finite number
+// (`num` → 0, never NaN) and every text cell to a string (`str`), so the rows
+// payload is pure JSON — JSON.stringify/parse is lossless here (the publish path
+// already relies on this on real 331K-row data). The gzip MUST complete before
+// the IDB transaction opens: an IDB tx auto-commits the moment control yields to
+// a non-IDB promise, so awaiting CompressionStream mid-transaction would drop
+// the write.
+// ---------------------------------------------------------------------------
+
+/** Gzipped rows record as stored in the `imported-rows` object store. The `gz`
+ *  marker (a format version) distinguishes it from a legacy plain `RowsRecord`
+ *  written before compression — those are still read (decoded as a pass-through)
+ *  and rewritten gzipped on the next import. */
+interface GzRowsRecord {
+  gz: 1;
+  data: Uint8Array;
+}
+
+/** What the rows store may hold: the gzipped envelope (S57+), or a legacy plain
+ *  record (pre-S57, or freshly written by the one-time layout migration). */
+type StoredRowsRecord = GzRowsRecord | RowsRecord;
+
+function isGzRowsRecord(v: StoredRowsRecord): v is GzRowsRecord {
+  // Detect by the `gz` marker key, NOT `data instanceof Uint8Array`: a value
+  // round-tripped through IDB structured-clone can come back as a typed array
+  // from a different JS realm, so `instanceof` is unreliable. A legacy plain
+  // RowsRecord has no `gz` key, so the key test cleanly distinguishes the two.
+  return typeof v === 'object' && v !== null && 'gz' in v;
+}
+
+/** gzip a UTF-8 string via the Web Streams API (Node 18+ / modern browsers /
+ *  Workers support it natively). Mirrors `cloudflare-publish.ts:gzipString`. */
+async function gzip(s: string): Promise<Uint8Array> {
+  const cs = new CompressionStream('gzip');
+  const stream = new Response(new TextEncoder().encode(s)).body!.pipeThrough(cs);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/** Inverse of `gzip` — gunzip bytes back to the original UTF-8 string. */
+async function gunzip(bytes: Uint8Array): Promise<string> {
+  const ds = new DecompressionStream('gzip');
+  const stream = new Response(bytes as BodyInit).body!.pipeThrough(ds);
+  return new TextDecoder().decode(await new Response(stream).arrayBuffer());
+}
+
+/** Compress a rows record for storage. */
+async function encodeRowsRecord(rows: RowsRecord): Promise<GzRowsRecord> {
+  return { gz: 1, data: await gzip(JSON.stringify(rows)) };
+}
+
+/** Decompress a stored rows record. A legacy plain record (pre-S57 or freshly
+ *  migrated) is passed through unchanged. */
+async function decodeRowsRecord(stored: StoredRowsRecord): Promise<RowsRecord> {
+  if (isGzRowsRecord(stored)) {
+    return JSON.parse(await gunzip(stored.data)) as RowsRecord;
+  }
+  return stored;
+}
+
 /**
  * Persist the given store groups to IDB. Always rewrites the tiny `meta`
  * record (so `savedAt` tracks the latest write) plus the record for each
@@ -320,6 +396,10 @@ export async function saveGroupsToIdb(
   const db = await getDb();
   const split = splitSessionFile(file);
   const writeRows = groups.includes('rows');
+  // Gzip the heavy rows record BEFORE opening the tx — an IDB transaction
+  // auto-commits the moment control yields to a non-IDB promise, so the async
+  // CompressionStream must finish first (see the compression note above).
+  const rowsValue = writeRows ? await encodeRowsRecord(split.rows) : null;
   const tx = db.transaction(
     writeRows ? [STORE_NAME, ROWS_STORE] : STORE_NAME,
     'readwrite',
@@ -328,7 +408,7 @@ export async function saveGroupsToIdb(
   const ops: Promise<unknown>[] = [snap.put(split.meta, KEY_META)];
   if (groups.includes('scrapers')) ops.push(snap.put(split.scrapers, KEY_SCRAPERS));
   if (groups.includes('planning')) ops.push(snap.put(split.planning, KEY_PLANNING));
-  if (writeRows) ops.push(tx.objectStore(ROWS_STORE).put(split.rows, ROWS_KEY));
+  if (rowsValue) ops.push(tx.objectStore(ROWS_STORE).put(rowsValue, ROWS_KEY));
   ops.push(tx.done);
   await Promise.all(ops);
 }
@@ -350,15 +430,17 @@ export async function saveGroupsToIdb(
  */
 export async function loadSnapshotFromIdb(): Promise<SessionFile | null> {
   const db = await getDb();
-  const [meta, scrapers, planning, rows] = await Promise.all([
+  const [meta, scrapers, planning, rowsStored] = await Promise.all([
     db.get(STORE_NAME, KEY_META) as Promise<MetaRecord | undefined>,
     db.get(STORE_NAME, KEY_SCRAPERS) as Promise<ScrapersRecord | undefined>,
     db.get(STORE_NAME, KEY_PLANNING) as Promise<PlanningRecord | undefined>,
-    db.get(ROWS_STORE, ROWS_KEY) as Promise<RowsRecord | undefined>,
+    db.get(ROWS_STORE, ROWS_KEY) as Promise<StoredRowsRecord | undefined>,
   ]);
 
-  // Fast path: rows already live in the Stage-1 `imported-rows` store.
-  if (rows !== undefined) {
+  // Fast path: rows already live in the Stage-1 `imported-rows` store. Decode
+  // handles both the gzipped envelope (S57+) and a legacy plain record.
+  if (rowsStored !== undefined) {
+    const rows = await decodeRowsRecord(rowsStored);
     return mergeIdbRecords({ meta, rows, scrapers, planning });
   }
 
