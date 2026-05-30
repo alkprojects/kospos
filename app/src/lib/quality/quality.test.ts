@@ -8,6 +8,7 @@ import { positionInHcmNotBfm } from './rules/position-in-hcm-not-bfm';
 import { additionalPayOrphan } from './rules/additional-pay-orphan';
 import { additionalPayActingSupervisoryConflict } from './rules/additional-pay-acting-supervisory-conflict';
 import { findSupervisoryOwed } from './rules/additional-pay-supervisory-owed';
+import { additionalPayActingOverlap } from './rules/additional-pay-acting-overlap';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -463,5 +464,47 @@ describe('QR-008 findSupervisoryOwed (supervisory differential owed)', () => {
       hcmPos({ positionNumber: '10001', emplId: 'M1', employeeJobCode: '0922' }),
       hcmPos({ positionNumber: '10002', emplId: 'S1', employeeJobCode: '0923', reportsToPosition: '10001' }),
     ], gradeOf)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// QR-009 additionalPayActingOverlap — employee with multiple active ACTFLT
+// ---------------------------------------------------------------------------
+
+describe('QR-009 additionalPayActingOverlap', () => {
+  it('flags an employee with 2+ active ACTFLT assignments', () => {
+    const issues = additionalPayActingOverlap.check([
+      eeAddl({ emplId: '187518', rateCode: 'ACTFLT', effectiveDate: '2026-01-12', _row: 3 }),
+      eeAddl({ emplId: '187518', rateCode: 'ACTFLT', effectiveDate: '2026-03-01', _row: 7 }),
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].ruleId).toBe('QR-009');
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].emplId).toBe('187518');
+    expect(issues[0].sourceRows).toEqual([3, 7]);
+  });
+
+  it('does not flag a single acting assignment', () => {
+    expect(additionalPayActingOverlap.check([
+      eeAddl({ emplId: '187518', rateCode: 'ACTFLT' }),
+    ])).toHaveLength(0);
+  });
+
+  it('ignores inactive ACTFLT rows when counting', () => {
+    expect(additionalPayActingOverlap.check([
+      eeAddl({ emplId: '187518', rateCode: 'ACTFLT', payStatus: 'A', effectiveDate: '2026-01-12' }),
+      eeAddl({ emplId: '187518', rateCode: 'ACTFLT', payStatus: 'I', effectiveDate: '2026-03-01' }),
+    ])).toHaveLength(0);
+  });
+
+  it('does not count supervisory rows toward the acting overlap', () => {
+    expect(additionalPayActingOverlap.check([
+      eeAddl({ emplId: '187518', rateCode: 'ACTFLT', effectiveDate: '2026-01-12' }),
+      eeAddl({ emplId: '187518', rateCode: 'SUPFLT', effectiveDate: '2026-03-01' }),
+    ])).toHaveLength(0);
+  });
+
+  it('does not check when no additional-pay rows are loaded', () => {
+    expect(additionalPayActingOverlap.check([])).toHaveLength(0);
   });
 });
