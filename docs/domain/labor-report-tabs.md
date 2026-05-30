@@ -2202,17 +2202,20 @@ consumes P&P Data](#how-each-downstream-tab-consumes-pp-data).)_
 
 **Status:** walkthrough — done 2026-05-25
 
-**Build status (S55):** **Partial — source-data surface + Positions
-integration shipped; the two cross-check audits deferred.** What's live:
-the `ps-hcm-ee-addl-pay` importer (`MRG_HR_EE_ADDL_PAY`, 18 cols A:R), the
-`lib/additional-pay/` `AdditionalPay` entity (kind = acting/supervisory/other,
-per-PP amount), a **Source Tables → EE Additional Pay** sub-tab (rollup +
-search + per-assignment table), an **Additional Pay** card on Position Detail
-(incumbent + vice, joined by emplId), and a Positions-list kind chip +
-"Add'l pay only" filter. What's **deferred pending Alex** (see Open questions
-below): the acting **dual-entry** check, the supervisory **owed-but-not-paid**
-(`Rep To Pay Above`) audit, the four Data-Issues flags, and any annualized
-(COLA-aware) cost.
+**Build status (S56):** **Shipped — the S55 source-data surface + Positions
+integration, plus the cross-check audits and a dedicated corrections surface
+(S56).** Live: the `ps-hcm-ee-addl-pay` importer, the `lib/additional-pay/`
+entity, the **Source Tables → EE Additional Pay** sub-tab, the **Additional
+Pay** card on Position Detail, the Positions-list kind chip + filter, P&P cols
+**U/V** (Position Used For) capture, and four quality audits surfaced on a new
+**Issues / Corrections** tab — **QR-006** acting dual-entry orphan, **QR-007**
+acting+supervisory conflict, **QR-008** supervisory-differential-owed
+(grade-to-grade via `cost.ts:topClassBiweekly`, per the DHR 5%-of-grade rule),
+**QR-009** acting-overlap. **Deferred:** the `additional-pay-expired` flag
+(QR-010) — needs a manual user-input end-date store + a Position-Detail input +
+a non-standard rule context (audits run on imported rows; end-dates are user
+input). Annualized (COLA-aware) cost stays parked for the projection-engine
+session.
 
 **Purpose:** **Two-pronged audit of additional-pay assignments** —
 acting-pay dual-entry verification and supervisory-pay differential
