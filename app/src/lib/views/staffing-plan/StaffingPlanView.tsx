@@ -47,17 +47,7 @@ import { useSeparations } from '../../separations';
 import { PlannedActionDetail } from './PlannedActionDetail';
 import { matchesNeedle } from '../../search/needle';
 import { Badge, CopyButton, rowButtonProps } from '../../ui';
-
-function fmtMoney(n: number): string {
-  return n.toLocaleString('en-US', {
-    style: 'currency', currency: 'USD', maximumFractionDigits: 0,
-  });
-}
-
-function fmtSignedMoney(n: number): string {
-  const sign = n > 0 ? '+' : n < 0 ? '−' : '';
-  return sign + fmtMoney(Math.abs(n));
-}
+import { fmtSignedMoney } from '../../format';
 
 /** Plain-English label for each PlannedActionType. */
 const TYPE_LABELS: Record<PlannedActionType, string> = {
