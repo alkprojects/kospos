@@ -4,7 +4,7 @@
 from PeopleSoft Financials (see [`ps-financials.md`](ps-financials.md)) and
 delivered via OBI (see [`obi.md`](obi.md)) until SF's Snowflake migration
 lands. Identified as a required KosPos import during the
-[Tab 20 (Report Data) walkthrough](../domain/labor-report.md#tab-20--report-data) —
+[Tab 20 (Report Data) walkthrough](../domain/labor-report-tabs.md#tab-20--report-data) —
 because **KK budget journals and GL actuals journals carry only chartfield-string
 detail (no position attribution)**, the position-aware BI Payroll feed misses
 them. BVA captures both at full chartfield granularity.
@@ -66,7 +66,7 @@ KosPos importer must record the **actual snapshot date** from one of:
 | Range | Group | Notes |
 |---|---|---|
 | `Budget Period` | Fiscal year (4-digit, e.g. `2026`) | Single FY per export |
-| `Fund Group Description` … `Fund Lvl 1 Name` (8 cols) | Fund hierarchy | Includes **`Annual/Continuing`** (values: `ANNUAL_FUNDS` / `CONTINUING_FUNDS`) and **`Fund Control`** (`FACCT` annual / `FCNT` continuing / `FAUTH` capital, etc.) — matches [`obi-payroll`'s Fund Control distinction](../domain/labor-report.md#tab-7--bi-payroll) |
+| `Fund Group Description` … `Fund Lvl 1 Name` (8 cols) | Fund hierarchy | Includes **`Annual/Continuing`** (values: `ANNUAL_FUNDS` / `CONTINUING_FUNDS`) and **`Fund Control`** (`FACCT` annual / `FCNT` continuing / `FAUTH` capital, etc.) — matches [`obi-payroll`'s Fund Control distinction](../domain/labor-report-tabs.md#tab-7--bi-payroll) |
 | `Department Group Code` … `Department Description` (7 cols) | Department hierarchy | **Division / Section / Department** layers — richer than BI Payroll's single dept layer |
 | `Project Code` … `Project Type Name` (5 cols) | Project | Includes `Project Owning Dept Group` + Code |
 | `Activity Code` … `Activity Owning Dept` (4 cols) | Activity | |
@@ -181,7 +181,7 @@ etc.) — and those are exactly what KosPos should surface.
 ### Exclude inactive positions
 
 Per Alex (during Tab 20 walkthrough): the BI Payroll side of the GL comparison
-must exclude positions in the [Inactive view](../domain/labor-report.md#tab-13--inactive)
+must exclude positions in the [Inactive view](../domain/labor-report-tabs.md#tab-13--inactive)
 (positions paid in BI Payroll but not in the current P&P snapshot). Otherwise
 the GL_adjustment delta picks up legitimate payroll for inactivated positions
 as "missing from BVA," which is wrong.
@@ -208,7 +208,7 @@ all funds, not just operating.
 `lib/importers/bva/` — Phase 2.4 sub-phase target.
 
 - **Header-driven fingerprint** (same pattern as
-  [BI Payroll importer](../domain/labor-report.md#3-pre-compute-the-rollup-cube-once-query-it-many-ways)):
+  [BI Payroll importer](../domain/labor-report-tabs.md#3-pre-compute-the-rollup-cube-once-query-it-many-ways)):
   match columns by canonical substring (`"original budget"`, `"transfer & other"`,
   `"gl actuals"`, `"revised budget pre-close"`, etc.) so column renames or
   reorders don't silently break the importer.

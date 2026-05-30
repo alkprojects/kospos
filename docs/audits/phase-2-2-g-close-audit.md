@@ -22,7 +22,7 @@ one session prior.
    ([PR #89](https://github.com/alkprojects/kospos/pull/89) — 3 files;
    [PR #90](https://github.com/alkprojects/kospos/pull/90) — 9 files)
    against the docs that describe them ([labor-report.md § Tab 24
-   Staffing Plan](../domain/labor-report.md#tab-24--staffing-plan),
+   Staffing Plan](../domain/labor-report-tabs.md#tab-24--staffing-plan),
    the Phase 2.2.f close audit, the S30 prompt + SESSION_HANDOFF
    recommendations).
 2. Re-run `npm test` — confirms the **328 / 328** baseline (was 303 at
@@ -376,14 +376,14 @@ skipped per the precedent set in earlier non-heading-touching cycles.
 
 ### Doc-vs-implementation
 
-- [`labor-report.md § Tab 24 § Improvement #1 — PlannedAction model`](../domain/labor-report.md#tab-24--staffing-plan)
+- [`labor-report.md § Tab 24 § Improvement #1 — PlannedAction model`](../domain/labor-report-tabs.md#tab-24--staffing-plan)
   describes the model that PR #79 first shipped. PR #90 surfaces the
   full editor for that model. Spec stays in sync. ✓
-- [`labor-report.md § Tab 24 § Improvement #4 — state machine`](../domain/labor-report.md#tab-24--staffing-plan)
+- [`labor-report.md § Tab 24 § Improvement #4 — state machine`](../domain/labor-report-tabs.md#tab-24--staffing-plan)
   sketches the status-transition state machine. PR #90 surfaces the
   `isAllowedStatusTransition` guard in the editor with force-override.
   ✓
-- [`labor-report.md § Tab 24 § Improvement #6 — holdReason enum`](../domain/labor-report.md#tab-24--staffing-plan)
+- [`labor-report.md § Tab 24 § Improvement #6 — holdReason enum`](../domain/labor-report-tabs.md#tab-24--staffing-plan)
   language is still stale (was flagged in the Phase 2.2.f audit). PR
   #90 didn't touch this — Alex dropped the enum in S29. **Still queued
   for the docs cleanup PR** (items B + C bundle).

@@ -31,7 +31,7 @@ additionally drive budget checks):
 | Activity | 9 × 81,905 | Project-internal activities |
 | Agency Use | 3 × 3,724 | Rarely populated outside Public Health / specific grants |
 | Authority | 9 × 14,307 | 2-level Authority hierarchy |
-| Department | 13 × 14,240 | Full citywide dept tree (the [Tab 6 § citywide dept tree](../domain/labor-report.md#companion-reference-dataset--citywide-department-tree) reference) |
+| Department | 13 × 14,240 | Full citywide dept tree (the [Tab 6 § citywide dept tree](../domain/labor-report-tabs.md#companion-reference-dataset--citywide-department-tree) reference) |
 | Department Budget Control | 16 × 1,512 | 4-level Dept Budget Control |
 | **Fund** | 16 × 1,951 | **Carries `Annual/Continuing` flag** → drives the operating-vs-continuing fund split |
 | Project | 13 × 43,012 | Project Code + Owning Dept + Owning Dept Group + Manager / Accountant / Start-End / Type + Grant flag |

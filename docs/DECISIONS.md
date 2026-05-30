@@ -116,7 +116,7 @@ Reconciliations run at chartfield grain, not position grain. Position-aware Repo
 - Reconciliation suite at [audits/bva-reconciliation-suite.md](audits/bva-reconciliation-suite.md) verifies the BVA reconciliation patterns against real DBI+CPC data.
 - Future tabs that need chartfield-grain budget actuals (vs position-grain) pull from BVA, not BFM.
 
-**See also:** [PR #40](https://github.com/alkprojects/kospos/pull/40); [audits/bva-reconciliation-suite.md](audits/bva-reconciliation-suite.md); [labor-report.md Tab 20](domain/labor-report.md#tab-20--report-data).
+**See also:** [PR #40](https://github.com/alkprojects/kospos/pull/40); [audits/bva-reconciliation-suite.md](audits/bva-reconciliation-suite.md); [labor-report.md Tab 20](domain/labor-report-tabs.md#tab-20--report-data).
 
 ---
 
@@ -219,7 +219,7 @@ Without a place to capture this, the context dies in someone's email, sticky not
 
 - Every persisted Position record schema includes `userNotes`.
 - Position Detail view exposes the field with inline edit; saves on blur or explicit save.
-- Snapshot-diff feature (per [Tab 27 walkthrough](domain/labor-report.md#tab-27--operating-report-detail)) shows when notes change between snapshots.
+- Snapshot-diff feature (per [Tab 27 walkthrough](domain/labor-report-tabs.md#tab-27--operating-report-detail)) shows when notes change between snapshots.
 - Schema versioning bump when the field lands (per `docs/CLAUDE.md` Schema version pattern).
 - Captured in memory at `feedback_user_notes_per_position.md`.
 
@@ -252,7 +252,7 @@ The Session 18 Tab 18 (Step) walkthrough surfaced this when decoding the workboo
 - Special-class enumeration grows to 8 codes + 9994M_C = 9 active categories (see [special-class.md § The eight special classes](domain/special-class.md)).
 - Phase 2.0h walkthrough adds a 9994 MCCP Offset tab walkthrough.
 - ADR-006 (PS HCM P&P Data importer column assumptions) may need an `is_mccp` derivation rule when Phase 2.4 importer lands.
-- Captured in [Tab 18 walkthrough](domain/labor-report.md#tab-18--step) (improvement #4) and the [STEPM_C walkthrough](domain/special-class.md).
+- Captured in [Tab 18 walkthrough](domain/labor-report-tabs.md#tab-18--step) (improvement #4) and the [STEPM_C walkthrough](domain/special-class.md).
 
 ---
 
@@ -284,7 +284,7 @@ Alex's worked example (Session 18 reconfirmation): "Year with 26 PPs. Employee s
 - All per-tab walkthroughs going forward inherit this default.
 - Captured in memory at `feedback_projections_always_cola_aware.md`.
 
-**See also:** [labor-report.md § Calendar tab](domain/labor-report.md#tab-5--calendar) (improvements #2 and #3).
+**See also:** [labor-report.md § Calendar tab](domain/labor-report-tabs.md#tab-5--calendar) (improvements #2 and #3).
 
 ---
 

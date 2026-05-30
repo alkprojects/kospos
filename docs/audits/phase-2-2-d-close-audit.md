@@ -50,7 +50,7 @@ per the precedence Board > TechAdj > Committee > Mayor > Department >
 Base > Original, picking the latest FY with non-zero dollars first.
 
 Both source docs already describe this shape ([Tab 4 § Structure (64
-cols, grouped)](../domain/labor-report.md#tab-4--bfm-1510006-fy26)
+cols, grouped)](../domain/labor-report-tabs.md#tab-4--bfm-1510006-fy26)
 and [data-sources/bfm.md § Eturns reports](../data-sources/bfm.md)).
 The TypeScript types now match. No drift between code and docs in the
 Phase 2.2.d core scope.
@@ -281,7 +281,7 @@ skipped per the precedent set in earlier non-heading-touching cycles.
 
 ### Doc-vs-implementation
 
-- [`labor-report.md § Tab 4 § Structure (64 cols, grouped)`](../domain/labor-report.md#tab-4--bfm-1510006-fy26)
+- [`labor-report.md § Tab 4 § Structure (64 cols, grouped)`](../domain/labor-report-tabs.md#tab-4--bfm-1510006-fy26)
   describes the 64-column eturn shape that PR #75 imports → match. ✓
 - [`labor-report.md § Tab 4 § KosPos improvements §1`](../domain/labor-report.md)
   describes the canonical `lib/importers/bfm-eturn/` shape → matches

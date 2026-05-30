@@ -16,7 +16,7 @@ one session prior.
 1. Read every file touched in Phase 2.2.h's one PR
    ([PR #96](https://github.com/alkprojects/kospos/pull/96) — 6 files)
    against the docs that describe them ([labor-report.md § Tab 13 —
-   Inactive](../domain/labor-report.md#tab-13--inactive), the Phase
+   Inactive](../domain/labor-report-tabs.md#tab-13--inactive), the Phase
    2.2.g close audit, the S31 prompt + SESSION_HANDOFF recommendations).
 2. Re-run `npm test` — confirms the **374 / 374** baseline (was 354 at
    the start of Phase 2.2.h; +20 from PR #96).
@@ -327,7 +327,7 @@ Anchor verifier rerun skipped per precedent.
 
 ### Doc-vs-implementation
 
-- [`labor-report.md § Tab 13 § KosPos improvement #1`](../domain/labor-report.md#tab-13--inactive)
+- [`labor-report.md § Tab 13 § KosPos improvement #1`](../domain/labor-report-tabs.md#tab-13--inactive)
   describes "no separate import or paste" — PR #96 implements that
   literally. Improvement #2 (unlimited count) — implemented. Spec stays
   in sync. ✓
