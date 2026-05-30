@@ -53,10 +53,16 @@ Alex Lewis-Koskinen, Deputy Director (Admin), SF Department of Building Inspecti
 - `docs/GLOSSARY.md` — SF-specific terms (RTF, MCCP, MOU, PCS/PEX/TEX, etc.)
 - `docs/data-sources/` — one file per upstream system (DHR, CON, CSC, MYR, PeopleSoft, BFM, OBI)
 - `docs/domain/` — one file per domain concept (positions, chartfields, special-class, projections, hiring)
-- `docs/examples/` — tiny synthetic example files for testing parsers (no real PII)
+- `docs/audits/` — per-milestone close audits (hiring-screen grading lens; cadence governed by ADR-017)
+- `docs/proposals/` — forward-looking proposals not yet picked (UX, code-health, citywide scaling)
+- `docs/research/` — deep-dive research notes (CSC/DHR appointment rules, persistence options, scraping plan)
+- `docs/runbooks/` — operational procedures (e.g. Cloudflare Pages setup)
+- `docs/examples/` — placeholder for tiny synthetic parser fixtures (currently empty; no real PII)
 - `app/` — the Vite + React + TypeScript application. `cd app && npm install` once, then `npm run dev` → http://localhost:5173/kospos/
 - `.github/workflows/deploy.yml` — Pages deploy on push to `main`
 - `.github/workflows/test.yml` — Vitest on every push and PR
+
+**Tooling gotcha (Windows worktree):** use **absolute paths** with Read / Glob / Grep / Bash. The Bash tool's cwd is `app/` (not the worktree root) and Glob resolves relative patterns off-worktree, so relative paths like `docs/*.md` silently return **empty** — which produced phantom "file not found" reads in S52 and S53. Reference the full absolute path (`…/worktrees/<name>/docs/…`); for git ops that take path args, use `git -C "<worktree-root>"`.
 
 ## Stack (decided Phase 0 — see DECISIONS.md ADR-001)
 

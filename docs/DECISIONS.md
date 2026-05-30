@@ -6,6 +6,37 @@ Each entry: what we decided, the context, what we considered instead, and the co
 
 ---
 
+## ADR-017 — Lightened per-session ceremony; full close audits only at milestones
+
+**Date:** 2026-05-30
+**Status:** Accepted (decided Session 53 by Alex during the S53 deep project-state audit)
+
+**Context:** From Phase 2.0 onward, every sub-phase — even a read-only docs sub-tab — triggered the full close-out ritual: a `docs/audits/phase-2-2-*-close-audit.md`, a SESSION_LOG entry with brief-audit + lessons subsections, and a SESSION_HANDOFF rewrite. By S53 that was 28 close-audit events across 35 audit docs. The S53 audit found the ritual had outgrown the change size (a full close audit for the read-only Calendar sub-tab), generated "deferral debt" (the SESSION_LOG-trim and labor-report-split items deferred 10 sessions running), and — while the heavy artifacts were dutifully produced — the **Session 52 SESSION_LOG entry was silently skipped** (PR #177's message claimed it; git shows it never landed). The ceremony was consuming attention without proportional value.
+
+**Decision:** Lighten the per-session ceremony. Concretely:
+
+- **Full close audit** (the grading-lens `docs/audits/…` doc) fires **only at meaningful milestones**: a new user-facing feature surface, an architectural / persistence change, a phase boundary, or a freeform bug/UX session with non-trivial findings. It does **not** fire for docs-only PRs, pure mechanical refactors, single-comment/typo fixes, or small behavior-neutral cleanups.
+- **SESSION_LOG.md** always gets a **short** entry every session (what shipped + PR #s + test delta, ~1 paragraph). The heavy "brief audit / lessons" subsections are reserved for milestone sessions. A floor of one short entry is mandatory — never zero (the S52 miss is the failure mode this guards against).
+- **SESSION_HANDOFF.md** is always updated (status + carry-forwards) and **always ends with the copyable next-session prompt rendered verbatim in the chat** — non-negotiable, Alex's explicit S53 caveat. (Memory `feedback-session-end` / `feedback-handoff-paste-prompt-inline`; the PR #51 Stop hook; CLAUDE.md shutdown step 4. This is the one bit of ceremony that is never trimmed.)
+- **Unchanged non-negotiables:** one logical change per PR, `npm test` green, `npm run build` before app PRs, branch from `origin/main` → squash-merge → fast-forward `main` → sync the main worktree.
+
+**Alternatives considered:**
+
+1. **Keep the full ritual every PR** — rejected: overhead outgrew change size, bred deferral debt, and still produced a missed log; the cost wasn't buying proportional quality.
+2. **Drop close audits entirely** — rejected: the hiring-screen grading lens is genuinely valuable at milestones; it is the project's self-evaluation mechanism (memory `session-logging`).
+3. **Lighten without codifying** — rejected by Alex: undocumented conventions drift (this is exactly how the effort-level-vs-fast-mode and the "audit every sub-phase" conventions drifted unnoticed). Writing it down is the point.
+
+**Consequences:**
+
+- `docs/audits/` stops growing ~1 file per PR; audit docs become milestone markers, not per-PR receipts.
+- A "is this a milestone?" judgment call is now required each session; when genuinely unsure, err toward writing the audit.
+- The copyable prompt + a short SESSION_LOG entry are the permanent floors — lightening never reaches zero.
+- Supersedes the implicit "audit every sub-phase" practice; carry-forward **F (audit cadence)** is now governed by this ADR. Complements ADR-008 (handoff convention), which is unchanged.
+
+**See also:** ADR-008 (session handoff convention); memory `session-logging`, `feedback-session-end`; the S53 audit (logged in SESSION_LOG.md).
+
+---
+
 ## ADR-016 — Cross-device persistence via Cloudflare Pages + Workers KV (gzipped, same-origin default)
 
 **Date:** 2026-05-28
