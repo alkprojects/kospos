@@ -13,10 +13,29 @@ import {
   gzipString,
   publishSnapshot,
   readCloudflareConfig,
+  resolveSnapshotUrl,
   writeCloudflareConfig,
   type PublishStage,
 } from './cloudflare-publish';
 import { buildSessionFile } from './snapshot';
+
+describe('resolveSnapshotUrl', () => {
+  const noConfig = { pagesUrl: '', publishSecret: '' };
+  it('uses an explicit pagesUrl when configured', () => {
+    expect(resolveSnapshotUrl({ pagesUrl: 'https://x.test', publishSecret: '' }, 'anything.example'))
+      .toBe('https://x.test/api/snapshot');
+  });
+  it('points the GitHub Pages mirror at the Cloudflare deployment (S57 fix)', () => {
+    expect(resolveSnapshotUrl(noConfig, 'alkprojects.github.io'))
+      .toBe('https://kospos.pages.dev/api/snapshot');
+  });
+  it('uses a relative URL on the Cloudflare site itself (same-origin)', () => {
+    expect(resolveSnapshotUrl(noConfig, 'kospos.pages.dev')).toBe('/api/snapshot');
+  });
+  it('uses a relative URL in local dev', () => {
+    expect(resolveSnapshotUrl(noConfig, 'localhost')).toBe('/api/snapshot');
+  });
+});
 
 /** Decompress gzip bytes back to a UTF-8 string — used by tests that
  *  capture the POST body to verify what the client actually sent.
