@@ -12,6 +12,14 @@ import type { ImportedRow } from '../../importers/types';
 export const positionInBfmNotHcm: QualityRule = {
   id: 'QR-001',
   description: 'Position in BFM budget has no matching record in PS HCM P&P',
+  rationale:
+    'A position appears in the BFM budget but has no matching PS HCM P&P record. Either the position was eliminated in HCM but never removed from BFM, or it is a keying error. Either way the budget carries a phantom position and overstates salary.',
+  fix:
+    'Confirm whether the position still exists. If it was eliminated, remove the BFM budget line; if it is genuinely new, ensure it is established in PS HCM.',
+  citations: [
+    { label: 'Cross-system reconciliation: BFM Position Budget vs PS HCM Position & Personnel' },
+  ],
+  sourceTabs: ['positions', 'data'],
   check(records: ImportedRow[]): Issue[] {
     const bfmPositions = records.filter(r => r._source === 'bfm-position');
     const hcmPositions = new Set(

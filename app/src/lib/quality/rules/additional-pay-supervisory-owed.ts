@@ -122,5 +122,13 @@ export const additionalPaySupervisoryOwed: QualityRule = {
   id: 'QR-008',
   description:
     "Supervisory differential likely owed — a manager's class grade is < 5% above a subordinate's, with no SUPFLT recorded",
+  rationale:
+    'A supervisory differential may be owed. This manager grade (class top step) is less than 5% above the highest-graded subordinate grade, and no SUPFLT differential is recorded. Per DHR this is judged grade-to-grade, not paycheck-to-paycheck: step placement and premiums do not matter.',
+  fix:
+    'Review for a supervisory differential. DHR allows raising the manager to 5% above the subordinate top step, subject to a ~10% / two-full-step per-FY cap. Same-class-over-class and some bargaining units are exempt, so confirm before acting.',
+  citations: [
+    { label: 'SF DHR: Acting Assignment Pay and Supervisory Differential Adjustments (rev. 3/21/23), Example 5 - the 5%-of-grade, grade-to-grade rule' },
+  ],
+  sourceTabs: ['positions', 'data'],
   check: (records: ImportedRow[]) => findSupervisoryOwed(records),
 };

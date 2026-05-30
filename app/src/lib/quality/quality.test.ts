@@ -9,6 +9,7 @@ import { additionalPayOrphan } from './rules/additional-pay-orphan';
 import { additionalPayActingSupervisoryConflict } from './rules/additional-pay-acting-supervisory-conflict';
 import { findSupervisoryOwed } from './rules/additional-pay-supervisory-owed';
 import { additionalPayActingOverlap } from './rules/additional-pay-acting-overlap';
+import { ALL_RULES } from './index';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -506,5 +507,27 @@ describe('QR-009 additionalPayActingOverlap', () => {
 
   it('does not check when no additional-pay rows are loaded', () => {
     expect(additionalPayActingOverlap.check([])).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rule metadata — every registered rule must carry detail-panel content so the
+// Issues view can show a rationale, a suggested fix, a citation, and a link to
+// the source tab. Compile-time `required` fields enforce presence; this guards
+// non-emptiness and applies to every future rule added to ALL_RULES.
+// ---------------------------------------------------------------------------
+
+describe('rule metadata completeness', () => {
+  it('every registered rule has rationale, fix, a citation, and a source tab', () => {
+    expect(ALL_RULES.length).toBeGreaterThan(0);
+    for (const rule of ALL_RULES) {
+      expect(rule.rationale.trim(), `${rule.id} rationale`).not.toBe('');
+      expect(rule.fix.trim(), `${rule.id} fix`).not.toBe('');
+      expect(rule.citations.length, `${rule.id} citations`).toBeGreaterThan(0);
+      expect(rule.sourceTabs.length, `${rule.id} sourceTabs`).toBeGreaterThan(0);
+      for (const c of rule.citations) {
+        expect(c.label.trim(), `${rule.id} citation label`).not.toBe('');
+      }
+    }
   });
 });

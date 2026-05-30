@@ -15,6 +15,14 @@ import type { ImportedRow } from '../../importers/types';
 export const positionInHcmNotBfm: QualityRule = {
   id: 'QR-005',
   description: 'Active filled HCM position has no matching BFM budget line',
+  rationale:
+    'A filled, active PS HCM position has no matching BFM budget line. The person is working but the position is not budgeted here, so either it is funded from a different account than expected, or BFM was never updated when the position was created.',
+  fix:
+    'Locate the funding source. If it should be budgeted here, add the BFM line; if it is funded elsewhere, confirm the correct chartfield.',
+  citations: [
+    { label: 'Cross-system reconciliation: PS HCM Position Fill Status = FILLED with no BFM budget line' },
+  ],
+  sourceTabs: ['positions', 'data'],
   check(records: ImportedRow[]): Issue[] {
     const bfmPositions = new Set(
       records
