@@ -248,6 +248,32 @@ artifacts — not part of the current-year labor workflow).
 | – | New Department Org | **IGNORE** | Cross-org merger planning (out of scope) |
 | – | New Department Org - Long Term | **IGNORE** | Cross-org merger planning (out of scope) |
 
+## Build-status scorecard — refreshed Session 53 (2026-05-30)
+
+> ⚠️ The **Walkthrough status** column in the table above means *documented during
+> the Phase 2.0 walkthrough* (all marked "done 2026-05-25") — it does **not** mean
+> built. This scorecard is the actual **build** status, verified against
+> `app/src/lib/views/` + the live tab registry in `app/src/App.tsx` on 2026-05-30.
+> The S53 audit found the older framing conflated "walkthrough done" with "shipped";
+> refresh this whenever a new surface ships (cadence per [ADR-017](../DECISIONS.md)).
+>
+> **Legend:** *Live* = user-reachable tab · *Dev* = built but behind the dev-mode
+> toggle (Phase 2.1 route guard) · *Partial* = surface exists but incomplete vs the
+> workbook tab's full function · *Importer* = data ingested, no view yet · *Not
+> built* = no KosPos surface.
+
+| Status | Count | Workbook tabs |
+|---|---|---|
+| **Shipped · Live** | 4 | 5 Calendar · 10 Probation · 11 Eligibility · 22 Pos-by-Dept (Positions) |
+| **Shipped · Dev-gated** | 4 | 7 BI Payroll (Payroll) · 13 Inactive · 14 Separations · 24 Staffing Plan (Hiring Plan) |
+| **Partial** | 6 | 1 Data (source manifest only) · 16 Premium · 17 Overtime · 18 Step · 19 Retirement Payout — 16–19 are the **Special Class** view: reference/budget only, dev-gated, no YTD-actuals or projection · 20 Report Data (data layer + Positions; no dedicated reconciliation surface) |
+| **Importer only** | 2 | 4 BFM eturn · 6 P&P Data — both feed the Position spine; no dedicated view |
+| **Not built** | 11 | 2 Departments · 3 Combo · 8 Roster Approvers · 9 EE Additional Pay · 12 TEMP Limits · 15 Succession · 21 Reporting Tree · 23 Vacancies & TEMP · 25 Budget Summary · 26 OPS Summary · 27 OPS Detail |
+
+**Headline:** **8 of 27 workbook tabs have a complete working surface** (4 live + 4 dev-gated). 6 more are partial — most notably the four special-class tabs (16–19) are **budget-only** (no actuals/projection), and Report Data (20) has no dedicated reconciliation surface. The four core **importers** (OBI BI Payroll, OBI P&P, BFM position eturn, BFM non-position) are working against real DBI data.
+
+**Biggest fully-unbuilt gaps:** the **Operating Report Summary + Detail** projection pages (26 + 27 — the headline year-end surface), **EE Additional Pay** (9 — acting / supervisory pay), and the **unified COLA-aware projection engine** (`lib/projections`, sub-phase 2.2.32) — the lever that lifts tabs 16–19 from *Partial → Shipped* and unblocks 26/27. Near-term scope is DBI + CPC; citywide is the separate Phase 8+ arc (see [ADR-016](../DECISIONS.md) / [s50-citywide-scaling.md](../proposals/s50-citywide-scaling.md)).
+
 ## Per-tab detail
 
 ---
