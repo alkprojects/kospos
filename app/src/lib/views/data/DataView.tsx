@@ -24,13 +24,15 @@ import { useState } from 'react';
 import { EligibilityView } from '../eligibility';
 import { JobPostingsView } from '../job-postings';
 import { CalendarView } from '../calendar';
+import { EeAdditionalPayView } from '../ee-additional-pay';
 
-export type DataSubTab = 'eligibility' | 'job-postings' | 'calendar';
+export type DataSubTab = 'eligibility' | 'job-postings' | 'calendar' | 'ee-additional-pay';
 
 const SUB_TABS: Array<{ id: DataSubTab; label: string }> = [
   { id: 'eligibility', label: 'Eligibility Lists' },
   { id: 'job-postings', label: 'Job Postings' },
   { id: 'calendar', label: 'Calendar' },
+  { id: 'ee-additional-pay', label: 'EE Additional Pay' },
 ];
 
 export function DataView({ onViewPositions }: {
@@ -77,6 +79,7 @@ export function DataView({ onViewPositions }: {
       {sub === 'eligibility' && <EligibilityView onViewPositions={onViewPositions} />}
       {sub === 'job-postings' && <JobPostingsView />}
       {sub === 'calendar' && <CalendarView />}
+      {sub === 'ee-additional-pay' && <EeAdditionalPayView />}
     </div>
   );
 }
