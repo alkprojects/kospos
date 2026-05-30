@@ -10,6 +10,7 @@ import { additionalPayActingSupervisoryConflict } from './rules/additional-pay-a
 import { findSupervisoryOwed } from './rules/additional-pay-supervisory-owed';
 import { additionalPayActingOverlap } from './rules/additional-pay-acting-overlap';
 import { positionDeptNotBudgetDept } from './rules/position-dept-not-budget-dept';
+import { payrollWithoutBudgetedPosition } from './rules/payroll-without-budgeted-position';
 import { ALL_RULES } from './index';
 
 // ---------------------------------------------------------------------------
@@ -543,6 +544,58 @@ describe('QR-011 positionDeptNotBudgetDept', () => {
   it('ignores non-HCM rows', () => {
     expect(positionDeptNotBudgetDept.check([
       bfmPos({ departmentCode: 'DBI' }),
+    ])).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// QR-012 payrollWithoutBudgetedPosition — OBI spend with no position record
+// ---------------------------------------------------------------------------
+
+describe('QR-012 payrollWithoutBudgetedPosition', () => {
+  it('fires when OBI spend posts to a position absent from BFM and HCM', () => {
+    const issues = payrollWithoutBudgetedPosition.check([
+      bfmPos({ positionNumber: '10001' }),
+      obiRow({ positionIdentifier: '99999', balanceAmount: 5000 }),
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].ruleId).toBe('QR-012');
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].positionNumber).toBe('99999');
+  });
+
+  it('does not fire when the OBI position is budgeted in BFM', () => {
+    expect(payrollWithoutBudgetedPosition.check([
+      bfmPos({ positionNumber: '10001' }),
+      obiRow({ positionIdentifier: '10001', balanceAmount: 5000 }),
+    ])).toHaveLength(0);
+  });
+
+  it('does not fire when the OBI position is established in HCM (even if not in BFM)', () => {
+    expect(payrollWithoutBudgetedPosition.check([
+      hcmPos({ positionNumber: '10001' }),
+      obiRow({ positionIdentifier: '10001', balanceAmount: 5000 }),
+    ])).toHaveLength(0);
+  });
+
+  it('does not check when neither BFM nor HCM is loaded', () => {
+    expect(payrollWithoutBudgetedPosition.check([
+      obiRow({ positionIdentifier: '99999', balanceAmount: 5000 }),
+    ])).toHaveLength(0);
+  });
+
+  it('skips blank position identifiers (non-position earnings)', () => {
+    expect(payrollWithoutBudgetedPosition.check([
+      bfmPos({ positionNumber: '10001' }),
+      obiRow({ positionIdentifier: '', balanceAmount: 5000 }),
+    ])).toHaveLength(0);
+  });
+
+  it('skips net-zero positions (washes / corrections)', () => {
+    expect(payrollWithoutBudgetedPosition.check([
+      bfmPos({ positionNumber: '10001' }),
+      obiRow({ positionIdentifier: '88888', balanceAmount: 100, _row: 2 }),
+      obiRow({ positionIdentifier: '88888', balanceAmount: -100, _row: 3 }),
     ])).toHaveLength(0);
   });
 });

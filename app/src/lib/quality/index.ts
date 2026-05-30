@@ -8,6 +8,7 @@ export { additionalPayActingSupervisoryConflict } from './rules/additional-pay-a
 export { additionalPaySupervisoryOwed } from './rules/additional-pay-supervisory-owed';
 export { additionalPayActingOverlap } from './rules/additional-pay-acting-overlap';
 export { positionDeptNotBudgetDept } from './rules/position-dept-not-budget-dept';
+export { payrollWithoutBudgetedPosition } from './rules/payroll-without-budgeted-position';
 
 import type { QualityRule } from './types';
 import { positionInBfmNotHcm } from './rules/position-in-bfm-not-hcm';
@@ -19,6 +20,7 @@ import { additionalPayActingSupervisoryConflict } from './rules/additional-pay-a
 import { additionalPaySupervisoryOwed } from './rules/additional-pay-supervisory-owed';
 import { additionalPayActingOverlap } from './rules/additional-pay-acting-overlap';
 import { positionDeptNotBudgetDept } from './rules/position-dept-not-budget-dept';
+import { payrollWithoutBudgetedPosition } from './rules/payroll-without-budgeted-position';
 
 /** All active quality rules, in evaluation order. */
 export const ALL_RULES: QualityRule[] = [
@@ -31,4 +33,5 @@ export const ALL_RULES: QualityRule[] = [
   additionalPaySupervisoryOwed,
   additionalPayActingOverlap,
   positionDeptNotBudgetDept,
+  payrollWithoutBudgetedPosition,
 ];
