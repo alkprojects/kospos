@@ -4043,3 +4043,40 @@ CH2 (behavior-neutral) + PDF-TO (network-abort path) are not browser-observable 
 - **Trust + delegation:** ✅ Recommended a plan, surfaced the one genuine fork (tee-up O vs start it now) as a non-blocking offer, then drove autonomously.
 - **Audit cadence:** ✅ 26th event-based trigger; fired on this sub-phase close.
 - **Test discipline:** ✅ Baseline 875 confirmed after `npm install`; 875 → 880; `tsc -b` + `npm run build` before every code PR.
+
+## Session 51 — Phase 2.2.aa: per-store IDB record split (scaling Stage 0 / freeze fix) (2026-05-29)
+
+**Phase 2.2.aa shipped — the IDB snapshot is now split into per-store records, killing the ~5s post-refresh freeze and taking the first incremental-persistence step toward citywide.** Alex was offered a 3-candidate `AskUserQuestion` pick (Stage 0 / CH-batch / D1-D2) and chose **A — scaling Stage 0** (carry-forward O, the lead recommendation). Default model: Opus 4.8 (fast mode). Baseline confirmed **880 / 880** after `npm install`; `git log origin/main` topped at the S50 docs PR #173 — no stale-prompt drift.
+
+### The pick — and confirming it
+The `AskUserQuestion` answer came back ambiguously ("You chose", no option attached). Rather than guess on a **data-loss-adjacent persistence change**, asked Alex to confirm; he replied "a". Then read the whole persistence path (`idb-persistence.ts` / `use-auto-persistence.ts` / `snapshot.ts` / `store.ts`) before designing — the freeze fix touches the save/load/migrate path, so the design was settled on paper first.
+
+### What shipped — [#174](https://github.com/alkprojects/kospos/pull/174) (one logical change: "make IDB persistence incremental")
+Auto-persistence wrote the **entire** SessionFile to one IDB record (`'current'`) on every change; the envelope is almost all `loadedRows` (~375 MB), so editing one note structured-cloned all 375 MB → the freeze, and the monolithic-save wall (Stage 0 of [`s50-citywide-scaling.md`](proposals/s50-citywide-scaling.md)). Three coupled parts:
+- **Per-store split.** Four independently-written records (`meta`/`rows`/`scrapers`/`planning`) replace `'current'`. The hook tracks dirty store groups; `saveGroupsToIdb(file, dirty)` writes only those + the tiny always-written `meta`. A planning edit rewrites the small `planning` record, never the heavy `rows` one.
+- **Post-load re-save removed.** `loadCompleteRef` is set **after** `restoreStoresFromPayload`, so restoring the just-read snapshot no longer marks every group dirty + rewrites `rows` on every page load (the load-time half of the freeze).
+- **Atomic migration.** A legacy monolithic `'current'` record is split into the four per-group records + deleted in **one transaction** (no data-loss window). `splitSessionFile`/`mergeIdbRecords` are a lossless round-trip (unit-proven), so every byte survives.
+
+`captureCurrentSnapshot` + the SessionFile envelope are unchanged → Cloudflare-publish + JSON-export keep working as-is.
+
+### Verification — four ways (the proof of a felt + safe win)
+- **Unit:** +11 pure split/merge tests (lossless round-trip = migration data-safety; field partitioning; sparse-read defaulting). 880 → **891**; `npm run build` clean.
+- **Real-IDB migration (preview-MCP):** seeded a legacy `'current'` (2 rows + note) → reload → records = `['meta','planning','rows','scrapers']`, `'current'` deleted, **all data preserved**, app restored with no console errors ("Restored from this browser (saved 2026-05-15)").
+- **Felt win (before/after timing):** a planning-only IDB write at 100k rows (~92 MB) dropped **444 ms → 1.4 ms (~317×)**; extrapolates to >1 s/edit saved at Alex's ~375 MB.
+- **Live-app group isolation:** a real `rows`-group edit grew the `rows` record 2→3 while the `planning` record stayed **byte-identical**.
+
+### Outcome
+1 code PR ([#174](https://github.com/alkprojects/kospos/pull/174)) + this docs close PR. Tests **880 → 891**. Merged; GitHub Pages deploy + Cloudflare green; main worktree fast-forwarded. Phase 2.2.aa close audit fired → [`docs/audits/phase-2-2-aa-close-audit.md`](audits/phase-2-2-aa-close-audit.md). **Carry-forward O retired.** Memory `citywide_scaling.md` updated (Stage 0 shipped; Stage 1 next).
+
+### Lessons / improvements for next phase
+- **Don't guess a user decision on a risky change.** The `AskUserQuestion` result was ambiguous; a one-line confirmation cost seconds and avoided starting a persistence rewrite on an assumption.
+- **For persistence internals, the proof is measurement + a real-IDB migration test, not a UI preview.** The handoff pre-blessed this; the 444ms→1.4ms benchmark + the seed-legacy-record-and-reload migration check (real IndexedDB) are stronger evidence than any screenshot, and jsdom has no IDB so the IDB layer can't be unit-tested anyway — pure split/merge helpers carry the data-integrity load.
+- **Couple the two halves of an architectural change, don't half-ship it.** The per-store split alone wouldn't have killed the *load-time* freeze (restore re-amplifies); moving the `loadCompleteRef` flag was a necessary same-logical-change companion, not scope creep.
+- **A pre-existing lint finding stays out of the PR.** The `set-state-in-effect` error in the untouched `!enabled` branch was noted, not folded in (CI gates on build + vitest, not ESLint).
+
+### Brief audit (Alex's collaboration this session)
+- **Prompt quality:** ✅ Clean, accurate paste (matched origin/main); the 3-candidate menu + a crisp one-letter pick. No stale-prompt drift.
+- **Scope discipline:** ✅ One logical change, one code PR; the post-load-flag fix folded in as a coupled half of the same change, the unrelated lint finding consciously left out.
+- **Trust + delegation:** ✅ Picked the recommendation, then drove the design + four-way verification + close-out autonomously.
+- **Audit cadence:** ✅ 27th event-based trigger; fired on this sub-phase close.
+- **Test discipline:** ✅ Baseline 880 confirmed after `npm install`; 880 → 891; `npm run build` before the PR; CI watched green before merge.
