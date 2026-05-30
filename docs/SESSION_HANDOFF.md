@@ -6,14 +6,12 @@ The next session reads this before doing anything else.
 
 ---
 
-## Current status (end of Session 49 — Phase 2.2.y, 2026-05-29)
+## Current status (end of Session 50 — Phase 2.2.z, 2026-05-29)
 
-**Phase:** **Phase 2.2.y shipped — a bug-fix + code-health away-session.** Alex was heading to sleep and gave three directives: (1) ask blocking questions ASAP, (2) **the eligibility-list refresh "used to run fast, now seems very slow" — check on it**, (3) use the sleep time for any productive work. Shipped as **3 single-purpose PRs**.
+**Phase:** **Phase 2.2.z shipped — two safe code-health wins + the strategic scaling answer Alex asked for.** Alex was offered a 4-candidate pick menu (CH2 / O / PDF-TO / D1-D2) but answered **"whichever you recommend — could you do all?"** and added a strategic ask: **think about scaling from DBI+CPC (~1k people) to the whole city (~45k).** That reframed the session — the scaling question and carry-forward O are the *same* problem (monolithic persistence). Shipped the two scaling-independent safe wins + a grounded scaling roadmap, and reframed O as the roadmap's Stage 0.
 
-**⚠️ Stale-prompt note (read this):** the prompt pasted to start this session was the **S46-era** block (it said "pick Phase 2.2.v" and offered H/P/M/E/F/G). The repo was actually at **end-of-S48 (#165)**. So the menu was stale — **H (modal lift), the eligibility concurrency rework, and the file-load scraper-parity fix had ALL already shipped** (S46–S47, #154/#156/#157). Alex picked **H** via `AskUserQuestion`, but H was already done — so I pivoted to his real, current directive (the eligibility slowdown) plus the handoff's pre-blessed away-session work. **Next session: trust THIS handoff's state, not a pasted prompt, if they disagree** — confirm with `git log --oneline origin/main -10`.
-
-**Last main commit:** the S49 docs PR (this) → [#168](https://github.com/alkprojects/kospos/pull/168) → [#167](https://github.com/alkprojects/kospos/pull/167) → [#166](https://github.com/alkprojects/kospos/pull/166).
-**Tests:** **875 / 875** (+1 from a new proxy-ordering regression test in #166; #167/#168 are behavior-neutral, no delta).
+**Last main commit:** this S50 docs PR → [#172](https://github.com/alkprojects/kospos/pull/172) → [#171](https://github.com/alkprojects/kospos/pull/171) → [#170](https://github.com/alkprojects/kospos/pull/170).
+**Tests:** **880 / 880** (+4 Stat tests in #170, +1 PDF-timeout test in #171; #172 docs-only).
 **Branches in flight:** none post-merge.
 **Live site:** GitHub Pages + Cloudflare deploys green; main worktree fast-forwarded to `origin/main`.
 
@@ -21,116 +19,112 @@ The next session reads this before doing anything else.
 
 | PR | What |
 |---|---|
-| [#166](https://github.com/alkprojects/kospos/pull/166) | **perf(scrapers): fix the slow eligibility refresh.** Root cause = **external proxy rot**, not our code. Live S49 check: `corsproxy.io` → HTTP 403 (went paid), `allorigins.win` → HTTP 500 and **~12s to return it**, `codetabs.com` → 200 (~0.5s). `DEFAULT_PROXIES` still listed the two dead proxies FIRST, so every page burned the 10s per-proxy timeout on the hung allorigins before reaching codetabs (~2 min total over the 6-wide waves). Fix: **reorder codetabs-first** + use codetabs' trailing-slash URL (skips a 301). Restores the ~5s scrape. +1 regression test. |
-| [#167](https://github.com/alkprojects/kospos/pull/167) | **refactor(format): `lib/format.ts`** — code-health **batch 1** (U2+U3). 5 `fmtMoney` + 3 `fmtSignedMoney` byte-identical copies → one module. Behavior-neutral. |
-| [#168](https://github.com/alkprojects/kospos/pull/168) | **chore: correct stale "not persisted" claims** — code-health **batch L1**, *expanded*. 7 comments + **3 user-facing banners** (StaffingPlan/Separations/Probation footers) that falsely told the user data is "in-memory until Phase 2.2.33" — false since IDB auto-persistence shipped in 2.2.q. Clears the 3-audit-old `pdfCache` carry-forward. |
-| this docs PR | Phase 2.2.y close audit + S49 SESSION_LOG + this handoff + a new memory (`proxy_rot.md`). |
+| [#170](https://github.com/alkprojects/kospos/pull/170) | **refactor(ui): `lib/ui/Stat.tsx`** — code-health **batch 2**. 8 byte-identical `Stat` summary-card copies → one component (PositionsView = the hint-less subset → omits the prop). +`stat.test.tsx` (computed-style contract). Behavior-neutral. 875→879. |
+| [#171](https://github.com/alkprojects/kospos/pull/171) | **fix(scrapers): per-proxy timeout for the lazy PDF fetch** — clears **PDF-TO**. `fetchPdfBinary` had no timeout → a hung proxy could block the PDF extract forever (same class as #166). Exported + reused `fetch.ts`'s `fetchWithTimeout`; default 20s. +1 hung-proxy test. 879→880. |
+| [#172](https://github.com/alkprojects/kospos/pull/172) | **docs(proposals): citywide scaling analysis + staged roadmap** — the grounded answer to Alex's question. New memory `citywide_scaling.md`. |
+| this docs PR | Phase 2.2.z close audit + S50 SESSION_LOG + this handoff. |
+
+### The scaling answer in one paragraph (read `docs/proposals/s50-citywide-scaling.md` for the full version)
+The ~375 MB snapshot is almost all `loadedRows` — raw OBI payroll, *one row per position × earning code × pay period* — held in one in-memory array and structured-cloned **whole** to IDB on **every** change. Both are O(total), so the current design caps at **~a few thousand people**. Citywide (~45×, ~10–20 GB) needs a different data layer (IDB-indexed rows, incremental persistence, lazy per-dept load, and eventually revisiting ADR-001's no-backend rule). That's a dedicated Phase — Alex pre-authorized deferring it. **But carry-forward O (the freeze) is Stage 0 of that roadmap**, so the immediate perf win and the long-term direction are the same work.
 
 ### Carry-forward audit
 
 | # | Item | This session | Disposition |
 |---|---|---|---|
-| B | Trim/summarize SESSION_LOG.md (3,979 ln) | grew with S49 | **deferred-with-reason (P6)** |
+| B | Trim/summarize SESSION_LOG.md (~4,080 ln) | grew with S50 | **deferred-with-reason (P6)** |
 | C | Memory-citation anti-pattern in `labor-report.md` | unchanged | bundleable with a future labor-report pass |
 | D | `labor-report.md` split | unchanged | **deferred-with-reason (P6)** |
-| F | Audit cadence | **25th event-based trigger** | working as designed |
-| I | Cloudflare hardening SEC-2 + SEC-3 | unchanged | tracked for named-workspace v2 |
-| L | dev-mode/permissions ADR | not picked | optional — Alex's call (proposals B3) |
+| F | Audit cadence | **26th event-based trigger** | working as designed |
+| I | Cloudflare hardening SEC-2 + SEC-3 | unchanged | **now == scaling Stage 3** (shared storage) |
+| L | dev-mode/permissions ADR | not picked | optional — Alex's call |
 | N | Deep-link Data sub-tabs from landing | unchanged | minor UX, optional |
-| **O** | **Post-refresh IDB auto-save freeze (~5s @ 375 MB)** | **DIAGNOSED (not fixed)** — `use-auto-persistence.ts` serializes the *whole* snapshot (incl. `loadedRows` + `pdfCache`) to JSON on a 500ms debounce after **every** store change. On ~375 MB that JSON+IDB write blocks the main thread ~5s. This is the **likely second half** of Alex's "refresh is slow" feeling (fetch was the first, now fixed). | **own change (persistence) — spawned task stands.** See proposed fixes below. |
-| D1/D2/D3 | The C-series aesthetic tail (Button+radius · color consolidation · chip-shape) | unchanged — **need Alex's sign-off** | strong 2.2.z candidate — [proposal](proposals/s48-ui-primitives-followups.md) |
-| **CH** | **Code-health safe-dedup menu** ([s48-code-health-review.md](proposals/s48-code-health-review.md)) | **batch 1 (format) ✅ #167 · batch 4 (L1 stale comments) ✅ #168** | **batches 2/3/5/6/7/8/9 remain** — ideal next away-session work |
-| **PDF-TO** | **`pdf-parse.ts` has no per-proxy timeout** (found S49) | new — the codetabs-first reorder (#166, shared `DEFAULT_PROXIES`) speeds its serial loop, but a *hung* proxy on a PDF fetch still has no abort | **new carry-forward** — give `fetchPdfBinary` the same `fetchWithTimeout` wrapper `fetch.ts` already has (small) |
-| ~~pdfCache "lost on reload" comment~~ | — | **RESOLVED (#168)** | retired (cleared after 3 audits) |
-| ~~Eligibility refresh slow~~ | — | **RESOLVED (#166)** | retired |
+| **O** | **Post-refresh IDB freeze (~5s @ 375 MB)** | **REFRAMED as scaling Stage 0** — the per-store IDB record split (write only the changed store's record, not the whole snapshot). Kills the freeze AND is the first incremental-persistence step. **Designed in the s50 proposal.** | **strongest 2.2.aa candidate** — but it's a persistence change (data-loss-adjacent): needs a one-time migration of the existing single `'current'` record + careful load/merge + the auto-persistence tests. |
+| D1/D2/D3 | The C-series aesthetic tail (Button+radius · color consolidation · chip-shape) | unchanged — **need Alex's sign-off** | still a candidate — [proposal](proposals/s48-ui-primitives-followups.md) |
+| **CH** | **Code-health safe-dedup menu** ([s48-code-health-review.md](proposals/s48-code-health-review.md)) | **batch 2 (Stat) ✅ #170** (batches 1+4 done S49) | **batches 3/5/6/7/8/9 remain** — safe away-session fodder |
+| ~~PDF-TO~~ | `pdf-parse.ts` per-proxy timeout | **RESOLVED (#171)** | retired |
 
 ### For Alex to weigh in on (non-blocking)
-- **Confirm the eligibility refresh is fast again** on the live site: Load Data → "Refresh eligibility lists" (should be ~5s, not minutes). If it's *still* slow, it's the IDB freeze (O) — the save-after-refresh, not the fetch.
-- **The ~375 MB snapshot (O) is worth a look regardless** — it's large for a browser-local store, and it freezes the tab ~5s after any change. Proposed fixes (pick later): (a) only serialize `loadedRows` on explicit save, not on every debounce; (b) move JSON serialization to a Web Worker; (c) store structured data in IDB instead of a JSON blob. Each is its own change.
+- **The scaling roadmap** ([`s50-citywide-scaling.md`](proposals/s50-citywide-scaling.md)) — does the staged plan match your intent? The only real decision is *when* to start the re-architecture (Stages 2–3); Stages 0–1 keep KosPos browser-local and are pure wins. When you pick a direction it should become an ADR.
 - **D1/D2 still need your two answers** (canonical pill radius 10/12/14; should `#b91c1c` become `--danger-strong`) — then they're mechanical.
+- **The Cloudflare Worker** (`dhrWorkerUrl` slot already in the UI) is both the durable proxy-rot fix AND the first toe into scaling Stage 3 — needs your Cloudflare action.
 
 ---
 
-## Next session prompt — Session 50 = Phase 2.2.z pick
+## Next session prompt — Session 51 = Phase 2.2.aa pick
 
-This is the block Alex pastes to start Session 50. Normal interactive work.
+This is the block Alex pastes to start Session 51. Normal interactive work.
 
 ---
 
-This session picks the next Phase 2.2 sub-phase (2.2.z) and ships it. Session 49 was a bug-fix + code-health away-session: fixed the slow **eligibility refresh** (proxy rot — codetabs-first, [#166](https://github.com/alkprojects/kospos/pull/166)) and shipped two safe code-health batches (`lib/format.ts` [#167](https://github.com/alkprojects/kospos/pull/167); stale "not persisted" claims [#168](https://github.com/alkprojects/kospos/pull/168)). Default model is **Opus 4.8 with fast mode**.
+This session picks the next Phase 2.2 sub-phase (2.2.aa) and ships it. Session 50 shipped two safe code-health/robustness wins (`lib/ui/Stat.tsx` [#170](https://github.com/alkprojects/kospos/pull/170); the PDF-fetch per-proxy timeout [#171](https://github.com/alkprojects/kospos/pull/171)) and a **citywide-scaling roadmap** ([#172](https://github.com/alkprojects/kospos/pull/172)) answering my question about scaling DBI+CPC → the whole city. Default model is **Opus 4.8 with fast mode**.
 
 Read first, in order:
 - `docs/CLAUDE.md` (Opus 4.8 default, agent-first visual verification)
 - `docs/SESSION_HANDOFF.md` (this file)
-- `docs/SESSION_LOG.md` (Session 49 entry — Phase 2.2.y)
-- `memory/MEMORY.md` + the memory files (note the new `proxy_rot.md`)
+- `docs/SESSION_LOG.md` (Session 50 entry — Phase 2.2.z)
+- `memory/MEMORY.md` + the memory files (note the new `citywide_scaling.md`)
 - `docs/WORKFLOW.md` § "Skills and the Workflow tool" + "Visual verification protocol"
-- `docs/audits/phase-2-2-y-close-audit.md` (the S49 close audit)
-- `docs/proposals/s48-code-health-review.md` (the safe-dedup menu — **batches 1 + 4 are now done**; 2/3/5/6/7/8/9 remain)
+- `docs/audits/phase-2-2-z-close-audit.md` (the S50 close audit)
+- **`docs/proposals/s50-citywide-scaling.md`** (the scaling roadmap — Stage 0 is carry-forward O; this is the lead 2.2.aa candidate)
+- `docs/proposals/s48-code-health-review.md` (safe-dedup menu — batches 1/2/4 done; 3/5/6/7/8/9 remain)
 - `docs/proposals/s48-ui-primitives-followups.md` (D1/D2/D3 — need a sign-off)
-- `docs/proposals/s46-ui-ux-review.md` (broader UX menu)
 - `docs/domain/labor-report.md` § "Phase 2.2 sub-phases" — dependency graph
 
-Confirm state on main:
-- `git log --oneline origin/main -10` (should top out at the S49 docs PR; HEAD before it = #168/#167/#166)
-- Tests baseline: `cd app && npm install && npm test` should show **875 / 875** (run `npm install` first — a fresh worktree has no node_modules).
+Confirm state on main (do this BEFORE trusting anything above):
+- `git log --oneline origin/main -10` (should top out at the S50 docs PR; HEAD before it = #172/#171/#170)
+- Tests baseline: `cd app && npm install && npm test` should show **880 / 880** (run `npm install` first — a fresh worktree has no node_modules).
 
 ==============================================================================
-STEP 0 — Phase 2.2.z close audit cadence check
+STEP 0 — Phase 2.2.aa close audit cadence check
 ==============================================================================
-The Phase 2.2.y close audit fired in S49. The **Phase 2.2.z close audit fires when 2.2.z ships** — do it before this session ends, mirroring [the 2.2.y close audit](audits/phase-2-2-y-close-audit.md). If 2.2.z does NOT ship, no close audit fires.
-
-==============================================================================
-STEP 1 — Ask Alex to pick Phase 2.2.z
-==============================================================================
-Use `AskUserQuestion` (plain + concrete options — live-site outcomes, not architecture). Strong candidates:
-
-  CH2. **Code-health batch 2 — `lib/ui/Stat.tsx`.** 7–8 byte-identical `Stat` summary-card copies → one component (one is hint-less; the canonical takes `{label, value, hint?}`). Behavior-neutral, test + computed-style verifiable. **Prepped + verified ready in S49** — the fastest safe win. (CH batch 2)
-
-  CH-more. **Other safe-dedup batches** (no sign-off needed): `importers/cells.ts` (`num`/`str`/`col`, batch 3), `lib/ui/table.tsx` (TableEmptyRow/TableHead/TableCard, batch 5), `lib/id.ts`+`rollupByStatus` (batch 6), `lib/store-history.ts` (batch 7, biggest LOC win, med risk), filters (batch 8), dead-code (batch 9).
-
-  O. **Fix the post-refresh IDB freeze** (~5s @ 375 MB) — VISIBLE perf win Alex will feel. Pick (a)/(b)/(c) from the carry-forward note. Persistence change → verify carefully. (own change; a spawned task already tracks it)
-
-  PDF-TO. **Give `pdf-parse.ts` a per-proxy timeout** — small; mirrors the `fetchWithTimeout` already in `sf-dhr-exam/fetch.ts`. Hardens the lazy PDF cover-sheet fetch against a hung proxy (same class of bug as the #166 eligibility fix).
-
-  D1/D2. **The C-series aesthetic tail** — needs Alex's two answers first (pill radius; `--danger-strong`). VISIBLE; sign-off required.
-
-  B2. **De-risk the dev-mode gear** (a bare ⚙ one click from Save/Load reshuffles the whole tab strip) — small, visible, reviewable.
-
-  (Freeform feedback / a bug report is welcome — it has driven several sessions' top scope.)
+The Phase 2.2.z close audit fired in S50. The **Phase 2.2.aa close audit fires when 2.2.aa ships** — do it before this session ends, mirroring [the 2.2.z close audit](audits/phase-2-2-z-close-audit.md). If 2.2.aa does NOT ship, no close audit fires.
 
 ==============================================================================
-STEP 2 — Start Phase 2.2.z (the picked sub-phase)
+STEP 1 — Ask Alex to pick Phase 2.2.aa
+==============================================================================
+Use `AskUserQuestion` (plain + concrete options — live-site outcomes). Strong candidates:
+
+  O / **Scaling Stage 0 — fix the ~5s post-refresh freeze the scaling-aligned way.** Split the monolithic IDB snapshot (`db.put(file,'current')`) into **per-store records** so a planning edit (note / separation / staffing action) stops re-serializing all ~375 MB of `loadedRows`. Kills the freeze AND is the first incremental-persistence step toward citywide. **A perf win Alex will feel.** Design in `s50-citywide-scaling.md`. ⚠️ Persistence change — needs a one-time migration of the existing single `'current'` record + careful load/merge + the existing auto-persistence tests. Verify carefully (data-loss-adjacent).
+
+  CH-more. **Safe-dedup batches** (no sign-off): `importers/cells.ts` (`num`/`str`/`col`, batch 3), `lib/ui/table.tsx` (TableEmptyRow/Head/Card, batch 5), `lib/id.ts`+`rollupByStatus` (batch 6), `lib/store-history.ts` (batch 7, biggest LOC, med risk), filters (batch 8), dead-code (batch 9). Behavior-neutral, computed-style/test verifiable.
+
+  D1/D2. **The C-series aesthetic tail** — needs Alex's two answers first (pill radius 10/12/14; should `#b91c1c` become `--danger-strong`). VISIBLE; sign-off required.
+
+  (Freeform feedback / a bug report is welcome — it has driven the top scope of several sessions, including this one.)
+
+==============================================================================
+STEP 2 — Start Phase 2.2.aa (the picked sub-phase)
 ==============================================================================
 Branch + scope depend on the pick (single-purpose branch from `origin/main`).
 
-If CH2 — `Stat`: branch `refactor/lib-ui-stat`; extract `lib/ui/Stat.tsx` (`{label, value, hint?}`); migrate the 7–8 copies (PositionsView is hint-less → just omit the prop); verify byte-identical render via existing view tests + a computed-style spot-check; tests + build.
-If O / PDF-TO / a proposals item / freeform: scope per the note / proposal / what Alex says.
+If O / Stage 0 — branch `refactor/idb-per-store-records` (or similar): per the s50 design, split the single `snapshots/'current'` record into per-store records (heavy `loadedRows`+scraper data vs light planning data is the minimum viable split); update the save path to write only changed stores, the load path to read+merge, and **migrate the existing single record on first load** so Alex doesn't lose data. Lean hard on the auto-persistence tests + add migration coverage. Verify the freeze is gone with a before/after timing (the load path documents the 375 MB case).
+If CH-more / D1/D2 / freeform: scope per the proposal / Alex's two answers / what Alex says.
 
 ==============================================================================
 Hard constraints
 ==============================================================================
   - Branch from `origin/main`, single-purpose name.
-  - Strict one-sub-phase-per-PR (a multi-file refactor is one logical change — NOT bundling). Several asks → separate sequential PRs (merge each, re-branch the next from updated main — kept S47–S49 conflict-free).
-  - `npm test` stays green (currently **875 / 875**).
+  - Strict one-sub-phase-per-PR (a multi-file refactor is one logical change — NOT bundling). Several asks → separate sequential PRs (merge each, re-branch the next from updated main — kept S47–S50 conflict-free).
+  - `npm test` stays green (currently **880 / 880**).
   - One PR per logical change; merge after CI passes (`gh pr checks <n> --watch`); fast-forward main; sync the main worktree post-merge (`git -C <main-worktree> merge --ff-only origin/main`).
   - Commit messages end with the `Co-authored-by:` line. Use a single-quoted heredoc `git commit -F -` for multiline. Windows LF→CRLF warnings are benign.
   - Worktree gotcha: don't `git checkout main` here. Branch each feature from `origin/main`; merge with `gh pr merge --squash` (skip `--delete-branch`).
-  - Run `npm run build` before opening any PR that touches app code (tsc catches over-broad imports — it caught one in #167).
-  - Agent-first visual verification for *visible* UI changes. App base path is `/kospos/`; clear `localStorage['kospos:dev-mode']` + reload to test the dev-off default. For behavior-neutral refactors, computed-style assertions are the proof of choice. **Don't run a heavy preview for changes the preview can't exercise** (e.g. dev-gated views with no committed data, or network-timing fixes — verify those with tests + direct measurement, as #166 did via live `curl`).
+  - Run `npm run build` before opening any PR that touches app code (tsc catches over-broad imports).
+  - Agent-first visual verification for *visible* UI changes. For behavior-neutral refactors, computed-style assertions are the proof of choice. **Don't run a heavy preview for changes the preview can't exercise** (dev-gated views with no committed data, persistence/network-timing internals — verify those with tests + direct measurement). For Stage 0 specifically: a before/after IDB-save timing IS the proof of the felt win.
 
 ==============================================================================
 What we are NOT doing
 ==============================================================================
   - No bundling (multi-file single-logical-change refactors excepted).
-  - No promotion of dev-gated tabs to non-dev yet — exercise the now-fast scrape + Save/Load + dev toggle on real data first. (Separations / Inactive are the first promotion candidates per the S46 IA review.)
+  - **No jumping ahead to scaling Stages 2–3** (indexed-IDB rows / backend) — Stage 0 first proves the incremental-persistence model; the big re-architecture is its own Phase and Alex's call.
+  - No promotion of dev-gated tabs to non-dev yet.
   - P6 docs cleanups (labor-report split, SESSION_LOG summarize) — deferred with reason.
-  - Named workspaces / R2 migration — later. Auth / login — deferred until KosPos is shared.
+  - Auth / login — deferred until KosPos is shared (part of scaling Stage 3).
 
 ==============================================================================
 Session-end checklist
 ==============================================================================
 Before ending, update SESSION_HANDOFF.md (overwrite — keep it lean) with:
-  - Phase 2.2.z status + next-session prompt for Phase 2.2.aa.
-  - Carry-forward update on B, C, D, F, I, L, N, O, D1/D2/D3, CH, PDF-TO (+ whatever 2.2.z picks).
-  - Fire the Phase 2.2.z close audit (mirrors the 2.2.y audit format) **if 2.2.z shipped**.
+  - Phase 2.2.aa status + next-session prompt for Phase 2.2.ab.
+  - Carry-forward update on B, C, D, F, I, L, N, O (Stage 0), D1/D2/D3, CH, SCALE (+ whatever 2.2.aa picks).
+  - Fire the Phase 2.2.aa close audit (mirrors the 2.2.z audit format) **if 2.2.aa shipped**.

@@ -4013,3 +4013,33 @@ Eligibility fix: live `curl` of all proxies (the definitive proof for a network-
 - **Trust + delegation:** ✅ One blocking question front-loaded before sleep; the rest run autonomously per the standing "do work while I sleep" mandate + the handoff's pre-blessed away-session batches.
 - **Audit cadence:** ✅ 25th event-based trigger; fired on this sub-phase close.
 - **Test discipline:** ✅ Baseline 875 confirmed after `npm install`; 874 → 875; `npm run build` before every PR.
+
+## Session 50 — Phase 2.2.z: code-health wins + citywide-scaling analysis (2026-05-29)
+
+**Phase 2.2.z shipped — two safe code-health wins + the strategic scaling answer Alex asked for, as three single-purpose PRs.** Alex was offered a 4-candidate `AskUserQuestion` menu (CH2 / O / PDF-TO / D1-D2) but answered **"whichever you recommend — could you do all?"** plus a new strategic ask: **think about scaling from DBI+CPC (~1k people) to the whole city (~45k).** Default model: Opus 4.8 (fast mode). Baseline confirmed **875 / 875** after `npm install`.
+
+### The reframe — scaling was the real signal
+"Could you do all?" + the scaling question converged on carry-forward **O**. Traced the data path *before* answering: the ~375 MB snapshot is almost all `loadedRows` — raw OBI payroll, which the importer header defines as *"one row per position × earning code × pay period"* — held in one in-memory array (`store.ts`) and structured-cloned *whole* to IDB on every change (`use-auto-persistence.ts` → `db.put(file,'current')`). Both are O(total) → realistic ceiling **~a few thousand people**. Citywide (~45×, ~10–20 GB) is a different class of app (IDB-indexed rows, incremental persistence, lazy per-dept load, revisit ADR-001) — a dedicated Phase, which Alex pre-authorized deferring. Captured the grounded analysis + a staged roadmap so the call is his.
+
+### What shipped — CH2 → PDF-TO → scaling doc (merged serially, re-branching each from updated main)
+- **[#170](https://github.com/alkprojects/kospos/pull/170) — refactor(ui): `lib/ui/Stat.tsx`** (code-health batch 2). 8 byte-identical `Stat` summary-card copies (PositionsView = hint-less subset + 7 others) → one shared component; PositionsView omits `hint` (renders nothing → byte-identical). +`stat.test.tsx` locking the contract (label+value, conditional hint line, 20px/700 type scale via computed `style`). 875→879. `tsc -b` + build clean.
+- **[#171](https://github.com/alkprojects/kospos/pull/171) — fix(scrapers): per-proxy timeout for the lazy PDF fetch** (clears carry-forward **PDF-TO**). `fetchPdfBinary` had no timeout → a hung proxy could block the per-modal-open PDF extract indefinitely (same failure class as #166). Exported `fetch.ts`'s `fetchWithTimeout` and reused it; default `PDF_PROXY_TIMEOUT_MS = 20s` (more generous than the 10s listing timeout — a score-report PDF is MBs, shouldn't clip a slow-but-working proxy). +1 hung-proxy test (aborts + falls through — would hang without the abort). 879→880.
+- **[#172](https://github.com/alkprojects/kospos/pull/172) — docs(proposals): citywide scaling analysis + staged roadmap.** The grounded answer; three walls (in-memory hold / monolithic per-change save / JSON-string ceiling); Stage 0 = carry-forward O done scaling-aligned (per-store IDB record split). New memory `citywide_scaling.md`.
+
+### Verification
+CH2 (behavior-neutral) + PDF-TO (network-abort path) are not browser-observable — the preview can't exercise them (Stat cards need uncommitted labor data; the PDF timeout is an abort path). Proof = identical render + computed-style test (CH2) and a hung-proxy abort test that would hang without the fix (PDF-TO), plus `tsc -b` + 880 green each PR. Same proof class as #166 (network-timing fix → tests + measurement, not preview).
+
+### Outcome
+2 code PRs (#170–171) + 1 docs proposal PR (#172) + this docs close PR. Tests **875 → 880**. Merged; GitHub Pages + Cloudflare green; main worktree fast-forwarded. Phase 2.2.z close audit fired → [`docs/audits/phase-2-2-z-close-audit.md`](audits/phase-2-2-z-close-audit.md). New memory `citywide_scaling.md`. Carry-forwards: **O reframed as scaling Stage 0** (recommended next sub-phase, designed in the s50 proposal); **PDF-TO retired** (#171); CH batches 3/5/6/7/8/9 remain; D1/D2 still need Alex's two answers.
+
+### Lessons / improvements for next phase
+- **A throughput ask ("do all") + a strategic question → answer the strategy first.** The scaling question reframed *which* of the four picks mattered (O) and *how* to do it (scaling-aligned, not a band-aid). Shipping the 2 safe wins + the analysis beat mechanically cranking 4 PRs.
+- **Ground a scaling answer in the real data path.** Reading the importer header ("one row per position × earning code × pay period") + the put-the-whole-snapshot persistence path turned "is 45k feasible?" into concrete walls + numbers instead of hand-waving.
+- **Don't rush a persistence rewrite to satisfy "all."** O (the freeze) is data-loss-adjacent and a sub-phase's worth of work; teed it up as Stage 0 with a concrete design rather than bundling a risky rewrite at the tail of a 3-deliverable session — the same split-refactor discipline as S48.
+
+### Brief audit (Alex's collaboration this session)
+- **Prompt quality:** ✅ Delegated the pick ("whichever you recommend") + a high-value strategic question (citywide scaling) that reframed the session — the freeform hatch drove top scope again.
+- **Scope discipline:** ✅ Three logical changes, three PRs; the O persistence rewrite *consciously deferred* (designed as Stage 0) rather than rushed or bundled.
+- **Trust + delegation:** ✅ Recommended a plan, surfaced the one genuine fork (tee-up O vs start it now) as a non-blocking offer, then drove autonomously.
+- **Audit cadence:** ✅ 26th event-based trigger; fired on this sub-phase close.
+- **Test discipline:** ✅ Baseline 875 confirmed after `npm install`; 875 → 880; `tsc -b` + `npm run build` before every code PR.
