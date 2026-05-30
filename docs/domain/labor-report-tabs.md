@@ -887,17 +887,23 @@ appointment](appointment-types.md#exempt-class-vs-exempt-appointment).
 | Col | Header | Type | Notes |
 |---|---|---|---|
 | O | Position Filled Headcount | int | How many bodies currently occupy this position |
-| P | Employee ID Vice 1 | int | Primary acting / "vice" person |
+| P | Employee ID Vice 1 | int | **Incumbency history, NOT acting** — the current incumbent (filled position) or the prior one (re-vacated); blank if never filled. A vacancy-attribution field. |
 | Q | Employee Name Vice 1 | text | |
-| R | Employee ID Vice 2 | int | Secondary acting / vice |
+| R | Employee ID Vice 2 | int | Second incumbency-history slot (same semantics as Vice 1) |
 | S | Employee Name Vice 2 | text | |
 | T | Previous Employee | text | Who held the position before (if known) |
-| U | Position Used For | text | `Acting Assignment` (8 rows) — marks positions whose seat supports an acting role |
-| V | Position Used For Description | text | The position number being supported (when U is `Acting Assignment`) |
+| U | Position Used For | text | Manually-entered marker — `Acting Assignment` (8 rows) flags that this position's seat is being covered by an employee acting into it |
+| V | Position Used For Description | text | **The acting employee's emplid** — the ID of the person filling the acting role (NOT a position number) |
 
-Vice 1/2 names the person acting in *this* position; Position Used For names the
-*position the acting person is acting in*. A clean acting relationship requires both
-pointers; many positions have one without the other.
+**Vice ≠ Acting** (confirmed with Alex, S56). *Vice 1/2* is the position's
+**incumbency history** (current/prior incumbent), a vacancy-attribution field — it
+does *not* identify an acting assignment. *Acting* is recorded separately and
+manually: **Position Used For (U)** = `Acting Assignment`, with the **acting
+employee's emplid in the Description (V)**. e.g. the DBI Director position is vacant
+(Patrick retired); David Kane (Deputy Dir 0953) acts as Director, so the *Director*
+position carries U = `Acting Assignment`, V = Kane's emplid. The Tab 9 dual-entry
+check confirms that manual marker matches the PS HCM `MRG_HR_EE_ADDL_PAY` ACTFLT
+rows (who is actually *paid* acting).
 
 ##### Person / incumbent (W:AC)
 
@@ -1151,10 +1157,12 @@ covering through `EH`).
   where the appointment converts but the position's exempt-category designation
   persists. Worth surfacing in Data Issues rather than silently treating AG as
   authoritative.
-- **`Vice 1` (P/Q) and `Position Used For` (U/V) are two separate Vice
-  mechanisms.** Vice 1 names the person acting in *this* position; Position Used
-  For names the *position the acting person is acting in*. A clean acting
-  relationship requires both pointers; many positions have one without the other.
+- **`Vice 1` (P/Q) is incumbency history; `Position Used For` (U/V) is the acting
+  marker — they are different things** (confirmed S56). Vice 1/2 records the
+  current/prior incumbent of *this* position (vacancy attribution), not an acting
+  assignment. Acting is the manual `Position Used For` = `Acting Assignment` (U) +
+  the acting employee's emplid in the Description (V); the Tab 9 dual-entry check
+  cross-references that marker against the `MRG_HR_EE_ADDL_PAY` ACTFLT rows.
 - **`Snapshot Date` (A) is consistent across all rows** — there's no per-position
   effective-dated history within a single snapshot. To track "when did position
   X's reports-to change," KosPos needs to keep per-snapshot history (same diff
