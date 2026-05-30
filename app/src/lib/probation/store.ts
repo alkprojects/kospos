@@ -3,9 +3,10 @@
  *
  * Mirrors `lib/separations/store.ts:useSeparations` shape — Map-keyed by
  * id, history-audit-on-update, `restoreFromSession` helper for the
- * `lib/session/snapshot.ts` roundtrip. Same caveat applies: rows are lost
- * on page reload until Phase 2.2.33 `snapshots/` adds IndexedDB
- * durability; in the interim, save / load via the session JSON file.
+ * `lib/session/snapshot.ts` roundtrip. Persisted since Phase 2.2.q: rows
+ * are captured into the session snapshot, auto-saved to IndexedDB and
+ * restored on app open (`lib/session/use-auto-persistence.ts`), and ride
+ * along in a session-file save / Cloudflare publish.
  *
  * History tracking: every `updateProbation` call diffs the patch against
  * the existing row and appends one `ProbationHistoryEntry` per changed

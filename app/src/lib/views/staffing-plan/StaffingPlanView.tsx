@@ -711,7 +711,7 @@ export function StaffingPlanView() {
           live COLA-aware projection
         </span>
         {' · '}
-        Actions are in-memory; persistence to IndexedDB lands in Phase 2.2.33 snapshots/.
+        Actions auto-save to your browser and the session snapshot.
       </div>
 
       {/* Hidden datum reused for testing: a position-grouped sanity readout */}

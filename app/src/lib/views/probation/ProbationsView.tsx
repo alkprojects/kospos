@@ -1376,8 +1376,8 @@ export function ProbationsView() {
         open → extended → cleared / failed / resigned. Alerts:
         <strong> ⏳ Approaching</strong> = end date within 30 days;
         <strong> ⚠ Past due</strong> = end today or past with no completion.
-        Rows are in-memory; persistence to IndexedDB lands in Phase 2.2.33 snapshots/.
-        Session JSON save/load preserves the list across page reloads.
+        Rows auto-save to your browser and persist across reloads; the session
+        file save/load + publish carry the list across devices.
       </div>
     </div>
   );

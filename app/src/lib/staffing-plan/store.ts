@@ -2,8 +2,10 @@
  * Staffing Plan Zustand store — in-memory CRUD over PlannedActions.
  *
  * Mirrors `lib/positions/notes.ts:usePositionNotes` shape (Map-backed,
- * v1-in-memory, persistence deferred). Same caveat: notes/actions are lost
- * on page reload until Phase 2.2.33 `snapshots/` adds IndexedDB durability.
+ * with a `restoreFromSession` helper). Persisted since Phase 2.2.q: actions
+ * are captured into the session snapshot, auto-saved to IndexedDB and
+ * restored on app open (`lib/session/use-auto-persistence.ts`), and ride
+ * along in a session-file save / Cloudflare publish.
  *
  * The store keys actions by their own `id`, not by `positionId`, so the
  * multi-action-per-position pattern (Marco Jacobo TX case) works without

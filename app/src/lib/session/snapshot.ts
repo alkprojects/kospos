@@ -2,12 +2,12 @@
  * Session snapshot — pure serializer / deserializer for all in-memory
  * KosPos state.
  *
- * Why this exists: until Phase 2.2.33 ships IndexedDB persistence,
- * every browser reload loses the loaded P&P + BFM + OBI rows + the
- * staffing-plan actions + per-position user notes. Re-importing four
- * .xlsx files for every dev/test session is tedious enough that the
- * user requested a side-channel: download the current state as one
- * JSON file; re-upload it next session.
+ * Why this exists: this is the single serialization format for all in-memory
+ * KosPos state, used two ways — (1) IndexedDB auto-persistence (Phase 2.2.q:
+ * `use-auto-persistence.ts` writes it on change + restores it on app open, so
+ * a reload no longer loses the loaded P&P / BFM / OBI rows, staffing-plan
+ * actions, separations, probations, or user notes), and (2) a downloadable
+ * session JSON file the user can save and re-upload across devices.
  *
  * Pure module — no React, no DOM, no IO. Callers wire it up:
  *   - [SessionExportImport.tsx](../../modules/importer/SessionExportImport.tsx)
