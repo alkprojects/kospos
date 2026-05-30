@@ -12,6 +12,7 @@ import { calcEmployeeCost, CostCalcError } from '../cost';
 import type { CostInput } from '../cost';
 import { detectSalaryType, RANGE_CODES, STEP_CODES } from '../calc-opts';
 import { normalizePositionKey } from '../chartfields/resolve';
+import { makeId } from '../id';
 import type { Position } from '../positions';
 import type {
   DerivedAction,
@@ -31,16 +32,9 @@ export const ACTION_TYPE_ORDER: readonly PlannedActionType[] = [
   'unfunded',
 ];
 
-/**
- * Generate an id that survives test environments (Vitest happy-dom doesn't
- * always have `crypto.randomUUID`). Format prefers the standard UUID v4
- * when available; the millisecond+random fallback is still unique enough
- * for in-memory plan rows.
- */
+/** Generate a stable planned-action id (see `lib/id.ts:makeId`). */
 export function newActionId(): string {
-  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
-  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
-  return `pa-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return makeId('pa');
 }
 
 /**

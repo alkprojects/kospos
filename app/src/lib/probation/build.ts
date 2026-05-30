@@ -7,6 +7,7 @@
  */
 
 import { normalizePositionKey } from '../chartfields/resolve';
+import { makeId } from '../id';
 import {
   PROBATION_STATUS_ORDER,
   PROBATION_TERMINAL_STATUSES,
@@ -18,16 +19,9 @@ import type {
   ProbationStatusRollup,
 } from './types';
 
-/**
- * Generate a stable id — UUID v4 when available, millisecond+random
- * fallback otherwise (mirrors `lib/separations/build.ts:newSeparationId`
- * for environments — happy-dom in vitest — that don't always expose
- * `crypto.randomUUID`).
- */
+/** Generate a stable probation id (see `lib/id.ts:makeId`). */
 export function newProbationId(): string {
-  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
-  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
-  return `prob-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return makeId('prob');
 }
 
 /**
