@@ -18,17 +18,7 @@ import type { PositionYtdActuals } from '../../payroll';
 import type { PositionBudget, BfmBudgetPhase } from '../../budget';
 import { computeBudgetVsActual } from '../../budget';
 import { useLaborScope } from '../labor';
-
-function fmtMoney(n: number): string {
-  return n.toLocaleString('en-US', {
-    style: 'currency', currency: 'USD', maximumFractionDigits: 0,
-  });
-}
-
-function fmtSignedMoney(n: number): string {
-  const sign = n > 0 ? '+' : n < 0 ? '−' : '';
-  return sign + fmtMoney(Math.abs(n));
-}
+import { fmtMoney, fmtSignedMoney } from '../../format';
 
 function fmtPercent(pct: number): string {
   const sign = pct > 0 ? '+' : pct < 0 ? '−' : '';

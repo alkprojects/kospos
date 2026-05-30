@@ -47,6 +47,7 @@ import {
   useStaffingPlan,
 } from '../../staffing-plan';
 import { CostInputEditor } from './CostInputEditor';
+import { fmtMoney, fmtSignedMoney } from '../../format';
 
 // ---------------------------------------------------------------------------
 // Display helpers
@@ -76,16 +77,6 @@ const ACTION_MODES: ActionMode[] = ['backfill', 'new-growth', 'temp-conversion',
 const SEPARATION_CONFIDENCES: SeparationConfidence[] = [
   'rumored', 'confirmed', 'paperwork-filed',
 ];
-
-function fmtMoney(n: number): string {
-  return n.toLocaleString('en-US', {
-    style: 'currency', currency: 'USD', maximumFractionDigits: 0,
-  });
-}
-function fmtSignedMoney(n: number): string {
-  const sign = n > 0 ? '+' : n < 0 ? '−' : '';
-  return sign + fmtMoney(Math.abs(n));
-}
 
 // ---------------------------------------------------------------------------
 // Draft state — the shape the editor mutates locally before Save

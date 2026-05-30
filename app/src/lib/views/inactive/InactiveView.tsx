@@ -27,12 +27,7 @@ import { matchesNeedle } from '../../search/needle';
 import { CopyButton } from '../../ui';
 import { buildInactiveSummary } from './build';
 import type { InactiveReasonHint } from './build';
-
-function fmtMoney(n: number): string {
-  return n.toLocaleString('en-US', {
-    style: 'currency', currency: 'USD', maximumFractionDigits: 0,
-  });
-}
+import { fmtMoney } from '../../format';
 
 const REASON_LABEL: Record<InactiveReasonHint, string> = {
   'retirement-payout':   'Retirement payout',

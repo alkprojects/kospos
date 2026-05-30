@@ -28,6 +28,7 @@ import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import { normalizePositionKey } from '../../chartfields/resolve';
 import type { ObiPayrollRow, PsHcmPpRow } from '../../importers/types';
 import { CopyButton, Modal, rowButtonProps } from '../../ui';
+import { fmtMoney } from '../../format';
 import {
   EMPTY_FILTERS, aggregate, applyFilters, bucketOf, distinctValues,
 } from './aggregate';
@@ -179,12 +180,6 @@ function ScopedEmptyDiagnostic({
       </div>
     </div>
   );
-}
-
-function fmtMoney(n: number): string {
-  return n.toLocaleString('en-US', {
-    style: 'currency', currency: 'USD', maximumFractionDigits: 0,
-  });
 }
 
 function fmtNumber(n: number, fractionDigits = 1): string {
