@@ -7,6 +7,7 @@ import { hcmFteBfmMismatch } from './rules/hcm-fte-bfm-mismatch';
 import { positionInHcmNotBfm } from './rules/position-in-hcm-not-bfm';
 import { additionalPayOrphan } from './rules/additional-pay-orphan';
 import { additionalPayActingSupervisoryConflict } from './rules/additional-pay-acting-supervisory-conflict';
+import { findSupervisoryOwed } from './rules/additional-pay-supervisory-owed';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -392,5 +393,75 @@ describe('QR-007 additionalPayActingSupervisoryConflict', () => {
 
   it('does not check when no additional-pay rows are loaded', () => {
     expect(additionalPayActingSupervisoryConflict.check([])).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// QR-008 supervisory differential owed — findSupervisoryOwed (injected grades)
+// ---------------------------------------------------------------------------
+
+describe('QR-008 findSupervisoryOwed (supervisory differential owed)', () => {
+  // Injected grade lookup: class code → top-of-grade biweekly (date ignored).
+  const grades: Record<string, number> = {
+    '0922': 5000, // manager class
+    '0923': 5300, // higher-grade subordinate (5300 > 5000 × 1.05)
+    '6278': 4000, // lower-grade subordinate
+  };
+  const gradeOf = (code: string) => grades[code] ?? null;
+
+  // Marks an emplid as already receiving a supervisory differential AND makes
+  // the additional-pay source non-empty (so the rule runs).
+  const supflt = (emplId: string) => eeAddl({ emplId, rateCode: 'SUPFLT' });
+
+  it('flags a manager whose grade is < 5% above the highest subordinate, no SUPFLT', () => {
+    const records: ImportedRow[] = [
+      hcmPos({ positionNumber: '10001', emplId: 'M1', employeeName: 'Boss, Pat', employeeJobCode: '0922' }),
+      hcmPos({ positionNumber: '10002', emplId: 'S1', employeeJobCode: '0923', reportsToPosition: '10001' }),
+      supflt('SOMEONE_ELSE'),
+    ];
+    const issues = findSupervisoryOwed(records, gradeOf);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].ruleId).toBe('QR-008');
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].positionNumber).toBe('10001');
+    expect(issues[0].emplId).toBe('M1');
+  });
+
+  it('does not flag when the manager grade is already ≥ 5% above the subordinate', () => {
+    const records: ImportedRow[] = [
+      hcmPos({ positionNumber: '10001', emplId: 'M1', employeeJobCode: '0922' }),
+      hcmPos({ positionNumber: '10002', emplId: 'S1', employeeJobCode: '6278', reportsToPosition: '10001' }),
+      supflt('SOMEONE_ELSE'),
+    ];
+    expect(findSupervisoryOwed(records, gradeOf)).toHaveLength(0);
+  });
+
+  it('does not flag a manager already receiving SUPFLT', () => {
+    const records: ImportedRow[] = [
+      hcmPos({ positionNumber: '10001', emplId: 'M1', employeeJobCode: '0922' }),
+      hcmPos({ positionNumber: '10002', emplId: 'S1', employeeJobCode: '0923', reportsToPosition: '10001' }),
+      supflt('M1'),
+    ];
+    expect(findSupervisoryOwed(records, gradeOf)).toHaveLength(0);
+  });
+
+  it('does not flag a vacant manager or a manager with no filled subordinates', () => {
+    expect(findSupervisoryOwed([
+      hcmPos({ positionNumber: '10001', emplId: '', employeeJobCode: '0922' }),
+      hcmPos({ positionNumber: '10002', emplId: 'S1', employeeJobCode: '0923', reportsToPosition: '10001' }),
+      supflt('X'),
+    ], gradeOf)).toHaveLength(0);
+
+    expect(findSupervisoryOwed([
+      hcmPos({ positionNumber: '10001', emplId: 'M1', employeeJobCode: '0922' }),
+      supflt('X'),
+    ], gradeOf)).toHaveLength(0);
+  });
+
+  it('does not check when the additional-pay source is not loaded', () => {
+    expect(findSupervisoryOwed([
+      hcmPos({ positionNumber: '10001', emplId: 'M1', employeeJobCode: '0922' }),
+      hcmPos({ positionNumber: '10002', emplId: 'S1', employeeJobCode: '0923', reportsToPosition: '10001' }),
+    ], gradeOf)).toHaveLength(0);
   });
 });

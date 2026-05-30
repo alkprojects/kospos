@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcEmployeeCost, getBiweeklyRate, CostCalcError } from './cost';
+import { calcEmployeeCost, getBiweeklyRate, topClassBiweekly, CostCalcError } from './cost';
 import stepsFileRaw from '../data/dhr-steps.json';
 import rangesFileRaw from '../data/dhr-ranges.json';
 
@@ -126,5 +126,28 @@ describe('calcEmployeeCost — MCCP regression', () => {
       stepOrRange: 1,
       fiscalYear: 'FY2026',
     })).toThrow(CostCalcError);
+  });
+});
+
+describe('topClassBiweekly', () => {
+  // A date the first snapshot covers, so the lookup resolves deterministically.
+  const asOf = stepsSnap0.effectiveFrom as string;
+
+  it('returns the top-of-grade biweekly for a step class (≥ its step-1 rate)', () => {
+    const top = topClassBiweekly('881', asOf);
+    expect(top).not.toBeNull();
+    // 881 step 1 = 27.3375 hourly × 80; the top step is at least that.
+    expect(top!).toBeGreaterThanOrEqual(27.3375 * 80);
+  });
+
+  it('returns the top-of-grade biweekly for a range class (≥ its Range A min)', () => {
+    const top = topClassBiweekly('922', asOf);
+    expect(top).not.toBeNull();
+    // 922 Range A min = 64.7 hourly × 80; the max is at least the min.
+    expect(top!).toBeGreaterThanOrEqual(64.7 * 80);
+  });
+
+  it('returns null for an unknown class', () => {
+    expect(topClassBiweekly('ZZZZ', asOf)).toBeNull();
   });
 });
