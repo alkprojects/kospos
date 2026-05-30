@@ -29,10 +29,14 @@
  *   - Unmount → cancel timer + unsubscribe.
  *
  * Why one hook for all six stores rather than per-store:
- *   - The snapshot is a single envelope — we save / load atomically so
- *     stale partial states don't appear after a crashed save.
- *   - One debounce timer means a multi-store change (e.g. addRows that
- *     triggers a quality rules run that updates issues) only writes once.
+ *   - One debounce timer + a dirty-group set means a multi-store change
+ *     (e.g. addRows that triggers a quality rules run that updates
+ *     issues) coalesces into one write pass.
+ *   - That write pass is INCREMENTAL (Phase 2.2.aa): each store maps to a
+ *     per-store IDB record group (`rows` / `scrapers` / `planning`), and
+ *     only the groups that actually went dirty are rewritten. A note edit
+ *     rewrites the small `planning` record, never the ~375 MB `rows` one
+ *     — see `idb-persistence.ts`. The load path reassembles the groups.
  *
  * Pure logic lives in helper functions exported for unit testing; the
  * hook itself is a thin React adapter.
@@ -52,7 +56,8 @@ import {
 } from './snapshot';
 import {
   loadSnapshotFromIdb,
-  saveSnapshotToIdb,
+  saveGroupsToIdb,
+  type StoreGroup,
 } from './idb-persistence';
 import {
   fetchPublishedSnapshot,
@@ -299,8 +304,8 @@ export function useAutoSessionPersistence(opts: { enabled?: boolean } = {}): Aut
           source = 'cloudflare';
         }
 
-        loadCompleteRef.current = true;
         if (!winner) {
+          loadCompleteRef.current = true;
           setState({
             status: 'empty',
             lastSavedAt: '',
@@ -315,6 +320,14 @@ export function useAutoSessionPersistence(opts: { enabled?: boolean } = {}): Aut
         // rerenders, more chances for the browser to repaint.
         await new Promise(r => setTimeout(r, 0));
         restoreStoresFromPayload(winner);
+        // Mark load complete AFTER the restore, not before: the restore's
+        // store mutations fire the auto-save subscribers, and we do NOT
+        // want to immediately re-write the snapshot we just read. Under
+        // the per-store-record model a post-load re-save would mark every
+        // group dirty and rewrite the ~375 MB `rows` record on every page
+        // load — that redundant write IS the post-refresh freeze this
+        // sub-phase removes. Gating the subscribers until now drops it.
+        loadCompleteRef.current = true;
         setState({
           status: 'loaded',
           lastSavedAt: '',
@@ -335,15 +348,25 @@ export function useAutoSessionPersistence(opts: { enabled?: boolean } = {}): Aut
         });
       });
 
-    // 2. Auto-save subscription. Each store's subscribe returns its own
-    // unsubscriber; we collect them all + cleanup on unmount.
-    const scheduleSave = () => {
+    // 2. Auto-save subscription. Each store maps to a per-store record
+    // group; a change marks that group dirty and (re)arms one shared
+    // debounce timer. On fire we write only the dirty groups, so a
+    // planning edit never rewrites the heavy `rows` record. Each store's
+    // subscribe returns its own unsubscriber; we collect + clean them up.
+    const dirtyGroups = new Set<StoreGroup>();
+    const scheduleSave = (group: StoreGroup) => {
       if (!loadCompleteRef.current) return;
+      dirtyGroups.add(group);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
+        // Snapshot + clear the dirty set synchronously so changes that
+        // arrive during the async write accumulate for the next pass.
+        const groups = [...dirtyGroups];
+        dirtyGroups.clear();
+        if (groups.length === 0) return;
         setState(s => ({ ...s, status: 'saving' }));
         const file = captureCurrentSnapshot();
-        saveSnapshotToIdb(file)
+        saveGroupsToIdb(file, groups)
           .then(() => {
             setState(s => ({
               ...s,
@@ -363,12 +386,12 @@ export function useAutoSessionPersistence(opts: { enabled?: boolean } = {}): Aut
     };
 
     const unsubscribers = [
-      useAppStore.subscribe(scheduleSave),
-      useStaffingPlan.subscribe(scheduleSave),
-      useSeparations.subscribe(scheduleSave),
-      useProbations.subscribe(scheduleSave),
-      usePositionNotes.subscribe(scheduleSave),
-      useScrapers.subscribe(scheduleSave),
+      useAppStore.subscribe(() => scheduleSave('rows')),
+      useStaffingPlan.subscribe(() => scheduleSave('planning')),
+      useSeparations.subscribe(() => scheduleSave('planning')),
+      useProbations.subscribe(() => scheduleSave('planning')),
+      usePositionNotes.subscribe(() => scheduleSave('planning')),
+      useScrapers.subscribe(() => scheduleSave('scrapers')),
     ];
 
     return () => {
