@@ -27,7 +27,7 @@ import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import { normalizePositionKey } from '../../chartfields/resolve';
 import type { ObiPayrollRow, PsHcmPpRow } from '../../importers/types';
-import { CopyButton, Modal, rowButtonProps } from '../../ui';
+import { CopyButton, Modal, rowButtonProps, Stat } from '../../ui';
 import { fmtMoney } from '../../format';
 import {
   EMPTY_FILTERS, aggregate, applyFilters, bucketOf, distinctValues,
@@ -203,20 +203,6 @@ function bucketBadge(b: ReturnType<typeof bucketOf>) {
       padding: '1px 6px', borderRadius: 10,
       color, background: bg, whiteSpace: 'nowrap',
     }}>{label}</span>
-  );
-}
-
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {label}
-      </span>
-      <span style={{ fontSize: 20, fontWeight: 700 }}>{value}</span>
-      {hint && (
-        <span style={{ fontSize: 10, color: 'var(--muted)' }}>{hint}</span>
-      )}
-    </div>
   );
 }
 

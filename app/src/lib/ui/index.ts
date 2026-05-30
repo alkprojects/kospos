@@ -17,3 +17,5 @@ export { CloseButton } from './CloseButton';
 export type { CloseButtonProps } from './CloseButton';
 export { Badge } from './Badge';
 export type { BadgeProps, BadgeTone } from './Badge';
+export { Stat } from './Stat';
+export type { StatProps } from './Stat';

@@ -24,7 +24,7 @@ import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import type { PsHcmPpRow, ObiPayrollRow } from '../../importers/types';
 import { matchesNeedle } from '../../search/needle';
-import { CopyButton } from '../../ui';
+import { CopyButton, Stat } from '../../ui';
 import { buildInactiveSummary } from './build';
 import type { InactiveReasonHint } from './build';
 import { fmtMoney } from '../../format';
@@ -50,18 +50,6 @@ function ReasonChip({ hint }: { hint: InactiveReasonHint }) {
       padding: '1px 7px', borderRadius: 10,
       color, background: bg, whiteSpace: 'nowrap',
     }}>{REASON_LABEL[hint]}</span>
-  );
-}
-
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {label}
-      </span>
-      <span style={{ fontSize: 20, fontWeight: 700 }}>{value}</span>
-      {hint && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{hint}</span>}
-    </div>
   );
 }
 

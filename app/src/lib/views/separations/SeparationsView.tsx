@@ -23,7 +23,7 @@ import type { Position, PersonRef } from '../../positions';
 import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import type { PsHcmPpRow } from '../../importers/types';
 import { matchesNeedle } from '../../search/needle';
-import { CopyButton, rowButtonProps } from '../../ui';
+import { CopyButton, rowButtonProps, Stat } from '../../ui';
 import {
   SEPARATION_STATUS_ORDER,
   rollupByStatus,
@@ -81,18 +81,6 @@ function ConfidenceChip({ confidence }: { confidence: ConfidenceLevel }) {
       color, background: bg, whiteSpace: 'nowrap',
       textTransform: 'uppercase', letterSpacing: 0.3,
     }}>{confidence}</span>
-  );
-}
-
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {label}
-      </span>
-      <span style={{ fontSize: 20, fontWeight: 700 }}>{value}</span>
-      {hint && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{hint}</span>}
-    </div>
   );
 }
 

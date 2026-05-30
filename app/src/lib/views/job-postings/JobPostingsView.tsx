@@ -16,25 +16,13 @@
  */
 
 import { useMemo, useState } from 'react';
-import { CopyButton } from '../../ui';
+import { CopyButton, Stat } from '../../ui';
 import { useScrapers } from '../../scrapers';
 import type { JobPosting } from '../../scrapers';
 
 // ---------------------------------------------------------------------------
-// Display helpers (mirrors EligibilityView's Stat + timeAgo for consistency)
+// Display helpers (timeAgo mirrors EligibilityView's; the Stat card is shared from lib/ui)
 // ---------------------------------------------------------------------------
-
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {label}
-      </span>
-      <span style={{ fontSize: 20, fontWeight: 700 }}>{value}</span>
-      {hint && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{hint}</span>}
-    </div>
-  );
-}
 
 function timeAgo(iso: string): string {
   if (!iso) return 'never';

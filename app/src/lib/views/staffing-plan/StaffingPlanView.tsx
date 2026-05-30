@@ -46,7 +46,7 @@ import type {
 import { useSeparations } from '../../separations';
 import { PlannedActionDetail } from './PlannedActionDetail';
 import { matchesNeedle } from '../../search/needle';
-import { Badge, CopyButton, rowButtonProps } from '../../ui';
+import { Badge, CopyButton, rowButtonProps, Stat } from '../../ui';
 import { fmtSignedMoney } from '../../format';
 
 /** Plain-English label for each PlannedActionType. */
@@ -67,20 +67,6 @@ const TYPE_COLORS: Record<PlannedActionType, { fg: string; bg: string }> = {
   'temp-tracking': { fg: '#6b21a8', bg: '#f3e8ff' }, // purple — temp
   'unfunded':      { fg: 'var(--caution)', bg: 'var(--caution-soft)' }, // yellow — caution
 };
-
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        {label}
-      </span>
-      <span style={{ fontSize: 20, fontWeight: 700 }}>{value}</span>
-      {hint && (
-        <span style={{ fontSize: 10, color: 'var(--muted)' }}>{hint}</span>
-      )}
-    </div>
-  );
-}
 
 /**
  * Single-row in a section's table. Cost is computed live; unpriced rows
