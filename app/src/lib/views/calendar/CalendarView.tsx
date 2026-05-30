@@ -19,6 +19,7 @@
 import { useMemo, useState } from 'react';
 import { Stat } from '../../ui';
 import { fmtMoney } from '../../format';
+import { payPeriodElapsed } from '../../calendar';
 import calendarRaw from '../../../data/calendar-fy2026.json';
 import colaRaw from '../../../data/cola-fy2026.json';
 
@@ -52,25 +53,13 @@ export function CalendarView() {
   const payPeriods = calendarRaw.payPeriods;
   const [asOf, setAsOf] = useState<string>(todayIso);
 
-  const totalWeight = useMemo(
-    () => payPeriods.reduce((sum, p) => sum + p.pct, 0),
-    [payPeriods],
-  );
-
-  // "Current" = the first pay period whose period-end is on/after the as-of
-  // date (the PP we're inside). Null once the whole FY has elapsed.
-  const current = useMemo(
-    () => payPeriods.find(p => p.ppe >= asOf) ?? null,
+  // FY-elapsed split (completed / current / remaining + weighted sums) — the
+  // reusable primitive in lib/calendar (roadmap 2.2.1). Destructured to the
+  // names the JSX below already uses, so this lift is behavior-neutral.
+  const { current, completed, elapsedFraction: elapsedFrac } = useMemo(
+    () => payPeriodElapsed(payPeriods, asOf),
     [payPeriods, asOf],
   );
-
-  // Completed = pay periods whose period-end is strictly before the as-of date.
-  const completed = useMemo(
-    () => payPeriods.filter(p => p.ppe < asOf),
-    [payPeriods, asOf],
-  );
-  const completedWeight = completed.reduce((sum, p) => sum + p.pct, 0);
-  const elapsedFrac = totalWeight > 0 ? completedWeight / totalWeight : 0;
 
   const midYearPp = payPeriods.find(p => p.pp === colaRaw.midYear.appliesAtPP);
   const midYearWhen = midYearPp
