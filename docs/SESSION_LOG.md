@@ -3977,3 +3977,39 @@ Asked again (front-loaded). Alex: **"don't remember — skip it."** Dropped the 
 - **Trust + delegation:** ✅ Front-loaded both decisions; drove three PRs + a proposal autonomously with computed-style live verification.
 - **Audit cadence:** ✅ 24th event-based trigger; fired on this sub-phase close.
 - **Test discipline:** ✅ Baseline 874 confirmed after `npm install`; 874 → 874 (pure refactors); `tsc -b` + `npm run build` before every PR.
+
+## Session 49 — Phase 2.2.y: eligibility-refresh regression fix + code-health (away-session) (2026-05-29)
+
+**A bug-fix + code-health away-session.** Alex was heading to sleep; directives: (1) front-load blocking questions, (2) **"refreshing eligibility lists … used to run pretty fast but now seems very slow — check on it,"** (3) use the sleep time for any productive work (agents / UI-UX review / proposals). Shipped **3 single-purpose PRs**.
+
+### The stale-prompt pivot (the defining event)
+The pasted start-prompt was the **S46-era** block ("pick 2.2.v"; menu H/P/M/E/F/G). A `git fetch` showed origin/main was at **end-of-S48 (#165)** — so the whole menu was already shipped (**H** modal lift #156, eligibility *concurrency* #154, file-load parity #157). Alex picked **H** via `AskUserQuestion`, but H existed. Caught it by `git fetch` + re-reading the *current* `fetch.ts` before editing, then pivoted to the real directives. **Lesson: reconcile a pasted prompt against `git log origin/main` before trusting its menu; the repo wins.**
+
+### What shipped
+- **[#166](https://github.com/alkprojects/kospos/pull/166) — perf(scrapers): fix the slow eligibility refresh.** Diagnosed empirically with live `curl`: `corsproxy.io` → 403 (went paid), `allorigins.win` → 500 **and ~12s to return it**, `codetabs.com` → 200 (~0.5s). #154 had added concurrency + a 10s per-proxy timeout but left `DEFAULT_PROXIES` ordered with the two dead proxies FIRST → every page burned the timeout on the hung allorigins (~2 min over the waves). Fix: **reorder codetabs-first** + codetabs trailing-slash URL (skip a 301). Restores ~5s. +1 regression test (874→875). The shared `DEFAULT_PROXIES` reorder also speeds `pdf-parse.ts` for free.
+- **[#167](https://github.com/alkprojects/kospos/pull/167) — refactor(format): `lib/format.ts`** (code-health batch 1). 5 `fmtMoney` + 3 `fmtSignedMoney` byte-identical copies → one module (U+2212 minus preserved). `tsc -b` caught an over-broad import (`StaffingPlanView` never called `fmtMoney` directly). 875→875.
+- **[#168](https://github.com/alkprojects/kospos/pull/168) — chore: correct stale "not persisted" claims** (code-health batch L1, *expanded*). A grep found more than the doc listed, incl. **3 user-facing banners** (StaffingPlan/Separations/Probation footers) falsely saying data is "in-memory until Phase 2.2.33" — false since IDB auto-persistence shipped in 2.2.q. Fixed 7 comments + 3 banners (verified against `use-auto-persistence.ts`); left `payroll/build.ts`'s separate de-dup deferral. Clears the 3-audit `pdfCache` carry-forward. 875→875.
+
+### Away-time work beyond the PRs
+- **Diagnosed carry-forward O** (the ~5s post-refresh freeze): `use-auto-persistence.ts` serializes the *whole* ~375 MB snapshot to JSON on a 500ms debounce after **every** store change → main-thread block. **Likely the second half of "refresh is slow"** (fetch was the first, now fixed). Not fixed (persistence-perf; spawned task stands); proposed fixes in the handoff.
+- **Spawned a UI/UX-review agent early, then deleted its output** — it ran against the stale worktree and duplicated the existing `s46-ui-ux-review.md`. (Lesson: reconcile repo state before fanning out agents.)
+- New memory `proxy_rot.md`; new carry-forward **PDF-TO** (`pdf-parse.ts` lacks a per-proxy timeout).
+
+### Verification
+Eligibility fix: live `curl` of all proxies (the definitive proof for a network-timing fix) + a unit regression test — no heavy preview (it'd hit transient live services). Code-health: behavior-neutral, `npm run build` (tsc) + 875 green each PR. Banner views are dev-gated + need uncommitted labor data, so build's JSX typecheck + the suite are the proof.
+
+### Outcome
+3 code PRs (#166–168) + this docs close PR. Tests **874 → 875**. Merged; GitHub Pages + Cloudflare green; main worktree fast-forwarded. Phase 2.2.y close audit fired → [`docs/audits/phase-2-2-y-close-audit.md`](audits/phase-2-2-y-close-audit.md).
+
+### Lessons / improvements for next phase
+- **Reconcile the pasted prompt against `git log origin/main` before acting.** The prompt was 3 sessions stale; trusting its menu would have meant re-building already-shipped work. `git fetch` first, always.
+- **Diagnose externals empirically before coding.** The eligibility code "looked fine" and had been perf-fixed once; the rot was in the proxies. A 4-line `curl` probe turned a guess into a root cause and scoped the fix to one reorder.
+- **`tsc -b` before the PR earns its keep** — caught the over-broad `fmtMoney` import that tests alone wouldn't.
+- **A "stale comment" sweep should grep wider than the menu** — the highest-value instances (the 3 user-facing banners) weren't in the doc's list.
+
+### Brief audit (Alex's collaboration this session)
+- **Prompt quality:** ⚠️ Pasted a stale (S46) prompt — but the *added freeform directives* (sleep / eligibility-slow / do-work) were the real, high-value scope and drove the session. The freeform hatch beat the menu again.
+- **Scope discipline:** ✅ Three logical changes, three PRs; the IDB-freeze + `pdf-parse` timeout *consciously deferred* rather than bundled.
+- **Trust + delegation:** ✅ One blocking question front-loaded before sleep; the rest run autonomously per the standing "do work while I sleep" mandate + the handoff's pre-blessed away-session batches.
+- **Audit cadence:** ✅ 25th event-based trigger; fired on this sub-phase close.
+- **Test discipline:** ✅ Baseline 875 confirmed after `npm install`; 874 → 875; `npm run build` before every PR.
