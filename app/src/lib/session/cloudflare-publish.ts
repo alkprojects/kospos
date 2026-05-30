@@ -147,6 +147,35 @@ export function writeCloudflareConfig(config: CloudflareConfig): void {
 }
 
 /**
+ * The canonical Cloudflare Pages deployment. Used as the publish/load endpoint
+ * when the app is served from the GitHub Pages mirror (which has no Pages
+ * Function of its own), so "Publish snapshot" + cross-device load work from
+ * alkprojects.github.io without per-device config. Override with an explicit
+ * Cloudflare Pages URL in the settings panel (e.g. a custom domain).
+ */
+const DEFAULT_PAGES_URL = 'https://kospos.pages.dev';
+
+/**
+ * Resolve the `/api/snapshot` endpoint. Precedence:
+ *   1. an explicit configured `pagesUrl` (cross-origin / custom domain);
+ *   2. on the GitHub Pages mirror (`*.github.io`) the Cloudflare deployment,
+ *      because that origin serves no Pages Function — a relative URL there
+ *      404s, which is exactly the "Publish failed: Failed to fetch" Alex hit
+ *      (S57 fix);
+ *   3. otherwise relative — correct on the Cloudflare site itself (same-origin)
+ *      and harmless in local dev (no remote; load is optional there).
+ * `hostname` is injectable for tests; defaults to the current location.
+ */
+export function resolveSnapshotUrl(
+  config: CloudflareConfig,
+  hostname: string = typeof location !== 'undefined' ? location.hostname : '',
+): string {
+  if (config.pagesUrl) return `${config.pagesUrl}/api/snapshot`;
+  if (/\.github\.io$/i.test(hostname)) return `${DEFAULT_PAGES_URL}/api/snapshot`;
+  return '/api/snapshot';
+}
+
+/**
  * Result tagging for fetch / publish operations. Surfaced to the UI so
  * the Landing page + the SessionExportImport panel can show
  * fine-grained status.
@@ -184,17 +213,12 @@ export async function fetchPublishedSnapshot(
   config: CloudflareConfig = readCloudflareConfig(),
   fetchImpl: typeof fetch = fetch,
 ): Promise<FetchResult> {
-  // S41 fix: when pagesUrl is empty, default to a relative URL. This is
-  // the critical path for cross-device load — incognito windows + fresh
-  // browsers start with empty localStorage, so the original "require
-  // pagesUrl" gate blocked every read-only visitor from ever seeing
-  // the shared snapshot. Visitors to the Cloudflare Pages deployment
-  // (kospos.pages.dev) automatically hit /api/snapshot on the same
-  // origin — no localStorage config needed. Explicit pagesUrl still
-  // works (cross-origin: localhost dev pointing at production, etc.).
-  const url = config.pagesUrl
-    ? `${config.pagesUrl}/api/snapshot`
-    : '/api/snapshot';
+  // Endpoint precedence in resolveSnapshotUrl: explicit pagesUrl → the
+  // Cloudflare deployment when on the github.io mirror → relative (same-origin
+  // on the Cloudflare site). Empty config no longer short-circuits, so every
+  // visitor can load the shared snapshot (S41); the github.io mirror reaches
+  // the deployment instead of 404ing on a relative URL (S57).
+  const url = resolveSnapshotUrl(config);
   let response: Response;
   try {
     response = await fetchImpl(url, { method: 'GET' });
@@ -286,12 +310,10 @@ export async function publishSnapshot(
   if (!config.publishSecret) {
     return { ok: false, reason: 'no-secret' };
   }
-  // Same relative-URL default as fetchPublishedSnapshot — publishing
-  // from the deployed page itself needs no pagesUrl config. The secret
-  // is still required (publishing is gated; reading is public).
-  const url = config.pagesUrl
-    ? `${config.pagesUrl}/api/snapshot`
-    : '/api/snapshot';
+  // Same endpoint resolution as the fetch path (resolveSnapshotUrl): the
+  // github.io mirror publishes to the Cloudflare deployment. The secret is
+  // still required (publishing is gated; reading is public).
+  const url = resolveSnapshotUrl(config);
   // gzip the JSON body. See the module header — without this, the
   // 110K-row real-world dataset trips Cloudflare's 100 MB request
   // limit at the edge before the Worker even runs. Modern browsers
