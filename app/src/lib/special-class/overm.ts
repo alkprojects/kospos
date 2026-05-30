@@ -21,6 +21,18 @@
  *   reproduce that filter — sum across all funds — see special-class.md § OVERM_E.
  */
 
+// Shared special-class math (historical-mean / COLA-inflate / sentiment /
+// straight-line pace) lives in ./shared and is re-exported here so this
+// module's public surface — incl. the `overm.*` barrel namespace — is
+// unchanged (s48 CH L7; see the s55 proposal).
+export {
+  historicalActualsMean,
+  colaAdjustToYear,
+  applySentiment,
+  ytdBudgetPace,
+} from './shared';
+export type { Sentiment as OvertimeSentiment } from './shared';
+
 // ---------------------------------------------------------------------------
 // 1. Budget development
 // ---------------------------------------------------------------------------
@@ -85,101 +97,8 @@ export function suggestOvermBudget(
   return roundUpToThousand(Math.max(a, b));
 }
 
-/**
- * Mean of historical OT actuals (salary, pre-fringe).
- *
- * Budget Master pattern equivalent to RPO's `F14 = AVERAGE(F5:F12)`. OVERM doesn't ship
- * a literal multi-year mean cell in the extracted ranges (the workbook only carries
- * FY-prior), but Alex's Session 9 RPO walkthrough established the "3-year and 8-year
- * trailing mean" UI pattern as desirable. Included here so the OVERM view can show
- * the same multi-year context once historical data flows in.
- *
- * Empty input → 0. Window length is flexible (caller controls).
- */
-export function historicalActualsMean(actuals: number[]): number {
-  if (actuals.length === 0) return 0;
-  const sum = actuals.reduce((a, b) => a + b, 0);
-  return Math.round(sum / actuals.length);
-}
-
-/**
- * Inflate a historical dollar amount from `fromYear` to `toYear` dollars using a
- * flat per-year COLA percentage.
- *
- * Currently the project uses a flat 2.5%/yr placeholder for the COLA. Per Alex
- * (Session 11), per-FY COLAs will be sourced from the `15.15.014` report in a future
- * session; the per-FY table in `docs/domain/budget-process.md` § "SF historical COLAs"
- * is reference-only until then.
- *
- * `colaPctPerYear` is the per-year COLA as a decimal (e.g., 0.025 for 2.5%). When
- * `toYear <= fromYear`, returns the input unchanged.
- */
-export function colaAdjustToYear(
-  amount: number,
-  fromYear: number,
-  toYear: number,
-  colaPctPerYear: number,
-): number {
-  if (toYear <= fromYear) return amount;
-  const years = toYear - fromYear;
-  return amount * Math.pow(1 + colaPctPerYear, years);
-}
-
-/**
- * User's expectation about next-year OT relative to history.
- *
- *   chosen = baseline * (1 + sign(sentiment) * pct/100)
- *
- *   'same' → sign  0 → chosen = baseline   (pct ignored)
- *   'more' → sign +1 → chosen > baseline
- *   'less' → sign -1 → chosen < baseline
- *
- * Same shape as RPO's `RetirementSentiment` so the FY-card UI pattern can be reused.
- */
-export type OvertimeSentiment = 'same' | 'more' | 'less';
-
-/**
- * Adjust a baseline by a sentiment + magnitude. Returns whole-dollar rounded.
- *
- * Negative pct is clamped to 0 (use 'less' instead of 'more by -X'). A 'less' adjustment
- * that would push the result below 0 is clamped to 0.
- */
-export function applySentiment(
-  baseline: number,
-  sentiment: OvertimeSentiment,
-  adjustmentPct: number,
-): number {
-  const pct = Math.max(0, adjustmentPct);
-  const sign = sentiment === 'more' ? 1 : sentiment === 'less' ? -1 : 0;
-  return Math.max(0, Math.round(baseline * (1 + (sign * pct) / 100)));
-}
-
 // ---------------------------------------------------------------------------
-// 2. YTD budget pace
-// ---------------------------------------------------------------------------
-
-/**
- * Straight-line YTD budget pace.
- *
- * Operating Report Summary `D37 = G37 / Calendar!J2 * Calendar!I2`. Mathematically
- * identical to RPO's `D38`; the formula is generic to any straight-line-paced row.
- *
- * Capped at totalBudget when ppElapsed >= ppTotal (defensive — a stale Calendar!I2
- * can produce >100% pacing). `ppTotal === 0` → 0 (no calendar loaded yet; pacing
- * is undefined).
- */
-export function ytdBudgetPace(
-  totalBudget: number,
-  ppElapsed: number,
-  ppTotal: number,
-): number {
-  if (ppTotal === 0) return 0;
-  if (ppElapsed >= ppTotal) return totalBudget;
-  return (totalBudget * ppElapsed) / ppTotal;
-}
-
-// ---------------------------------------------------------------------------
-// 3. Year-end projection
+// 2. Year-end projection
 // ---------------------------------------------------------------------------
 
 /**
