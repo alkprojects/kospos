@@ -461,7 +461,7 @@ function AdditionalPayCard({ items }: { items: PositionAdditionalPay[] }) {
           {items.map(({ role, personName, item }) => {
             const [color, bg] = ADDL_PAY_KIND_COLOR[item.kind];
             return (
-              <tr key={item.sourceRow} style={{ borderBottom: '1px solid var(--border)' }}>
+              <tr key={`${role}:${item.id}`} style={{ borderBottom: '1px solid var(--border)' }}>
                 <td style={{ padding: '5px 0' }}>
                   <span style={{ fontWeight: 600 }}>{personName || item.displayName || '—'}</span>
                   <span style={{

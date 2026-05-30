@@ -147,7 +147,7 @@ export function EeAdditionalPayView() {
               </tr>
             ) : (
               filtered.map(e => (
-                <tr key={e.sourceRow} style={{ borderBottom: '1px solid var(--border)' }}>
+                <tr key={e.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '6px 10px', fontWeight: 600 }}>
                     {e.displayName || <span style={{ color: 'var(--muted)' }}>—</span>}
                     <span style={{ marginLeft: 6, color: 'var(--muted)', fontFamily: 'monospace', fontSize: 11 }}>

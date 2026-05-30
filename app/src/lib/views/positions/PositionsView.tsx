@@ -291,12 +291,16 @@ export function PositionsView({ onViewPayroll }: {
   const selectedAdditionalPay: PositionAdditionalPay[] = [];
   if (selected && additionalPayByEmplId) {
     const people: Array<{ role: 'Incumbent' | 'Vice'; emplId: string; name: string }> = [];
-    if (selected.appointment?.emplId) {
-      people.push({ role: 'Incumbent', emplId: selected.appointment.emplId, name: selected.appointment.name });
-    }
-    if (selected.vice1?.emplId) {
-      people.push({ role: 'Vice', emplId: selected.vice1.emplId, name: selected.vice1.name });
-    }
+    // De-dupe by emplId so a position whose incumbent IS its own vice (messy
+    // P&P data) doesn't list each assignment twice — incumbent wins the role.
+    const seenEmplIds = new Set<string>();
+    const addPerson = (role: 'Incumbent' | 'Vice', emplId: string | undefined, name: string) => {
+      if (!emplId || seenEmplIds.has(emplId)) return;
+      seenEmplIds.add(emplId);
+      people.push({ role, emplId, name });
+    };
+    addPerson('Incumbent', selected.appointment?.emplId, selected.appointment?.name ?? '');
+    addPerson('Vice', selected.vice1?.emplId, selected.vice1?.name ?? '');
     for (const { role, emplId, name } of people) {
       for (const item of additionalPayByEmplId.get(emplId) ?? []) {
         selectedAdditionalPay.push({ role, personName: name || item.displayName, item });
