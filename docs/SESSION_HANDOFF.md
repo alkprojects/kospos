@@ -6,55 +6,60 @@ The next session reads this first.
 
 ---
 
-## Current status (end of Session 55 — EE Additional Pay shipped + projection foundation, 2026-05-30)
+## Current status (end of Session 56 — EE Additional Pay audits + Issues/Corrections tab, 2026-05-30)
 
-S55 was an autonomous away-session: Alex front-loaded one question, picked **EE Additional Pay**, and asked Claude to keep working. **13 PRs** shipped — a complete (Partial) user-facing feature + foundation + a projection proposal + four CH dedups.
+S56 finished **Track B (EE Additional Pay)**: the four cross-check audits + a dedicated **Issues / Corrections** tab. **7 PRs** shipped, all merged.
 
-**Last main commit:** the `special-class/shared.ts` dedup ([#196](https://github.com/alkprojects/kospos/pull/196), `bf9a330`) + this S55-close docs PR.
-**Tests:** **954 / 954** (905 → 954, +49). **Build:** clean. **Branches in flight:** none post-merge.
-**Live site:** Pages + Cloudflare deploys green; main worktree synced.
+**Last main commit:** the Issues/Corrections tab ([#204](https://github.com/alkprojects/kospos/pull/204)) + this S56-close docs PR.
+**Tests:** **981 / 981** (954 → 981, +27). **Build:** clean. **Branches in flight:** none post-merge.
+**Live site:** Pages deploy green; main worktree synced.
 
-### What shipped (S55) — 13 PRs
-**EE Additional Pay (Tab 9):** [#184](https://github.com/alkprojects/kospos/pull/184) importer · [#185](https://github.com/alkprojects/kospos/pull/185) entity + **Source Tables → EE Additional Pay** sub-tab · [#186](https://github.com/alkprojects/kospos/pull/186) **Position Detail** card · [#187](https://github.com/alkprojects/kospos/pull/187) **Positions-list** chip + filter · [#194](https://github.com/alkprojects/kospos/pull/194) review-hardening.
-**Foundation + proposal:** [#191](https://github.com/alkprojects/kospos/pull/191) `lib/calendar/` (roadmap 2.2.1) · [#192](https://github.com/alkprojects/kospos/pull/192) **projection-engine proposal** (B1–B5 decisions for you).
-**Docs + CH:** [#188](https://github.com/alkprojects/kospos/pull/188) scorecard + questions · [#189](https://github.com/alkprojects/kospos/pull/189) cells.ts · [#190](https://github.com/alkprojects/kospos/pull/190) fmtMoneyCents · [#193](https://github.com/alkprojects/kospos/pull/193) id.ts · [#195](https://github.com/alkprojects/kospos/pull/195) rollupByStatus · [#196](https://github.com/alkprojects/kospos/pull/196) special-class/shared.ts.
+### What shipped (S56) — 7 PRs
+- [#198](https://github.com/alkprojects/kospos/pull/198) docs: correct the **Vice-vs-Acting** conflation.
+- [#199](https://github.com/alkprojects/kospos/pull/199) capture **Position Used For (cols U/V)** on P&P rows.
+- [#200](https://github.com/alkprojects/kospos/pull/200) **QR-006** acting-pay dual-entry orphan.
+- [#201](https://github.com/alkprojects/kospos/pull/201) **QR-007** acting+supervisory conflict (error).
+- [#202](https://github.com/alkprojects/kospos/pull/202) **QR-008** supervisory-differential-owed (+ `cost.ts:topClassBiweekly`).
+- [#203](https://github.com/alkprojects/kospos/pull/203) **QR-009** acting-overlap.
+- [#204](https://github.com/alkprojects/kospos/pull/204) **Issues / Corrections** tab.
 
-Full close audit: [`audits/phase-2-2-ee-additional-pay-close-audit.md`](audits/phase-2-2-ee-additional-pay-close-audit.md).
+Confirmed the supervisory 5%-of-grade rule + acting/supervisory mutual-exclusivity against SF DHR before building (saved to memory `dhr-acting-supervisory-pay`, `vice-vs-acting`).
+
+**Review on the live site:** open the new **Issues / Corrections** tab (between Positions and the dev tabs). With reports loaded, it lists everything the audits flagged — missing supervisory pay (QR-008), acting/supervisory conflicts (QR-007), unreconciled acting pay (QR-006), and acting overlaps (QR-009) — grouped by severity with filter chips.
 
 ### Carry-forward
 | # | Item | Status |
 |---|---|---|
-| **PROJ** | **Projection engine** — answer **B1–B5** in [`proposals/s55-projection-engine.md`](proposals/s55-projection-engine.md), then build (`lib/projections`; lifts tabs 16–19 Partial→Shipped, unblocks 26/27). **You said you want to be present.** | open — needs you |
-| **EE/audits** | Tab 9's **acting dual-entry** + **supervisory owed-but-not-paid** audits + the expired flag — **5 questions** in [`domain/labor-report-tabs.md` § Tab 9](domain/labor-report-tabs.md#open-questions--todo-7) | open — needs you |
-| CH | s48 batches **5** (table primitives), **7** (store-history), **8** (filters), **9** (dead-code) — broader surface; do **supervised** or pair with a review | open |
-| SCALE/2 | Scaling **Stage 2** (index rows by dept + lazy per-dept load) — its own Phase | open |
-| D1/D2 | C-series aesthetic tail (pill radius; `#b91c1c`→`--danger-strong`) — **needs your 2 answers** | open |
-| TX | `temporary_exchange_tx` memory's 4 unconfirmed questions | ask when relevant |
+| **PROJ** | **Projection engine** — answer **B1–B5** in [`proposals/s55-projection-engine.md`](proposals/s55-projection-engine.md), then build (`lib/projections`; lifts Special Class tabs 16–19 Partial→Shipped, unblocks OPS 26/27). **You said you want to be present.** Biggest lever. | open — needs you |
+| **EE/expired** | The last EE Additional Pay flag: **`additional-pay-expired` (QR-010)** — needs a manual user-input expected-end-date store + a Position-Detail input + a decision on where the expired check runs (it needs user-input data the standard `runRules` pipeline doesn't pass). | open |
+| CH | s48 batches **5** (table primitives), **7** (store-history), **8** (filters), **9** (dead-code) — broader surface; supervised or paired with a review. | open |
+| SCALE/2 | Scaling **Stage 2** (index rows by dept + lazy per-dept load) — its own Phase. | open |
+| D1/D2 | C-series aesthetic tail (pill radius; `#b91c1c`→`--danger-strong`) — needs your 2 answers. | open |
 
 ---
 
-## Next session prompt — Session 56
+## Next session prompt — Session 57
 
-Paste this verbatim to start Session 56.
+Paste this verbatim to start Session 57.
 
 **Model:** `claude-opus-4-8` (fast mode on)
 
 ```
-Session 56. S55 shipped EE Additional Pay (Tab 9) end-to-end as a Partial surface — importer + entity + Source Tables sub-tab + Position Detail panel + Positions-list filter (#184–#187, #194) — plus lib/calendar (#191), a projection-engine proposal (#192), and four CH dedups. Tests 954/954, main clean.
+Session 57. S56 finished EE Additional Pay (Tab 9 → Shipped): four cross-check audits — QR-006 acting dual-entry orphan, QR-007 acting+supervisory conflict, QR-008 supervisory-differential-owed (grade-to-grade via cost.ts:topClassBiweekly), QR-009 acting-overlap — plus a dedicated Issues / Corrections tab (#198–#204). Confirmed the supervisory 5%-of-grade rule + acting/supervisory mutual-exclusivity against SF DHR. Tests 981/981, main clean.
 
-Read first: docs/CLAUDE.md (absolute-paths gotcha — always cd to the app dir in Bash; branch each PR from origin/main BEFORE editing), docs/SESSION_HANDOFF.md, docs/DECISIONS.md ADR-017 (milestone-only audit cadence), and the S55 SESSION_LOG + close audit (audits/phase-2-2-ee-additional-pay-close-audit.md).
+Read first: docs/CLAUDE.md (Windows-worktree gotchas — Bash cwd is the WORKTREE ROOT, not app/, so npm needs `--prefix app`; absolute paths for Read/Glob/Grep; the harness cancels sibling tool calls in a batch if one errors, so keep calls error-proof; branch each PR from origin/main BEFORE editing), docs/SESSION_HANDOFF.md, docs/DECISIONS.md ADR-017 (milestone-only audit cadence), memory dhr-acting-supervisory-pay + vice-vs-acting.
 
-Confirm state on main BEFORE trusting anything: git log --oneline origin/main -5 (tops at #196 bf9a330); then cd app && npm install && npm test → 954/954 (npm install FIRST — fresh worktree has no node_modules). Single error-proof tool calls; absolute paths only.
+Confirm state on main BEFORE trusting anything: git log --oneline origin/main -5 (tops at the S56-close docs PR); then npm --prefix app install && npm --prefix app test → 981/981 (install FIRST — a fresh worktree has no node_modules). Single error-proof tool calls; absolute paths only.
 
-This session has TWO decision-gated tracks that both need your input up front — front-load the pick with me, then I run autonomously:
-  A. (recommended) THE PROJECTION ENGINE. You said you want to be present for it. Read docs/proposals/s55-projection-engine.md and answer B1–B5 (COLA-weighting vs partial-period weighting; per-bucket method incl. Premium; attrition modelling; STEPM merit events; surface order). Then I build lib/projections per the staged plan — lifts tabs 16–19 (Special Class) Partial→Shipped and unblocks the headline OPS 26/27 pages. Biggest lever in the product.
-  B. FINISH EE ADDITIONAL PAY. Answer the 5 questions in docs/domain/labor-report-tabs.md § Tab 9 (the acting dual-entry join — is the acting person the position's Vice 1?; the per-BU supervisory Rep-To-Pay-Above rule/%; the missing expected-end-date source; acting-overlap grain; annualization). Then I build the dual-entry + supervisory-owed audits + the 4 Data-Issues flags → Tab 9 Partial→Shipped.
+This session is decision-gated — front-load the pick with me, then I run autonomously:
+  A. (recommended) THE PROJECTION ENGINE. You wanted to be present for it. Read docs/proposals/s55-projection-engine.md and answer B1–B5 (COLA-weighting vs partial-period weighting; per-bucket method incl. Premium; attrition modelling; STEPM merit events; surface order). Then I build lib/projections per the staged plan — lifts Special Class tabs 16–19 Partial→Shipped and unblocks the headline OPS 26/27 pages. Biggest lever in the product.
+  B. FINISH the last EE Additional Pay flag — additional-pay-expired (QR-010): a manual user-input expected-end-date (entity field + Position-Detail input + persistence, like lib/positions/notes.ts), then flag active acting pay past its end date. One decision needed: where the expired check runs, since it needs user-input data the standard runRules(records) pipeline doesn't pass.
   C. Another build-status gap from the scorecard (docs/domain/labor-report.md), or Scaling Stage 2 (its own Phase).
-  D. CH batches 5/7/8/9 — but these are broader (table primitives / store-history / filters / dead-code); do them supervised or paired with a /code-review, not blind.
+  D. CH batches 5/7/8/9 — broader (table primitives / store-history / filters / dead-code); supervised or paired with /code-review, not blind.
 
-If I'm away: A and B both need my answers, so don't start them blind — do a supervised-style safe task or ask. Don't land CH batch 5/7/8/9 unsupervised (broad visual/behavioral surface).
+If I'm away: A needs my B1–B5 and B needs the one expired-check decision, so don't start either blind — ask, or do a supervised-style safe task.
 
-Hard constraints: branch each PR from origin/main (before editing — S55 had one slip where a PR was committed onto a merged branch); one logical change per PR; npm test stays green (954); npm run build before any app PR; merge gh pr merge --squash (skip --delete-branch); fast-forward main + sync the main worktree after each merge. Per ADR-017: full close audit only for a milestone — but SESSION_LOG always gets at least a short entry.
+Hard constraints: branch each PR from origin/main BEFORE editing; one logical change per PR; npm test stays green (981); npm run build before any app PR; merge gh pr merge --squash (skip --delete-branch); fast-forward main + sync the main worktree after each merge. Per ADR-017: full close audit only for a milestone — but SESSION_LOG always gets at least a short entry.
 
-End by updating SESSION_HANDOFF.md (lean) and pasting the S57 prompt verbatim in chat.
+End by updating SESSION_HANDOFF.md (lean) and pasting the S58 prompt verbatim in chat.
 ```

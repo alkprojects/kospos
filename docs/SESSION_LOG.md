@@ -672,3 +672,39 @@ Both S53-teed-up tasks shipped as separate PRs, plus a quick desktop-app questio
 **~1 h 50 m wall-clock** (start 01:24 PT → close ~03:15 PT). The high-value, low-risk work was complete in that span. The remaining s48 CH batches (5 table-primitives, 7 store-history, 8 filters, 9 dead-code) carry broad visual/behavioral surface; rather than land them unsupervised overnight, they're teed up — choosing the hard "doesn't cause any issues" constraint over the soft "6 hours if possible." Reaching 6 h would have required either that risk or low-value padding.
 
 **Carry-forward:** Tab 9 **dual-entry + supervisory-owed audits** (5 questions, needs Alex); **projection engine** (answer B1–B5, then build — Alex present); CH batches 5/7/8/9; Scaling **Stage 2**; D1/D2; TX memory questions.
+
+---
+
+## Session 56 — EE Additional Pay audits + Issues/Corrections tab (Tab 9 → Shipped) (2026-05-30)
+
+**Track B (finish EE Additional Pay).** Alex front-loaded the pick — **B** over the projection engine (he wants to be present for projections) — and added domain steer: the workbook checks for **missing supervisory pay**; **acting and supervisory pay are mutually exclusive**; and there should be a **dedicated section for issues needing correction**, out of Source Tables. Confirmed both rules against SF DHR before building, then ran autonomously.
+
+### Up-front decision (4 axes, single AskUserQuestion)
+1. **Track** — B (finish EE Additional Pay).
+2. **Acting dual-entry join** — Alex corrected a doc conflation: **Vice ≠ Acting**. Vice 1/2 = a position's incumbency history; *acting* is the manual `Position Used For = "Acting Assignment"` (col U) + the acting emplid in the Description (col V), cross-checked against the PS HCM `ACTFLT` rows.
+3. **Expired end-date source** — manual user input (no source column exists).
+4. **Issues section shape** — new top-level "Issues / Corrections" tab.
+
+### Domain confirmed (SF DHR "Acting Assignment Pay and Supervisory Differential Adjustments", rev 3/21/23)
+- **Supervisory differential** — owed when the supervisor's salary **GRADE** (class top step) is **< 5% above** the highest subordinate's grade: grade-to-grade, **not** paycheck-to-paycheck (deck Example 5). Adjust to 5% above, capped ~10% / two steps per FY.
+- **Acting** — 5% (7.5% for Building Inspectors + several trades), by the MOU of the class the employee is *appointed* to. *"Employees in an acting assignment are not eligible for supervisory differential pay."*
+- Saved as memory `dhr-acting-supervisory-pay` + `vice-vs-acting`.
+
+### What shipped — 7 PRs
+- [#198](https://github.com/alkprojects/kospos/pull/198) docs: correct the **Vice-vs-Acting** conflation in labor-report-tabs.
+- [#199](https://github.com/alkprojects/kospos/pull/199) feat(importer): capture **Position Used For (cols U/V)** on P&P rows — prereq for the dual-entry audit.
+- [#200](https://github.com/alkprojects/kospos/pull/200) **QR-006** acting-pay dual-entry orphan (both directions; defensive on pre-S56 saves).
+- [#201](https://github.com/alkprojects/kospos/pull/201) **QR-007** acting+supervisory conflict (error severity).
+- [#202](https://github.com/alkprojects/kospos/pull/202) **QR-008** supervisory-differential-owed + `cost.ts:topClassBiweekly` (top-of-grade lookup).
+- [#203](https://github.com/alkprojects/kospos/pull/203) **QR-009** acting-overlap (employee-level).
+- [#204](https://github.com/alkprojects/kospos/pull/204) **Issues / Corrections** tab — the dedicated corrections surface.
+
+**Tests:** 954 → **981** (+27). **Build:** clean every PR. **Live site:** Pages deploy green; main worktree synced.
+
+### Notable
+- **Confirmed before building** — read the authoritative DHR deck (PDF) to verify Alex's 5% rule and the mutual-exclusivity rule, catching that the differential is **grade-based, not pay-based** — which shaped QR-008.
+- **Defensive against old saves** — QR-006 coalesces the new U/V fields (`?? ''`) so P&P rows persisted before S56 don't crash rule evaluation.
+- **Testable supervisory math** — QR-008 takes an injectable grade lookup, unit-tested without real salary data; `topClassBiweekly` validated against real reference classes (881 step, 922 range).
+- **Browser-verified the headline surface** with synthetic data (1 error + 5 warnings) and the empty state.
+
+**Deferred (one carry-forward):** the **`additional-pay-expired` flag (QR-010)** — needs a manual user-input end-date persistence store + a Position-Detail input + a non-standard rule context (the audits run on imported rows only; end-dates are user input). Scoped for a follow-up. Projection engine + CH 5/7/8/9 + Scaling Stage 2 + D1/D2 still open.

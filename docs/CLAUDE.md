@@ -62,7 +62,7 @@ Alex Lewis-Koskinen, Deputy Director (Admin), SF Department of Building Inspecti
 - `.github/workflows/deploy.yml` — Pages deploy on push to `main`
 - `.github/workflows/test.yml` — Vitest on every push and PR
 
-**Tooling gotcha (Windows worktree):** use **absolute paths** with Read / Glob / Grep / Bash. The Bash tool's cwd is `app/` (not the worktree root) and Glob resolves relative patterns off-worktree, so relative paths like `docs/*.md` silently return **empty** — which produced phantom "file not found" reads in S52 and S53. Reference the full absolute path (`…/worktrees/<name>/docs/…`); for git ops that take path args, use `git -C "<worktree-root>"`.
+**Tooling gotcha (Windows worktree):** use **absolute paths** with Read / Glob / Grep / Bash. The Bash tool's cwd is the **worktree root** (confirmed S56 — *not* `app/`), so `npm` runs need `--prefix app` (e.g. `npm --prefix app test`); Glob/Grep relative patterns resolve off the worktree root and can still silently return **empty** — which produced phantom "file not found" reads in S52 and S53. Reference the full absolute path (`…/worktrees/<name>/docs/…`); for git ops that take path args, use `git -C "<worktree-root>"`.
 
 ## Stack (decided Phase 0 — see DECISIONS.md ADR-001)
 
