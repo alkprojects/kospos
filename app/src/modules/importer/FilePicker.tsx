@@ -4,6 +4,7 @@ import { detect } from '../../lib/importers/detect';
 import { importBfmPosition } from '../../lib/importers/bfm-position';
 import { importBfmNonPosition } from '../../lib/importers/bfm-non-position';
 import { importPsHcmPp } from '../../lib/importers/ps-hcm-pp';
+import { importPsHcmEeAddlPay } from '../../lib/importers/ps-hcm-ee-addl-pay';
 import { importObiPayroll } from '../../lib/importers/obi-payroll';
 import { useAppStore } from '../../lib/store';
 import type { ImportedRow } from '../../lib/importers/types';
@@ -11,11 +12,12 @@ import { LoadingOverlay } from './LoadingOverlay';
 import type { LoadingProgress } from './LoadingOverlay';
 
 const REPORT_LABELS: Record<string, string> = {
-  'bfm-position':     'BFM Eturns — Position',
-  'bfm-non-position': 'BFM Eturns — Non-Position',
-  'ps-hcm-pp':        'PS HCM — P&P Data',
-  'obi-payroll':      'OBI BI Payroll',
-  'unknown':          'Unknown report type',
+  'bfm-position':       'BFM Eturns — Position',
+  'bfm-non-position':   'BFM Eturns — Non-Position',
+  'ps-hcm-pp':          'PS HCM — P&P Data',
+  'ps-hcm-ee-addl-pay': 'PS HCM — EE Additional Pay',
+  'obi-payroll':        'OBI BI Payroll',
+  'unknown':            'Unknown report type',
 };
 
 interface FileStatus {
@@ -111,6 +113,8 @@ export function FilePicker({ disabled = false }: { disabled?: boolean } = {}) {
             rows = importBfmNonPosition(ws, detection.headerRow);
           } else if (detection.type === 'ps-hcm-pp') {
             rows = importPsHcmPp(ws, detection.headerRow);
+          } else if (detection.type === 'ps-hcm-ee-addl-pay') {
+            rows = importPsHcmEeAddlPay(ws, detection.headerRow);
           } else if (detection.type === 'obi-payroll') {
             rows = importObiPayroll(ws, detection.headerRow);
           }
