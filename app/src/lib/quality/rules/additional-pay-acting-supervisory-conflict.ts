@@ -18,6 +18,14 @@ export const additionalPayActingSupervisoryConflict: QualityRule = {
   id: 'QR-007',
   description:
     'Employee has both active acting (ACTFLT) and supervisory (SUPFLT) pay — DHR disallows both',
+  rationale:
+    'An employee is receiving both active acting (ACTFLT) and supervisory (SUPFLT) pay at the same time. Per SF DHR, employees in an acting assignment are not eligible for a supervisory differential, so the two are mutually exclusive and one entry is wrong.',
+  fix:
+    'Determine which differential applies and end the other. If the person is acting, the supervisory differential should not be paid for the same period.',
+  citations: [
+    { label: 'SF DHR: Acting Assignment Pay and Supervisory Differential Adjustments (rev. 3/21/23) - acting assignees are ineligible for a supervisory differential' },
+  ],
+  sourceTabs: ['data'],
   check(records: ImportedRow[]): Issue[] {
     const eeRows = records.filter(
       (r): r is PsHcmEeAddlPayRow => r._source === 'ps-hcm-ee-addl-pay',

@@ -14,6 +14,14 @@ import type { ImportedRow } from '../../importers/types';
 export const payrollExceedsBudget: QualityRule = {
   id: 'QR-003',
   description: 'OBI payroll total exceeds BFM budgeted salary',
+  rationale:
+    'Total OBI payroll paid against this position (summed across all pay periods) exceeds its BFM budgeted salary by more than 5%. The position may be over budget, the budget may be stale, or pay may be posting to the wrong position.',
+  fix:
+    'Reconcile the OBI charges against the budget. Look for mis-coded earnings, an unbudgeted step or premium, or a budget that needs a supplemental.',
+  citations: [
+    { label: 'Cross-system reconciliation: OBI Payroll Balance Amount vs BFM budgeted salary (5% tolerance)' },
+  ],
+  sourceTabs: ['labor', 'data'],
   check(records: ImportedRow[]): Issue[] {
     const budgetByPosition = new Map<string, number>();
     for (const r of records) {

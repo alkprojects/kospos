@@ -1,4 +1,4 @@
-export type { Issue, IssueSeverity, QualityRule } from './types';
+export type { Issue, IssueSeverity, QualityRule, IssueCitation, SourceTabId } from './types';
 export { positionInBfmNotHcm } from './rules/position-in-bfm-not-hcm';
 export { payrollExceedsBudget } from './rules/payroll-exceeds-budget';
 export { hcmFteBfmMismatch } from './rules/hcm-fte-bfm-mismatch';

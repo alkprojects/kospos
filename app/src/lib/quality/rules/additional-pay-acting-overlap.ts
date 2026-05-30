@@ -21,6 +21,14 @@ import { buildAdditionalPay } from '../../additional-pay/build';
 export const additionalPayActingOverlap: QualityRule = {
   id: 'QR-009',
   description: 'Employee holds 2+ concurrent active acting (ACTFLT) assignments',
+  rationale:
+    'An employee holds two or more concurrent active acting (ACTFLT) assignments. A person normally acts in a single role at a time, so multiple simultaneous acting assignments usually signal a data error, a duplicate entry, or a CSC concern, and risk double acting pay.',
+  fix:
+    'Review the acting rows. Close any that have ended, remove duplicates, or confirm with CSC if a genuine multi-acting arrangement exists.',
+  citations: [
+    { label: 'KosPos domain: Labor Report Tab 9 - acting-overlap (per-employee grain)' },
+  ],
+  sourceTabs: ['data'],
   check(records: ImportedRow[]): Issue[] {
     const eeRows = records.filter(
       (r): r is PsHcmEeAddlPayRow => r._source === 'ps-hcm-ee-addl-pay',
