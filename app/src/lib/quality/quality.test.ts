@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import type { ImportedRow } from '../importers/types';
-import type { BfmPositionRow, PsHcmPpRow, ObiPayrollRow } from '../importers/types';
+import type { BfmPositionRow, PsHcmPpRow, ObiPayrollRow, PsHcmEeAddlPayRow } from '../importers/types';
 import { positionInBfmNotHcm } from './rules/position-in-bfm-not-hcm';
 import { payrollExceedsBudget } from './rules/payroll-exceeds-budget';
 import { hcmFteBfmMismatch } from './rules/hcm-fte-bfm-mismatch';
 import { positionInHcmNotBfm } from './rules/position-in-hcm-not-bfm';
+import { additionalPayOrphan } from './rules/additional-pay-orphan';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -266,5 +267,82 @@ describe('QR-005 positionInHcmNotBfm', () => {
   it('does not fire when BFM data is not loaded', () => {
     const records: ImportedRow[] = [hcmPos()];
     expect(positionInHcmNotBfm.check(records)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// QR-006 additionalPayOrphan — acting dual-entry
+// ---------------------------------------------------------------------------
+
+function eeAddl(overrides: Partial<PsHcmEeAddlPayRow> = {}): PsHcmEeAddlPayRow {
+  return {
+    _source: 'ps-hcm-ee-addl-pay',
+    departmentGroupCode: 'DBI', departmentTitle: 'Dept of Building Inspection',
+    emplId: '187518', emplRecord: 0, effectiveDate: '2026-01-12',
+    lastName: 'Smith', firstName: 'Jane', middleName: '', preferredFirstName: '',
+    rosterCode: '21', rosterDescription: 'SEIU 1021',
+    payStatus: 'A', jobCode: '6278', unionCode: '791',
+    salaryPlan: '1', step: '5', additionalPayAmount: 250.5, rateCode: 'ACTFLT',
+    _row: 1,
+    ...overrides,
+  };
+}
+
+/** A P&P position manually marked "Acting Assignment" for an emplid (cols U/V). */
+function markedActing(emplId: string, positionNumber = '10001'): PsHcmPpRow {
+  return hcmPos({
+    positionNumber,
+    positionUsedFor: 'Acting Assignment',
+    positionUsedForDescription: emplId,
+  });
+}
+
+describe('QR-006 additionalPayOrphan (acting dual-entry)', () => {
+  it('flags paid-but-not-marked: an ACTFLT payee with no "Position Used For" marker', () => {
+    const records: ImportedRow[] = [
+      eeAddl({ emplId: '187518', rateCode: 'ACTFLT', payStatus: 'A' }),
+      hcmPos({ positionNumber: '10001' }), // present, but does not mark 187518
+    ];
+    const issues = additionalPayOrphan.check(records);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].ruleId).toBe('QR-006');
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].emplId).toBe('187518');
+    expect(issues[0].message).toContain('no position is marked');
+  });
+
+  it('flags marked-but-not-paid: a "Position Used For" marker with no ACTFLT pay', () => {
+    const records: ImportedRow[] = [
+      markedActing('204417', '10002'),
+      eeAddl({ emplId: '999', rateCode: 'SUPFLT' }), // supervisory only — no acting pay
+    ];
+    const issues = additionalPayOrphan.check(records);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].ruleId).toBe('QR-006');
+    expect(issues[0].positionNumber).toBe('10002');
+    expect(issues[0].message).toContain('no acting pay');
+  });
+
+  it('passes when both sides agree (paid AND marked)', () => {
+    const records: ImportedRow[] = [
+      eeAddl({ emplId: '187518', rateCode: 'ACTFLT' }),
+      markedActing('187518', '10001'),
+    ];
+    expect(additionalPayOrphan.check(records)).toHaveLength(0);
+  });
+
+  it('treats an inactive ACTFLT as not-paid (stale marker → marked-but-not-paid)', () => {
+    const records: ImportedRow[] = [
+      eeAddl({ emplId: '187518', rateCode: 'ACTFLT', payStatus: 'I' }),
+      markedActing('187518', '10001'),
+    ];
+    const issues = additionalPayOrphan.check(records);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].positionNumber).toBe('10001');
+  });
+
+  it('does not check when only one source is loaded', () => {
+    expect(additionalPayOrphan.check([eeAddl({ rateCode: 'ACTFLT' })])).toHaveLength(0);
+    expect(additionalPayOrphan.check([markedActing('187518')])).toHaveLength(0);
   });
 });
