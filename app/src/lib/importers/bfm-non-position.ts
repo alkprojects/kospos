@@ -9,15 +9,7 @@
 import type { WorkSheet } from 'xlsx';
 import { utils } from 'xlsx';
 import type { BfmNonPositionRow } from './types';
-
-function num(v: unknown): number {
-  const n = Number(v);
-  return isNaN(n) ? 0 : n;
-}
-
-function str(v: unknown): string {
-  return v == null ? '' : String(v).trim();
-}
+import { num, str, makeColLookup } from './cells';
 
 const PHASE_ORDER = ['Board', 'Mayor', 'Committee', 'Department', 'Base'] as const;
 
@@ -60,7 +52,7 @@ export function importBfmNonPosition(ws: WorkSheet, headerRow = 0): BfmNonPositi
   const rawHeaders = (rows[0] as unknown[]).map(h => str(h));
   const headers = rawHeaders.map(h => h.toLowerCase());
 
-  const col = (name: string) => headers.indexOf(name.toLowerCase());
+  const col = makeColLookup(headers);
 
   const iGFS      = col('gfs type');
   const iDept     = col('dept id');

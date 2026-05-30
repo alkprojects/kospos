@@ -15,61 +15,7 @@
 import type { WorkSheet } from 'xlsx';
 import { utils } from 'xlsx';
 import type { ObiPayrollRow } from './types';
-
-function num(v: unknown): number {
-  const n = Number(v);
-  return isNaN(n) ? 0 : n;
-}
-
-function str(v: unknown): string {
-  return v == null ? '' : String(v).trim();
-}
-
-/**
- * Coerce an "Earning Period End Date" cell value to ISO `YYYY-MM-DD`.
- *
- * The OBI .xlsx export stores this column as an Excel date serial (a number
- * like 46150 — days since the Excel epoch). SheetJS's default `sheet_to_json`
- * surfaces that as a raw number, which `String(...)` would render as `"46150"`.
- * That string then flows downstream into:
- *   - `_asOfDate` (which the Payroll summary header displays raw)
- *   - PP-range filter comparisons in `lib/views/labor/aggregate.ts`, which
- *     compare `earningPeriodEnd` lexicographically against ISO date strings —
- *     a serial-vs-ISO mismatch silently drops every row.
- *
- * This converter handles:
- *   - numeric Excel serial (most common case for .xlsx)
- *   - JS Date object (in case `cellDates: true` is ever passed at `read()` time)
- *   - already-ISO string (CSV exports, or anything containing `-` / `/`)
- *   - empty / null cells (returns `''`)
- *
- * Returns ISO `YYYY-MM-DD` slice of the UTC date so it sorts and compares
- * lexicographically as expected by the downstream PP-range filter.
- */
-function iso(v: unknown): string {
-  if (v == null) return '';
-  if (v instanceof Date) {
-    if (isNaN(v.getTime())) return '';
-    return v.toISOString().slice(0, 10);
-  }
-  if (typeof v === 'number') {
-    if (!isFinite(v) || v <= 0) return '';
-    // Excel epoch is 1899-12-30 (offset 25569 days to the JS 1970-01-01 epoch
-    // — that offset already accounts for Excel's spurious 1900 leap day).
-    const ms = Math.round((v - 25569) * 86400 * 1000);
-    const d = new Date(ms);
-    if (isNaN(d.getTime())) return '';
-    return d.toISOString().slice(0, 10);
-  }
-  const s = String(v).trim();
-  if (s === '') return '';
-  // If the string looks like a date already (contains a separator), pass through.
-  if (/[-/]/.test(s)) return s;
-  // Otherwise try parsing as a numeric serial.
-  const n = Number(s);
-  if (!isNaN(n) && isFinite(n) && n > 0) return iso(n);
-  return s;
-}
+import { num, str, iso, makeColLookup } from './cells';
 
 /**
  * Splits the OBI AE column ("Job Code") into its citywide-set prefix and the
@@ -94,7 +40,7 @@ export function importObiPayroll(ws: WorkSheet, headerRow = 0): ObiPayrollRow[] 
   if (rows.length < 2) return [];
 
   const headers = (rows[0] as unknown[]).map(h => str(h).toLowerCase());
-  const col = (name: string) => headers.indexOf(name.toLowerCase());
+  const col = makeColLookup(headers);
 
   // Fiscal year + dept group
   const iFY                = col('fiscal year');

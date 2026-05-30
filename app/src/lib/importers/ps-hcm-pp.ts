@@ -20,15 +20,7 @@
 import type { WorkSheet } from 'xlsx';
 import { utils } from 'xlsx';
 import type { PsHcmPpRow } from './types';
-
-function num(v: unknown): number {
-  const n = Number(v);
-  return isNaN(n) ? 0 : n;
-}
-
-function str(v: unknown): string {
-  return v == null ? '' : String(v).trim();
-}
+import { num, str, makeColLookup } from './cells';
 
 export function importPsHcmPp(ws: WorkSheet, headerRow = 0): PsHcmPpRow[] {
   const rows = utils.sheet_to_json<unknown[]>(ws, {
@@ -40,7 +32,7 @@ export function importPsHcmPp(ws: WorkSheet, headerRow = 0): PsHcmPpRow[] {
   if (rows.length < 2) return [];
 
   const headers = (rows[0] as unknown[]).map(h => str(h).toLowerCase());
-  const col = (name: string) => headers.indexOf(name.toLowerCase());
+  const col = makeColLookup(headers);
 
   // Identity (A:N)
   const iSnapshot   = col('snapshot date');
