@@ -8,6 +8,7 @@
 
 import { normalizePositionKey } from '../chartfields/resolve';
 import { makeId } from '../id';
+import { rollupByStatus as rollupGeneric } from '../status-rollup';
 import {
   PROBATION_STATUS_ORDER,
   PROBATION_TERMINAL_STATUSES,
@@ -70,15 +71,7 @@ export function isAllowedProbationStatusTransition(
  * is empty.
  */
 export function rollupByStatus(probations: Probation[]): ProbationStatusRollup[] {
-  const buckets = new Map<ProbationStatus, ProbationStatusRollup>();
-  for (const s of PROBATION_STATUS_ORDER) {
-    buckets.set(s, { status: s, count: 0 });
-  }
-  for (const p of probations) {
-    const b = buckets.get(p.status);
-    if (b) b.count += 1;
-  }
-  return PROBATION_STATUS_ORDER.map(s => buckets.get(s)!);
+  return rollupGeneric(probations, PROBATION_STATUS_ORDER, p => p.status);
 }
 
 /**

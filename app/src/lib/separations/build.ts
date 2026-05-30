@@ -8,6 +8,7 @@
 
 import { normalizePositionKey } from '../chartfields/resolve';
 import { makeId } from '../id';
+import { rollupByStatus as rollupGeneric } from '../status-rollup';
 import { SEPARATION_STATUS_ORDER } from './types';
 import type {
   PendingSeparation,
@@ -54,15 +55,7 @@ export function isAllowedSeparationStatusTransition(
  * empty.
  */
 export function rollupByStatus(separations: PendingSeparation[]): SeparationStatusRollup[] {
-  const buckets = new Map<SeparationStatus, SeparationStatusRollup>();
-  for (const s of SEPARATION_STATUS_ORDER) {
-    buckets.set(s, { status: s, count: 0 });
-  }
-  for (const sep of separations) {
-    const b = buckets.get(sep.status);
-    if (b) b.count += 1;
-  }
-  return SEPARATION_STATUS_ORDER.map(s => buckets.get(s)!);
+  return rollupGeneric(separations, SEPARATION_STATUS_ORDER, s => s.status);
 }
 
 /**
