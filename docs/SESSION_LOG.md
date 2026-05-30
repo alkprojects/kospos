@@ -619,3 +619,24 @@ Plus off-repo memory cleanup (stale effort→fast-mode convention + 3 dangling w
 ### Deferred to S54
 - labor-report.md split (per-tab detail → `labor-report-tabs.md` + anchor fixes).
 - Scaling Stage 1 (`loadedRows` → own IDB store).
+
+---
+
+## Session 54 — labor-report.md split + Scaling Stage 1 (2026-05-30)
+
+Both S53-teed-up tasks shipped as separate PRs, plus a quick desktop-app question. First audit under the ADR-017 milestone-only regime: Stage 1 (architectural) got a full close audit ([phase-2-2-scaling-stage1-close-audit.md](audits/phase-2-2-scaling-stage1-close-audit.md)); the docs split is logged here only.
+
+| PR | What |
+|---|---|
+| [#181](https://github.com/alkprojects/kospos/pull/181) | **labor-report.md split** (docs-only). Per-tab detail (Tabs 1–27, ~93% of 8,518 lines) → new `docs/domain/labor-report-tabs.md`; `labor-report.md` stays the ~660-line index. 100 anchor links rewritten via a GitHub-accurate slugger (53 inbound across 14 files + 30 moved→retained back-links + 17 index→tabs); fixed a pre-existing `#tab-10---probation` 3-dash typo. Verified **233/233 links resolve, 0 dangling**. |
+| [#182](https://github.com/alkprojects/kospos/pull/182) | **Scaling Stage 1.** `loadedRows` → its own `imported-rows` IDB object store (DB_VERSION 1→2), written only on import; planning/scrapers saves transact over `snapshots` alone (never open the rows store). Lazy atomic migration from both prior layouts. **+9 real-IDB tests** (fake-indexeddb); `npm run build` clean. |
+
+**Tests:** 896 → **905** (+9). **Build:** clean. **Branches in flight:** none post-merge. **Live site:** Pages + Cloudflare green; main worktree synced.
+
+**Timing (Stage 1 proof):** a planning save is flat at ~0.3 ms regardless of row count; a rows save scales linearly — 73.6 ms @ 50k, 362.1 ms @ 200k, 976.9 ms @ 500k rows. Persistence is O(edit), not O(total).
+
+**Brown-dot question (Alex):** the desktop app's brown dot on the "Phase 2.2.v" session = the one **unarchived** session in the list (PR [#166](https://github.com/alkprojects/kospos/pull/166) MERGED, not running) — nothing pending. The archive tool needs interactive approval (unavailable in this session's mode), so Alex archives it himself (right-click → Archive) or enables Settings → Auto-archive on PR close.
+
+**Notable:** added `fake-indexeddb` (test-only devDep) — a deliberate reversal of Stage 0's preview-MCP choice, driven by Alex's explicit "real-IDB migration check via tests, NOT a UI preview." Tooling: the background Bash cwd is the worktree root, so `npm` needs `--prefix …/app` (the CLAUDE.md absolute-paths gotcha, here biting `npm`).
+
+**Carry-forward:** SPLIT + SCALE/Stage-1 **retired**. Open: CH dedup batches 3/5/6/7/8/9; D1/D2 (need Alex's 2 answers); TX memory questions. **Next scaling step = Stage 2** (index by dept + lazy load + aggregate-on-import; its own Phase).
