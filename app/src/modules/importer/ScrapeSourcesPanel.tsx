@@ -95,8 +95,10 @@ function RefreshPostingsButton() {
 // ---------------------------------------------------------------------------
 // Refresh-eligibility-lists affordance — live fetch through the public
 // CORS-proxy chain (replaces the manual-paste-as-primary path per Alex's
-// S35 directive). Tries corsproxy.io → allorigins.win → codetabs.com per
-// page; falls back to the optional Cloudflare-Worker URL when configured.
+// S35 directive). Tries codetabs.com → corsproxy.io → allorigins.win per
+// page (codetabs is the only one still working free as of S49; see
+// fetch.ts § DEFAULT_PROXIES); falls back to the optional Cloudflare-Worker
+// URL when configured.
 // Pages are fetched in bounded-concurrency waves (Phase 2.2.v) instead of
 // one-at-a-time with a 500ms throttle, cutting a full ~66-page scrape from
 // ~50s to ~5s. A per-proxy timeout keeps a hung proxy from stalling a wave.

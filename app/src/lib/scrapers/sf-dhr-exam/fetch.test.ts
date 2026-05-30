@@ -75,8 +75,8 @@ describe('fetchDhrExamResults — happy path (sequential, concurrency:1)', () =>
     expect(result[0].jobCode).toBe('0932');
     expect(result[1].jobCode).toBe('1820');
     expect(fetchImpl).toHaveBeenCalledTimes(2);
-    // First call wrapped through corsproxy.io (first in the default chain)
-    expect(fetchImpl.mock.calls[0][0]).toContain('corsproxy.io');
+    // First call wrapped through codetabs.com (first in the default chain)
+    expect(fetchImpl.mock.calls[0][0]).toContain('codetabs.com');
     expect(fetchImpl.mock.calls[0][0]).toContain(encodeURIComponent('https://sfdhr.org/past-examination-results'));
     // Second call paginated with ?page=1
     expect(fetchImpl.mock.calls[1][0]).toContain(encodeURIComponent('https://sfdhr.org/past-examination-results?page=1'));
@@ -134,8 +134,8 @@ describe('fetchDhrExamResults — proxy fallback (concurrency:1)', () => {
     const result = await fetchDhrExamResults({ fetchImpl, pageDelayMs: 0, concurrency: 1 });
     expect(result).toHaveLength(1);
     expect(fetchImpl).toHaveBeenCalledTimes(3);
-    expect(fetchImpl.mock.calls[0][0]).toContain('corsproxy.io');
-    expect(fetchImpl.mock.calls[1][0]).toContain('allorigins.win');
+    expect(fetchImpl.mock.calls[0][0]).toContain('codetabs.com');
+    expect(fetchImpl.mock.calls[1][0]).toContain('corsproxy.io');
   });
 
   it('falls back through network errors (TypeError: Failed to fetch)', async () => {
@@ -149,7 +149,7 @@ describe('fetchDhrExamResults — proxy fallback (concurrency:1)', () => {
 
     const result = await fetchDhrExamResults({ fetchImpl, pageDelayMs: 0, concurrency: 1 });
     expect(result).toHaveLength(1);
-    expect(fetchImpl.mock.calls[2][0]).toContain('codetabs.com');
+    expect(fetchImpl.mock.calls[2][0]).toContain('allorigins.win');
   });
 
   it('skips proxies that return non-HTML bodies (JSON error envelope)', async () => {
@@ -190,9 +190,9 @@ describe('fetchDhrExamResults — proxy fallback (concurrency:1)', () => {
     expect(caught).toBeInstanceOf(FetchDhrError);
     const fe = caught as FetchDhrError;
     expect(fe.proxyAttempts).toHaveLength(3);
-    expect(fe.proxyAttempts[0]).toEqual({ label: 'corsproxy.io', detail: 'HTTP 500' });
-    expect(fe.proxyAttempts[1]).toEqual({ label: 'allorigins.win', detail: 'HTTP 503' });
-    expect(fe.proxyAttempts[2]).toEqual({ label: 'codetabs.com', detail: 'HTTP 429' });
+    expect(fe.proxyAttempts[0]).toEqual({ label: 'codetabs.com', detail: 'HTTP 500' });
+    expect(fe.proxyAttempts[1]).toEqual({ label: 'corsproxy.io', detail: 'HTTP 503' });
+    expect(fe.proxyAttempts[2]).toEqual({ label: 'allorigins.win', detail: 'HTTP 429' });
   });
 });
 
@@ -263,8 +263,8 @@ describe('fetchDhrExamResults — onProgress + dedupe (concurrency:1)', () => {
       onProgress: e => events.push({ page: e.page, rowsSoFar: e.rowsSoFar, proxyUsed: e.proxyUsed }),
     });
     expect(events).toHaveLength(2);
-    expect(events[0]).toEqual({ page: 1, rowsSoFar: 1, proxyUsed: 'corsproxy.io' });
-    expect(events[1]).toEqual({ page: 2, rowsSoFar: 2, proxyUsed: 'corsproxy.io' });
+    expect(events[0]).toEqual({ page: 1, rowsSoFar: 1, proxyUsed: 'codetabs.com' });
+    expect(events[1]).toEqual({ page: 2, rowsSoFar: 2, proxyUsed: 'codetabs.com' });
   });
 
   it('dedupes rows by (jobCode, listId, postDate) across pages', async () => {
@@ -337,16 +337,16 @@ describe('fetchDhrExamResults — bounded-concurrency fetching (Phase 2.2.v)', (
   });
 
   it('aborts a hung proxy via the per-proxy timeout and falls through to the next', async () => {
-    // corsproxy.io hangs forever (until aborted); allorigins answers.
-    // A short timeout proves the abort fires — without it the test would
-    // hang and time out.
+    // codetabs.com (now first in the chain) hangs forever (until aborted);
+    // the next proxy answers. A short timeout proves the abort fires —
+    // without it the test would hang and time out.
     const fetchImpl = vi.fn((input: string, init?: RequestInit) => {
-      if (input.includes('corsproxy.io')) {
+      if (input.includes('codetabs.com')) {
         return new Promise<Response>((_resolve, reject) => {
           init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
         });
       }
-      // allorigins / codetabs: answer by page (page 0 → 1 row, else empty).
+      // corsproxy / allorigins: answer by page (page 0 → 1 row, else empty).
       const decoded = decodeURIComponent(input);
       const m = decoded.match(/[?&]page=(\d+)/);
       const page = m ? Number(m[1]) : 0;
@@ -362,21 +362,39 @@ describe('fetchDhrExamResults — bounded-concurrency fetching (Phase 2.2.v)', (
     });
     expect(result).toHaveLength(1);
     expect(result[0].jobCode).toBe('0932');
-    // corsproxy.io was attempted (and timed out); allorigins.win served it.
+    // codetabs.com was attempted (and timed out); corsproxy.io served it.
     const urls = fetchImpl.mock.calls.map(c => c[0] as string);
+    expect(urls.some(u => u.includes('codetabs.com'))).toBe(true);
     expect(urls.some(u => u.includes('corsproxy.io'))).toBe(true);
-    expect(urls.some(u => u.includes('allorigins.win'))).toBe(true);
+  });
+});
+
+describe('fetchDhrExamResults — proxy ordering (S49 regression fix)', () => {
+  it('serves a healthy page from codetabs.com without contacting the dead fallbacks', async () => {
+    // The regression: corsproxy.io (403) + allorigins.win (500/slow) were
+    // tried before codetabs, so every page wasted the per-proxy timeout on
+    // the dead allorigins before reaching the one working proxy. With
+    // codetabs first, a healthy page never touches the fallbacks at all.
+    const fetchImpl = routedFetch({
+      0: [{ postDate: 'May 14, 2026', listId: 'L1', jobCode: '0932' }],
+    });
+    const result = await fetchDhrExamResults({ fetchImpl, concurrency: 1, pageDelayMs: 0 });
+    expect(result).toHaveLength(1);
+    const urls = fetchImpl.mock.calls.map(c => c[0] as string);
+    expect(urls.every(u => u.includes('codetabs.com'))).toBe(true);
+    expect(urls.some(u => u.includes('corsproxy.io'))).toBe(false);
+    expect(urls.some(u => u.includes('allorigins.win'))).toBe(false);
   });
 });
 
 describe('DEFAULT_PROXIES', () => {
   it('has the expected order and wrap behavior', () => {
     expect(DEFAULT_PROXIES.map(p => p.label)).toEqual([
+      'codetabs.com',
       'corsproxy.io',
       'allorigins.win',
-      'codetabs.com',
     ]);
     const wrapped = DEFAULT_PROXIES[0].wrap('https://example.com/x');
-    expect(wrapped).toBe('https://corsproxy.io/?https%3A%2F%2Fexample.com%2Fx');
+    expect(wrapped).toBe('https://api.codetabs.com/v1/proxy/?quest=https%3A%2F%2Fexample.com%2Fx');
   });
 });

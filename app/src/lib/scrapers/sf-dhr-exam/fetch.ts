@@ -14,10 +14,11 @@
  * (Alex's backup option, set up only if the public proxies prove flaky).
  * Manual paste remains as the ultimate last-resort fallback in the UI.
  *
- * Proxy order picked S35 (most-reliable-first):
- *   1. corsproxy.io — well-maintained, fast, no auth, body-pass-through
- *   2. allorigins.win/raw — older, slower, larger user base
- *   3. codetabs.com — smaller user base, last-resort
+ * Proxy order (re-checked S49 — lead with the one still working for free;
+ * see DEFAULT_PROXIES below for the per-proxy health notes):
+ *   1. codetabs.com — working; uses the trailing-slash path to skip a 301
+ *   2. corsproxy.io — now HTTP 403 (went paid); fast-failing fallback
+ *   3. allorigins.win/raw — HTTP 500 / slow; last-resort fallback
  *
  * Each proxy wraps the original URL as a query param and returns the
  * upstream body verbatim. We pass the same `?page=N` Drupal pagination
@@ -81,11 +82,33 @@ export interface CorsProxy {
 }
 
 /**
- * Default public CORS proxy chain. Order matters — most-reliable first.
- * Each proxy is hit serially per page (not in parallel) — racing them
- * would burn proxy quota for no benefit since we just need ONE to work.
+ * Default public CORS proxy chain. Order matters: within a single page the
+ * proxies are tried in sequence and the first usable 200-with-HTML response
+ * wins, so the proxy MOST LIKELY to work goes FIRST. (Pages themselves are
+ * fetched concurrently in waves — see `fetchDhrExamResults`.)
+ *
+ * S49 live health check (this order reflects it):
+ *   - codetabs.com   — WORKING; the only one still serving free. Uses the
+ *                      trailing-slash path `/v1/proxy/?quest=` — the no-slash
+ *                      form 301-redirects, costing an extra round trip
+ *                      (~0.5s → ~1.2s per page).
+ *   - corsproxy.io   — DEAD for free use: HTTP 403 "Server-side requests are
+ *                      not allowed on your plan" (moved server-side proxying
+ *                      behind a paid plan). Fails in ~0.1s, so it's a cheap
+ *                      fallback; kept in case a free tier returns.
+ *   - allorigins.win — BROKEN: HTTP 500, and has been seen taking ~12s to
+ *                      return it. Last, behind the per-proxy timeout; kept as
+ *                      a may-recover fallback.
+ *
+ * Leading with the two DEAD proxies is exactly what regressed the scrape:
+ * every page burned the per-proxy timeout on allorigins before falling
+ * through to codetabs. Leading with the working proxy restores the ~5s scrape.
  */
 export const DEFAULT_PROXIES: readonly CorsProxy[] = [
+  {
+    label: 'codetabs.com',
+    wrap: (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+  },
   {
     label: 'corsproxy.io',
     wrap: (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
@@ -93,10 +116,6 @@ export const DEFAULT_PROXIES: readonly CorsProxy[] = [
   {
     label: 'allorigins.win',
     wrap: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  },
-  {
-    label: 'codetabs.com',
-    wrap: (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
   },
 ];
 
