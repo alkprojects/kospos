@@ -9,6 +9,7 @@ import { additionalPayOrphan } from './rules/additional-pay-orphan';
 import { additionalPayActingSupervisoryConflict } from './rules/additional-pay-acting-supervisory-conflict';
 import { findSupervisoryOwed } from './rules/additional-pay-supervisory-owed';
 import { additionalPayActingOverlap } from './rules/additional-pay-acting-overlap';
+import { positionDeptNotBudgetDept } from './rules/position-dept-not-budget-dept';
 import { ALL_RULES } from './index';
 
 // ---------------------------------------------------------------------------
@@ -507,6 +508,42 @@ describe('QR-009 additionalPayActingOverlap', () => {
 
   it('does not check when no additional-pay rows are loaded', () => {
     expect(additionalPayActingOverlap.check([])).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// QR-011 positionDeptNotBudgetDept — position dept vs budget dept
+// ---------------------------------------------------------------------------
+
+describe('QR-011 positionDeptNotBudgetDept', () => {
+  it('fires when position department differs from budget department', () => {
+    const issues = positionDeptNotBudgetDept.check([
+      hcmPos({ positionNumber: '10001', departmentCode: 'DBI', budgetDepartmentCode: 'DPW' }),
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].ruleId).toBe('QR-011');
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].positionNumber).toBe('10001');
+    expect(issues[0].message).toContain('DBI');
+    expect(issues[0].message).toContain('DPW');
+  });
+
+  it('does not fire when the two departments match', () => {
+    expect(positionDeptNotBudgetDept.check([
+      hcmPos({ departmentCode: 'DBI', budgetDepartmentCode: 'DBI' }),
+    ])).toHaveLength(0);
+  });
+
+  it('does not fire when the budget department is blank (not specified)', () => {
+    expect(positionDeptNotBudgetDept.check([
+      hcmPos({ departmentCode: 'DBI', budgetDepartmentCode: '' }),
+    ])).toHaveLength(0);
+  });
+
+  it('ignores non-HCM rows', () => {
+    expect(positionDeptNotBudgetDept.check([
+      bfmPos({ departmentCode: 'DBI' }),
+    ])).toHaveLength(0);
   });
 });
 
