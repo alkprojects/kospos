@@ -26,15 +26,7 @@ import type {
   BfmBudgetPhase,
   BfmPositionRow,
 } from './types';
-
-function num(v: unknown): number {
-  const n = Number(v);
-  return isNaN(n) ? 0 : n;
-}
-
-function str(v: unknown): string {
-  return v == null ? '' : String(v).trim();
-}
+import { num, str, makeColLookup } from './cells';
 
 /** Phase ranking — earlier = more-advanced (used when a tie exists). */
 const PHASE_ORDER: readonly BfmBudgetPhase[] = [
@@ -149,7 +141,7 @@ export function importBfmPosition(ws: WorkSheet, headerRow = 0): BfmPositionRow[
   const rawHeaders = (rows[0] as unknown[]).map(h => str(h));
   const headersLc = rawHeaders.map(h => h.toLowerCase());
 
-  const col = (name: string) => headersLc.indexOf(name.toLowerCase());
+  const col = makeColLookup(headersLc);
 
   // Identity
   const iPos      = col('by hcm position#');

@@ -18,45 +18,7 @@
 import type { WorkSheet } from 'xlsx';
 import { utils } from 'xlsx';
 import type { PsHcmEeAddlPayRow } from './types';
-
-function num(v: unknown): number {
-  const n = Number(v);
-  return isNaN(n) ? 0 : n;
-}
-
-function str(v: unknown): string {
-  return v == null ? '' : String(v).trim();
-}
-
-/**
- * Coerce an "Eff Date" cell to ISO `YYYY-MM-DD`. The .xlsx export stores the
- * date as an Excel serial (a number like 46150 — days since the Excel epoch),
- * which `String(...)` would render as `"46150"`. The effective date drives the
- * `additional-pay-expired` check in the entity layer, so it must be a real
- * comparable date. Mirrors the `iso()` converter in obi-payroll.ts.
- */
-function iso(v: unknown): string {
-  if (v == null) return '';
-  if (v instanceof Date) {
-    if (isNaN(v.getTime())) return '';
-    return v.toISOString().slice(0, 10);
-  }
-  if (typeof v === 'number') {
-    if (!isFinite(v) || v <= 0) return '';
-    // Excel epoch is 1899-12-30 (offset 25569 days to the JS 1970-01-01 epoch).
-    const ms = Math.round((v - 25569) * 86400 * 1000);
-    const d = new Date(ms);
-    if (isNaN(d.getTime())) return '';
-    return d.toISOString().slice(0, 10);
-  }
-  const s = String(v).trim();
-  if (s === '') return '';
-  // A string with a date separator is already date-shaped — pass through.
-  if (/[-/]/.test(s)) return s;
-  const n = Number(s);
-  if (!isNaN(n) && isFinite(n) && n > 0) return iso(n);
-  return s;
-}
+import { num, str, iso, makeColLookup } from './cells';
 
 export function importPsHcmEeAddlPay(ws: WorkSheet, headerRow = 0): PsHcmEeAddlPayRow[] {
   const rows = utils.sheet_to_json<unknown[]>(ws, {
@@ -68,7 +30,7 @@ export function importPsHcmEeAddlPay(ws: WorkSheet, headerRow = 0): PsHcmEeAddlP
   if (rows.length < 2) return [];
 
   const headers = (rows[0] as unknown[]).map(h => str(h).toLowerCase());
-  const col = (name: string) => headers.indexOf(name.toLowerCase());
+  const col = makeColLookup(headers);
 
   const iDept       = col('department');
   const iDeptTitle  = col('dept title');
