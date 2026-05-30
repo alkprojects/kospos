@@ -9,6 +9,8 @@
  *   - **Eligibility Lists** — the existing EligibilityView (per-job-code rollup
  *     of postings + DHR lists, with its filter toolbar + detail modal).
  *   - **Job Postings** — the flat SF Careers postings table.
+ *   - **Calendar** — the FY pay-period calendar + COLA constants reference
+ *     table (Phase 2.2.ab; Alex's S52 ask).
  *
  * Acquisition / refresh stays on the **Load Reports** tab (a separate top-level
  * tab) — this tab is for *viewing* the loaded tables. Room to add the imported
@@ -21,12 +23,14 @@
 import { useState } from 'react';
 import { EligibilityView } from '../eligibility';
 import { JobPostingsView } from '../job-postings';
+import { CalendarView } from '../calendar';
 
-export type DataSubTab = 'eligibility' | 'job-postings';
+export type DataSubTab = 'eligibility' | 'job-postings' | 'calendar';
 
 const SUB_TABS: Array<{ id: DataSubTab; label: string }> = [
   { id: 'eligibility', label: 'Eligibility Lists' },
   { id: 'job-postings', label: 'Job Postings' },
+  { id: 'calendar', label: 'Calendar' },
 ];
 
 export function DataView({ onViewPositions }: {
@@ -72,6 +76,7 @@ export function DataView({ onViewPositions }: {
 
       {sub === 'eligibility' && <EligibilityView onViewPositions={onViewPositions} />}
       {sub === 'job-postings' && <JobPostingsView />}
+      {sub === 'calendar' && <CalendarView />}
     </div>
   );
 }
