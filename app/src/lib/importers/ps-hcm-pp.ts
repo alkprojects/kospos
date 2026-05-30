@@ -49,6 +49,8 @@ export function importPsHcmPp(ws: WorkSheet, headerRow = 0): PsHcmPpRow[] {
   const iVice1Id    = col('employee id vice 1');
   const iVice1Name  = col('employee name vice 1');
   const iPrevEmp    = col('previous employee');
+  const iUsedFor     = col('position used for');
+  const iUsedForDesc = col('position used for description');
   // Person / incumbent (W:AC)
   const iEmplId     = col('current employee id');
   const iEmpStatus  = col('employee status');
@@ -113,6 +115,8 @@ export function importPsHcmPp(ws: WorkSheet, headerRow = 0): PsHcmPpRow[] {
       vice1EmplId:            str(get(r, iVice1Id)),
       vice1Name:              str(get(r, iVice1Name)),
       previousEmployee:       str(get(r, iPrevEmp)),
+      positionUsedFor:            str(get(r, iUsedFor)),
+      positionUsedForDescription: str(get(r, iUsedForDesc)),
       emplId:                 str(get(r, iEmplId)),
       employeeName:           str(get(r, iName)),
       employeeStatus:         str(get(r, iEmpStatus)),
