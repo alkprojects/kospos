@@ -26,18 +26,11 @@ import {
 } from '../../additional-pay';
 import type { AdditionalPay, AdditionalPayKind } from '../../additional-pay';
 import { CopyButton, Stat } from '../../ui';
+import { fmtMoneyCents } from '../../format';
 
 // ---------------------------------------------------------------------------
 // Display helpers
 // ---------------------------------------------------------------------------
-
-/** Per-pay-period dollars, with cents (differentials are small + precise). */
-function fmtPerPP(n: number): string {
-  return n.toLocaleString('en-US', {
-    style: 'currency', currency: 'USD',
-    minimumFractionDigits: 2, maximumFractionDigits: 2,
-  });
-}
 
 const KIND_COLOR: Record<AdditionalPayKind, [string, string]> = {
   // [text, background]
@@ -105,7 +98,7 @@ export function EeAdditionalPayView() {
           <Stat
             key={r.kind}
             label={`${r.label} · ${r.count}`}
-            value={fmtPerPP(r.totalAmount)}
+            value={fmtMoneyCents(r.totalAmount)}
             hint="per pay period"
           />
         ))}
@@ -167,7 +160,7 @@ export function EeAdditionalPayView() {
                     {e.rateCode || <span style={{ color: 'var(--muted)' }}>—</span>}
                   </td>
                   <td style={{ padding: '6px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                    {fmtPerPP(e.amount)}
+                    {fmtMoneyCents(e.amount)}
                   </td>
                   <td style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}>
                     {e.isActive

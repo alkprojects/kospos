@@ -19,6 +19,18 @@ export function fmtMoney(n: number): string {
 }
 
 /**
+ * USD with exactly two decimals — e.g. `250.5` → `"$250.50"`. For small,
+ * precise amounts where cents are load-bearing (per-pay-period additional-pay
+ * differentials), unlike the whole-dollar `fmtMoney`.
+ */
+export function fmtMoneyCents(n: number): string {
+  return n.toLocaleString('en-US', {
+    style: 'currency', currency: 'USD',
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  });
+}
+
+/**
  * `fmtMoney` with an explicit leading sign. The minus is the real U+2212
  * MINUS SIGN (`−`), not an ASCII hyphen — load-bearing for column alignment
  * and to match the existing rendered output; do not normalize it. `0` gets

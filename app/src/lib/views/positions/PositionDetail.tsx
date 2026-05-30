@@ -20,19 +20,11 @@ import { computeBudgetVsActual } from '../../budget';
 import { KIND_LABEL } from '../../additional-pay';
 import type { AdditionalPayKind, PositionAdditionalPay } from '../../additional-pay';
 import { useLaborScope } from '../labor';
-import { fmtMoney, fmtSignedMoney } from '../../format';
+import { fmtMoney, fmtSignedMoney, fmtMoneyCents } from '../../format';
 
 function fmtPercent(pct: number): string {
   const sign = pct > 0 ? '+' : pct < 0 ? '−' : '';
   return sign + (Math.abs(pct) * 100).toFixed(1) + '%';
-}
-
-/** Per-pay-period dollars with cents (additional-pay differentials are small). */
-function fmtPerPP(n: number): string {
-  return n.toLocaleString('en-US', {
-    style: 'currency', currency: 'USD',
-    minimumFractionDigits: 2, maximumFractionDigits: 2,
-  });
 }
 
 function fmtDate(s: string): string {
@@ -487,7 +479,7 @@ function AdditionalPayCard({ items }: { items: PositionAdditionalPay[] }) {
                   </span>
                 </td>
                 <td style={{ padding: '5px 0', textAlign: 'right', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                  {fmtPerPP(item.amount)}
+                  {fmtMoneyCents(item.amount)}
                   <span style={{ marginLeft: 4, fontSize: 10, color: 'var(--muted)' }}>/PP</span>
                 </td>
                 <td style={{ padding: '5px 0', textAlign: 'right', whiteSpace: 'nowrap' }}>
