@@ -11,6 +11,7 @@ import { ProbationsView } from './lib/views/probation';
 import { InactiveView } from './lib/views/inactive';
 import { DataView } from './lib/views/data';
 import { LandingView } from './lib/views/landing';
+import { IssuesView } from './lib/views/issues/IssuesView';
 import { SpecialClassView } from './modules/special-class/SpecialClassView';
 import { useAppStore } from './lib/store';
 import { resolveDevMode, enableDevMode, disableDevMode } from './lib/dev-mode';
@@ -27,7 +28,8 @@ type Tab =
   | 'probation'
   | 'inactive'
   | 'data'
-  | 'special-class';
+  | 'special-class'
+  | 'issues';
 
 type TabDef = { id: Tab; label: string; devOnly?: boolean };
 
@@ -35,6 +37,7 @@ const ALL_TABS: TabDef[] = [
   { id: 'landing',       label: 'Welcome' },
   { id: 'calculator',    label: 'Job Class Calculator' },
   { id: 'positions',     label: 'Positions' },
+  { id: 'issues',        label: 'Issues / Corrections' },
   { id: 'labor',         label: 'Payroll',               devOnly: true },
   { id: 'staffing-plan', label: 'Hiring Plan',           devOnly: true },
   { id: 'separations',   label: 'Separations',           devOnly: true },
@@ -163,7 +166,7 @@ export default function App() {
                 }}
               >
                 {t.label}
-                {t.id === 'importer' && issueCount > 0 && (
+                {t.id === 'issues' && issueCount > 0 && (
                   <span style={{
                     position: 'absolute',
                     top: -4,
@@ -236,6 +239,7 @@ export default function App() {
           <DataView onViewPositions={() => setTab('positions')} />
         )}
         {tab === 'special-class' && <SpecialClassView />}
+        {tab === 'issues'        && <IssuesView />}
       </main>
 
       <footer className="site-footer">
