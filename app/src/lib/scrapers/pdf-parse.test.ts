@@ -526,4 +526,37 @@ describe('fetchAndExtractPdfFields', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('pdfjs blew up');
   });
+
+  it('aborts a hung proxy via the per-proxy timeout and falls through to the next', async () => {
+    // First proxy hangs forever (settles only when aborted); the second
+    // answers. A short timeout proves the abort fires — without it this
+    // test would hang. Mirrors fetch.ts's listing-page timeout behavior.
+    const calls: string[] = [];
+    const hangingProxy: CorsProxy = {
+      label: 'hang',
+      wrap: (u) => `https://hang.test/?u=${encodeURIComponent(u)}`,
+    };
+    const okProxy: CorsProxy = {
+      label: 'ok',
+      wrap: (u) => `https://ok.test/?u=${encodeURIComponent(u)}`,
+    };
+    const result = await fetchAndExtractPdfFields('https://x.pdf', {
+      fetchImpl: (url: string, init?: RequestInit) => {
+        calls.push(url);
+        if (url.includes('hang.test')) {
+          // Never settles on its own; rejects only when the timeout aborts it.
+          return new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+          });
+        }
+        return Promise.resolve(new Response(mkPdfBuf(), { status: 200 }));
+      },
+      proxies: [hangingProxy, okProxy],
+      timeoutMs: 20,
+      extractTextImpl: async () => 'Rule of the List',
+    });
+    expect(calls).toHaveLength(2);
+    expect(result.success).toBe(true);
+    expect(result.certRule).toBe('Rule of the List');
+  });
 });

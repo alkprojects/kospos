@@ -48,7 +48,7 @@
  */
 
 import type { PdfExtract } from '../types';
-import { DEFAULT_PROXIES, type CorsProxy } from './fetch';
+import { DEFAULT_PROXIES, fetchWithTimeout, type CorsProxy } from './fetch';
 
 // ---------------------------------------------------------------------------
 // Lazy pdfjs loader — keeps the ~500 KB main module + the worker out of
@@ -80,6 +80,15 @@ async function loadPdfjs(): Promise<typeof import('pdfjs-dist')> {
 
 type FetchImpl = (input: string, init?: RequestInit) => Promise<Response>;
 
+/** Per-proxy fetch timeout (ms) for the PDF binary download. Mirrors
+ *  fetch.ts's PROXY_TIMEOUT_MS but is deliberately more generous: a DHR
+ *  score-report PDF can run 50+ pages of candidate names (MBs), so a
+ *  working-but-slow proxy needs more headroom than a ~tens-of-KB listing
+ *  page before we abort it. The goal is to bound a HUNG proxy (no response
+ *  at all) — the same class of bug as the S49 eligibility-scrape rot — not
+ *  to clip a legitimately large download. */
+const PDF_PROXY_TIMEOUT_MS = 20_000;
+
 /** Thrown when no proxy in the chain could fetch a given PDF. */
 export class FetchPdfError extends Error {
   readonly proxyAttempts: ReadonlyArray<{ label: string; detail: string }>;
@@ -103,11 +112,12 @@ async function fetchPdfBinary(
   fileUrl: string,
   proxies: readonly CorsProxy[],
   fetchImpl: FetchImpl,
+  timeoutMs: number,
 ): Promise<ArrayBuffer> {
   const attempts: Array<{ label: string; detail: string }> = [];
   for (const proxy of proxies) {
     try {
-      const resp = await fetchImpl(proxy.wrap(fileUrl));
+      const resp = await fetchWithTimeout(fetchImpl, proxy.wrap(fileUrl), timeoutMs);
       if (!resp.ok) {
         attempts.push({ label: proxy.label, detail: `HTTP ${resp.status}` });
         continue;
@@ -463,6 +473,11 @@ export interface ExtractPdfFieldsOptions {
    *  — tried LAST since it's the user's backup, not the default). Same
    *  semantics as `fetchDhrExamResults`'s `workerUrl` option. */
   workerUrl?: string;
+  /** Per-proxy fetch timeout in ms (default PDF_PROXY_TIMEOUT_MS). A fetch
+   *  that doesn't settle within the window is aborted (AbortController) and
+   *  the fetch falls through to the next proxy — the same mechanism
+   *  fetch.ts uses for the listing-page scrape. Set to 0 to disable. */
+  timeoutMs?: number;
   /** How many leading pages to scan for cover-sheet fields. Default 2 —
    *  cover sheets are 1-2 pages on every DHR list we've sampled. */
   maxPages?: number;
@@ -503,11 +518,12 @@ export async function fetchAndExtractPdfFields(
     ? [...baseProxies, workerProxy(opts.workerUrl)]
     : baseProxies;
   const maxPages = opts.maxPages ?? 2;
+  const timeoutMs = opts.timeoutMs ?? PDF_PROXY_TIMEOUT_MS;
   const extractText = opts.extractTextImpl ?? extractFirstPagesText;
   const extractedAt = new Date().toISOString();
 
   try {
-    const buf = await fetchPdfBinary(fileUrl, proxies, fetchImpl);
+    const buf = await fetchPdfBinary(fileUrl, proxies, fetchImpl, timeoutMs);
     const text = await extractText(buf, maxPages);
     const fields = extractPdfFields(text);
     return {

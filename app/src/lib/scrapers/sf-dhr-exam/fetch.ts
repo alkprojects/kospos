@@ -182,8 +182,12 @@ export class FetchDhrError extends Error {
  * request is aborted, which rejects the fetch so the caller falls through
  * to the next proxy. When `timeoutMs <= 0` (or AbortController isn't
  * available) the fetch runs untimed.
+ *
+ * Exported so `./pdf-parse.ts`'s PDF binary fetch reuses the identical
+ * per-proxy timeout mechanism (carry-forward PDF-TO) rather than
+ * re-implementing it.
  */
-async function fetchWithTimeout(
+export async function fetchWithTimeout(
   fetchImpl: FetchImpl,
   url: string,
   timeoutMs: number,
