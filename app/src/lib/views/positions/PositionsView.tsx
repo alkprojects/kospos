@@ -18,9 +18,11 @@ import { buildPositions, hasDeptMismatch, usePositionNotes } from '../../positio
 import type { Position } from '../../positions';
 import { DEFAULT_DEPT_TREE } from '../../reference/dept-tree';
 import { resolvePositionChartfields, normalizePositionKey } from '../../chartfields/resolve';
-import type { BfmPositionRow, ObiPayrollRow, PsHcmPpRow } from '../../importers/types';
+import type { BfmPositionRow, ObiPayrollRow, PsHcmPpRow, PsHcmEeAddlPayRow } from '../../importers/types';
 import { buildPayrollSnapshots, pickLatestSnapshot } from '../../payroll';
 import { buildBudgetSnapshot } from '../../budget';
+import { buildAdditionalPay, indexByEmplId } from '../../additional-pay';
+import type { PositionAdditionalPay } from '../../additional-pay';
 import { matchesNeedle } from '../../search/needle';
 import { Badge, CopyButton, rowButtonProps, Stat } from '../../ui';
 import { PositionDetail } from './PositionDetail';
@@ -134,6 +136,17 @@ export function PositionsView({ onViewPayroll }: {
     return buildBudgetSnapshot(bfmRows, { asOfDate: lastBfmImportAt ?? '' });
   }, [loadedRows, lastBfmImportAt]);
 
+  // EE Additional Pay, indexed by employee id — used to surface a person's
+  // acting / supervisory differentials on Position Detail. Null when the
+  // source isn't loaded.
+  const additionalPayByEmplId = useMemo(() => {
+    const eeRows = loadedRows.filter(
+      (r): r is PsHcmEeAddlPayRow => r._source === 'ps-hcm-ee-addl-pay',
+    );
+    if (eeRows.length === 0) return null;
+    return indexByEmplId(buildAdditionalPay(eeRows));
+  }, [loadedRows]);
+
   // Global "is this data source loaded anywhere?" flags. Distinct from the
   // per-position resolution above — needed so Position Detail can tell the
   // difference between "no BI Payroll loaded" and "BI Payroll loaded but this
@@ -227,12 +240,31 @@ export function PositionsView({ onViewPayroll }: {
   const selectedBudget = selected && latestBudget
     ? latestBudget.byPosition.get(selected.id) ?? null
     : null;
+  // Additional pay for the people on the selected position: the incumbent and
+  // any vice, each tagged with its role. Empty when the source isn't loaded or
+  // nothing joined by emplId.
+  const selectedAdditionalPay: PositionAdditionalPay[] = [];
+  if (selected && additionalPayByEmplId) {
+    const people: Array<{ role: 'Incumbent' | 'Vice'; emplId: string; name: string }> = [];
+    if (selected.appointment?.emplId) {
+      people.push({ role: 'Incumbent', emplId: selected.appointment.emplId, name: selected.appointment.name });
+    }
+    if (selected.vice1?.emplId) {
+      people.push({ role: 'Vice', emplId: selected.vice1.emplId, name: selected.vice1.name });
+    }
+    for (const { role, emplId, name } of people) {
+      for (const item of additionalPayByEmplId.get(emplId) ?? []) {
+        selectedAdditionalPay.push({ role, personName: name || item.displayName, item });
+      }
+    }
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {selected && (
         <PositionDetail
           position={selected}
+          additionalPay={selectedAdditionalPay}
           chartfields={selectedChartfields}
           ytdActuals={selectedYtd}
           ytdAsOfDate={latestPayroll?.asOfDate}

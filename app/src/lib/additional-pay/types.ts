@@ -59,3 +59,20 @@ export interface AdditionalPayRollup {
   /** Summed per-pay-period dollars across the entities in this kind. */
   totalAmount: number;
 }
+
+/**
+ * One additional-pay assignment paired with *why* a person is attached to a
+ * position — the incumbent in it, or a vice acting on it. Used to surface
+ * additional pay on Position Detail.
+ *
+ * NOTE: `role` says which person the assignment belongs to, NOT that the pay
+ * is *for* this position. The acting-target join ("this ACTFLT is the vice
+ * entry on this exact position") is the deferred dual-entry check — see the
+ * Tab 9 notes + the S55 questions.
+ */
+export interface PositionAdditionalPay {
+  role: 'Incumbent' | 'Vice';
+  /** The person's name (from the P&P side, falling back to the pay source). */
+  personName: string;
+  item: AdditionalPay;
+}

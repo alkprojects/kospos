@@ -15,7 +15,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import { PositionsView } from './PositionsView';
 import { usePositionsScope } from './scope-store';
 import { useAppStore } from '../../store';
-import type { PsHcmPpRow } from '../../importers/types';
+import type { PsHcmPpRow, PsHcmEeAddlPayRow } from '../../importers/types';
 
 /** Canonical-shape PS-HCM P&P row (mirrors positions/positions.test.ts). */
 function ppRow(overrides: Partial<PsHcmPpRow> = {}): PsHcmPpRow {
@@ -81,9 +81,62 @@ function seedTwoPositions() {
   ]);
 }
 
+/** Minimal EE Additional Pay row for the Position Detail join-by-emplId tests. */
+function eeRow(overrides: Partial<PsHcmEeAddlPayRow> = {}): PsHcmEeAddlPayRow {
+  return {
+    _source: 'ps-hcm-ee-addl-pay',
+    departmentGroupCode: 'DBI',
+    departmentTitle: 'DBI Inspection Services',
+    emplId: 'E12345',
+    emplRecord: 0,
+    effectiveDate: '2026-01-12',
+    lastName: 'Smith',
+    firstName: 'Jane',
+    middleName: '',
+    preferredFirstName: '',
+    rosterCode: '21',
+    rosterDescription: 'SEIU 1021',
+    payStatus: 'A',
+    jobCode: '6278',
+    unionCode: '791',
+    salaryPlan: '1',
+    step: '5',
+    additionalPayAmount: 250.5,
+    rateCode: 'ACTFLT',
+    _row: 9,
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   useAppStore.getState().clearAll();
   usePositionsScope.getState().clearScope();
+});
+
+describe('PositionsView — Additional Pay on Position Detail', () => {
+  it('shows an Additional Pay card joined to the incumbent by emplId', () => {
+    useAppStore.getState().addRows([
+      ppRow({ positionNumber: '10001', emplId: 'E12345', employeeName: 'Smith, Jane' }),
+      eeRow({ emplId: 'E12345', rateCode: 'ACTFLT', additionalPayAmount: 250.5 }),
+    ]);
+    render(<PositionsView />);
+    fireEvent.click(screen.getByLabelText(/Open details for position 10001/i));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Additional Pay')).toBeInTheDocument();
+    expect(within(dialog).getByText('ACTFLT')).toBeInTheDocument();
+    expect(within(dialog).getByText('$250.50')).toBeInTheDocument();
+  });
+
+  it('omits the Additional Pay card when the incumbent has no matching rows', () => {
+    useAppStore.getState().addRows([
+      ppRow({ positionNumber: '10001', emplId: 'E12345', employeeName: 'Smith, Jane' }),
+      eeRow({ emplId: 'E99999' }), // different employee — no join
+    ]);
+    render(<PositionsView />);
+    fireEvent.click(screen.getByLabelText(/Open details for position 10001/i));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).queryByText('Additional Pay')).not.toBeInTheDocument();
+  });
 });
 
 describe('PositionsView — cross-tab job-code scope', () => {
