@@ -6,7 +6,7 @@
  * lose the loaded P&P / BFM / OBI rows + the scraper data + the
  * staffing-plan / probation / separation / position-notes state.
  *
- * ## Why this isn't one record any more (Phase 2.2.aa — scaling Stage 0)
+ * ## Why this isn't one record any more (scaling Stages 0 + 1)
  *
  * The original layout held the whole SessionFile under one key
  * (`'current'`) and re-wrote ALL of it on every change. Since the
@@ -16,36 +16,49 @@
  * post-refresh freeze, and an `O(total data)` wall on the road to
  * citywide (see `docs/proposals/s50-citywide-scaling.md`).
  *
- * So the snapshot is now split across **per-store-group records**, each
- * written independently:
+ * So the snapshot is split into independently-written pieces:
  *
  *   - `meta`     → envelope metadata (`kind`, `schemaVersion`, `savedAt`,
  *                  `label`). Tiny; rewritten on every save so `savedAt`
- *                  tracks the latest write.
- *   - `rows`     → the heavy term: `loadedRows` + `lastBfmImportAt`.
- *                  Rewritten only when the import store changes (i.e. on
- *                  import) — NOT when a planning edit happens.
- *   - `scrapers` → `jobPostings` / `eligibilityLists` / `pdfCache` +
- *                  their refreshed-at stamps. Rewritten only on scrape.
- *   - `planning` → the light, frequently-edited term: staffing-plan
- *                  actions, separations, probations, position notes.
+ *                  tracks the latest write. In the `snapshots` store.
+ *   - `rows`     → the heavy term: `loadedRows` + `lastBfmImportAt`. Lives
+ *                  in its OWN `imported-rows` object store (scaling Stage 1)
+ *                  and is rewritten only when the import store changes (i.e.
+ *                  on import) — NOT when a planning edit happens.
+ *   - `scrapers` → `jobPostings` / `eligibilityLists` / `pdfCache` + their
+ *                  refreshed-at stamps; in the `snapshots` store. Rewritten
+ *                  only on scrape.
+ *   - `planning` → the light, frequently-edited term (staffing-plan actions,
+ *                  separations, probations, position notes); in the
+ *                  `snapshots` store.
  *
  * The caller (`use-auto-persistence.ts`) tracks which store groups went
- * dirty and calls `saveGroupsToIdb(file, dirtyGroups)`, so a planning
- * edit rewrites only the small `planning` + `meta` records and never
- * touches the 375 MB `rows` record. This is the first concrete step of
- * the scaling roadmap's incremental-persistence model (Stage 1 then
- * moves `loadedRows` into its own object store written only on import).
+ * dirty and calls `saveGroupsToIdb(file, dirtyGroups)`. A planning edit
+ * passes `['planning']`, so its transaction spans the `snapshots` store
+ * alone — the ~375 MB `rows` payload in `imported-rows` is never even
+ * opened, let alone rewritten. Stage 0 (Phase 2.2.aa) split the monolith
+ * into these four pieces; Stage 1 promoted the heavy `rows` piece from a
+ * record in `snapshots` to its own object store — the next concrete step
+ * of the scaling roadmap's incremental-persistence model
+ * (`docs/proposals/s50-citywide-scaling.md`).
  *
- * ## Migration from the legacy single-record layout
+ * ## Migration to the Stage-1 layout
  *
- * Browsers that used a pre-split build have one monolithic `'current'`
- * record and no per-group records. On first load, `loadSnapshotFromIdb`
- * detects this, splits the legacy record into the four per-group records
- * and deletes `'current'` — all in ONE readwrite transaction, so there
- * is never a window where data is half-written or lost. Subsequent
- * loads find the per-group records and skip migration. Split/merge is a
- * lossless round-trip (proven in `idb-split.test.ts`), so the migration
+ * `loadSnapshotFromIdb` lazily converges any prior layout to the current
+ * one, the first time it runs against a v2 DB:
+ *   - A browser left on the Stage-0 layout has a `rows` record in the
+ *     `snapshots` store. The load moves it into the `imported-rows` store
+ *     and deletes the old record.
+ *   - A browser left on the pre-Stage-0 monolith has one `'current'`
+ *     record. The load splits it, writes the light records to `snapshots`
+ *     + the rows record to `imported-rows`, and deletes `'current'`.
+ * Each conversion runs in ONE readwrite transaction spanning both stores,
+ * so there is never a window where data is half-written or lost; a failed
+ * transaction leaves the old layout intact for the next load to retry.
+ * Subsequent loads find the rows store populated and skip migration.
+ * Split/merge is a lossless round-trip (`idb-split.test.ts`) and the
+ * cross-store orchestration is exercised against a real IDB
+ * (`idb-rows-store.test.ts` via fake-indexeddb), so the migration
  * preserves every byte of the user's saved state.
  *
  * Single-deployment assumption: KosPos ships from one GitHub Pages URL,
@@ -60,12 +73,15 @@
  *   - One snapshot per browser; the latest write wins. (Named workspaces
  *     come later — they'd key the records on a workspace id.)
  *
- * Storage layout:
+ * Storage layout (DB_VERSION 2):
  *   - DB name: `kospos`
- *   - Object store: `snapshots` (string-keyed; unchanged — the split is a
- *     record-key change within the same store, so no DB_VERSION bump).
- *   - Keys: `'meta'` / `'rows'` / `'scrapers'` / `'planning'` (current);
- *     `'current'` (legacy monolithic record, migrated away on load).
+ *   - Object store `snapshots` (string-keyed) — keys `'meta'` / `'scrapers'`
+ *     / `'planning'`. Also the home of the now-legacy `'rows'` record
+ *     (Stage-0) + `'current'` monolith (pre-Stage-0), both migrated away on
+ *     first load.
+ *   - Object store `imported-rows` (string-keyed; added in v2) — the single
+ *     key `'current'` holds the heavy `{ loadedRows, lastBfmImportAt }`
+ *     payload, written only on import.
  *   - Values: plain objects (NOT JSON-serialized — IDB handles
  *     structured-clone natively).
  *
@@ -105,18 +121,31 @@ import {
 const DB_NAME = 'kospos';
 /** Object store name. */
 const STORE_NAME = 'snapshots';
-/** Bump when the object-store *shape* changes (new store / index). The
- *  per-store split is a record-KEY change within the existing store, so
- *  it does NOT bump this — v1 still describes the store shape. */
-const DB_VERSION = 1;
+/** Bump when the object-store *shape* changes (new store / index).
+ *  v1 — the single `snapshots` store (Phase 2.2.q + the Stage-0 record
+ *       split, which was a record-KEY change within that store, so it did
+ *       NOT bump this).
+ *  v2 — scaling Stage 1: adds the dedicated `imported-rows` object store for
+ *       the heavy import payload (see the module header). */
+const DB_VERSION = 2;
 
-/** Per-store-group record keys (the split layout). */
+/** Record keys inside the `snapshots` store. */
 const KEY_META = 'meta';
-const KEY_ROWS = 'rows';
 const KEY_SCRAPERS = 'scrapers';
 const KEY_PLANNING = 'planning';
-/** Legacy monolithic record key (pre-split). Migrated away on first load. */
+/** Legacy Stage-0 `rows` record key inside the `snapshots` store. Stage 1
+ *  moves the import payload into its own object store, so this key is only
+ *  ever READ + DELETED by the one-time migration now — never written. */
+const KEY_ROWS = 'rows';
+/** Legacy monolithic record key (pre-Stage-0). Migrated away on first load. */
 const LEGACY_KEY = 'current';
+
+/** Stage-1 dedicated object store for the heavy import payload, plus its
+ *  single record key. Written only when the `rows` group is dirty (i.e. on
+ *  import), so a planning / scrapers save never even opens this store —
+ *  removing the `O(total data)` re-serialization wall for the biggest term. */
+const ROWS_STORE = 'imported-rows';
+const ROWS_KEY = 'current';
 
 /**
  * The mutable store groups a save can target. `meta` is excluded because
@@ -245,8 +274,20 @@ function getDb(): Promise<IDBPDatabase> {
   if (!dbPromise) {
     dbPromise = openDB(DB_NAME, DB_VERSION, {
       upgrade(db) {
+        // v1 — the shared snapshots store (meta / scrapers / planning
+        // records; pre-Stage-1 it also held the rows record + the legacy
+        // monolith).
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME);
+        }
+        // v2 (scaling Stage 1) — the heavy import payload gets its OWN
+        // object store. Created for both fresh installs (oldVersion 0) and
+        // the v1->v2 upgrade (oldVersion 1). Existing rows data is migrated
+        // lazily on the next load (see loadSnapshotFromIdb), NOT in this
+        // versionchange transaction — keeping the upgrade trivial and the
+        // (test-covered) migration logic in one place.
+        if (!db.objectStoreNames.contains(ROWS_STORE)) {
+          db.createObjectStore(ROWS_STORE);
         }
       },
     });
@@ -257,9 +298,14 @@ function getDb(): Promise<IDBPDatabase> {
 /**
  * Persist the given store groups to IDB. Always rewrites the tiny `meta`
  * record (so `savedAt` tracks the latest write) plus the record for each
- * requested group, in ONE transaction. Groups NOT listed are left as
- * they were — that's the whole point: a planning edit passes
- * `['planning']` and the heavy `rows` record is never touched.
+ * requested group, in ONE transaction. Groups NOT listed are left as they
+ * were — that's the whole point: a planning edit passes `['planning']` and
+ * the heavy `rows` payload (now its own `imported-rows` object store) is
+ * never even opened, so the save cost is O(that edit), not O(all rows).
+ *
+ * The transaction spans the `imported-rows` store ONLY when the `rows`
+ * group is dirty (an import); otherwise it is a single-store `snapshots`
+ * transaction that can't contend with — or block on — the rows store.
  *
  * Callers should NOT JSON.stringify before calling — IDB uses the
  * structured-clone algorithm so the SessionFile shape (Maps/Sets already
@@ -273,11 +319,16 @@ export async function saveGroupsToIdb(
 ): Promise<void> {
   const db = await getDb();
   const split = splitSessionFile(file);
-  const tx = db.transaction(STORE_NAME, 'readwrite');
-  const ops: Promise<unknown>[] = [tx.store.put(split.meta, KEY_META)];
-  if (groups.includes('rows')) ops.push(tx.store.put(split.rows, KEY_ROWS));
-  if (groups.includes('scrapers')) ops.push(tx.store.put(split.scrapers, KEY_SCRAPERS));
-  if (groups.includes('planning')) ops.push(tx.store.put(split.planning, KEY_PLANNING));
+  const writeRows = groups.includes('rows');
+  const tx = db.transaction(
+    writeRows ? [STORE_NAME, ROWS_STORE] : STORE_NAME,
+    'readwrite',
+  );
+  const snap = tx.objectStore(STORE_NAME);
+  const ops: Promise<unknown>[] = [snap.put(split.meta, KEY_META)];
+  if (groups.includes('scrapers')) ops.push(snap.put(split.scrapers, KEY_SCRAPERS));
+  if (groups.includes('planning')) ops.push(snap.put(split.planning, KEY_PLANNING));
+  if (writeRows) ops.push(tx.objectStore(ROWS_STORE).put(split.rows, ROWS_KEY));
   ops.push(tx.done);
   await Promise.all(ops);
 }
@@ -287,61 +338,104 @@ export async function saveGroupsToIdb(
  * envelope. Resolves with the envelope or `null` if nothing has been
  * saved yet. Rejects only on IDB open / permission failures.
  *
- * Migration: if no per-group records exist but a legacy monolithic
- * `'current'` record does, split it into per-group records and delete
- * `'current'` atomically, then return it (see the module header).
+ * Reads the light records (meta / scrapers / planning) from the
+ * `snapshots` store and the heavy rows payload from the dedicated
+ * `imported-rows` store. When the rows store is empty, lazily migrates
+ * from whichever prior layout exists — each migration is atomic and
+ * one-time (see the module header):
+ *   - Stage-0: a `rows` record still in the `snapshots` store → move it
+ *     into `imported-rows` and delete the old record.
+ *   - Pre-Stage-0: the monolithic `'current'` record → split it, write the
+ *     light records + the rows record to their new homes, delete `'current'`.
  */
 export async function loadSnapshotFromIdb(): Promise<SessionFile | null> {
   const db = await getDb();
-  const [meta, rows, scrapers, planning] = await Promise.all([
+  const [meta, scrapers, planning, rows] = await Promise.all([
     db.get(STORE_NAME, KEY_META) as Promise<MetaRecord | undefined>,
-    db.get(STORE_NAME, KEY_ROWS) as Promise<RowsRecord | undefined>,
     db.get(STORE_NAME, KEY_SCRAPERS) as Promise<ScrapersRecord | undefined>,
     db.get(STORE_NAME, KEY_PLANNING) as Promise<PlanningRecord | undefined>,
+    db.get(ROWS_STORE, ROWS_KEY) as Promise<RowsRecord | undefined>,
   ]);
-  if (meta || rows || scrapers || planning) {
+
+  // Fast path: rows already live in the Stage-1 `imported-rows` store.
+  if (rows !== undefined) {
     return mergeIdbRecords({ meta, rows, scrapers, planning });
   }
-  // No per-group records — migrate a legacy monolithic snapshot if present.
+
+  // Rows not in the Stage-1 store — migrate from a prior layout if present.
+  // (a) Stage-0: a `rows` record still in the `snapshots` store.
+  const stage0Rows = (await db.get(STORE_NAME, KEY_ROWS)) as RowsRecord | undefined;
+  if (stage0Rows !== undefined) {
+    await migrateStage0RowsRecord(db, stage0Rows);
+    return mergeIdbRecords({ meta, rows: stage0Rows, scrapers, planning });
+  }
+  // (b) Pre-Stage-0: the monolithic `'current'` record.
   const legacy = (await db.get(STORE_NAME, LEGACY_KEY)) as SessionFile | undefined;
-  if (!legacy) return null;
-  await migrateLegacyRecord(db, legacy);
-  return legacy;
+  if (legacy !== undefined) {
+    const split = splitSessionFile(legacy);
+    await migrateLegacyRecord(db, split);
+    return mergeIdbRecords(split);
+  }
+  // (c) No rows in any layout. The light records may still exist from a
+  // planning-only save before any import — return them (rows default to []).
+  if (meta || scrapers || planning) {
+    return mergeIdbRecords({ meta, scrapers, planning });
+  }
+  return null;
 }
 
 /**
- * One-time migration: split a legacy `'current'` envelope into the four
- * per-group records and delete the legacy key, atomically. All-or-nothing
- * — if the transaction fails, `'current'` is left intact and the next
- * load retries.
+ * One-time Stage-0 → Stage-1 migration: move a `rows` record out of the
+ * `snapshots` store into the dedicated `imported-rows` store and delete the
+ * old record, atomically across both stores. All-or-nothing — if the
+ * transaction fails, the old record is left intact and the next load retries.
  */
-async function migrateLegacyRecord(db: IDBPDatabase, legacy: SessionFile): Promise<void> {
-  const split = splitSessionFile(legacy);
-  const tx = db.transaction(STORE_NAME, 'readwrite');
+async function migrateStage0RowsRecord(db: IDBPDatabase, rows: RowsRecord): Promise<void> {
+  const tx = db.transaction([STORE_NAME, ROWS_STORE], 'readwrite');
   await Promise.all([
-    tx.store.put(split.meta, KEY_META),
-    tx.store.put(split.rows, KEY_ROWS),
-    tx.store.put(split.scrapers, KEY_SCRAPERS),
-    tx.store.put(split.planning, KEY_PLANNING),
-    tx.store.delete(LEGACY_KEY),
+    tx.objectStore(ROWS_STORE).put(rows, ROWS_KEY),
+    tx.objectStore(STORE_NAME).delete(KEY_ROWS),
     tx.done,
   ]);
 }
 
 /**
- * Delete the saved snapshot — every per-group record plus any leftover
- * legacy record — in one transaction. Used by the "Clear All" affordance
- * + the "Reset" debug path. No-op for keys that don't exist.
+ * One-time pre-Stage-0 → Stage-1 migration: write a split legacy `'current'`
+ * envelope to its new homes — the light records into `snapshots`, the rows
+ * record into `imported-rows` — and delete `'current'`, atomically across
+ * both stores. All-or-nothing — a failure leaves `'current'` intact for the
+ * next load to retry.
+ */
+async function migrateLegacyRecord(db: IDBPDatabase, split: SplitRecords): Promise<void> {
+  const tx = db.transaction([STORE_NAME, ROWS_STORE], 'readwrite');
+  const snap = tx.objectStore(STORE_NAME);
+  await Promise.all([
+    snap.put(split.meta, KEY_META),
+    snap.put(split.scrapers, KEY_SCRAPERS),
+    snap.put(split.planning, KEY_PLANNING),
+    tx.objectStore(ROWS_STORE).put(split.rows, ROWS_KEY),
+    snap.delete(LEGACY_KEY),
+    tx.done,
+  ]);
+}
+
+/**
+ * Delete the saved snapshot — every `snapshots` record (incl. any leftover
+ * Stage-0 `rows` record + legacy monolith) and the `imported-rows` store's
+ * record — in one transaction across both stores. Used by the "Clear All"
+ * affordance + the "Reset" debug path. No-op for keys that don't exist.
  */
 export async function clearSnapshotFromIdb(): Promise<void> {
   const db = await getDb();
-  const tx = db.transaction(STORE_NAME, 'readwrite');
+  const tx = db.transaction([STORE_NAME, ROWS_STORE], 'readwrite');
+  const snap = tx.objectStore(STORE_NAME);
   await Promise.all([
-    tx.store.delete(KEY_META),
-    tx.store.delete(KEY_ROWS),
-    tx.store.delete(KEY_SCRAPERS),
-    tx.store.delete(KEY_PLANNING),
-    tx.store.delete(LEGACY_KEY),
+    snap.delete(KEY_META),
+    snap.delete(KEY_ROWS),
+    snap.delete(KEY_SCRAPERS),
+    snap.delete(KEY_PLANNING),
+    snap.delete(LEGACY_KEY),
+    tx.objectStore(ROWS_STORE).delete(ROWS_KEY),
     tx.done,
   ]);
 }
