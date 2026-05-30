@@ -18,7 +18,7 @@ for the importer's quality-flag set.
 ## Scenario 1 — Reports-To chain integrity
 
 **Hypothesis** ([Tab 6 § Reports-To validation Improvement
-#6](../domain/labor-report.md#6-reports-to-validation--error-vs-noise-framework-sketch)):
+#6](../domain/labor-report-tabs.md#6-reports-to-validation--error-vs-noise-framework-sketch)):
 the P&P Data Reports-To chain may carry **dangling refs** (parent
 position not in P&P), **cycles** (A→B→A or longer), **excessive depth**
 (>11 levels), or **empty Reports-To** on non-Commissioner / non-DeptHead
@@ -83,9 +83,9 @@ for pos in all_positions:
 - All others get flagged.
 
 Per [Tab 6 Improvement
-#6](../domain/labor-report.md#6-reports-to-validation--error-vs-noise-framework-sketch),
+#6](../domain/labor-report-tabs.md#6-reports-to-validation--error-vs-noise-framework-sketch),
 this becomes part of the "generated correction list" that
-[Tab 21 Reporting Tree](../domain/labor-report.md#tab-21--reporting-tree)
+[Tab 21 Reporting Tree](../domain/labor-report-tabs.md#tab-21--reporting-tree)
 will surface.
 
 ## Scenario 1b — Pool position census (extending Task B Test 5)
@@ -129,7 +129,7 @@ Appointment Type`.
 Per-position recommendation:
 - **ELC commissioner pools**: keep as pool; flag as "intentional pool";
   display with `(N incumbents)` badge in [OPS
-  Detail](../domain/labor-report.md#tab-27--operating-report-detail).
+  Detail](../domain/labor-report-tabs.md#tab-27--operating-report-detail).
 - **TEX back-to-back temp pools**: recommend split into per-incumbent
   positions for cleaner historical attribution. User decides per-position.
 
@@ -336,7 +336,7 @@ Plus cross-checks:
 
 ## Scenario 5 — Vacant-but-no-RTF
 
-**Hypothesis** ([Tab 6 § Improvement #10](../domain/labor-report.md#kospos-improvements-4)):
+**Hypothesis** ([Tab 6 § Improvement #10](../domain/labor-report-tabs.md#kospos-improvements-4)):
 every position with `Fill Status = VACANT` and `Latest RTF ID` blank
 (and not a pool position) is a Request-To-Fill gap.
 
@@ -379,7 +379,7 @@ those are unambiguously a data bug, not a CON limitation).
 ## Scenario 6 — PEX-on-Cat-18 enumeration
 
 **Hypothesis** ([Tab 6 § Open Question
-#1](../domain/labor-report.md#open-questions--todo)): 15 PEX-on-Cat-18
+#1](../domain/labor-report-tabs.md#open-questions--todo)): 15 PEX-on-Cat-18
 rows look like Exempt-to-Permanent conversions. Verify the list and
 make it actionable.
 
@@ -458,7 +458,7 @@ every BI Payroll snapshot.
 
 ## Scenario 8 — Negative or zero Balance Amount rows
 
-**Hypothesis** ([Tab 7 § Improvement #8](../domain/labor-report.md#kospos-improvements-5)):
+**Hypothesis** ([Tab 7 § Improvement #8](../domain/labor-report-tabs.md#kospos-improvements-5)):
 top 20 most-negative Balance Amount rows in BI Payroll surface
 retroactive payroll adjustments worth flagging.
 
@@ -514,7 +514,7 @@ to fix — just transparency about what's happened.
 
 ## Scenario 9 — Earnings-code orphans
 
-**Hypothesis** ([Tab 7 § Improvement #8](../domain/labor-report.md#kospos-improvements-5)):
+**Hypothesis** ([Tab 7 § Improvement #8](../domain/labor-report-tabs.md#kospos-improvements-5)):
 earnings codes appearing in BI Payroll that don't map to any documented
 routing rule are silently un-aggregated.
 

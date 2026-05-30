@@ -427,7 +427,7 @@ account 509010.
 - Budget development → `DBI FY27-28 Budget Master`, `Special Class` tab cols U:AN
   (per-job-class historical rate × next-FY salary budget).
 - YTD + projection → `Labor Report 5.21.26.xlsx`, `Premium` tab (decoded this
-  session — see [`labor-report.md` § Tab 16 Premium](labor-report.md#tab-16--premium)).
+  session — see [`labor-report.md` § Tab 16 Premium](labor-report-tabs.md#tab-16--premium)).
 
 #### Budget development
 
@@ -513,7 +513,7 @@ chartfield string with no additional allocation needed.
 - **Per-(job class × earnings code) projection grain** — workbook collapses
   to per-(dept-group × salary/fringe); pivot has the per-code detail
   available. KosPos projects at the pivot grain. See
-  [`labor-report.md` § Tab 16 Premium § KosPos improvement #1](labor-report.md#tab-16--premium).
+  [`labor-report.md` § Tab 16 Premium § KosPos improvement #1](labor-report-tabs.md#tab-16--premium).
 - **Premium-code enumeration** — importer must handle all 11+ codes posting
   to 509010, not just L08 + 289 (the only two the current importer routes).
   See [scenario-tests § Scenario 9](../audits/labor-report-scenario-tests.md#scenario-9--earnings-code-orphans).
@@ -610,7 +610,7 @@ splits MCCP into its own tab per Tab 18 § KosPos improvement #1 below).
 - Budget development → `DBI FY27-28 Budget Master`, `Special Class` tab cols BH:CJ
   (per-position step math).
 - YTD + projection → `Labor Report 5.21.26.xlsx`, `Step` tab (decoded this
-  session — see [`labor-report.md` § Tab 18 Step](labor-report.md#tab-18--step)
+  session — see [`labor-report.md` § Tab 18 Step](labor-report-tabs.md#tab-18--step)
   for full extraction).
 
 #### Budget development (Budget Master `Special Class` tab, cols BH:CJ)
@@ -749,7 +749,7 @@ total STEPM budget.
 
 - **MCCP split** — Alex's flag, resolved this session: KosPos splits MCCP
   into its own tab (9994). See
-  [`labor-report.md` § Tab 18 § KosPos improvement #1](labor-report.md#tab-18--step).
+  [`labor-report.md` § Tab 18 § KosPos improvement #1](labor-report-tabs.md#tab-18--step).
 - **Step-eligibility from TRC table, not residual subtraction** — replace
   U:AU's "all salary minus 4 hardcoded non-step accounts" with "all salary
   flagged step-eligible per TRC code." Eliminates the four account-description

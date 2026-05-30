@@ -25,7 +25,7 @@ one session prior.
 1. Read every file touched in Phase 2.2.f's two PRs ([PR #84](https://github.com/alkprojects/kospos/pull/84)
    — 3 files; [PR #85](https://github.com/alkprojects/kospos/pull/85) —
    10 files) against the docs that describe them ([labor-report.md §
-   Tab 24 Staffing Plan](../domain/labor-report.md#tab-24--staffing-plan),
+   Tab 24 Staffing Plan](../domain/labor-report-tabs.md#tab-24--staffing-plan),
    [memory `staffing_plan_types.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/staffing_plan_types.md),
    [memory `cat_16_17_18_rules.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/cat_16_17_18_rules.md)).
 2. Re-run `npm test` — confirms the 303 / 303 baseline (was 263 at the
@@ -370,7 +370,7 @@ skipped per the precedent set in earlier non-heading-touching cycles.
 
 ### Doc-vs-implementation
 
-- [`labor-report.md § Tab 24 § Improvement #6 — holdReason enum`](../domain/labor-report.md#tab-24--staffing-plan)
+- [`labor-report.md § Tab 24 § Improvement #6 — holdReason enum`](../domain/labor-report-tabs.md#tab-24--staffing-plan)
   describes a curated enum. **Alex S29 dropped this** — the doc
   language is now aspirational but stale (it sketches an enum that
   won't ship). **Surface as a doc-drift TODO** for the S30 doc PR
@@ -378,7 +378,7 @@ skipped per the precedent set in earlier non-heading-touching cycles.
   priority — the spec section is correctly described as "the
   surface PR will narrow this once Alex confirms," which is now
   resolved as "Alex confirmed: don't narrow."
-- [`labor-report.md § Tab 24 § Improvement #4 — state machine`](../domain/labor-report.md#tab-24--staffing-plan)
+- [`labor-report.md § Tab 24 § Improvement #4 — state machine`](../domain/labor-report-tabs.md#tab-24--staffing-plan)
   sketches the status-transition state machine. PR #85's
   `isAllowedStatusTransition` honors that sketch with the
   forward-only + csc-hold bidirectional branches. PR 2 (S30) will

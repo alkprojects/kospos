@@ -13,7 +13,7 @@ one session prior.
 ## Methodology
 
 1. Read every file touched in this session's **5 PRs** against the docs
-   that describe them ([labor-report.md § Tab 10 Probation](../domain/labor-report.md#tab-10---probation),
+   that describe them ([labor-report.md § Tab 10 Probation](../domain/labor-report-tabs.md#tab-10--probation),
    the Phase 2.2.i close audit, the S33 prompt + Alex's "added by alex"
    items).
 2. Re-run `npm test` — confirms the **485 / 485** baseline (was 413 at

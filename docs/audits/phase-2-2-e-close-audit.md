@@ -21,7 +21,7 @@ one session prior.
    — 2 files; [PR #79](https://github.com/alkprojects/kospos/pull/79) — 5
    files; [PR #80](https://github.com/alkprojects/kospos/pull/80) — 4
    files) against the docs that describe them ([labor-report.md § Tab 24
-   Staffing Plan](../domain/labor-report.md#tab-24--staffing-plan),
+   Staffing Plan](../domain/labor-report-tabs.md#tab-24--staffing-plan),
    [memory `staffing_plan_types.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/staffing_plan_types.md),
    [memory `temporary_exchange_tx.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/temporary_exchange_tx.md),
    [memory `feedback_projections_always_cola_aware.md`](file:///C:/Users/ALK/.claude/projects/C--Users-ALK-Desktop-Claude-Projects-kospos/memory/feedback_projections_always_cola_aware.md)).
@@ -96,7 +96,7 @@ seeds it.
 
 **Status:** stable.
 
-Per [Tab 24 § Per-section footers](../domain/labor-report.md#tab-24--staffing-plan):
+Per [Tab 24 § Per-section footers](../domain/labor-report-tabs.md#tab-24--staffing-plan):
 
 > Active rows: positive (cost of hire); Separations: negative
 > (savings).
@@ -321,18 +321,18 @@ skipped per the precedent set in earlier non-heading-touching cycles.
 
 ### Doc-vs-implementation
 
-- [`labor-report.md § Tab 24 § PlannedAction model`](../domain/labor-report.md#tab-24--staffing-plan)
+- [`labor-report.md § Tab 24 § PlannedAction model`](../domain/labor-report-tabs.md#tab-24--staffing-plan)
   describes the typed entity shape → matches the merged
   `PlannedAction` interface in [`types.ts`](../../app/src/lib/staffing-plan/types.ts).
   The 5 PlannedActionType variants, the HiringStatus enum, the
   multi-action-per-position pattern, and the sign convention all
   carry through. ✓
 - [`labor-report.md § Tab 24 § Improvement #2 — Cost projection runs
-  live`](../domain/labor-report.md#tab-24--staffing-plan) describes
+  live`](../domain/labor-report-tabs.md#tab-24--staffing-plan) describes
   the live-from-calculator pattern → matches
   `computeExpectedCost(action)`. The cached-paste-once pattern from
   the workbook is replaced. ✓
-- [`labor-report.md § Tab 24 § KosPos UI sketch`](../domain/labor-report.md#tab-24--staffing-plan)
+- [`labor-report.md § Tab 24 § KosPos UI sketch`](../domain/labor-report-tabs.md#tab-24--staffing-plan)
   shows the workspace mock → the surface PR ships the **summary
   header + 5-section stack + inline Add form + per-section "X of Y
   priced ⚠" diagnostic chip + multi-action positions disclosure**

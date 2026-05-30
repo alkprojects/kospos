@@ -86,7 +86,7 @@ class of bug. **Phase 2.4 nice-to-have**, not blocking.
 
 ### 2.1 BI Payroll cell count for Report Data — **CORRECT** (not drift)
 
-[Tab 7 § How each downstream tab consumes BI Payroll](../domain/labor-report.md#how-each-downstream-tab-consumes-bi-payroll)
+[Tab 7 § How each downstream tab consumes BI Payroll](../domain/labor-report-tabs.md#how-each-downstream-tab-consumes-bi-payroll)
 says Report Data has **"18,225 cells"** referencing `'BI Payroll'!`. Tab
 20 reports the total per-PP SUMIFS count at **133,164** (54 cells × ~600
 rows × dual grid).
@@ -114,7 +114,7 @@ Data) uses `N2 / M2` (COLA-weighted) for the per-position projection.
 Tab 26 (OPS Summary) uses `J2 / I2` (pure-PP) for the special-class D
 column. **All consistent** with Tab 5's framing. The only friction is
 **Tab 26's pure-PP shortcut for the special-class block** — flagged as
-[Tab 26 Open Question #1](../domain/labor-report.md#open-questions--todo-7) and
+[Tab 26 Open Question #1](../domain/labor-report-tabs.md#open-questions--todo-7) and
 the cross-cutting concerns table's "pure-PP vs COLA-weighted" row;
 expected to converge to COLA-weighted in KosPos per memory
 [`feedback_projections_always_cola_aware.md`].

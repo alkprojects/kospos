@@ -11,7 +11,7 @@ workbook, stdlib `csv.DictReader` for BVA. Read-only; no workbook edits.
 
 **Purpose:** Empirical evidence base for KosPos's `lib/quality/` flag set
 and for the BVA-driven reconciliation views designed in
-[Tab 20 § KosPos improvements #1–#2](../domain/labor-report.md#kospos-improvements-18)
+[Tab 20 § KosPos improvements #1–#2](../domain/labor-report-tabs.md#kospos-improvements-18)
 and [`../data-sources/bva.md`](../data-sources/bva.md).
 
 ## Methodology
@@ -228,7 +228,7 @@ chartfield.
 
 ## Test 3 — SPECIAL block hand-paste verification (AX vs AZ)
 
-**Hypothesis (per [Tab 20 § Manual/fragile](../domain/labor-report.md#whats-manual--fragile-6)):**
+**Hypothesis (per [Tab 20 § Manual/fragile](../domain/labor-report-tabs.md#whats-manual--fragile-6)):**
 the 100 SPECIAL block rows in Report Data S649:S748 were pasted from
 BFM 15.10.006's `FY 2025-26 Technical Adjustment (AX)` column, but
 should have been pasted from `FY 2025-26 Board (AZ)`. If AX ≠ AZ for
@@ -277,7 +277,7 @@ referenced by OPS Summary — also have AX == AZ in this snapshot.
 
 ## Test 4 — MERGE row 753 lookup ($2.31M DBI ADM MIS)
 
-**Hypothesis (per [Tab 20 § MERGE row](../domain/labor-report.md#formulas--merge-row-row-753-231m-mid-year-transfer)):**
+**Hypothesis (per [Tab 20 § MERGE row](../domain/labor-report-tabs.md#formulas--merge-row-row-753-231m-mid-year-transfer)):**
 Report Data row 753 is a hand-keyed placeholder for the mid-year DBI→CPC
 transfer of function. Its S=$2,310,727 should appear somewhere in BVA
 as a Transfer & Other Budget for DBI ADM MIS Salaries.
@@ -370,7 +370,7 @@ for non-zero values in S, U, or AZ.
 - _Data Issue category_ — **`pool-position-detected`**. Flag every
   position with 2+ incumbents; recommend (but don't enforce) one
   position per incumbent. Show as a collapsible "(N incumbents)" badge
-  in [OPS Detail](../domain/labor-report.md#tab-27--operating-report-detail).
+  in [OPS Detail](../domain/labor-report-tabs.md#tab-27--operating-report-detail).
 
 ---
 
@@ -577,10 +577,10 @@ postings would land in BOTH operating (per the Y:AY filter `F IN {10190,
 
 - [`../data-sources/bva.md`](../data-sources/bva.md) — BVA schema +
   refresh-order timing rule + reconciliation pattern.
-- [`../domain/labor-report.md#tab-20--report-data`](../domain/labor-report.md#tab-20--report-data) —
+- [`../domain/labor-report-tabs.md#tab-20--report-data`](../domain/labor-report-tabs.md#tab-20--report-data) —
   Report Data 8 archetypes + per-position formulas + the
   `<>10190` dormant bug discussion.
-- [`../domain/labor-report.md#tab-26--operating-report-summary`](../domain/labor-report.md#tab-26--operating-report-summary) —
+- [`../domain/labor-report-tabs.md#tab-26--operating-report-summary`](../domain/labor-report-tabs.md#tab-26--operating-report-summary) —
   OPS Summary special-class block + the BFM!AZ1195/1197/1199/1201
   TEMPM hardcoded reference (verified in Test 3 here).
 - [`../data-sources/bfm.md`](../data-sources/bfm.md) — BFM eturn AX/AZ

@@ -58,7 +58,7 @@ detail and other tab has benefit detail, this is source of budget truth"_
 | By Job Class | 3,923 | 60 | (Same as Position# but with no Position# column; rolled up to Job Class × chartfield) |
 
 **Role:** the canonical position-level budget eturn already documented
-in [labor-report.md Tab 4](../domain/labor-report.md#tab-4--bfm-1510006-fy26)
+in [labor-report.md Tab 4](../domain/labor-report-tabs.md#tab-4--bfm-1510006-fy26)
 and consumed by Report Data S Total Budget (per-position SUMIFS) +
 Operating Report Summary TEMPM G40 (per-class summary rows). The
 workbook's `BFM 15.10.006 FY26` tab is an embedded snapshot of the
@@ -152,7 +152,7 @@ Budget Control + Department Budget Control trees additionally drive
 budget checks).
 
 These are the trees referenced as "future work" in [Tab 6 § Companion
-reference dataset](../domain/labor-report.md#companion-reference-dataset--citywide-department-tree)
+reference dataset](../domain/labor-report-tabs.md#companion-reference-dataset--citywide-department-tree)
 — this inventory makes them concrete.
 
 | Tree | Cols | Rows | Notes |
@@ -239,7 +239,7 @@ should be accurate and trustworthy"_
 
 **This is the OBI export that becomes the workbook's P&P Data tab.**
 604 rows × 88 cols matches exactly the [Tab 6 P&P Data walkthrough's
-OBI portion](../domain/labor-report.md#tab-6--pp-data) ("88 OBI cols
+OBI portion](../domain/labor-report-tabs.md#tab-6--pp-data) ("88 OBI cols
 + 50 derived = 138 cols × 604 rows"). The version date `8.30.24` is
 older than this workbook's snapshot (2026-05-08), so the actual data
 differs — but the **schema is the same**. Use this as the canonical
@@ -256,7 +256,7 @@ of truth for expenditure details"_
 
 **This is the OBI export that becomes the workbook's BI Payroll tab**
 but **at an earlier version (FY23 dataset, 38 cols)**. The current BI
-Payroll is 39 cols × 110,028 rows (see [Tab 7](../domain/labor-report.md#tab-7--bi-payroll))
+Payroll is 39 cols × 110,028 rows (see [Tab 7](../domain/labor-report-tabs.md#tab-7--bi-payroll))
 — one extra column added since `Version 11.8.23` (likely the
 `HR Assignment Appointment Type` column added later, since Tab 7 docs
 that column). So `Payroll Detail v11.8.23` is the **predecessor schema**
@@ -264,7 +264,7 @@ of `BI Payroll v_current`.
 
 **Implication for KosPos:** importer must handle both 38-col and
 39-col variants. Header-driven fingerprint (per [Tab 7 KosPos
-improvement #2](../domain/labor-report.md#kospos-improvements-5))
+improvement #2](../domain/labor-report-tabs.md#kospos-improvements-5))
 already accounts for this — the importer matches columns by canonical
 substring, so adding/removing a column doesn't silently break.
 
