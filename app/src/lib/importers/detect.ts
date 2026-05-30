@@ -39,6 +39,14 @@ const FINGERPRINTS: Record<Exclude<ReportType, 'unknown'>, string[]> = {
     'Position Reports To',
     'Roster Code',
   ],
+  // MRG_HR_EE_ADDL_PAY query / "EE Additional Pay" tab — PS HCM additional pay
+  'ps-hcm-ee-addl-pay': [
+    'Emplid',
+    'Empl Record',
+    'Sal Plan',
+    'Addl Pay',
+    'Rate Code',
+  ],
   // "Payroll Detail" CSV / "BI Payroll" sheet — OBI per-pay-period payroll
   'obi-payroll': [
     'Balance Amount',

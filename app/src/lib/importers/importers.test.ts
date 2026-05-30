@@ -13,6 +13,7 @@ import { detect } from './detect';
 import { importBfmPosition } from './bfm-position';
 import { importBfmNonPosition } from './bfm-non-position';
 import { importPsHcmPp } from './ps-hcm-pp';
+import { importPsHcmEeAddlPay } from './ps-hcm-ee-addl-pay';
 import { importObiPayroll } from './obi-payroll';
 
 // ---------------------------------------------------------------------------
@@ -60,6 +61,20 @@ describe('detect', () => {
        '09000', '21', 'SEIU 1021', '', '', 1, 'C1234', '6278'],
     ]);
     expect(detect(ws).type).toBe('ps-hcm-pp');
+  });
+
+  it('identifies ps-hcm-ee-addl-pay by fingerprint columns', () => {
+    const ws = makeSheet([
+      ['Department', 'Dept Title', 'Emplid', 'Empl Record', 'Eff Date',
+       'Last', 'First Name', 'Middle', 'Preferred First', 'Roster Code',
+       'Roster Code Descr', 'Pay Status', 'Job Code', 'Union Code',
+       'Sal Plan', 'Step', 'Addl Pay', 'Rate Code'],
+      ['DBI', 'Dept of Building Inspection', '187518', 0, '2026-01-12',
+       'Smith', 'Jane', '', 'Janie', '21',
+       'SEIU 1021', 'A', '6278', '791',
+       '1', '5', 250.5, 'ACTFLT'],
+    ]);
+    expect(detect(ws).type).toBe('ps-hcm-ee-addl-pay');
   });
 
   it('identifies obi-payroll by fingerprint columns', () => {
@@ -462,6 +477,86 @@ describe('importPsHcmPp', () => {
     expect(r.budgetJobCode).toBe('5380');
     expect(r.positionDivision).toBe('CPC Current Planning');
     expect(r.positionMaxHeadcount).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// importPsHcmEeAddlPay
+// ---------------------------------------------------------------------------
+
+describe('importPsHcmEeAddlPay', () => {
+  const HEADERS = [
+    'Department', 'Dept Title', 'Emplid', 'Empl Record', 'Eff Date',
+    'Last', 'First Name', 'Middle', 'Preferred First', 'Roster Code',
+    'Roster Code Descr', 'Pay Status', 'Job Code', 'Union Code',
+    'Sal Plan', 'Step', 'Addl Pay', 'Rate Code',
+  ];
+
+  it('parses an acting-pay and a supervisory-pay row', () => {
+    const ws = makeSheet([
+      HEADERS,
+      ['DBI', 'Dept of Building Inspection', '187518', 0, '2026-01-12',
+       'Smith', 'Jane', 'A', 'Janie', '21',
+       'SEIU 1021', 'A', '6278', '791', '1', '5', 250.5, 'ACTFLT'],
+      ['DBI', 'Dept of Building Inspection', '204417', 0, '2025-11-30',
+       'Lee', 'Robert', '', '', '21',
+       'SEIU 1021', 'A', '0922', '351', '4', 'NA', 600, 'SUPFLT'],
+    ]);
+    const rows = importPsHcmEeAddlPay(ws);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].emplId).toBe('187518');
+    expect(rows[0].rateCode).toBe('ACTFLT');
+    expect(rows[0].additionalPayAmount).toBe(250.5);
+    expect(rows[0].firstName).toBe('Jane');
+    expect(rows[0].unionCode).toBe('791');
+    expect(rows[0].payStatus).toBe('A');
+    expect(rows[0]._source).toBe('ps-hcm-ee-addl-pay');
+    expect(rows[1].rateCode).toBe('SUPFLT');
+    expect(rows[1].salaryPlan).toBe('4');
+    expect(rows[1].step).toBe('NA');
+    expect(rows[1].additionalPayAmount).toBe(600);
+  });
+
+  it('skips rows with empty employee id', () => {
+    const ws = makeSheet([
+      HEADERS,
+      ['DBI', 'DBI', '', 0, '2026-01-12', 'Subtotal', '', '', '', '21',
+       'SEIU', 'A', '6278', '791', '1', '5', 0, ''],
+      ['DBI', 'DBI', '187518', 0, '2026-01-12', 'Smith', 'Jane', '', '', '21',
+       'SEIU', 'A', '6278', '791', '1', '5', 250.5, 'ACTFLT'],
+    ]);
+    expect(importPsHcmEeAddlPay(ws)).toHaveLength(1);
+  });
+
+  it('keeps multiple records for the same employee (acting + supervisory)', () => {
+    // One employee can carry both an acting and a supervisory differential —
+    // the natural key is (emplId, emplRecord, effectiveDate, rateCode), so
+    // neither row should be deduplicated away.
+    const ws = makeSheet([
+      HEADERS,
+      ['DBI', 'DBI', '187518', 0, '2026-01-12', 'Smith', 'Jane', '', '', '21',
+       'SEIU', 'A', '6278', '791', '1', '5', 250.5, 'ACTFLT'],
+      ['DBI', 'DBI', '187518', 0, '2026-01-12', 'Smith', 'Jane', '', '', '21',
+       'SEIU', 'A', '6278', '791', '1', '5', 180, 'SUPFLT'],
+    ]);
+    const rows = importPsHcmEeAddlPay(ws);
+    expect(rows).toHaveLength(2);
+    expect(rows.map(r => r.rateCode)).toEqual(['ACTFLT', 'SUPFLT']);
+  });
+
+  it('coerces an Excel-serial Eff Date to ISO YYYY-MM-DD', () => {
+    // Excel serial 46034 → 2026-01-12. The effective date drives the
+    // additional-pay-expired check, so a raw "46034" would break date math.
+    const ws = makeSheet([
+      HEADERS,
+      ['DBI', 'DBI', '187518', 0, 46034, 'Smith', 'Jane', '', '', '21',
+       'SEIU', 'A', '6278', '791', '1', '5', 250.5, 'ACTFLT'],
+    ]);
+    expect(importPsHcmEeAddlPay(ws)[0].effectiveDate).toBe('2026-01-12');
+  });
+
+  it('returns [] for a header-only sheet', () => {
+    expect(importPsHcmEeAddlPay(makeSheet([HEADERS]))).toEqual([]);
   });
 });
 

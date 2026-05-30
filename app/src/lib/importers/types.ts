@@ -7,6 +7,7 @@ export type ReportType =
   | 'bfm-position'
   | 'bfm-non-position'
   | 'ps-hcm-pp'
+  | 'ps-hcm-ee-addl-pay'
   | 'obi-payroll'
   | 'unknown';
 
@@ -256,6 +257,45 @@ export interface PsHcmPpRow {
 }
 
 // ---------------------------------------------------------------------------
+// PS HCM EE Additional Pay  (MRG_HR_EE_ADDL_PAY query / "EE Additional Pay" tab)
+//
+// One row = one additional-pay assignment on an employee record. The two that
+// matter for the labor report are acting pay (`Rate Code = ACTFLT`) and
+// supervisory pay (`Rate Code = SUPFLT`); other rate codes (premium, etc.)
+// also appear. 18 columns (A:R) in the real PS HCM export. See
+// docs/domain/labor-report-tabs.md § Tab 9 — EE Additional Pay.
+//
+// An employee can carry several rows (e.g. an acting assignment plus a
+// supervisory differential), so the natural key is
+// `(emplId, emplRecord, effectiveDate, rateCode)` — never emplId alone.
+// ---------------------------------------------------------------------------
+
+export interface PsHcmEeAddlPayRow {
+  _source: 'ps-hcm-ee-addl-pay';
+  departmentGroupCode: string;  // A  "Department" — dept group code (DBI / CPC)
+  departmentTitle: string;      // B  "Dept Title"
+  emplId: string;               // C  "Emplid" — employee receiving the additional pay
+  emplRecord: number;           // D  "Empl Record" — PS HCM employee-record # (0 = primary)
+  effectiveDate: string;        // E  "Eff Date" — additional-pay effective date (ISO)
+  lastName: string;             // F  "Last"
+  firstName: string;            // G  "First Name"
+  middleName: string;           // H  "Middle"
+  preferredFirstName: string;   // I  "Preferred First"
+  rosterCode: string;           // J  "Roster Code"
+  rosterDescription: string;    // K  "Roster Code Descr"
+  payStatus: string;            // L  "Pay Status" — "A" = active
+  jobCode: string;              // M  "Job Code"
+  unionCode: string;            // N  "Union Code" — bargaining unit (351 / 790 / ...)
+  salaryPlan: string;           // O  "Sal Plan" — 4 = MCCP range, 1 = SEIU step, ...
+  step: string;                 // P  "Step" — step within plan ("NA" for MCCP)
+  /** Q "Addl Pay" — per-pay-period dollar amount of the differential. */
+  additionalPayAmount: number;
+  /** R "Rate Code" — "ACTFLT" (acting) / "SUPFLT" (supervisory) / other. */
+  rateCode: string;
+  _row: number;
+}
+
+// ---------------------------------------------------------------------------
 // OBI BI Payroll  ("Payroll Detail" CSV / "BI Payroll" sheet in Labor Report)
 //
 // Per-pay-period rows — NOT a YTD summary.
@@ -361,4 +401,5 @@ export type ImportedRow =
   | BfmPositionRow
   | BfmNonPositionRow
   | PsHcmPpRow
+  | PsHcmEeAddlPayRow
   | ObiPayrollRow;
