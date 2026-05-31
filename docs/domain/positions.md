@@ -53,6 +53,12 @@ When `Vice 1` is populated and ≠ `Current Employee`, the node should indicate 
 | `Budget Department Code 1`, `Budget Department Description 1` | Budgeted department |
 | `Split Funded` | Yes/No |
 
+### FTE & substitution (why a position is at most 1.0 FTE)
+
+A budgeted position is **at most 1.0 FTE** — you cannot place multiple PCS employees on one position, so a position's FTE is 1.0 (or its budgeted fraction) on both the PS HCM and BFM sides by construction. An HCM-vs-BFM FTE *mismatch* is therefore not a meaningful data-quality signal; the old **QR-004** "FTE mismatch" rule was removed (S58).
+
+A person on **leave still occupies their position.** While they are out, a **Category 17 Temporary Exempt** substitute can be placed on the **same** position until the original employee returns (see Cat 16/17/18 rules and Temporary Exchange). Employees on leave are *usually* moved to a special "on leave" roster managed by HR — but **not always**, so the roster alone does not reliably detect a leave.
+
 ### Compensation (Internal Management audience only)
 | Field | Notes |
 |---|---|

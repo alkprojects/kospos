@@ -3,7 +3,6 @@ import type { ImportedRow } from '../importers/types';
 import type { BfmPositionRow, PsHcmPpRow, ObiPayrollRow, PsHcmEeAddlPayRow } from '../importers/types';
 import { positionInBfmNotHcm } from './rules/position-in-bfm-not-hcm';
 import { payrollExceedsBudget } from './rules/payroll-exceeds-budget';
-import { hcmFteBfmMismatch } from './rules/hcm-fte-bfm-mismatch';
 import { positionInHcmNotBfm } from './rules/position-in-hcm-not-bfm';
 import { additionalPayOrphan } from './rules/additional-pay-orphan';
 import { additionalPayActingSupervisoryConflict } from './rules/additional-pay-acting-supervisory-conflict';
@@ -256,44 +255,6 @@ describe('QR-003 payrollExceedsBudget', () => {
     const issues = payrollExceedsBudget.check(records);
     expect(issues).toHaveLength(1);
     expect(issues[0].positionNumber).toBe('10001'); // original OBI form preserved
-  });
-});
-
-// ---------------------------------------------------------------------------
-// QR-004: FTE mismatch
-// ---------------------------------------------------------------------------
-
-describe('QR-004 hcmFteBfmMismatch', () => {
-  it('fires when FTE values differ', () => {
-    const records: ImportedRow[] = [
-      bfmPos({ fte: 1 }),
-      hcmPos({ fte: 0.5 }),
-    ];
-    const issues = hcmFteBfmMismatch.check(records);
-    expect(issues).toHaveLength(1);
-    expect(issues[0].ruleId).toBe('QR-004');
-  });
-
-  it('does not fire when FTE matches', () => {
-    const records: ImportedRow[] = [bfmPos({ fte: 1 }), hcmPos({ fte: 1 })];
-    expect(hcmFteBfmMismatch.check(records)).toHaveLength(0);
-  });
-
-  // Regression (S58): zero-padding must not break the FTE join either way.
-  it('does not flag a false mismatch when FTE agrees but padding differs', () => {
-    const records: ImportedRow[] = [
-      bfmPos({ positionNumber: '00010001', fte: 1 }),
-      hcmPos({ positionNumber: '10001', fte: 1 }),
-    ];
-    expect(hcmFteBfmMismatch.check(records)).toHaveLength(0);
-  });
-
-  it('still detects a real FTE mismatch across zero-padding', () => {
-    const records: ImportedRow[] = [
-      bfmPos({ positionNumber: '00010001', fte: 1 }),
-      hcmPos({ positionNumber: '10001', fte: 0.5 }),
-    ];
-    expect(hcmFteBfmMismatch.check(records)).toHaveLength(1);
   });
 });
 
