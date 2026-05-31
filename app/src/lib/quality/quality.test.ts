@@ -496,10 +496,10 @@ describe('QR-008 findSupervisoryOwed (supervisory differential owed)', () => {
 // ---------------------------------------------------------------------------
 
 describe('QR-009 additionalPayActingOverlap', () => {
-  it('flags an employee with 2+ active ACTFLT assignments', () => {
+  it('flags an employee with active ACTFLT on 2+ distinct employee records', () => {
     const issues = additionalPayActingOverlap.check([
-      eeAddl({ emplId: '187518', rateCode: 'ACTFLT', effectiveDate: '2026-01-12', _row: 3 }),
-      eeAddl({ emplId: '187518', rateCode: 'ACTFLT', effectiveDate: '2026-03-01', _row: 7 }),
+      eeAddl({ emplId: '187518', emplRecord: 0, rateCode: 'ACTFLT', _row: 3 }),
+      eeAddl({ emplId: '187518', emplRecord: 1, rateCode: 'ACTFLT', _row: 7 }),
     ]);
     expect(issues).toHaveLength(1);
     expect(issues[0].ruleId).toBe('QR-009');
@@ -508,23 +508,33 @@ describe('QR-009 additionalPayActingOverlap', () => {
     expect(issues[0].sourceRows).toEqual([3, 7]);
   });
 
+  // Regression (S58): the EE Additional Pay export is effective-dated, so ONE
+  // ongoing assignment appears as several rows on the SAME employee record.
+  // That is the history of a single assignment, not concurrent acting.
+  it('does NOT flag effective-dated history of one assignment (same record)', () => {
+    expect(additionalPayActingOverlap.check([
+      eeAddl({ emplId: '187518', emplRecord: 0, rateCode: 'ACTFLT', effectiveDate: '2026-01-12', _row: 3 }),
+      eeAddl({ emplId: '187518', emplRecord: 0, rateCode: 'ACTFLT', effectiveDate: '2026-03-01', _row: 7 }),
+    ])).toHaveLength(0);
+  });
+
   it('does not flag a single acting assignment', () => {
     expect(additionalPayActingOverlap.check([
       eeAddl({ emplId: '187518', rateCode: 'ACTFLT' }),
     ])).toHaveLength(0);
   });
 
-  it('ignores inactive ACTFLT rows when counting', () => {
+  it('ignores inactive ACTFLT rows (an inactive record is not a 2nd concurrent assignment)', () => {
     expect(additionalPayActingOverlap.check([
-      eeAddl({ emplId: '187518', rateCode: 'ACTFLT', payStatus: 'A', effectiveDate: '2026-01-12' }),
-      eeAddl({ emplId: '187518', rateCode: 'ACTFLT', payStatus: 'I', effectiveDate: '2026-03-01' }),
+      eeAddl({ emplId: '187518', emplRecord: 0, rateCode: 'ACTFLT', payStatus: 'A' }),
+      eeAddl({ emplId: '187518', emplRecord: 1, rateCode: 'ACTFLT', payStatus: 'I' }),
     ])).toHaveLength(0);
   });
 
   it('does not count supervisory rows toward the acting overlap', () => {
     expect(additionalPayActingOverlap.check([
-      eeAddl({ emplId: '187518', rateCode: 'ACTFLT', effectiveDate: '2026-01-12' }),
-      eeAddl({ emplId: '187518', rateCode: 'SUPFLT', effectiveDate: '2026-03-01' }),
+      eeAddl({ emplId: '187518', emplRecord: 0, rateCode: 'ACTFLT' }),
+      eeAddl({ emplId: '187518', emplRecord: 1, rateCode: 'SUPFLT' }),
     ])).toHaveLength(0);
   });
 

@@ -2414,11 +2414,15 @@ weren't guessed; each needs a domain answer before it's safe to build:
    **no expected-end-date column** (18 cols A:R). Where should the expected
    end date come from — a KosPos user-input field, the P&P Cat 17/18 TX
    expired date, or is "expired acting pay" simply not detectable in v1?
-4. **Acting-overlap grain.** The doc's `additional-pay-acting-overlap` is
-   "same **position** has multiple concurrent ACTFLT" — that needs the Q1
-   join. From the source alone I can only see "same **employee** has multiple
-   active ACTFLT rows." Is the employee-level overlap worth flagging on its
-   own, or do we strictly want the position-level one (gated on Q1)?
+4. **Acting-overlap grain.** ✅ **Resolved (Alex, S58):** the grain is
+   **per-employee** — one person holding two acting assignments at once,
+   evidenced by either (a) the employee on 2+ distinct acting rows in the EE
+   Additional Pay query, or (b) the employee in `Position Used For Description`
+   for 2+ position numbers. **QR-009 now collapses the EE export's
+   effective-date history by employee record** (the export is effective-dated,
+   so one ongoing assignment otherwise shows as several rows and fired falsely)
+   and flags only 2+ distinct active records. Signal (b) — the position-side
+   cross-check — is a possible complement, not yet wired in.
 5. **Annualized cost.** Should the source tab / Position panel show an
    annualized differential (per-PP × PPs-remaining)? That's a COLA-aware
    **projection**, so it's parked for the projection-engine session you want
