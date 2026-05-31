@@ -66,7 +66,18 @@ Then pick the next lever:
   C. QR-010 additional-pay-expired (manual end-date store), OR wire the PDF cover-sheet fetch to the DHR worker.
   D. Scaling Stage 2 (its own Phase), or CH batches 5/7/8/9 (supervised).
 
-If I'm away: #210 sign-off + A's B1–B5 + B's mechanism all need me — don't start those blind. Safe autonomous fills: C (QR-010 or PDF/worker wiring) or a supervised CH batch.
+Outstanding questions for me to answer (these gate the picks above):
+  - #210 Issues redesign — approve as-is, or what tweaks? (sign-off)
+  - Projection engine (A) — B1-B5 in docs/proposals/s55-projection-engine.md:
+      B1. Does the straight-line pace become COLA-weighted (is "COLA-aware by default" satisfied by the salary path alone, or weight by partial-period)?
+      B2. Default projection method per bucket — incl. Premium/PREMM (keep OT's BN8/BN6 gross-up)?
+      B3. Attrition (9993) — single hand-keyed rate (v1) or prior-FY-derived; is per-dept-group granularity enough?
+      B4. Step savings (STEPM) — model merit-step events, or a uniform rate? Is the trend chart worth it?
+      B5. What surfaces first — special-class cards first, OPS pages second? Agreed?
+  - Cutover finish (B) — canonical URL: kospos.pages.dev or a custom domain? Keep github.io as a mirror, or redirect it away?
+  - QR-010 expired-pay (C) — where should the expired check run, since it needs user-input end-dates the standard runRules(records) pipeline doesn't pass?
+
+If I'm away: #210 sign-off + A's B1-B5 + B's mechanism all need me — don't start those blind. Safe autonomous fills: C (QR-010 or PDF/worker wiring) or a supervised CH batch.
 
 Hard constraints: branch each PR from origin/main BEFORE editing; one logical change per PR; npm test stays green (1000); npm run build before any app PR; merge gh pr merge --squash (skip --delete-branch); fast-forward main + sync the main worktree after each merge. UI changes get browser-verified + my aesthetic sign-off before merge. Per ADR-017: full close audit only for a milestone — SESSION_LOG always gets at least a short entry.
 
