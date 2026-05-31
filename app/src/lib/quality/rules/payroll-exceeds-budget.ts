@@ -1,26 +1,38 @@
 /**
- * QR-003: Total OBI payroll expenditure for a position exceeds its BFM budgeted salary.
+ * QR-003: OBI base salary for a position exceeds its BFM budgeted salary.
  *
- * Sums all Balance Amount rows in OBI for each Position Identifier, then compares
- * against the BFM budgeted salary. Flags positions where total > budget × 1.05
- * (5% buffer for rounding and mid-year step increases).
+ * Sums BASE-PAY Balance Amount rows in OBI (regular pay — earnings code WKP) per
+ * Position Identifier, then compares against the BFM budgeted salary. Premiums,
+ * overtime, and other non-base earnings are excluded so it is a base-to-base
+ * comparison (BFM budgets base salary; premiums / OT are budgeted separately).
+ * Flags positions where base pay > budget × 1.05 (5% buffer for rounding and
+ * mid-year step increases).
  *
- * OBI rows are per-period, so summing gives the full-year expenditure to date.
+ * OBI rows are per-period, so summing gives base pay to date across loaded PPs.
  */
 
 import type { QualityRule, Issue } from '../types';
 import type { ImportedRow } from '../../importers/types';
 import { normalizePositionKey } from '../../chartfields/resolve';
 
+/**
+ * Earnings codes that count as base salary for the budget comparison. BFM
+ * budgets base salary, so QR-003 compares like-for-like and ignores premiums /
+ * overtime / one-time pay. `WKP` = Regular Biweekly Pay. (Per Alex, S58: "only
+ * base salary / WKP counts." Extend this set if base pay posts under other
+ * codes.)
+ */
+const BASE_PAY_EARN_CODES = new Set(['WKP']);
+
 export const payrollExceedsBudget: QualityRule = {
   id: 'QR-003',
-  description: 'OBI payroll total exceeds BFM budgeted salary',
+  description: 'OBI base salary (WKP) exceeds BFM budgeted salary',
   rationale:
-    'Total OBI payroll paid against this position (summed across all pay periods) exceeds its BFM budgeted salary by more than 5%. The position may be over budget, the budget may be stale, or pay may be posting to the wrong position.',
+    'Base salary (regular pay, earnings code WKP) paid against this position — summed across loaded pay periods — exceeds its BFM budgeted salary by more than 5%. Premiums, overtime, and other non-base earnings are excluded so the comparison is base-to-base. The position may be over budget, the budget may be stale, or base pay may be posting to the wrong position.',
   fix:
-    'Reconcile the OBI charges against the budget. Look for mis-coded earnings, an unbudgeted step or premium, or a budget that needs a supplemental.',
+    'Reconcile the base-salary charges against the budget. Look for an unbudgeted step increase, base pay mis-coded to the wrong position, or a budget that needs a supplemental.',
   citations: [
-    { label: 'Cross-system reconciliation: OBI Payroll Balance Amount vs BFM budgeted salary (5% tolerance)' },
+    { label: 'Cross-system reconciliation: OBI base salary (WKP) vs BFM budgeted salary (5% tolerance)' },
   ],
   sourceTabs: ['labor', 'data'],
   check(records: ImportedRow[]): Issue[] {
@@ -39,6 +51,9 @@ export const payrollExceedsBudget: QualityRule = {
     const spentByPosition = new Map<string, { total: number; rows: number[]; display: string }>();
     for (const r of records) {
       if (r._source !== 'obi-payroll') continue;
+      // Base salary only — exclude premiums / overtime / one-time pay so the
+      // comparison is base-to-base against the budgeted salary.
+      if (!BASE_PAY_EARN_CODES.has(r.earningsCode.trim().toUpperCase())) continue;
       const key = normalizePositionKey(r.positionIdentifier);
       if (!key) continue;
       const entry = spentByPosition.get(key) ?? { total: 0, rows: [], display: r.positionIdentifier };
@@ -55,7 +70,7 @@ export const payrollExceedsBudget: QualityRule = {
         issues.push({
           ruleId: 'QR-003',
           severity: 'error',
-          message: `Position ${spent.display}: payroll total $${spent.total.toLocaleString()} exceeds budget $${budget.toLocaleString()}`,
+          message: `Position ${spent.display}: base salary $${spent.total.toLocaleString()} exceeds budget $${budget.toLocaleString()}`,
           positionNumber: spent.display,
           sourceRows: spent.rows,
         });

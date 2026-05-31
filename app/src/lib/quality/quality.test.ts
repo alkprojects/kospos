@@ -256,6 +256,26 @@ describe('QR-003 payrollExceedsBudget', () => {
     expect(issues).toHaveLength(1);
     expect(issues[0].positionNumber).toBe('10001'); // original OBI form preserved
   });
+
+  // S58: only base salary (WKP) counts toward the budget comparison; premiums /
+  // overtime are excluded so it is a base-to-base check.
+  it('excludes non-base earnings (overtime) from the budget comparison', () => {
+    const records: ImportedRow[] = [
+      bfmPos({ budgetedSalary: 100000 }),
+      obiRow({ earningsCode: 'WKP', balanceAmount: 90000 }),           // base — within budget
+      obiRow({ earningsCode: 'OTP', balanceAmount: 60000, _row: 3 }),  // overtime — must NOT count
+    ];
+    expect(payrollExceedsBudget.check(records)).toHaveLength(0);
+  });
+
+  it('flags when base salary (WKP) alone exceeds budget, ignoring premium padding', () => {
+    const records: ImportedRow[] = [
+      bfmPos({ budgetedSalary: 100000 }),
+      obiRow({ earningsCode: 'WKP', balanceAmount: 106000 }),          // base over budget
+      obiRow({ earningsCode: 'PRM', balanceAmount: 5000, _row: 3 }),   // premium — ignored either way
+    ];
+    expect(payrollExceedsBudget.check(records)).toHaveLength(1);
+  });
 });
 
 // ---------------------------------------------------------------------------
