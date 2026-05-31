@@ -449,6 +449,7 @@ describe('importPsHcmPp', () => {
       'Roster Code', 'Roster Code Description',
       'Combo Code', 'Combo CD DEPTID', 'Combo CD DEPT Description',
       'Latest RTF ID', 'RTF Submitted Date', 'RTF Status', 'RTF Expected Fill date',
+      'Budget Position Number',
       'Budget Position Total FTE', 'Budget Job Code 1',
       'Budget Department Code 1', 'Budget Department Description 1',
       'Vacant Date',
@@ -473,6 +474,7 @@ describe('importPsHcmPp', () => {
         '21', 'SEIU 1021',
         'CPCT1', '229240', 'CPC Citywide Planning',
         'RTF0120903', '2026-04-01', 'APPROVED', '2026-08-15',
+        '10001',
         1, '5380',
         '229000', 'Department of City Planning',
         '',
@@ -492,6 +494,7 @@ describe('importPsHcmPp', () => {
     expect(r.managerLastName).toBe('Park');
     expect(r.rtfId).toBe('RTF0120903');
     expect(r.budgetJobCode).toBe('5380');
+    expect(r.budgetPositionNumber).toBe('10001'); // col BO — equals Position # today
     expect(r.positionDivision).toBe('CPC Current Planning');
     expect(r.positionMaxHeadcount).toBe(1);
   });

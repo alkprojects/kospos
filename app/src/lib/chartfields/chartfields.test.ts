@@ -156,6 +156,7 @@ function makeHcmRow(overrides: Partial<PsHcmPpRow> = {}): PsHcmPpRow {
     budgetDepartmentCode: '',
     budgetDepartmentName: '',
     budgetJobCode: '',
+    budgetPositionNumber: '',
     fte: 1.0,
     employeeJobCode: '6321_C',
     vacantDate: '',

@@ -48,6 +48,7 @@ function row(overrides: Partial<PsHcmPpRow> = {}): PsHcmPpRow {
     budgetDepartmentCode: '232000',
     budgetDepartmentName: 'DBI Inspection Services',
     budgetJobCode: '6278',
+    budgetPositionNumber: '',
     fte: 1,
     employeeJobCode: '6278',
     vacantDate: '',

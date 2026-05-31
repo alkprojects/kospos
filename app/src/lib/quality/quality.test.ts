@@ -118,6 +118,7 @@ function hcmPos(overrides: Partial<PsHcmPpRow> = {}): PsHcmPpRow {
     budgetDepartmentCode:   '',
     budgetDepartmentName:   '',
     budgetJobCode:          '',
+    budgetPositionNumber:   '',
     fte:                    1,
     employeeJobCode:        '6278',
     vacantDate:             '',

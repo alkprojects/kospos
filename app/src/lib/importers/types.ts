@@ -252,6 +252,13 @@ export interface PsHcmPpRow {
   budgetDepartmentCode: string;
   budgetDepartmentName: string; // CC
   budgetJobCode: string;        // BU "Budget Job Code 1"
+  /**
+   * BO "Budget Position Number". Equals `positionNumber` for every position
+   * today; imported for future-proofing in case the two ever diverge (a
+   * position budgeted under a different position number). Empty when the
+   * column is absent from the export.
+   */
+  budgetPositionNumber: string;
   fte: number;                  // BR "Budget Position Total FTE"
   employeeJobCode: string;      // AD "Employee Job Code" — may differ when acting
   vacantDate: string;           // CI "Vacant Date"
