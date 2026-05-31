@@ -8,8 +8,8 @@ beforeEach(() => {
   useAppStore.getState().clearAll();
 });
 
-/** Inject issues directly — the view's job is rendering/filtering; the rules
- *  that *produce* issues are covered in quality.test.ts. */
+/** Inject issues directly — the view's job is rendering/grouping/filtering; the
+ *  rules that *produce* issues are covered in quality.test.ts. */
 function setIssues(issues: Issue[]) {
   useAppStore.setState({ issues });
 }
@@ -20,42 +20,56 @@ describe('IssuesView', () => {
     expect(screen.getByText('No issues to correct')).toBeInTheDocument();
   });
 
-  it('lists each issue message and a total chip', () => {
+  it('groups issues by type (collapsed) with a total chip; messages hidden until expanded', () => {
     setIssues([
       { ruleId: 'QR-007', severity: 'error', message: 'Both acting and supervisory pay', emplId: 'E1' },
-      { ruleId: 'QR-008', severity: 'warning', message: 'Supervisory differential owed', positionNumber: '10001' },
+      { ruleId: 'QR-012', severity: 'warning', message: 'No budgeted position', positionNumber: '10001' },
     ]);
     render(<IssuesView />);
-    // The selected (first) issue's message appears in BOTH the list row and the
-    // detail panel, so assert presence via getAllByText rather than getByText.
-    expect(screen.getAllByText('Both acting and supervisory pay').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Supervisory differential owed').length).toBeGreaterThan(0);
     expect(screen.getByText('All (2)')).toBeInTheDocument();
+    // One collapsed group header per rule (aria-expanded=false), nothing else.
+    expect(screen.getAllByRole('button', { expanded: false })).toHaveLength(2);
+    // Finding messages are not rendered until a group is expanded.
+    expect(screen.queryByText(/Both acting and supervisory pay/)).not.toBeInTheDocument();
   });
 
   it('filters to a single severity when its chip is clicked', () => {
     setIssues([
       { ruleId: 'QR-007', severity: 'error', message: 'An error issue', emplId: 'E1' },
-      { ruleId: 'QR-008', severity: 'warning', message: 'A warning issue', positionNumber: '10001' },
+      { ruleId: 'QR-012', severity: 'warning', message: 'A warning issue', positionNumber: '10001' },
     ]);
     render(<IssuesView />);
     fireEvent.click(screen.getByText('Errors (1)'));
-    expect(screen.getAllByText('An error issue').length).toBeGreaterThan(0);
-    expect(screen.queryByText('A warning issue')).not.toBeInTheDocument();
+    // Only the error group's header remains.
+    expect(screen.getAllByRole('button', { expanded: false })).toHaveLength(1);
   });
 
-  it('shows the selected rule detail and navigates from a source link', () => {
+  it('expands a group, then shows the selected finding detail and navigates from a source link', () => {
     setIssues([
       { ruleId: 'QR-007', severity: 'error', message: 'Both acting and supervisory pay', emplId: 'E1' },
     ]);
     const onNavigate = vi.fn();
     render(<IssuesView onNavigate={onNavigate} />);
+    // Expand the single group, then click its (terse) finding row to select it.
+    fireEvent.click(screen.getByRole('button', { expanded: false }));
+    fireEvent.click(screen.getByText(/Both acting and supervisory pay/));
     // The detail panel pulls rationale + citation from the real QR-007 rule.
     expect(screen.getByText('Why this matters')).toBeInTheDocument();
-    // Citation is unique by its revision date (the rationale also says "SF DHR").
     expect(screen.getByText(/rev\. 3\/21\/23/)).toBeInTheDocument();
-    // QR-007's sourceTabs include 'data' (Source Tables) — its link navigates.
     fireEvent.click(screen.getByText(/Open Source Tables/));
     expect(onNavigate).toHaveBeenCalledWith('data');
+  });
+
+  it('expands a group on click and reveals its findings', () => {
+    setIssues([
+      { ruleId: 'QR-012', severity: 'warning', message: 'No budgeted position for 10001', positionNumber: '10001' },
+      { ruleId: 'QR-012', severity: 'warning', message: 'No budgeted position for 10002', positionNumber: '10002' },
+    ]);
+    render(<IssuesView />);
+    // Collapsed: the count chip on the single group reads 2; findings hidden.
+    expect(screen.queryByText(/No budgeted position for 10001/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { expanded: false }));
+    expect(screen.getByText(/No budgeted position for 10001/)).toBeInTheDocument();
+    expect(screen.getByText(/No budgeted position for 10002/)).toBeInTheDocument();
   });
 });
