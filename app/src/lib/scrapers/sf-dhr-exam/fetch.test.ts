@@ -196,12 +196,30 @@ describe('fetchDhrExamResults — proxy fallback (concurrency:1)', () => {
   });
 });
 
-describe('fetchDhrExamResults — Worker URL backup (concurrency:1)', () => {
-  it('appends the worker URL as a last-resort proxy when set', async () => {
+describe('fetchDhrExamResults — Worker URL (preferred when set; concurrency:1)', () => {
+  it('tries the configured worker FIRST, before the public proxies', async () => {
     const fetchImpl = vi.fn();
-    // First 3 proxies fail; worker succeeds
-    fetchImpl.mockResolvedValueOnce(makeResponse('', false, 500));
-    fetchImpl.mockResolvedValueOnce(makeResponse('', false, 500));
+    // The worker (now the first proxy) succeeds immediately.
+    fetchImpl.mockResolvedValueOnce(makeResponse(buildPageHtml([
+      { postDate: 'May 14, 2026', listId: 'L1', jobCode: '0932' },
+    ])));
+    fetchImpl.mockResolvedValueOnce(makeResponse(buildPageHtml([])));
+
+    const result = await fetchDhrExamResults({
+      fetchImpl,
+      pageDelayMs: 0,
+      concurrency: 1,
+      workerUrl: 'https://my-worker.example.workers.dev',
+    });
+    expect(result).toHaveLength(1);
+    // The FIRST call goes to the worker (preferred), not a public proxy.
+    expect(fetchImpl.mock.calls[0][0]).toContain('my-worker.example.workers.dev');
+    expect(fetchImpl.mock.calls[0][0]).toContain('url=');
+  });
+
+  it('falls back to the public proxies when the worker fails', async () => {
+    const fetchImpl = vi.fn();
+    // Worker (first) fails; the next proxy (codetabs) succeeds.
     fetchImpl.mockResolvedValueOnce(makeResponse('', false, 500));
     fetchImpl.mockResolvedValueOnce(makeResponse(buildPageHtml([
       { postDate: 'May 14, 2026', listId: 'L1', jobCode: '0932' },
@@ -215,9 +233,9 @@ describe('fetchDhrExamResults — Worker URL backup (concurrency:1)', () => {
       workerUrl: 'https://my-worker.example.workers.dev',
     });
     expect(result).toHaveLength(1);
-    // The 4th call (after 3 default proxies failed) went to the worker
-    expect(fetchImpl.mock.calls[3][0]).toContain('my-worker.example.workers.dev');
-    expect(fetchImpl.mock.calls[3][0]).toContain('url=');
+    // First call = worker (failed); second = the first public proxy (codetabs).
+    expect(fetchImpl.mock.calls[0][0]).toContain('my-worker.example.workers.dev');
+    expect(fetchImpl.mock.calls[1][0]).toContain('codetabs.com');
   });
 
   it('handles worker URLs that already have a query string', async () => {
