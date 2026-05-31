@@ -9,6 +9,7 @@ import { additionalPayActingSupervisoryConflict } from './rules/additional-pay-a
 import { findSupervisoryOwed } from './rules/additional-pay-supervisory-owed';
 import { additionalPayActingOverlap } from './rules/additional-pay-acting-overlap';
 import { positionDeptNotBudgetDept } from './rules/position-dept-not-budget-dept';
+import { multipleIncumbentsPerPosition } from './rules/multiple-incumbents-per-position';
 import { payrollWithoutBudgetedPosition } from './rules/payroll-without-budgeted-position';
 import { ALL_RULES } from './index';
 
@@ -704,6 +705,60 @@ describe('QR-012 payrollWithoutBudgetedPosition', () => {
     ]);
     expect(issues).toHaveLength(1);
     expect(issues[0].positionNumber).toBe('88888');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// QR-013 multipleIncumbentsPerPosition — 2+ distinct current incumbents
+// ---------------------------------------------------------------------------
+
+describe('QR-013 multipleIncumbentsPerPosition', () => {
+  it('flags a position with two distinct current incumbents', () => {
+    const issues = multipleIncumbentsPerPosition.check([
+      hcmPos({ positionNumber: '10001', emplId: 'E1', employeeName: 'Smith, A.' }),
+      hcmPos({ positionNumber: '10001', emplId: 'E2', employeeName: 'Jones, B.' }),
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].ruleId).toBe('QR-013');
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].positionNumber).toBe('10001');
+    expect(issues[0].message).toContain('E1');
+    expect(issues[0].message).toContain('E2');
+  });
+
+  it('does not flag a single incumbent repeated across rows (same emplId)', () => {
+    expect(multipleIncumbentsPerPosition.check([
+      hcmPos({ positionNumber: '10001', emplId: 'E1' }),
+      hcmPos({ positionNumber: '10001', emplId: 'E1' }),
+    ])).toHaveLength(0);
+  });
+
+  it('does not flag a vacant position (blank incumbent rows)', () => {
+    expect(multipleIncumbentsPerPosition.check([
+      hcmPos({ positionNumber: '10001', emplId: '' }),
+      hcmPos({ positionNumber: '10001', emplId: '' }),
+    ])).toHaveLength(0);
+  });
+
+  it('does not conflate incumbents across different positions', () => {
+    expect(multipleIncumbentsPerPosition.check([
+      hcmPos({ positionNumber: '10001', emplId: 'E1' }),
+      hcmPos({ positionNumber: '10002', emplId: 'E2' }),
+    ])).toHaveLength(0);
+  });
+
+  it('includes the max headcount in the message when present', () => {
+    const issues = multipleIncumbentsPerPosition.check([
+      hcmPos({ positionNumber: '10001', emplId: 'E1', positionMaxHeadcount: 7 }),
+      hcmPos({ positionNumber: '10001', emplId: 'E2', positionMaxHeadcount: 7 }),
+    ]);
+    expect(issues[0].message).toMatch(/headcount 7/i);
+  });
+
+  it('ignores non-HCM rows', () => {
+    expect(multipleIncumbentsPerPosition.check([
+      bfmPos({ positionNumber: '10001' }),
+    ])).toHaveLength(0);
   });
 });
 
