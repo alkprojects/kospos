@@ -658,6 +658,27 @@ describe('QR-012 payrollWithoutBudgetedPosition', () => {
       obiRow({ positionIdentifier: '10001', balanceAmount: 5000 }),
     ])).toHaveLength(0);
   });
+
+  // S58 option B: only flag positions still paid in the LATEST pay period.
+  // Historical-only spend on a since-inactivated temp position is expected.
+  it('does NOT flag historical-only spend on a position absent from BFM/HCM', () => {
+    expect(payrollWithoutBudgetedPosition.check([
+      bfmPos({ positionNumber: '10001' }),
+      obiRow({ positionIdentifier: '10001', balanceAmount: 5000, earningPeriodEnd: '2024-01-26' }),
+      // 77777 is absent but paid only in an EARLIER period → not active → skip
+      obiRow({ positionIdentifier: '77777', balanceAmount: 5000, earningPeriodEnd: '2024-01-12', _row: 3 }),
+    ])).toHaveLength(0);
+  });
+
+  it('flags a position paid in the latest pay period but absent from BFM/HCM', () => {
+    const issues = payrollWithoutBudgetedPosition.check([
+      bfmPos({ positionNumber: '10001' }),
+      obiRow({ positionIdentifier: '10001', balanceAmount: 5000, earningPeriodEnd: '2024-01-26' }),
+      obiRow({ positionIdentifier: '88888', balanceAmount: 5000, earningPeriodEnd: '2024-01-26', _row: 3 }),
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].positionNumber).toBe('88888');
+  });
 });
 
 // ---------------------------------------------------------------------------
