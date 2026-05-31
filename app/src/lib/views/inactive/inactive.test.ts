@@ -69,7 +69,7 @@ function pp(positionNumber: string, partial: Partial<PsHcmPpRow> = {}): PsHcmPpR
     comboCode: '', comboDepartmentCode: '', comboDepartmentName: '',
     rtfId: '', rtfStatus: '', rtfSubmittedDate: '', rtfExpectedFillDate: '',
     budgetDepartmentCode: '229000', budgetDepartmentName: 'BUILDING INSPECTION',
-    budgetJobCode: '6278', fte: 1, employeeJobCode: '6278', vacantDate: '',
+    budgetJobCode: '6278', budgetPositionNumber: '', fte: 1, employeeJobCode: '6278', vacantDate: '',
     _row: 1,
     ...partial,
   };

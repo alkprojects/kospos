@@ -83,7 +83,8 @@ export function importPsHcmPp(ws: WorkSheet, headerRow = 0): PsHcmPpRow[] {
   const iRtfSubmit  = col('rtf submitted date');
   const iRtfStatus  = col('rtf status');
   const iRtfDate    = col('rtf expected fill date');
-  // Budget (BR, BU, CB, CC)
+  // Budget (BO, BR, BU, CB, CC)
+  const iBudgetPos  = col('budget position number');
   const iFte        = col('budget position total fte');
   const iBudgetJC   = col('budget job code 1');
   const iBudgetDept = col('budget department code 1');
@@ -144,6 +145,7 @@ export function importPsHcmPp(ws: WorkSheet, headerRow = 0): PsHcmPpRow[] {
       budgetDepartmentCode:   str(get(r, iBudgetDept)),
       budgetDepartmentName:   str(get(r, iBudgetDeptN)),
       budgetJobCode:          str(get(r, iBudgetJC)),
+      budgetPositionNumber:   str(get(r, iBudgetPos)),
       fte:                    num(get(r, iFte)),
       employeeJobCode:        str(get(r, iEmpJC)),
       vacantDate:             str(get(r, iVacantDate)),
