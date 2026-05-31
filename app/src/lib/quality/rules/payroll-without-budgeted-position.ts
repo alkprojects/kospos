@@ -16,6 +16,7 @@
 
 import type { QualityRule, Issue } from '../types';
 import type { ImportedRow } from '../../importers/types';
+import { normalizePositionKey } from '../../chartfields/resolve';
 
 export const payrollWithoutBudgetedPosition: QualityRule = {
   id: 'QR-012',
@@ -36,43 +37,48 @@ export const payrollWithoutBudgetedPosition: QualityRule = {
     for (const r of records) {
       if (r._source === 'bfm-position') {
         hasBfm = true;
-        if (r.positionNumber) known.add(r.positionNumber);
+        const key = normalizePositionKey(r.positionNumber);
+        if (key) known.add(key);
       } else if (r._source === 'ps-hcm-pp') {
         hasHcm = true;
-        if (r.positionNumber) known.add(r.positionNumber);
+        const key = normalizePositionKey(r.positionNumber);
+        if (key) known.add(key);
       }
     }
     // Need a reference source; otherwise "in neither" is meaningless.
     if (!hasBfm && !hasHcm) return [];
 
     // Sum OBI spend per position identifier, tracking source rows + a name.
-    const byPos = new Map<string, { total: number; rows: number[]; name: string }>();
+    // Join on the normalized key so a zero-padded BFM/HCM number matches the
+    // unpadded OBI identifier; keep the original OBI form for display.
+    const byPos = new Map<string, { total: number; rows: number[]; name: string; display: string }>();
     let hasObi = false;
     for (const r of records) {
       if (r._source !== 'obi-payroll') continue;
       hasObi = true;
       const posId = (r.positionIdentifier ?? '').trim();
       if (!posId) continue; // non-position earnings
-      const entry = byPos.get(posId) ?? { total: 0, rows: [], name: '' };
+      const key = normalizePositionKey(posId);
+      const entry = byPos.get(key) ?? { total: 0, rows: [], name: '', display: posId };
       entry.total += r.balanceAmount;
       entry.rows.push(r._row);
       if (!entry.name && r.personFullName) entry.name = r.personFullName;
-      byPos.set(posId, entry);
+      byPos.set(key, entry);
     }
     if (!hasObi) return [];
 
     const issues: Issue[] = [];
-    for (const [posId, entry] of byPos) {
-      if (known.has(posId)) continue;
+    for (const [key, entry] of byPos) {
+      if (known.has(key)) continue;
       if (Math.abs(entry.total) < 0.005) continue; // net-zero wash / correction
       const who = entry.name ? ` (${entry.name})` : '';
       issues.push({
         ruleId: 'QR-012',
         severity: 'warning',
         message:
-          `Position ${posId}${who} has $${entry.total.toLocaleString('en-US', { maximumFractionDigits: 0 })} ` +
+          `Position ${entry.display}${who} has $${entry.total.toLocaleString('en-US', { maximumFractionDigits: 0 })} ` +
           `of OBI payroll but no BFM budget line or PS HCM position record - no budgeted position identified for this spend.`,
-        positionNumber: posId,
+        positionNumber: entry.display,
         sourceRows: entry.rows,
       });
     }

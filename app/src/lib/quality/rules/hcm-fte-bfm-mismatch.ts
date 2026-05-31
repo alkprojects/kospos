@@ -7,6 +7,7 @@
 
 import type { QualityRule, Issue } from '../types';
 import type { ImportedRow } from '../../importers/types';
+import { normalizePositionKey } from '../../chartfields/resolve';
 
 export const hcmFteBfmMismatch: QualityRule = {
   id: 'QR-004',
@@ -23,7 +24,7 @@ export const hcmFteBfmMismatch: QualityRule = {
     const bfmFte = new Map<string, { fte: number; row: number }>();
     for (const r of records) {
       if (r._source === 'bfm-position') {
-        bfmFte.set(r.positionNumber, { fte: r.fte, row: r._row });
+        bfmFte.set(normalizePositionKey(r.positionNumber), { fte: r.fte, row: r._row });
       }
     }
 
@@ -32,7 +33,7 @@ export const hcmFteBfmMismatch: QualityRule = {
     const issues: Issue[] = [];
     for (const r of records) {
       if (r._source !== 'ps-hcm-pp') continue;
-      const bfm = bfmFte.get(r.positionNumber);
+      const bfm = bfmFte.get(normalizePositionKey(r.positionNumber));
       if (!bfm) continue;
       if (Math.abs(r.fte - bfm.fte) > 0.001) {
         issues.push({

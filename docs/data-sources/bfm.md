@@ -80,6 +80,25 @@ KosPos importer should preserve **all budget-layer columns** (Original, Base,
 Department, Mayor, Committee, Technical Adjustment, Board) so variance views
 can compare layers, and default queries should use Board-adopted.
 
+### Position-number format — normalize before joining across systems
+
+BFM carries `By HCM Position#` as **zero-padded text** — SF PeopleSoft position
+numbers are 8 digits, e.g. `00304335`, `01010593`. PS HCM P&P (`Position
+Number`) and OBI Payroll (`Position Identifier`) store the *same* numbers
+**unpadded / numeric** (`304335`, `1010593`), because Excel reads a numeric
+column and drops the leading zeros. A raw string compare therefore never
+matches the same logical position across systems.
+
+Any cross-system join on position number **must normalize first** (trim + strip
+leading zeros). The canonical helper is `normalizePositionKey()` in
+[`app/src/lib/chartfields/resolve.ts`](../../app/src/lib/chartfields/resolve.ts);
+the chartfield join and every cross-system data-quality rule
+(QR-001/003/004/005/012) use it, while the *displayed* position number keeps the
+original source form. **S58 fix:** before this was applied to the quality rules,
+they emitted false `exists in BFM but not in PS HCM` / `active in HCM but no BFM
+budget line` findings for positions that were present in both — the zero-padding
+was the only difference.
+
 ## Open uncertainties
 
 - Whether BFM offers any read-only API or scheduled export. The standard path is

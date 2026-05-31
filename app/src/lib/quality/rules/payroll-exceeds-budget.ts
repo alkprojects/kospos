@@ -10,6 +10,7 @@
 
 import type { QualityRule, Issue } from '../types';
 import type { ImportedRow } from '../../importers/types';
+import { normalizePositionKey } from '../../chartfields/resolve';
 
 export const payrollExceedsBudget: QualityRule = {
   id: 'QR-003',
@@ -26,32 +27,36 @@ export const payrollExceedsBudget: QualityRule = {
     const budgetByPosition = new Map<string, number>();
     for (const r of records) {
       if (r._source === 'bfm-position' && r.positionNumber) {
-        budgetByPosition.set(r.positionNumber, r.budgetedSalary);
+        budgetByPosition.set(normalizePositionKey(r.positionNumber), r.budgetedSalary);
       }
     }
 
     if (budgetByPosition.size === 0) return [];
 
-    // Sum balance amounts per position
-    const spentByPosition = new Map<string, { total: number; rows: number[] }>();
+    // Sum balance amounts per position. Join on the normalized key so a
+    // zero-padded BFM number matches the unpadded OBI identifier; keep the
+    // original OBI form for display.
+    const spentByPosition = new Map<string, { total: number; rows: number[]; display: string }>();
     for (const r of records) {
       if (r._source !== 'obi-payroll') continue;
-      const entry = spentByPosition.get(r.positionIdentifier) ?? { total: 0, rows: [] };
+      const key = normalizePositionKey(r.positionIdentifier);
+      if (!key) continue;
+      const entry = spentByPosition.get(key) ?? { total: 0, rows: [], display: r.positionIdentifier };
       entry.total += r.balanceAmount;
       entry.rows.push(r._row);
-      spentByPosition.set(r.positionIdentifier, entry);
+      spentByPosition.set(key, entry);
     }
 
     const issues: Issue[] = [];
-    for (const [posId, spent] of spentByPosition) {
-      const budget = budgetByPosition.get(posId);
+    for (const [posKey, spent] of spentByPosition) {
+      const budget = budgetByPosition.get(posKey);
       if (budget == null || budget === 0) continue;
       if (spent.total > budget * 1.05) {
         issues.push({
           ruleId: 'QR-003',
           severity: 'error',
-          message: `Position ${posId}: payroll total $${spent.total.toLocaleString()} exceeds budget $${budget.toLocaleString()}`,
-          positionNumber: posId,
+          message: `Position ${spent.display}: payroll total $${spent.total.toLocaleString()} exceeds budget $${budget.toLocaleString()}`,
+          positionNumber: spent.display,
           sourceRows: spent.rows,
         });
       }
