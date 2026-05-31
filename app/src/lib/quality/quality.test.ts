@@ -10,6 +10,12 @@ import { findSupervisoryOwed } from './rules/additional-pay-supervisory-owed';
 import { additionalPayActingOverlap } from './rules/additional-pay-acting-overlap';
 import { positionDeptNotBudgetDept } from './rules/position-dept-not-budget-dept';
 import { multipleIncumbentsPerPosition } from './rules/multiple-incumbents-per-position';
+import {
+  budgetEliminatedNextFy,
+  fiscalYearStartYear,
+  fiscalYearLabel,
+  nextFiscalYearLabel,
+} from './rules/budget-eliminated-next-fy';
 import { payrollWithoutBudgetedPosition } from './rules/payroll-without-budgeted-position';
 import { ALL_RULES } from './index';
 
@@ -758,6 +764,95 @@ describe('QR-013 multipleIncumbentsPerPosition', () => {
   it('ignores non-HCM rows', () => {
     expect(multipleIncumbentsPerPosition.check([
       bfmPos({ positionNumber: '10001' }),
+    ])).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// QR-014 budgetEliminatedNextFy — FILLED position with 0 FTE in next-FY budget
+// ---------------------------------------------------------------------------
+
+describe('fiscal-year helpers', () => {
+  it('maps a date to its fiscal-year start year (Jul 1 boundary)', () => {
+    expect(fiscalYearStartYear(new Date('2026-05-31T12:00:00'))).toBe(2025);
+    expect(fiscalYearStartYear(new Date('2025-07-01T12:00:00'))).toBe(2025);
+    expect(fiscalYearStartYear(new Date('2025-06-30T12:00:00'))).toBe(2024);
+  });
+
+  it('formats fiscal-year labels with a 2-digit end year', () => {
+    expect(fiscalYearLabel(2025)).toBe('FY 2025-26');
+    expect(fiscalYearLabel(2026)).toBe('FY 2026-27');
+  });
+
+  it('next FY for a date in FY 2025-26 is FY 2026-27', () => {
+    expect(nextFiscalYearLabel(new Date('2026-05-31T12:00:00'))).toBe('FY 2026-27');
+  });
+});
+
+describe('QR-014 budgetEliminatedNextFy', () => {
+  // Computed from the same clock the rule reads, so the assertions hold on any
+  // run date (the rule + the fixtures always agree on which FY is "next").
+  const NEXT_FY = nextFiscalYearLabel(new Date());
+  const CURRENT_FY = fiscalYearLabel(fiscalYearStartYear(new Date()));
+
+  it('flags a FILLED position with 0 FTE in the next-FY budget', () => {
+    const issues = budgetEliminatedNextFy.check([
+      hcmPos({ positionNumber: '10001', fillStatus: 'FILLED', emplId: 'E1', employeeName: 'Smith, A.' }),
+      bfmPos({ positionNumber: '10001', budgetByFy: { [NEXT_FY]: { Board: { fte: 0, dollars: 0 } } } }),
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].ruleId).toBe('QR-014');
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].positionNumber).toBe('10001');
+    expect(issues[0].message).toContain(NEXT_FY);
+  });
+
+  it('does not flag when the next-FY FTE is non-zero', () => {
+    expect(budgetEliminatedNextFy.check([
+      hcmPos({ positionNumber: '10001', fillStatus: 'FILLED' }),
+      bfmPos({ positionNumber: '10001', budgetByFy: { [NEXT_FY]: { Board: { fte: 1, dollars: 100000 } } } }),
+    ])).toHaveLength(0);
+  });
+
+  it('does not flag a VACANT position even at 0 next-FY FTE', () => {
+    expect(budgetEliminatedNextFy.check([
+      hcmPos({ positionNumber: '10001', fillStatus: 'VACANT', emplId: '' }),
+      bfmPos({ positionNumber: '10001', budgetByFy: { [NEXT_FY]: { Board: { fte: 0, dollars: 0 } } } }),
+    ])).toHaveLength(0);
+  });
+
+  it('produces no findings when only current-FY budget columns are loaded', () => {
+    expect(budgetEliminatedNextFy.check([
+      hcmPos({ positionNumber: '10001', fillStatus: 'FILLED' }),
+      bfmPos({ positionNumber: '10001', budgetByFy: { [CURRENT_FY]: { Board: { fte: 1, dollars: 100000 } } } }),
+    ])).toHaveLength(0);
+  });
+
+  it('joins HCM and BFM across BFM zero-padding (normalizePositionKey)', () => {
+    const issues = budgetEliminatedNextFy.check([
+      hcmPos({ positionNumber: '304335', fillStatus: 'FILLED' }),
+      bfmPos({ positionNumber: '00304335', budgetByFy: { [NEXT_FY]: { Board: { fte: 0, dollars: 0 } } } }),
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].positionNumber).toBe('304335');
+  });
+
+  it('uses the most-advanced phase (Board 0 overrides Original 1.0 → eliminated)', () => {
+    const issues = budgetEliminatedNextFy.check([
+      hcmPos({ positionNumber: '10001', fillStatus: 'FILLED' }),
+      bfmPos({
+        positionNumber: '10001',
+        budgetByFy: { [NEXT_FY]: { Original: { fte: 1, dollars: 100000 }, Board: { fte: 0, dollars: 0 } } },
+      }),
+    ]);
+    expect(issues).toHaveLength(1);
+  });
+
+  it('keeps a position off the list when any BFM line still funds it next FY', () => {
+    expect(budgetEliminatedNextFy.check([
+      hcmPos({ positionNumber: '10001', fillStatus: 'FILLED' }),
+      bfmPos({ positionNumber: '10001', budgetByFy: { [NEXT_FY]: { Board: { fte: 0, dollars: 0 } } } }),
+      bfmPos({ positionNumber: '10001', budgetByFy: { [NEXT_FY]: { Board: { fte: 0.5, dollars: 55000 } } } }),
     ])).toHaveLength(0);
   });
 });

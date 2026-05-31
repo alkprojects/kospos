@@ -9,6 +9,7 @@ export { additionalPayActingOverlap } from './rules/additional-pay-acting-overla
 export { positionDeptNotBudgetDept } from './rules/position-dept-not-budget-dept';
 export { payrollWithoutBudgetedPosition } from './rules/payroll-without-budgeted-position';
 export { multipleIncumbentsPerPosition } from './rules/multiple-incumbents-per-position';
+export { budgetEliminatedNextFy } from './rules/budget-eliminated-next-fy';
 
 import type { QualityRule } from './types';
 import { positionInBfmNotHcm } from './rules/position-in-bfm-not-hcm';
@@ -21,6 +22,7 @@ import { additionalPayActingOverlap } from './rules/additional-pay-acting-overla
 import { positionDeptNotBudgetDept } from './rules/position-dept-not-budget-dept';
 import { payrollWithoutBudgetedPosition } from './rules/payroll-without-budgeted-position';
 import { multipleIncumbentsPerPosition } from './rules/multiple-incumbents-per-position';
+import { budgetEliminatedNextFy } from './rules/budget-eliminated-next-fy';
 
 /** All active quality rules, in evaluation order. */
 export const ALL_RULES: QualityRule[] = [
@@ -34,4 +36,5 @@ export const ALL_RULES: QualityRule[] = [
   positionDeptNotBudgetDept,
   payrollWithoutBudgetedPosition,
   multipleIncumbentsPerPosition,
+  budgetEliminatedNextFy,
 ];
