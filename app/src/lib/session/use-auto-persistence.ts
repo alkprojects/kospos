@@ -48,6 +48,7 @@ import { useStaffingPlan } from '../staffing-plan';
 import { useSeparations } from '../separations';
 import { useProbations } from '../probation';
 import { usePositionNotes } from '../positions/notes';
+import { useClearedFindings } from '../quality/cleared';
 import { useScrapers } from '../scrapers/store';
 import {
   buildSessionFile,
@@ -115,6 +116,7 @@ export function restoreStoresFromPayload(file: SessionFile): void {
   usePositionNotes.getState().restoreFromSession(payload.positionNotes);
   useSeparations.getState().restoreFromSession(payload.pendingSeparations ?? []);
   useProbations.getState().restoreFromSession(payload.probations ?? []);
+  useClearedFindings.getState().restoreFromSession(payload.clearedFindings ?? []);
   useScrapers.getState().restoreFromSession({
     jobPostings: payload.jobPostings ?? [],
     jobPostingsRefreshedAt: payload.jobPostingsRefreshedAt ?? '',
@@ -135,6 +137,7 @@ export function captureCurrentSnapshot(): SessionFile {
   const seps = useSeparations.getState();
   const probs = useProbations.getState();
   const notes = usePositionNotes.getState();
+  const cleared = useClearedFindings.getState();
   const scrapers = useScrapers.getState();
   return buildSessionFile({
     loadedRows: app.loadedRows,
@@ -144,6 +147,7 @@ export function captureCurrentSnapshot(): SessionFile {
     positionNotes: notes.notes,
     pendingSeparations: seps.separations,
     probations: probs.probations,
+    clearedFindings: cleared.cleared,
     jobPostings: scrapers.jobPostings,
     jobPostingsRefreshedAt: scrapers.jobPostingsRefreshedAt,
     eligibilityLists: scrapers.eligibilityLists,
@@ -391,6 +395,7 @@ export function useAutoSessionPersistence(opts: { enabled?: boolean } = {}): Aut
       useSeparations.subscribe(() => scheduleSave('planning')),
       useProbations.subscribe(() => scheduleSave('planning')),
       usePositionNotes.subscribe(() => scheduleSave('planning')),
+      useClearedFindings.subscribe(() => scheduleSave('planning')),
       useScrapers.subscribe(() => scheduleSave('scrapers')),
     ];
 

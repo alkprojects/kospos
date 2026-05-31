@@ -2,10 +2,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { IssuesView } from './IssuesView';
 import { useAppStore } from '../../store';
+import { useClearedFindings, clearedKey } from '../../quality/cleared';
 import type { Issue } from '../../quality/types';
 
 beforeEach(() => {
   useAppStore.getState().clearAll();
+  useClearedFindings.getState().restoreFromSession([]);
 });
 
 /** Inject issues directly — the view's job is rendering/grouping/filtering; the
@@ -71,5 +73,72 @@ describe('IssuesView', () => {
     fireEvent.click(screen.getByRole('button', { expanded: false }));
     expect(screen.getByText(/No budgeted position for 10001/)).toBeInTheDocument();
     expect(screen.getByText(/No budgeted position for 10002/)).toBeInTheDocument();
+  });
+});
+
+describe('IssuesView — clear / restore (S59)', () => {
+  const ISSUES: Issue[] = [
+    { ruleId: 'QR-008', severity: 'error', message: 'Reports-to is missing', positionNumber: '500', sourceRows: [10] },
+    { ruleId: 'QR-008', severity: 'error', message: 'Reports-to is missing', positionNumber: '501', sourceRows: [11] },
+    { ruleId: 'QR-011', severity: 'warning', message: 'Combo dept equals position dept', positionNumber: '600', sourceRows: [12] },
+  ];
+
+  it('clears a whole error type via the group checkbox + required reason', () => {
+    setIssues(ISSUES);
+    render(<IssuesView />);
+
+    // All three findings are active to start.
+    expect(screen.getByText('All (3)')).toBeInTheDocument();
+
+    // Select every finding in the first group (QR-008, the two errors). The
+    // group checkbox works while the group is still collapsed.
+    fireEvent.click(screen.getAllByTitle('Select all findings in this type')[0]);
+
+    // The bulk bar appears; its confirm button is gated on a reason.
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+    expect(screen.getByText('Mark not an error')).toBeDisabled();
+
+    fireEvent.change(screen.getByPlaceholderText(/required/), {
+      target: { value: 'Commissioners on shared positions' },
+    });
+    expect(screen.getByText('Mark not an error')).not.toBeDisabled();
+    fireEvent.click(screen.getByText('Mark not an error'));
+
+    // The two QR-008 findings leave the active list; only QR-011 remains.
+    expect(screen.getByText('All (1)')).toBeInTheDocument();
+    // Both dismissals are recorded under the stable rule+position key.
+    const cleared = useClearedFindings.getState().cleared;
+    expect(cleared.size).toBe(2);
+    expect(cleared.get(clearedKey('QR-008', '500'))?.reason).toBe('Commissioners on shared positions');
+    expect(cleared.get(clearedKey('QR-008', '501'))?.reason).toBe('Commissioners on shared positions');
+  });
+
+  it('hides a pre-cleared finding from the active list and restores it', () => {
+    setIssues(ISSUES);
+    useClearedFindings.getState().setCleared(clearedKey('QR-011', '600'), 'Expected — combo by design');
+    render(<IssuesView />);
+
+    // Active count excludes the cleared QR-011 finding.
+    expect(screen.getByText('All (2)')).toBeInTheDocument();
+
+    // Open the Cleared section and restore the finding.
+    fireEvent.click(screen.getByText('Cleared'));
+    fireEvent.click(screen.getByText('Restore'));
+
+    expect(screen.getByText('All (3)')).toBeInTheDocument();
+    expect(useClearedFindings.getState().cleared.size).toBe(0);
+  });
+
+  it('selects a single finding from its detail panel', () => {
+    setIssues(ISSUES);
+    render(<IssuesView />);
+
+    // Expand the QR-011 group, then open its finding's detail.
+    fireEvent.click(screen.getByText('QR-011'));
+    fireEvent.click(screen.getByText(/Combo dept equals position dept/));
+
+    // The detail panel's "Mark not an error" checks just that finding.
+    fireEvent.click(screen.getByText('Mark not an error'));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
   });
 });
