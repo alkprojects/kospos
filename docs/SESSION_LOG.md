@@ -742,3 +742,35 @@ Alex appended **five concrete asks** to the handoff (superseding the A/B/C/D men
 - **(Optional) cosmetic cutover finish** — one canonical URL via a github.io→pages.dev redirect (runbook Step 10); its own small PR, needs the mechanism / custom-domain call.
 
 **Deferred:** QR-010 additional-pay-expired; projection engine; CH 5/7/8/9; Scaling Stage 2; wiring the PDF cover-sheet fetch to the worker.
+
+---
+
+## Session 58 — Quality-rule audit (false positives) + Issues grouped redesign (2026-05-30)
+
+Alex: "many issues you're flagging are not actually issues — let's go through error types one by one." Plus merge the open #210 and a deep dive on his workbook's `Reporting Tree` manual-correction tab. **8 PRs merged.** Tests 1000 → **1010**, build clean, live site synced.
+
+### Root cause behind the false positives
+SF position numbers are 8-digit; **BFM zero-pads them (`00304335`) while PS HCM & OBI store them numeric (`304335`)**. The cross-system rules compared raw strings, so they never matched → false "in BFM not HCM" / "in HCM not BFM". The app already had `normalizePositionKey` (chartfields/resolve) + uses it in resolve + positions/build — the **quality rules were the only consumers that skipped it**.
+
+### What shipped (8 PRs)
+- [#210](https://github.com/alkprojects/kospos/pull/210) **Issues redesign** (S57 carry) — merged after fixing a stale "conflict" (branch was behind main; no real conflicts).
+- [#215](https://github.com/alkprojects/kospos/pull/215) **normalize position-number join keys** in QR-001/003/004/005/012 (display keeps the source form). Fixed both of Alex's examples + a hidden false-NEGATIVE in QR-003/012.
+- [#216](https://github.com/alkprojects/kospos/pull/216) **remove QR-004** (HCM-vs-BFM FTE) — a position is max 1.0 FTE, not a real error class. FTE + leave/Cat-17-substitution documented in positions.md.
+- [#217](https://github.com/alkprojects/kospos/pull/217) **QR-009** — count distinct employee records, not effective-dated rows (EE export is effective-dated; one assignment showed as many rows → false double-acting).
+- [#218](https://github.com/alkprojects/kospos/pull/218) **QR-003** — base salary (WKP) only, not all earnings.
+- [#219](https://github.com/alkprojects/kospos/pull/219) **QR-006** — guidance: EE Additional Pay is the source of truth; correct the manual marker.
+- [#220](https://github.com/alkprojects/kospos/pull/220) **QR-012** — flag only positions paid in the latest pay period (option B; historical pay to inactivated temps is expected).
+- [#221](https://github.com/alkprojects/kospos/pull/221) **Issues grouped (Phase A1)** — collapsed one-row-per-type → expand → terse one-line findings → detail on right.
+
+### Reporting Tree deep dive (157 flagged rows)
+Alex's AW–BC columns are his own detectors (`Position =/= Budget`, `Filled non-TEMP TEX`, `On Leave`, `FY27 budgeted FTE`); AI–AT are manual fixes. Clusters: dept ≠ budget dept (~30); "deleted in budget" / eliminated-next-FY (22); "remove reports to" = commissioners on **shared positions** (15); "existing position not real" = HCM position absent from BFM (9 — verified QR-005 flags Tamimi + 23 others; `Budget Position # == Position #` 100% here, BFM is source of truth); "inactivate?" vacant TEMPM (~14); reassigned-in-budget (~30, → budget-dev); delete-combo (combo dept = position dept).
+
+### Rule-by-rule rulings (Alex)
+QR-004 remove ✓ · QR-009 fix ✓ · QR-003 base/WKP ✓ · QR-006 valid ✓ · QR-012 option B ✓ · QR-007 keep as error ✓ (never seen it) · **QR-008** keep but reports-to can be fictional (commissioner → BIC/Mayor placeholder); basis = grade-to-grade (top non-extended step / MCCP Range A), NOT current rates · **QR-011 redefine (Phase B):** (1) ERROR dept ≠ budget dept, (2) POSSIBLE ERROR combo dept = position dept, no exclusions — see memory `combo-code-task-profile`.
+
+### Notable
+- New memory `combo_code_task_profile.md` (GL-posting model: combo code OR task profile per dept; DBI+CPC are combo-code depts).
+- Gitignored stray hook `*.pyc` (`git add -A` slip) — added `__pycache__/`,`*.pyc` to .gitignore.
+- Build gate gotcha: `npm run build | tail` masks tsc's exit; a stale origin `node_modules` failed `tsc` on `fake-indexeddb` until `npm install` synced it. Capture `${PIPESTATUS[0]}`.
+
+**Carry-forward → SESSION_HANDOFF (Phase A2 clear/dismiss, then Phase B rules).**
