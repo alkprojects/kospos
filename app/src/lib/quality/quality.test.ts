@@ -568,28 +568,54 @@ describe('QR-009 additionalPayActingOverlap', () => {
 // ---------------------------------------------------------------------------
 
 describe('QR-011 positionDeptNotBudgetDept', () => {
-  it('fires when position department differs from budget department', () => {
+  it('flags an ERROR when position department differs from budget department', () => {
     const issues = positionDeptNotBudgetDept.check([
       hcmPos({ positionNumber: '10001', departmentCode: 'DBI', budgetDepartmentCode: 'DPW' }),
     ]);
     expect(issues).toHaveLength(1);
     expect(issues[0].ruleId).toBe('QR-011');
-    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].severity).toBe('error');
     expect(issues[0].positionNumber).toBe('10001');
     expect(issues[0].message).toContain('DBI');
     expect(issues[0].message).toContain('DPW');
   });
 
-  it('does not fire when the two departments match', () => {
+  it('does not flag a budget mismatch when the two departments match', () => {
     expect(positionDeptNotBudgetDept.check([
-      hcmPos({ departmentCode: 'DBI', budgetDepartmentCode: 'DBI' }),
+      hcmPos({ departmentCode: 'DBI', budgetDepartmentCode: 'DBI', comboDepartmentCode: '' }),
     ])).toHaveLength(0);
   });
 
-  it('does not fire when the budget department is blank (not specified)', () => {
+  it('does not flag a budget mismatch when the budget department is blank (not specified)', () => {
     expect(positionDeptNotBudgetDept.check([
-      hcmPos({ departmentCode: 'DBI', budgetDepartmentCode: '' }),
+      hcmPos({ departmentCode: 'DBI', budgetDepartmentCode: '', comboDepartmentCode: '' }),
     ])).toHaveLength(0);
+  });
+
+  it('flags a WARNING when the combo code redirects to the position’s own department', () => {
+    const issues = positionDeptNotBudgetDept.check([
+      hcmPos({ positionNumber: '10002', departmentCode: 'DBI', budgetDepartmentCode: 'DBI', comboDepartmentCode: 'DBI' }),
+    ]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].ruleId).toBe('QR-011');
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].positionNumber).toBe('10002');
+    expect(issues[0].message).toMatch(/combo/i);
+  });
+
+  it('does not flag a combo redirect to a different department', () => {
+    expect(positionDeptNotBudgetDept.check([
+      hcmPos({ departmentCode: 'DBI', budgetDepartmentCode: 'DBI', comboDepartmentCode: 'DPW' }),
+    ])).toHaveLength(0);
+  });
+
+  it('emits both findings when a position mismatches budget AND combo-redirects to its own dept', () => {
+    const issues = positionDeptNotBudgetDept.check([
+      hcmPos({ positionNumber: '10003', departmentCode: 'DBI', budgetDepartmentCode: 'DPW', comboDepartmentCode: 'DBI' }),
+    ]);
+    expect(issues).toHaveLength(2);
+    expect(issues.map(i => i.severity).sort()).toEqual(['error', 'warning']);
+    expect(issues.every(i => i.positionNumber === '10003')).toBe(true);
   });
 
   it('ignores non-HCM rows', () => {
