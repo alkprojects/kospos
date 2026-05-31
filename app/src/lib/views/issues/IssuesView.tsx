@@ -2,16 +2,17 @@
  * Issues / Corrections — a dedicated, full-page surface for everything the
  * data-quality audits flagged for review.
  *
- * Redesigned S57 (Alex's ask): instead of a wall of sentence-long cards, this
- * is a compact, clickable LIST on the left + a DETAIL PANEL on the right. Pick
- * an issue and the panel shows why it was flagged, how to fix it, the MOU/DHR
- * rule or reconciliation it cites, and "go to source" links into the tab that
- * holds the underlying data. The per-rule detail content (rationale / fix /
- * citations / sourceTabs) comes from the rule definitions (`lib/quality`), so
- * adding a rule automatically enriches its detail panel.
+ * Redesigned S58 (Alex's ask): a TWO-LEVEL list. The left column shows one
+ * collapsed row per error TYPE (rule) with its count; clicking a type expands
+ * it into a list of terse, one-line findings; clicking a finding shows its
+ * full detail on the right (why it was flagged, how to fix it, the rule it
+ * cites, and "go to source" links). This replaces the earlier flat wall of
+ * one finding per row, which buried the signal when a rule fired many times.
  *
- * Reads the same `issues` the store computes via `runRules` on import, so it
- * stays in lock-step with the inline Data Issues panel + the per-position flags.
+ * The per-rule detail content (rationale / fix / citations / sourceTabs) comes
+ * from the rule definitions (`lib/quality`). Reads the same `issues` the store
+ * computes via `runRules` on import, so it stays in lock-step with the inline
+ * Data Issues panel + the per-position flags.
  */
 
 import { useMemo, useState } from 'react';
@@ -61,11 +62,32 @@ function issueKey(i: Issue): string {
   return `${i.ruleId}|${i.positionNumber ?? ''}|${i.emplId ?? ''}|${(i.sourceRows ?? []).join(',')}`;
 }
 
+/** A short one-line label for a finding row (the full text lives in the detail
+ *  panel). Leads with the position / employee identifier, then the message. */
+function terseLine(i: Issue): string {
+  const id = i.positionNumber
+    ? `Position ${i.positionNumber}`
+    : i.emplId
+      ? `Employee ${i.emplId}`
+      : i.sourceRows && i.sourceRows.length
+        ? `Row ${i.sourceRows[0]}`
+        : '';
+  return id ? `${id} — ${i.message}` : i.message;
+}
+
+interface IssueGroup {
+  ruleId: string;
+  severity: IssueSeverity;
+  description: string;
+  issues: Issue[];
+}
+
 export function IssuesView({ onNavigate }: { onNavigate?: (tab: SourceTabId) => void }) {
   const issues = useAppStore(s => s.issues);
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
 
   const counts = useMemo(() => {
     const c: Record<IssueSeverity, number> = { error: 0, warning: 0, info: 0 };
@@ -73,36 +95,60 @@ export function IssuesView({ onNavigate }: { onNavigate?: (tab: SourceTabId) => 
     return c;
   }, [issues]);
 
-  const shown = useMemo(() => {
+  /** Filtered + searched issues, grouped by rule, groups sorted by severity. */
+  const groups = useMemo<IssueGroup[]>(() => {
     const q = query.trim().toLowerCase();
-    const base = issues.filter(i => {
+    const filtered = issues.filter(i => {
       if (filter !== 'all' && i.severity !== filter) return false;
       if (!q) return true;
       const hay = `${i.message} ${i.ruleId} ${i.positionNumber ?? ''} ${i.emplId ?? ''}`.toLowerCase();
       return hay.includes(q);
     });
-    return [...base].sort(
-      (a, b) =>
-        SEV_RANK[a.severity] - SEV_RANK[b.severity] ||
-        a.ruleId.localeCompare(b.ruleId) ||
-        (a.positionNumber ?? '').localeCompare(b.positionNumber ?? ''),
+    const byRule = new Map<string, Issue[]>();
+    for (const i of filtered) {
+      const arr = byRule.get(i.ruleId);
+      if (arr) arr.push(i);
+      else byRule.set(i.ruleId, [i]);
+    }
+    const out: IssueGroup[] = [];
+    for (const [ruleId, list] of byRule) {
+      // A rule normally emits a single severity; if mixed, rank by the most severe.
+      const severity = list.reduce<IssueSeverity>(
+        (s, i) => (SEV_RANK[i.severity] < SEV_RANK[s] ? i.severity : s),
+        list[0].severity,
+      );
+      out.push({ ruleId, severity, description: RULE_BY_ID[ruleId]?.description ?? ruleId, issues: list });
+    }
+    out.sort(
+      (a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity] || a.ruleId.localeCompare(b.ruleId),
     );
+    return out;
   }, [issues, filter, query]);
 
-  // The selected issue, or the first shown one as a sensible default (so the
-  // detail panel is never empty when there's something to show). Falls back
-  // automatically when a filter/search hides the previously-selected row.
-  const selected = useMemo(
-    () => shown.find(i => issueKey(i) === selectedKey) ?? shown[0] ?? null,
-    [shown, selectedKey],
-  );
+  // When searching, every matching group is shown open so results are visible.
+  const searching = query.trim() !== '';
+  const isOpen = (ruleId: string) => searching || expanded.has(ruleId);
+  const toggle = (ruleId: string) =>
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(ruleId)) next.delete(ruleId);
+      else next.add(ruleId);
+      return next;
+    });
+
+  const selected = useMemo(() => {
+    for (const g of groups) {
+      const hit = g.issues.find(i => issueKey(i) === selectedKey);
+      if (hit) return hit;
+    }
+    return null;
+  }, [groups, selectedKey]);
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 24px 64px' }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 4px' }}>Issues / Corrections</h1>
       <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 16px', lineHeight: 1.5 }}>
-        Click an issue to see why it was flagged, how to fix it, the rule it cites, and where to
-        find it in your data. Load reports under <strong>Load Reports</strong> to run the checks.
+        Grouped by type. Click a type to expand its findings, then a finding for details.
       </p>
 
       {issues.length === 0 ? (
@@ -155,7 +201,7 @@ export function IssuesView({ onNavigate }: { onNavigate?: (tab: SourceTabId) => 
           </div>
 
           <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            {/* Master list */}
+            {/* Master list — one row per error type, expandable into findings */}
             <div
               style={{
                 flex: '1 1 440px',
@@ -167,18 +213,24 @@ export function IssuesView({ onNavigate }: { onNavigate?: (tab: SourceTabId) => 
                 overflowY: 'auto',
               }}
             >
-              {shown.length === 0 ? (
+              {groups.length === 0 ? (
                 <div style={{ color: 'var(--muted)', fontSize: 13, padding: '12px 4px' }}>
                   No issues match this filter.
                 </div>
               ) : (
-                shown.map(issue => (
-                  <IssueListRow
-                    key={issueKey(issue)}
-                    issue={issue}
-                    selected={selected != null && issueKey(issue) === issueKey(selected)}
-                    onClick={() => setSelectedKey(issueKey(issue))}
-                  />
+                groups.map(group => (
+                  <div key={group.ruleId} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <GroupHeader group={group} open={isOpen(group.ruleId)} onToggle={() => toggle(group.ruleId)} />
+                    {isOpen(group.ruleId) &&
+                      group.issues.map(issue => (
+                        <TerseRow
+                          key={issueKey(issue)}
+                          issue={issue}
+                          selected={selected != null && issueKey(issue) === issueKey(selected)}
+                          onClick={() => setSelectedKey(issueKey(issue))}
+                        />
+                      ))}
+                  </div>
                 ))
               )}
             </div>
@@ -198,7 +250,7 @@ export function IssuesView({ onNavigate }: { onNavigate?: (tab: SourceTabId) => 
                     fontSize: 13,
                   }}
                 >
-                  Select an issue to see details.
+                  Select a finding to see details.
                 </div>
               )}
             </div>
@@ -232,66 +284,90 @@ function FilterChip(props: { label: string; active: boolean; color: string; onCl
   );
 }
 
-/** A compact, clickable row in the master list. */
-function IssueListRow({ issue, selected, onClick }: { issue: Issue; selected: boolean; onClick: () => void }) {
-  // All-longhand border (no `borderColor`/`borderWidth` shorthand) so React
-  // never warns about a shorthand conflicting with the per-side left accent.
-  const edge = selected ? SEV_COLOR[issue.severity] : 'var(--border)';
+/** A collapsed error-type row: severity dot, rule id + description, count, caret. */
+function GroupHeader({ group, open, onToggle }: { group: IssueGroup; open: boolean; onToggle: () => void }) {
   return (
     <button
-      onClick={onClick}
+      onClick={onToggle}
+      aria-expanded={open}
       style={{
         display: 'flex',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         gap: 10,
         textAlign: 'left',
-        padding: '10px 12px',
+        padding: '9px 12px',
         borderStyle: 'solid',
         borderTopWidth: 1,
         borderRightWidth: 1,
         borderBottomWidth: 1,
         borderLeftWidth: 4,
-        borderTopColor: edge,
-        borderRightColor: edge,
-        borderBottomColor: edge,
-        borderLeftColor: SEV_COLOR[issue.severity],
+        borderTopColor: 'var(--border)',
+        borderRightColor: 'var(--border)',
+        borderBottomColor: 'var(--border)',
+        borderLeftColor: SEV_COLOR[group.severity],
         borderRadius: 8,
-        background: selected ? SEV_BG[issue.severity] : 'var(--surface)',
+        background: 'var(--surface)',
         cursor: 'pointer',
         fontFamily: 'inherit',
         width: '100%',
       }}
     >
+      <span style={{ flexShrink: 0, color: 'var(--muted)', fontSize: 11, width: 10 }}>{open ? '▾' : '▸'}</span>
       <span
         style={{
           flexShrink: 0,
-          marginTop: 5,
           width: 8,
           height: 8,
           borderRadius: '50%',
-          background: SEV_COLOR[issue.severity],
+          background: SEV_COLOR[group.severity],
         }}
       />
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span
-          style={{
-            fontSize: 13,
-            lineHeight: 1.4,
-            color: 'var(--text)',
-            overflow: 'hidden',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-          }}
-        >
-          {issue.message}
-        </span>
-        <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>
-          {issue.ruleId}
-          {issue.positionNumber ? ` · Position ${issue.positionNumber}` : ''}
-          {issue.emplId ? ` · Empl ${issue.emplId}` : ''}
-        </span>
+      <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <strong style={{ fontWeight: 600 }}>{group.ruleId}</strong>
+        <span style={{ color: 'var(--muted)' }}> · {group.description}</span>
       </span>
+      <span
+        style={{
+          flexShrink: 0,
+          fontSize: 12,
+          fontWeight: 700,
+          color: SEV_COLOR[group.severity],
+          background: SEV_BG[group.severity],
+          borderRadius: 10,
+          padding: '1px 9px',
+        }}
+      >
+        {group.issues.length}
+      </span>
+    </button>
+  );
+}
+
+/** A terse, single-line finding row under an expanded group. */
+function TerseRow({ issue, selected, onClick }: { issue: Issue; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title={terseLine(issue)}
+      style={{
+        display: 'block',
+        textAlign: 'left',
+        padding: '6px 10px 6px 32px',
+        border: '1px solid ' + (selected ? SEV_COLOR[issue.severity] : 'transparent'),
+        borderRadius: 6,
+        background: selected ? SEV_BG[issue.severity] : 'transparent',
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        fontSize: 12.5,
+        lineHeight: 1.4,
+        color: 'var(--text)',
+        width: '100%',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {terseLine(issue)}
     </button>
   );
 }
