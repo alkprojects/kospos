@@ -221,7 +221,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="main" style={{ padding: 0 }}>
+      <main className={tab === 'issues' ? 'main main--wide' : 'main'} style={{ padding: 0 }}>
         {tab === 'landing'       && (
           <LandingView persistence={persistence} onNavigate={setTab} />
         )}
@@ -239,7 +239,7 @@ export default function App() {
           <DataView onViewPositions={() => setTab('positions')} />
         )}
         {tab === 'special-class' && <SpecialClassView />}
-        {tab === 'issues'        && <IssuesView />}
+        {tab === 'issues'        && <IssuesView onNavigate={setTab} />}
       </main>
 
       <footer className="site-footer">

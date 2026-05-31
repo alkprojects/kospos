@@ -95,6 +95,12 @@ body,
   gap: 24px;
 }
 
+/* The Issues / Corrections page uses a two-column master-detail layout that
+   needs more than the default 880px readable-column width. */
+.main--wide {
+  max-width: 1200px;
+}
+
 .hero h1 {
   font-size: 28px;
   font-weight: 600;
