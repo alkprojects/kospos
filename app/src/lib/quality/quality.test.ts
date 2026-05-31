@@ -193,6 +193,27 @@ describe('QR-001 positionInBfmNotHcm', () => {
     const records: ImportedRow[] = [bfmPos()];
     expect(positionInBfmNotHcm.check(records)).toHaveLength(0);
   });
+
+  // Regression (S58): BFM keeps zero-padded position numbers ("00304335") while
+  // PS HCM stores them numerically ("304335"). Joining on the normalized key
+  // means the same logical position is recognized, not flagged as missing.
+  it('treats a zero-padded BFM number and an unpadded HCM number as the same position', () => {
+    const records: ImportedRow[] = [
+      bfmPos({ positionNumber: '00304335' }),
+      hcmPos({ positionNumber: '304335' }),
+    ];
+    expect(positionInBfmNotHcm.check(records)).toHaveLength(0);
+  });
+
+  it('keeps the original padded BFM form in the message when genuinely absent from HCM', () => {
+    const records: ImportedRow[] = [
+      bfmPos({ positionNumber: '00304335' }),
+      hcmPos({ positionNumber: '10999' }),
+    ];
+    const issues = positionInBfmNotHcm.check(records);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].positionNumber).toBe('00304335');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -224,6 +245,18 @@ describe('QR-003 payrollExceedsBudget', () => {
     const records: ImportedRow[] = [obiRow({ balanceAmount: 200000 })];
     expect(payrollExceedsBudget.check(records)).toHaveLength(0);
   });
+
+  // Regression (S58): before normalization a zero-padded BFM key would miss the
+  // unpadded OBI identifier and the over-budget would be SILENTLY skipped.
+  it('joins OBI spend to a zero-padded BFM budget so an overage is not missed', () => {
+    const records: ImportedRow[] = [
+      bfmPos({ positionNumber: '00010001', budgetedSalary: 100000 }),
+      obiRow({ positionIdentifier: '10001', balanceAmount: 106000 }),
+    ];
+    const issues = payrollExceedsBudget.check(records);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].positionNumber).toBe('10001'); // original OBI form preserved
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -244,6 +277,23 @@ describe('QR-004 hcmFteBfmMismatch', () => {
   it('does not fire when FTE matches', () => {
     const records: ImportedRow[] = [bfmPos({ fte: 1 }), hcmPos({ fte: 1 })];
     expect(hcmFteBfmMismatch.check(records)).toHaveLength(0);
+  });
+
+  // Regression (S58): zero-padding must not break the FTE join either way.
+  it('does not flag a false mismatch when FTE agrees but padding differs', () => {
+    const records: ImportedRow[] = [
+      bfmPos({ positionNumber: '00010001', fte: 1 }),
+      hcmPos({ positionNumber: '10001', fte: 1 }),
+    ];
+    expect(hcmFteBfmMismatch.check(records)).toHaveLength(0);
+  });
+
+  it('still detects a real FTE mismatch across zero-padding', () => {
+    const records: ImportedRow[] = [
+      bfmPos({ positionNumber: '00010001', fte: 1 }),
+      hcmPos({ positionNumber: '10001', fte: 0.5 }),
+    ];
+    expect(hcmFteBfmMismatch.check(records)).toHaveLength(1);
   });
 });
 
@@ -272,6 +322,16 @@ describe('QR-005 positionInHcmNotBfm', () => {
 
   it('does not fire when BFM data is not loaded', () => {
     const records: ImportedRow[] = [hcmPos()];
+    expect(positionInHcmNotBfm.check(records)).toHaveLength(0);
+  });
+
+  // Regression (S58): a 7-digit HCM number ("1010593") matches the same
+  // position carried zero-padded to 8 digits in BFM ("01010593").
+  it('treats an unpadded HCM number and a zero-padded BFM number as the same position', () => {
+    const records: ImportedRow[] = [
+      bfmPos({ positionNumber: '01010593' }),
+      hcmPos({ positionNumber: '1010593', fillStatus: 'FILLED' }),
+    ];
     expect(positionInHcmNotBfm.check(records)).toHaveLength(0);
   });
 });
@@ -596,6 +656,15 @@ describe('QR-012 payrollWithoutBudgetedPosition', () => {
       bfmPos({ positionNumber: '10001' }),
       obiRow({ positionIdentifier: '88888', balanceAmount: 100, _row: 2 }),
       obiRow({ positionIdentifier: '88888', balanceAmount: -100, _row: 3 }),
+    ])).toHaveLength(0);
+  });
+
+  // Regression (S58): an unpadded OBI identifier must match a zero-padded BFM
+  // key, so legitimately-budgeted spend is not flagged as orphaned.
+  it('does not flag OBI spend budgeted under a zero-padded BFM key', () => {
+    expect(payrollWithoutBudgetedPosition.check([
+      bfmPos({ positionNumber: '00010001' }),
+      obiRow({ positionIdentifier: '10001', balanceAmount: 5000 }),
     ])).toHaveLength(0);
   });
 });

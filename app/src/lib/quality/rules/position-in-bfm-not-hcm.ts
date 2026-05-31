@@ -8,6 +8,7 @@
 
 import type { QualityRule, Issue } from '../types';
 import type { ImportedRow } from '../../importers/types';
+import { normalizePositionKey } from '../../chartfields/resolve';
 
 export const positionInBfmNotHcm: QualityRule = {
   id: 'QR-001',
@@ -25,13 +26,13 @@ export const positionInBfmNotHcm: QualityRule = {
     const hcmPositions = new Set(
       records
         .filter(r => r._source === 'ps-hcm-pp')
-        .map(r => r.positionNumber)
+        .map(r => normalizePositionKey(r.positionNumber))
     );
 
     if (hcmPositions.size === 0) return []; // HCM not loaded yet — can't check
 
     return bfmPositions
-      .filter(r => !hcmPositions.has(r.positionNumber))
+      .filter(r => !hcmPositions.has(normalizePositionKey(r.positionNumber)))
       .map(r => ({
         ruleId: 'QR-001',
         severity: 'error' as const,
