@@ -6,68 +6,58 @@ The next session reads this first.
 
 ---
 
-## Current status (end of Session 58 — quality-rule audit + Issues grouped redesign, 2026-05-30)
+## Current status (end of Session 59 — Issues clear/dismiss + Phase B rules, 2026-05-31)
 
-S58 was a **data-quality rule audit** ("many flagged issues aren't real — go through them one by one") plus a deep dive on the workbook's `Reporting Tree` manual-correction tab. **8 PRs merged.** Tests **1000 → 1010**, build clean, live site synced. **Branch: `none`.**
-
-Root cause of the false positives: BFM **zero-pads** 8-digit position numbers (`00304335`); PS HCM/OBI store them numeric (`304335`). The cross-system rules compared raw strings. The app already had `normalizePositionKey` — the quality rules just hadn't used it.
+S58's confirmed queue, shipped as **5 single-purpose PRs**. Tests **1010 → 1047**, build clean, live site synced. **Branch: `none`.**
 
 ### What shipped
 | PR | What |
 |---|---|
-| [#210](https://github.com/alkprojects/kospos/pull/210) | Issues redesign (S57 carry) merged |
-| [#215](https://github.com/alkprojects/kospos/pull/215) | normalize position-number join keys (QR-001/003/004/005/012) — kills the zero-padding false positives |
-| [#216](https://github.com/alkprojects/kospos/pull/216) | remove QR-004 (FTE mismatch — not a real class) |
-| [#217](https://github.com/alkprojects/kospos/pull/217) | QR-009 — distinct employee records, not effective-dated rows |
-| [#218](https://github.com/alkprojects/kospos/pull/218) | QR-003 — base salary (WKP) only |
-| [#219](https://github.com/alkprojects/kospos/pull/219) | QR-006 — EE Additional Pay = source of truth |
-| [#220](https://github.com/alkprojects/kospos/pull/220) | QR-012 — latest-pay-period only (option B) |
-| [#221](https://github.com/alkprojects/kospos/pull/221) | Issues grouped (Phase A1) — type → terse findings → detail |
+| [#223](https://github.com/alkprojects/kospos/pull/223) | **A2 — Issues clear/dismiss + persistence** (the foundation that makes the noisy rules usable) |
+| [#224](https://github.com/alkprojects/kospos/pull/224) | **QR-011 redefine** — ERROR dept≠budget; WARNING combo dept = position dept |
+| [#225](https://github.com/alkprojects/kospos/pull/225) | **QR-013 (new)** — position with 2+ distinct current incumbents |
+| [#226](https://github.com/alkprojects/kospos/pull/226) | **QR-014 (new)** — FILLED position eliminated in next-FY budget (0 FTE) |
+| [#227](https://github.com/alkprojects/kospos/pull/227) | **Import Budget Position Number** (P&P col BO) into ps-hcm-pp |
 
-### Build queue (Alex confirmed the specs)
-- **Phase A2 (next):** Issues **select / clear-with-reason** + a **"cleared" section above** the errors; persist browser-local (like position notes). Makes the noisy new rules usable.
-- **Phase B rules:** QR-011 redefine — (1) ERROR dept ≠ budget dept, (2) POSSIBLE ERROR combo dept = position dept (no exclusions); new **multiple-incumbents-per-position** flag (commissioners/interns — cleared once); **budget-eliminated-next-FY** (filled + 0 FTE next FY; only fires once Dec budget reports load); QR-008 verify step-class excludes extended steps; import `Budget Position Number` (future-proofing).
+### Decisions waiting on Alex (front-loaded for S60)
+1. **QR-008 step grade-top.** Verified: `topClassBiweekly` (used only by QR-008, advisory) already uses **Range A** for MCCP, but the step path takes the **literal top step**. 261/1702 class-setIDs have a max-rate step >5; only 87 have a `disc.json` boundary, 174 (IT broad-band 1041-43) have none — no clean marker for "extended/longevity." **What should the grade-top be for >5-step classes?** Options: (a) keep literal top step, (b) exclude discretionary steps (fixes only the 87), (c) a per-class grade reference, (d) leave QR-008 as-is.
+2. **"Filled non-TEMP TEX" + "On Leave" as rules?** Recommend yes (cheap ps-hcm-pp scans, now clearable via A2). Need exact semantics: non-TEMP TEX = `appointmentType==='TEX'` + non-temp `exemptCategory`? On Leave = `employeeStatus==='L'`?
+3. **A2 propagation?** Cleared findings currently still show in the inline **Data Issues** badge + per-position flags. Propagate the suppression there too? (Small, makes the feature coherent — recommended first PR.)
 
 ### Carry-forward
 | Item | Status |
 |---|---|
-| Phase A2 (clear/dismiss) → Phase B rules | queued — specs confirmed |
-| "Filled non-TEMP TEX" / "On Leave" as KosPos rules? | **needs Alex** (yes/no) |
-| reassigned-in-budget (~30 Reporting-Tree rows) | deferred → budget-development module |
+| A2 propagation to inline panel + per-position flags | recommended next (no decision needed) |
+| QR-008 grade-top; "Filled non-TEMP TEX" / "On Leave" rules | **needs Alex** (see Decisions above) |
+| reassigned-in-budget (~30 rows) | confirmed deferred → budget-development module |
 | In-app (no code): publish secret on github.io origin; Load Reports "Cloudflare-Worker URL" = `https://kospos.pages.dev/api/dhr-proxy` | open — needs Alex |
-| QR-010 expired-pay; projection engine (B1–B5 in `proposals/s55-projection-engine.md`); Scaling Stage 2; CH 5/7/8/9 | open |
+| QR-010 expired-pay; projection engine (B1–B5 in `proposals/s55-projection-engine.md`); Scaling Stage 2 (index by dept + lazy per-dept load); CH 5/7/8/9 | open — candidate larger builds |
 
 ---
 
-## Next session prompt — Session 59
+## Next session prompt — Session 60
 
-Paste verbatim to start Session 59.
+Paste verbatim to start Session 60.
 
 **Model:** `claude-opus-4-8` (fast mode on)
 
 ```
-Session 59. S58 merged 8 PRs from a data-quality rule audit + a Reporting Tree deep dive: #210 Issues redesign, #215 zero-padding join fix (QR-001/003/004/005/012), #216 removed QR-004, #217 QR-009 effdt-dedup, #218 QR-003 base-pay (WKP), #219 QR-006 guidance, #220 QR-012 latest-PP, #221 Issues grouped (Phase A1). Tests 1010/1010, main clean.
+Session 60. S59 shipped 5 PRs: #223 A2 Issues clear/dismiss + persistence, #224 QR-011 redefine (dept≠budget ERROR / combo=position WARNING), #225 QR-013 multiple-incumbents, #226 QR-014 budget-eliminated-next-FY, #227 import Budget Position Number. Tests 1047, main clean.
 
-Read first: docs/CLAUDE.md (Windows gotchas — Bash cwd is the REPO ROOT now, the worktree was deleted mid-S58; npm needs `--prefix app`; absolute paths for Read/Glob/Grep; branch each PR from origin/main BEFORE editing; `npm run build | tail` masks tsc's exit — capture ${PIPESTATUS[0]}), docs/SESSION_HANDOFF.md, docs/SESSION_LOG.md S58 entry. Confirm state: git log --oneline origin/main -5 (tops at #221) then npm --prefix app install && npm --prefix app test → 1010 (install FIRST).
+Read first: docs/CLAUDE.md (Windows gotchas — absolute paths for Read/Glob/Grep; Bash cwd is the worktree root, npm needs `--prefix app`; branch each PR from origin/main BEFORE editing; `npm run build | tail` masks tsc's exit — capture ${PIPESTATUS[0]}); docs/SESSION_HANDOFF.md; docs/SESSION_LOG.md S59 entry. Confirm state: git log --oneline origin/main -6 then npm --prefix app install && npm --prefix app test → 1047 (install FIRST).
 
-BUILD NEXT (specs confirmed S58), each its own PR:
+Answer up front (these gate the rule work):
+  - QR-008 step grade-top for classes with >5 steps: (a) keep literal top step, (b) exclude discretionary (disc.json — covers 87 of 261), (c) per-class grade reference, (d) leave as-is. (Range/MCCP path already correctly uses Range A.)
+  - "Filled non-TEMP TEX" rule semantics: appointmentType==='TEX' AND a non-temp exemptCategory? And "On Leave" = employeeStatus==='L'? Want both as rules?
 
-A2 — Issues clear/dismiss: select findings, mark cleared / not-an-error with an explanation, show cleared in a section ABOVE the active errors. Persist browser-local like position notes (usePositionNotes pattern + wire into lib/session/snapshot.ts so a clear survives reload + a published snapshot). Key the cleared state on ruleId+positionNumber+emplId (stable; NOT sourceRows, which shift on re-import). Browser-verify + my live aesthetic review. This is the foundation that makes the noisy Phase-B rules usable.
+DEFAULT BUILD (no decision needed) — start here unless you redirect me:
+  - A2 follow-up: propagate cleared-finding suppression to the inline Data Issues panel + the per-position quality flags, so a cleared finding disappears everywhere (not just the Issues view). Expose a shared `useActiveIssues()`-style selector over useAppStore.issues + useClearedFindings. Browser-verify + your live aesthetic review.
 
-Then Phase B rules:
-  - QR-011 redefine: (1) ERROR when position dept != budget dept; (2) POSSIBLE ERROR (warning) when combo code dept = position dept. No exclusions (commissioners/temp included). Memory: combo-code-task-profile. Fields in ps-hcm-pp: departmentCode (position dept) vs budgetDepartmentCode vs comboDepartmentCode.
-  - NEW rule: multiple current incumbents on one position -> flag (commissioners on shared positions + temp interns are legit, cleared once via A2). Detect: group ps-hcm-pp by positionNumber, 2+ distinct non-blank current emplIds.
-  - NEW rule: budget-eliminated-next-FY -> a FILLED position whose NEXT-FY budget FTE is 0 (next FY = FY2026-27 for current FY 2025-26). Uses BFM budgetByFy; only surfaces once Dec budget-development reports are loaded (expect zero until then).
-  - QR-008: verify the step reference excludes extended/longevity steps (grade = top non-extended step / MCCP Range A, per DHR grade-to-grade); restrict topClassBiweekly if it includes extended steps.
-  - Import "Budget Position Number" (P&P col BO) into ps-hcm-pp — future-proofing; always = Position # today.
+Then, per your answers: the two new detector rules (Filled non-TEMP TEX, On Leave), and/or the QR-008 step restriction.
 
-Answer for me when you get there:
-  - "Filled non-TEMP TEX" and "On Leave" (my Reporting-Tree detector columns) — want these as KosPos rules too?
-  - reassigned-in-budget (~30 rows) — confirmed deferred to the budget-development module?
+Bigger builds also open if you'd rather pivot: projection engine (B1–B5 in proposals/s55-projection-engine.md); Scaling Stage 2 (index ps-hcm by dept + lazy per-dept load — north-star citywide, see memory citywide-scaling); QR-010 expired-pay; CH 5/7/8/9.
 
-My in-app actions still pending (no code): enter the publish secret once in the Cloudflare settings on the github.io origin; set Load Reports "Cloudflare-Worker URL" = https://kospos.pages.dev/api/dhr-proxy.
+Hard constraints: branch each PR from origin/main BEFORE editing; one logical change per PR; npm test stays green (1047+); npm run build before any app PR; merge gh pr merge --squash (skip --delete-branch); fast-forward main after each merge. UI changes browser-verified + your live aesthetic review. Per ADR-017 SESSION_LOG always gets at least a short entry.
 
-Hard constraints: branch each PR from origin/main BEFORE editing; one logical change per PR; npm test stays green (1010); npm run build before any app PR; merge gh pr merge --squash (skip --delete-branch); fast-forward main after each merge. UI changes browser-verified + my live aesthetic review. Per ADR-017 SESSION_LOG always gets at least a short entry.
-
-End by updating SESSION_HANDOFF.md (lean) and pasting the S60 prompt verbatim in chat.
+End by updating SESSION_HANDOFF.md (lean) and pasting the S61 prompt verbatim in chat.
 ```

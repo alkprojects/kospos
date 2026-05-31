@@ -774,3 +774,32 @@ QR-004 remove ✓ · QR-009 fix ✓ · QR-003 base/WKP ✓ · QR-006 valid ✓ �
 - Build gate gotcha: `npm run build | tail` masks tsc's exit; a stale origin `node_modules` failed `tsc` on `fake-indexeddb` until `npm install` synced it. Capture `${PIPESTATUS[0]}`.
 
 **Carry-forward → SESSION_HANDOFF (Phase A2 clear/dismiss, then Phase B rules).**
+
+---
+
+## Session 59 — Issues clear/dismiss (Phase A2) + Phase B quality rules (2026-05-31)
+
+S58's confirmed build queue, shipped as **5 single-purpose PRs**. A2 clear/dismiss landed first (browser-verified end to end), then the Phase-B rule batch. Tests **1010 → 1047**, build clean, live site synced. **Branch: `none`.**
+
+### What shipped (5 PRs)
+| PR | What |
+|---|---|
+| [#223](https://github.com/alkprojects/kospos/pull/223) | **A2 — Issues clear/dismiss + persistence.** Select findings (per-row + whole-type checkboxes) → "mark not an error" with a required reason → a "Cleared" section above the active list, each restorable. New `useClearedFindings` store keyed on **rule+position+employee** (NOT sourceRows, which renumber on import); captured into the snapshot's light `planning` record so a clear survives reload + re-import + published snapshot. Browser-verified incl. the IDB `planning` write. |
+| [#224](https://github.com/alkprojects/kospos/pull/224) | **QR-011 redefine** — (1) ERROR dept≠budget (escalated from warning); (2) POSSIBLE ERROR (warning) combo dept = position dept. No exclusions. |
+| [#225](https://github.com/alkprojects/kospos/pull/225) | **QR-013 (new)** — position with 2+ distinct current incumbents (commissioners / pools / interns legit → cleared via A2). Position-level complement to QR-009. |
+| [#226](https://github.com/alkprojects/kospos/pull/226) | **QR-014 (new)** — FILLED position eliminated in next-FY budget (0 FTE). Next FY from the clock (never hardcoded, per working agreement #4); zero findings until the Dec BY+1 columns load. |
+| [#227](https://github.com/alkprojects/kospos/pull/227) | **Import "Budget Position Number"** (P&P col BO) into ps-hcm-pp — future-proofing; == Position # today. |
+
+### QR-008 — verified, step restriction deferred (needs Alex)
+Investigated "exclude extended/longevity steps." Finding: `topClassBiweekly` is used **only** by QR-008 (advisory). Its **range/MCCP path already uses Range A** (correct). The **step path takes the literal top step**. 261/1702 class-setID pairs have a max-rate step numbered >5; only **87** carry a `disc.json` discretionary marker, the other **174** (IT broad-band 1041-43, etc.) have **no** data boundary. There is no clean marker separating a longevity/extended step from a legitimate high step, so restricting it would corrupt a salary-grade comparison on a guess. **Deferred → needs Alex to define the grade-top for >5-step classes.** No code change shipped.
+
+### Answers to Alex's two questions
+- **"Filled non-TEMP TEX" / "On Leave" as KosPos rules?** Recommend **yes** — both are cheap single-source ps-hcm-pp scans (like QR-013) and now usable thanks to A2 clear/dismiss. Need the exact detection semantics first: "non-TEMP TEX" = `appointmentType === 'TEX'` with an `exemptCategory` that isn't a temp / limited-term category? "On Leave" = `employeeStatus === 'L'`? Confirm and they ship in a session.
+- **reassigned-in-budget (~30 rows) deferred to budget-development?** **Confirmed** — stays deferred to the budget-development module (consistent with S58).
+
+### Notable
+- A2 is the foundation that makes the noisy new rules usable — the legit-but-flagged cases (commissioners, pools, intentional combos) are cleared once and stay cleared across re-imports.
+- A2 scoped to the dedicated Issues view; propagating cleared-suppression to the inline Data Issues panel + per-position flags is a noted follow-up.
+- New rule IDs **QR-013 / QR-014** (QR-002 / 004 / 010 remain retired; not reused).
+
+**Carry-forward → SESSION_HANDOFF.**
