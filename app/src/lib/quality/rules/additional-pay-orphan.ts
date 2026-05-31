@@ -34,9 +34,9 @@ export const additionalPayOrphan: QualityRule = {
   description:
     'Acting-pay dual-entry orphan — ACTFLT pay and the "Position Used For" marker disagree',
   rationale:
-    'An acting assignment must agree in two places: the PS HCM ACTFLT pay row (who is actually paid acting) and the manual Position Used For = Acting Assignment marker (cols U/V). A one-sided entry is an orphan: acting pay with no position marker, or a marker with no pay (often a stale marker left after the acting ended).',
+    'An acting assignment must agree in two places: the PS HCM ACTFLT pay row and the manual Position Used For = Acting Assignment marker (cols U/V). The EE Additional Pay query is the source of truth for who is actually paid acting, so when the two disagree it is the manual marker that is out of date. A one-sided entry is an orphan: acting pay with no marker (the marker was never added), or a marker with no pay (a stale marker left after the acting ended).',
   fix:
-    'Reconcile the two sides: add the missing position marker, set up the missing ACTFLT pay, or clear the stale marker if the acting assignment has ended.',
+    'Correct the manual Position Used For marker to match the pay — the EE Additional Pay query is authoritative. Add the marker for an ACTFLT payee who has none, or clear the marker when there is no acting pay (the acting has ended). Do not add pay to match a marker.',
   citations: [
     { label: 'KosPos workbook Tab 9 T2/AA2 acting-pay cross-check' },
     { label: 'Vice is not Acting: incumbency history is not an acting pointer (S56 correction)' },
