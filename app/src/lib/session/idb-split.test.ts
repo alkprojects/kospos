@@ -54,6 +54,7 @@ function fullFile(): SessionFile {
     positionNotes: new Map([['10001', 'note one']]),
     pendingSeparations: new Map([['s1', sep('s1')]]),
     probations: new Map([['p1', prob('p1')]]),
+    clearedFindings: new Map([['QR-001|500|', { reason: 'commissioner', clearedAt: '2026-05-23T00:00:00Z' }]]),
     jobPostings: [posting('j1')],
     jobPostingsRefreshedAt: '2026-05-21T00:00:00Z',
     eligibilityLists: [list('0932')],
@@ -72,7 +73,7 @@ describe('splitSessionFile field partitioning', () => {
       'jobPostings', 'jobPostingsRefreshedAt', 'pdfCache',
     ]);
     expect(Object.keys(s.planning).sort()).toEqual([
-      'pendingSeparations', 'positionNotes', 'probations',
+      'clearedFindings', 'pendingSeparations', 'positionNotes', 'probations',
       'staffingPlanActions', 'staffingPlanDerivedRemoved',
     ]);
   });
@@ -151,6 +152,9 @@ describe('mergeIdbRecords with missing groups (incremental reads)', () => {
     expect(merged!.payload.loadedRows).toEqual([]);
     expect(merged!.payload.jobPostings).toEqual([]);
     expect(merged!.payload.positionNotes).toEqual([['10001', 'note one']]);
+    expect(merged!.payload.clearedFindings).toEqual([
+      ['QR-001|500|', { reason: 'commissioner', clearedAt: '2026-05-23T00:00:00Z' }],
+    ]);
   });
 
   it('defaults planning + scrapers when only the rows record is present', () => {

@@ -396,6 +396,81 @@ describe('session snapshot round-trip', () => {
     if (!result.ok) expect(result.reason).toBe('not-a-session-file');
   });
 
+  it('round-trips clearedFindings through Map → array → Map', () => {
+    const file = buildSessionFile({
+      loadedRows: [],
+      lastBfmImportAt: '',
+      staffingPlanActions: new Map(),
+      staffingPlanDerivedRemoved: new Set(),
+      positionNotes: new Map(),
+      clearedFindings: new Map([
+        ['QR-001|500|', { reason: 'Commissioner — shared position', clearedAt: '2026-05-30T00:00:00.000Z' }],
+        ['QR-003|777|E9', { reason: 'Acting in higher class — expected', clearedAt: '2026-05-31T00:00:00.000Z' }],
+      ]),
+    });
+    expect(file.payload.clearedFindings).toHaveLength(2);
+
+    const json = JSON.stringify(file);
+    const parsed = parseSessionFile(json);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.file.payload.clearedFindings).toHaveLength(2);
+    expect(parsed.file.payload.clearedFindings![0][0]).toBe('QR-001|500|');
+    expect(parsed.file.payload.clearedFindings![0][1].reason).toBe('Commissioner — shared position');
+  });
+
+  it('defaults clearedFindings to [] when buildSessionFile omits the arg (back-compat)', () => {
+    const file = buildSessionFile({
+      loadedRows: [],
+      lastBfmImportAt: '',
+      staffingPlanActions: new Map(),
+      staffingPlanDerivedRemoved: new Set(),
+      positionNotes: new Map(),
+      // clearedFindings omitted on purpose
+    });
+    expect(file.payload.clearedFindings).toEqual([]);
+  });
+
+  it('parseSessionFile accepts a v1 file with clearedFindings missing entirely', () => {
+    // Simulates a session file saved on a build prior to Session 59, when
+    // the field didn't exist. Should still parse cleanly.
+    const result = parseSessionFile(JSON.stringify({
+      kind: 'kospos-session',
+      schemaVersion: SESSION_SCHEMA_VERSION,
+      savedAt: '2026-05-31T00:00:00.000Z',
+      payload: {
+        loadedRows: [],
+        lastBfmImportAt: '',
+        staffingPlanActions: [],
+        staffingPlanDerivedRemoved: [],
+        positionNotes: [],
+        // clearedFindings intentionally omitted
+      },
+    }));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.file.payload.clearedFindings).toBeUndefined();
+    }
+  });
+
+  it('parseSessionFile rejects clearedFindings if present but not an array', () => {
+    const result = parseSessionFile(JSON.stringify({
+      kind: 'kospos-session',
+      schemaVersion: SESSION_SCHEMA_VERSION,
+      savedAt: '2026-05-31T00:00:00.000Z',
+      payload: {
+        loadedRows: [],
+        lastBfmImportAt: '',
+        staffingPlanActions: [],
+        staffingPlanDerivedRemoved: [],
+        positionNotes: [],
+        clearedFindings: { not: 'an array' },
+      },
+    }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('not-a-session-file');
+  });
+
   // -------------------------------------------------------------------------
   // Phase 2.2.q — scraper-state fields (jobPostings / eligibilityLists /
   // pdfCache + their refreshedAt timestamps). All additive on v1 schema.

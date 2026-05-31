@@ -171,7 +171,7 @@ type ScrapersRecord = Pick<
 /** Light, frequently-edited planning record. */
 type PlanningRecord = Pick<
   SessionPayload,
-  'staffingPlanActions' | 'staffingPlanDerivedRemoved' | 'positionNotes' | 'pendingSeparations' | 'probations'
+  'staffingPlanActions' | 'staffingPlanDerivedRemoved' | 'positionNotes' | 'pendingSeparations' | 'probations' | 'clearedFindings'
 >;
 
 /** The four records a SessionFile splits into. */
@@ -221,6 +221,7 @@ export function splitSessionFile(file: SessionFile): SplitRecords {
       positionNotes: p.positionNotes ?? [],
       pendingSeparations: p.pendingSeparations ?? [],
       probations: p.probations ?? [],
+      clearedFindings: p.clearedFindings ?? [],
     },
   };
 }
@@ -257,6 +258,7 @@ export function mergeIdbRecords(records: {
       positionNotes: planning?.positionNotes ?? [],
       pendingSeparations: planning?.pendingSeparations ?? [],
       probations: planning?.probations ?? [],
+      clearedFindings: planning?.clearedFindings ?? [],
       jobPostings: scrapers?.jobPostings ?? [],
       jobPostingsRefreshedAt: scrapers?.jobPostingsRefreshedAt ?? '',
       eligibilityLists: scrapers?.eligibilityLists ?? [],

@@ -17,6 +17,7 @@ import { useStaffingPlan } from '../staffing-plan';
 import { useSeparations } from '../separations';
 import { useProbations } from '../probation';
 import { usePositionNotes } from '../positions/notes';
+import { useClearedFindings } from '../quality/cleared';
 import { useScrapers } from '../scrapers/store';
 import {
   buildSessionFile,
@@ -64,6 +65,8 @@ export function useSessionSnapshot(): UseSessionSnapshot {
 
   const notes = usePositionNotes(s => s.notes);
 
+  const clearedFindings = useClearedFindings(s => s.cleared);
+
   // Per-field selectors (NOT an object-returning selector) so Zustand's
   // useSyncExternalStore doesn't see a fresh reference every render.
   const jobPostings = useScrapers(s => s.jobPostings);
@@ -81,6 +84,7 @@ export function useSessionSnapshot(): UseSessionSnapshot {
       positionNotes: notes,
       pendingSeparations,
       probations,
+      clearedFindings,
       jobPostings,
       jobPostingsRefreshedAt,
       eligibilityLists,

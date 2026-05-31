@@ -43,6 +43,7 @@ import type { PlannedAction } from '../staffing-plan';
 import type { PendingSeparation } from '../separations';
 import type { Probation } from '../probation';
 import type { EligibilityList, JobPosting, PdfExtract } from '../scrapers/types';
+import type { ClearedFinding } from '../quality/cleared';
 
 /**
  * Schema version. Increment when the payload shape changes incompatibly.
@@ -66,6 +67,11 @@ import type { EligibilityList, JobPosting, PdfExtract } from '../scrapers/types'
  *        path persist the Eligibility scrape + 100+ PDF extracts so a
  *        page reload doesn't force the user to re-paste DHR HTML +
  *        re-fetch every PDF.
+ *   v1 — extended (Session 59) — added optional `clearedFindings` field:
+ *        the user's "this isn't a real error" dismissals from the Issues
+ *        view. Same back-compat rule — pre-S59 files load with the field
+ *        undefined; the restore defaults to []. New v1 files always
+ *        include it.
  */
 export const SESSION_SCHEMA_VERSION = 1;
 
@@ -109,6 +115,14 @@ export interface SessionPayload {
    * to []. New v1 files always include the field.
    */
   probations?: Array<[string, Probation]>;
+  /**
+   * Tuple-of-entries form of `useClearedFindings.cleared` (Session 59) — the
+   * user's "this isn't a real error" dismissals, keyed by
+   * `clearedKey(ruleId, positionNumber, emplId)`. Optional for backward
+   * compatibility: v1 files saved before this field was added load with
+   * `clearedFindings` undefined; the restore code defaults to [].
+   */
+  clearedFindings?: Array<[string, ClearedFinding]>;
   /**
    * SmartRecruiters job postings (Phase 2.2.q). Optional for backward
    * compatibility: v1 files saved before this field was added load with
@@ -242,6 +256,11 @@ export function parseSessionFileFromValue(parsed: unknown): ParseResult {
   if (p.probations !== undefined && !Array.isArray(p.probations)) {
     return { ok: false, reason: 'not-a-session-file', detail: 'payload.probations must be an array if present.' };
   }
+  // `clearedFindings` is optional for backward compatibility with v1 files
+  // saved before Session 59. Same rule as pendingSeparations.
+  if (p.clearedFindings !== undefined && !Array.isArray(p.clearedFindings)) {
+    return { ok: false, reason: 'not-a-session-file', detail: 'payload.clearedFindings must be an array if present.' };
+  }
   // Phase 2.2.q scraper-state fields — same back-compat rule. Each is
   // optional; if present it must be the correct shape (arrays for
   // jobPostings / eligibilityLists / pdfCache, string for the *RefreshedAt
@@ -278,6 +297,8 @@ export function buildSessionFile(input: {
   pendingSeparations?: Map<string, PendingSeparation>;
   /** Optional — backward compatible with pre-Phase 2.2.j callers. */
   probations?: Map<string, Probation>;
+  /** Optional — backward compatible with pre-Session-59 callers. */
+  clearedFindings?: Map<string, ClearedFinding>;
   /** Optional — backward compatible with pre-Phase 2.2.q callers. */
   jobPostings?: JobPosting[];
   jobPostingsRefreshedAt?: string;
@@ -302,6 +323,9 @@ export function buildSessionFile(input: {
         : [],
       probations: input.probations
         ? [...input.probations.entries()]
+        : [],
+      clearedFindings: input.clearedFindings
+        ? [...input.clearedFindings.entries()]
         : [],
       jobPostings: input.jobPostings ?? [],
       jobPostingsRefreshedAt: input.jobPostingsRefreshedAt ?? '',
